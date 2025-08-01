@@ -1,18 +1,12 @@
 # Build
 FROM maven:3.9.9-amazoncorretto-21-debian AS build
 
-WORKDIR /usr/src/
-
-RUN apt-get update && apt-get install -y git && \
-    git clone https://github.com/transilvlad/robin.git robin/
+COPY ./ /usr/src/robin/
 
 WORKDIR /usr/src/robin/
 
 RUN mvn clean compile assembly:single
 
-ENTRYPOINT ["tail", "-f", "/dev/null"]
-
-RUN mvn clean compile assembly:single
 
 
 # Production
