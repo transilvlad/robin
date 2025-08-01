@@ -31,10 +31,10 @@
   ],
 
   // Default EHLO to use.
-  ehlo: "mimecast.net",
+  ehlo: "transilvlad.net",
 
   // Default sender and recipients.
-  mail: "robin@mimecast.net",
+  mail: "robin@transilvlad.net",
   rcpt: [
     "robin@example.com"
   ],
