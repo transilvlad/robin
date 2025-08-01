@@ -49,25 +49,19 @@
   routes: [
     {
       name: "local",
-      mx: [
-        "127.0.0.1"
-      ],
+      mx: ["127.0.0.1"],
       port: 25
     },
 
     {
       name: "com",
-      mx: [
-        "example.com"
-      ],
+      mx: ["example.com"],
       port: 25
     },
 
     {
       name: "net",
-      mx: [
-        "example.net"
-      ],
+      mx: ["example.net"],
       port: 465,
       auth: true,
       user: "tony@example.com",
