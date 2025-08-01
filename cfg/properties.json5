@@ -1,11 +1,11 @@
 {
   // Path to MTA logs if one running on local host.
-  localLogsDir: "/home/robin/log/",
+  localLogsDir: "/usr/local/robin/log/",
 
   // Pattern to match UID out of SMT responses.
   uidPattern: "\\s\\[([a-z0-9\\-_]+)]",
 
-  // Send RSET command before aditional envelopes.
+  // Send RSET command before additional envelopes.
   rsetBetweenEnvelopes: false,
 
   // Logging config.
