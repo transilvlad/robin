@@ -11,7 +11,7 @@
   // Number of connections to be allowed in the backlog (default: 25).
   backlog: 25,
 
-  // Maximum number of SMTP transactions to process ofver a connection.
+  // Maximum number of SMTP transactions to process over a connection.
   transactionsLimit: 200,
 
   // Number of SMTP errors to allow before terminating connection (default: 3).
@@ -27,7 +27,7 @@
   chunking: true,
 
   // Java keystore (default: /usr/local/keystore.jks).
-  keystore: "/usr/local/keystore",
+  keystore: "/usr/local/robin/keystore.jks",
 
   // Keystore password.
   keystorepassword: "avengers",
@@ -37,7 +37,7 @@
     enabled: true,
 
     // Path to storage folder.
-    path: "/usr/local/store",
+    path: "/usr/local/robin/store",
 
     // Auto clean storage on service start.
     clean: true,

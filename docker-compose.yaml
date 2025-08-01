@@ -1,0 +1,12 @@
+services:
+  robin:
+    container_name: robin-mta
+    build:
+      context: ./
+      dockerfile: ./Dockerfile
+    volumes:
+      - ./cfg:/usr/local/robin/cfg
+      - ./log:/usr/local/robin/log
+      - ./store:/usr/local/robin/store
+    ports:
+      - "25:25"
