@@ -1,6 +1,6 @@
 Robin MTA Tester
 ================
-By **Vlad Marian** *<vmarian@mimecast.com>*
+By **Vlad Marian** *<transilvlad@gmail.com>*
 
 
 Overview
