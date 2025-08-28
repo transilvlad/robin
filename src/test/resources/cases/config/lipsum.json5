@@ -87,7 +87,7 @@
   // Assertions to run against the connection.
   assertions: {
     // Disable pre assertion checks from failing the test, exit gracefully.
-    protocolFails: false, // If SMTP asertion fails skip.
+    protocolFails: false, // If SMTP assertion fails skip.
     verifyFails: false,
 
     // Protocol assertions.

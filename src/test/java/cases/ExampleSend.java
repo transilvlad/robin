@@ -26,7 +26,7 @@ public class ExampleSend {
     }
 
     /**
-     * JSON example of a basic test that sends an UTF-8 eml file.
+     * JSON example of a basic test that sends a UTF-8 eml file.
      */
     @Test
     void plainTextUtf8Eml() throws AssertException, IOException {

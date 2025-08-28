@@ -2,7 +2,7 @@ Server
 ======
 Rudimentary debug server.
 It supports user authentication and EHLO scenarios.
-Outside of the given scenarios will accept everything.
+Outside the given scenarios will accept everything.
 
 
 Configuration

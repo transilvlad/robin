@@ -28,7 +28,7 @@ Lastly the session also contains the following:
 - `{$uid}` - The Session uid used in logging and storage file path.
 - `{$yymd}` - Date in `yyyyMMdd` format and storage file path.
 
-All of these can be used throught the case files to aid testing automation.
+All of these can be used through the case files to aid testing automation.
 
 
 Magic eml
@@ -70,7 +70,7 @@ _(This can result in duplicate headers when magic headers from above are used wi
 Magic eml headers
 =================
 
-The following headers will enable additional functionalities within the Robin server component uppon receipt.
+The following headers will enable additional functionalities within the Robin server component upon receipt.
 
 - `X-Robin-Filename` - If a value is present and valid filename, this will be used to rename the stored eml file.
 - `X-Robin-Relay` - If a value is present and valid server name and optional port number emai will be relayed to it post receipt.

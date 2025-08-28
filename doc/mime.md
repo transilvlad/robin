@@ -46,7 +46,7 @@ The parts may be either strings of paths.
 In order to define a string use the `message` keyword and for a path `file`.
 
 If the file option is used you can also use the parameter `(int) appendRandomBytes` which will append
-the speified number of brandom bytes at the end of the file.  
+the specified number of random bytes at the end of the file.  
 
 When adding a PDF attachment, you can either specify a pre-created file:
 
@@ -76,7 +76,7 @@ or dynamically generate a file using the magic variables:
 
 JSON doesn't do multiline strings so best to stick with JSON5 to avoid long lines like in above example. 
 
-The below example uses JSON5 multiline string. Don;t fetget the backslash. 
+The below example uses JSON5 multiline string. Don't forget the backslash. 
 
                 headers: [
                   ["Content-Type", "text/plain; charset=\"UTF-8\""],

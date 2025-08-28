@@ -1,6 +1,6 @@
 E/SMTP Cases
 ============
-Cases represent speciffic scenarios that can be configured in JSON and executed as a test for end-to-end testing of MTA & WEB servers.
+Cases represent specific scenarios that can be configured in JSON and executed as a test for end-to-end testing of MTA & WEB servers.
 
 
 Glossary
@@ -32,7 +32,7 @@ Glossary
 
 
 #### Authentication Config
-- `authBeforeTls`  - _(Boolean)_ [default: false] Send _AUTH_ withot requireing TLS. **_Vulnerable behaviour._**
+- `authBeforeTls`  - _(Boolean)_ [default: false] Send _AUTH_ without requiring TLS. **_Vulnerable behaviour._**
 - `authLoginCombined`  - _(Boolean)_ [default: false] Send username and password in one line for _AUTH LOGIN_.
 - `authLoginRetry`  - _(Boolean)_ [default: false] Disable authLoginCombined and retry _AUTH LOGIN_.
 
@@ -42,7 +42,7 @@ Glossary
 
 
 #### XCLIENT
-- `xclient` - _(SMTP command)_ Special feature allowing enumation of client info:
+- `xclient` - _(SMTP command)_ Special feature allowing enumeration of client info:
   - addr - IP address.
   - name - Reverse DNS.
   - helo - HELO/EHLO domain.
@@ -52,7 +52,7 @@ Glossary
 - `mail` - _(String, Email Address)_ [default: client.json5] Sender email address.
 - `rcpt` - _(List, String, Email Address)_ [default: client.json5] Recipients list of email addresses.
 
-- `params` - Allows usage of custom parameters for special enviroments.
+- `params` - Allows usage of custom parameters for special environments.
 
 Will auto-inject list elements at the end of the MAIL or RCPT commands separated by space.
 
@@ -90,9 +90,9 @@ Can be injected in the eml via `{$HEADERS}` magic variable or selective by provi
 
 ##### DATA Config
 _Only one may be used at the same time (Order of priority)._
-- `terminateAfterBytes` - _(Integer, Bytes)_ [default: 0, min: 1] Terminates connection after transfering given bytes of _DATA_ when greater. Enables _terminateBeforeDot_.
-- `terminateBeforeDot` - _(Boolean)_ [default: false] Terminates connection right before transfering _DATA_ terminator &lt;CRLF&gt;.&lt;CRLF&gt;.
-- `terminateAfterDot` - _(Boolean)_ [default: false] Terminates connection right after transfering _DATA_ terminator &lt;CRLF&gt;.&lt;CRLF&gt;.
+- `terminateAfterBytes` - _(Integer, Bytes)_ [default: 0, min: 1] Terminates connection after transferring given bytes of _DATA_ when greater. Enables _terminateBeforeDot_.
+- `terminateBeforeDot` - _(Boolean)_ [default: false] Terminates connection right before transferring _DATA_ terminator &lt;CRLF&gt;.&lt;CRLF&gt;.
+- `terminateAfterDot` - _(Boolean)_ [default: false] Terminates connection right after transferring _DATA_ terminator &lt;CRLF&gt;.&lt;CRLF&gt;.
 
 
 ##### Speed
@@ -107,7 +107,7 @@ _Only one may be used at the same time (Order of priority)._
 #### Message (envelope)
 Every message should have either a file or a subject/message pair!
 If a file is not defined a MIME source will be generated from envelope date along with subject and message.
-Shile message is mandatory subject may be left blank.
+While message is mandatory subject may be left blank.
 
 - `file` - _(String, Path)_ Path to eml file to be transmitted.
 - `folder` - _(String, Path)_ Path to eml containing folder. A random eml file will be chosen for each DATA transmission.
@@ -124,8 +124,8 @@ There are session level and envelope level assertions.
 - SMTP - Initial connection response.
 - EHLO
 - STARTTLS
-- TLS - Successfull handshake protocol / cipher.
-- SHLO - Post STARTLS EHLO response.
+- TLS - Successful handshake protocol / cipher.
+- SHLO - Post STARTTLS EHLO response.
 - XCLIENT
 - XHLO - Post XCLIENT EHLO response.
 - AUTH
@@ -145,7 +145,7 @@ There are session level and envelope level assertions.
 #### Envelope
 - MAIL
 - RCPT
-- DATA/BDAT - Mutully exclusive.
+- DATA/BDAT - Mutually exclusive.
 
         [ "MAIL", "^250" ],
         [ "RCPT", "^250" ],
@@ -157,7 +157,7 @@ There are session level and envelope level assertions.
 MTA Assertions
 ---------------
 You may run assertions against your MTA logs from envelope level.
-A local logs client is provided to deemonstrate.
+A local logs client is provided to demonstrate.
 
 _See LogsClient.java interface for implementation of external clients._
 

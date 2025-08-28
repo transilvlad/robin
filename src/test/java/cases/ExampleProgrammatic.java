@@ -24,7 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 
-public class ExampleProgramatic {
+public class ExampleProgrammatic {
 
     @BeforeAll
     static void before() throws ConfigurationException {

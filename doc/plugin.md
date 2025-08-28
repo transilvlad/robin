@@ -2,7 +2,7 @@ Plugins
 =======
 
 A number of components can be replaced/extended by the use of a plugin annotation.
-SMTP XCLIENT extension is provided in this fasion to demonstrate the use case.
+SMTP XCLIENT extension is provided in this fashion to demonstrate the use case.
 To allow for specific loading order a priority can be provided (default 100).
 
 
@@ -54,7 +54,7 @@ The following SMTP extensions exist by default.
 Adding one by the same name will replace an existing one.
 
 Both server and client callable should be provided but this is not enforced.
-However adding a null client or server implementation will result in a NullPointerException at runtime.
+However, adding a null client or server implementation will result in a NullPointerException at runtime.
 
 - HELO
 - EHLO

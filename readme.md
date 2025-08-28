@@ -5,7 +5,7 @@ By **Vlad Marian** *<transilvlad@gmail.com>*
 
 Overview
 --------
-<img align="right" width="200" height="200" src="doc/logo.jpg">
+<img align="right" width="200" height="200" src="doc/logo.jpg" alt="Logo">
 Robin MTA Tester is a development, debug and testing tool for MTA architects.
 It is powered by a highly customizable SMTP client designed to emulate the behaviour of popular email clients.
 A rudimentary server is also provided that is mainly used for testing the client.
@@ -40,8 +40,8 @@ This project makes use of sample password as needed for testing and demonstratio
 
 - notMyPassword - It's not my password. It can't be as password length and complexity not met.
 - 1234 - Sample used in some unit tests.
-- giveHerTheRing - Another sample used in unit tests and documentation. (Tony Stark / Pepper Pots easter egg)
-- avengers - Test keystore password that contains a single entry issued to Tony Stark. (Another easter egg)
+- giveHerTheRing - Another sample used in unit tests and documentation. (Tony Stark / Pepper Pots Easter egg)
+- avengers - Test keystore password that contains a single entry issued to Tony Stark. (Another Easter egg)
 
 **These passwords are not in use within Mimecast production environments.**
 
@@ -59,6 +59,7 @@ More...
 - [Magic](doc/magic.md)
 - [MIME](doc/mime.md)
 - [Plugins](doc/plugin.md)
+- [Flowchart](doc/flowchart.md)
 
 
 - [Contributing](contributing.md)
