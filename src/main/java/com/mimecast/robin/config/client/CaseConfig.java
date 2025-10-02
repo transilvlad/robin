@@ -249,12 +249,30 @@ public class CaseConfig extends ConfigFoundation {
     }
 
     /**
-     * Gets EHLO domain.
+     * Gets HELO domain (classic SMTP).
+     *
+     * @return Helo domain.
+     */
+    public String getHelo() {
+        return getStringProperty("helo");
+    }
+
+    /**
+     * Gets LHLO domain (LMTP).
+     *
+     * @return Lhlo domain.
+     */
+    public String getLhlo() {
+        return getStringProperty("lhlo");
+    }
+
+    /**
+     * Gets EHLO domain (ESMTP).
      *
      * @return Ehlo domain.
      */
     public String getEhlo() {
-        return getStringProperty("ehlo", "localhost");
+        return getStringProperty("ehlo");
     }
 
     /**

@@ -32,7 +32,7 @@ public class ScenarioConfig extends ConfigFoundation {
     /**
      * Gets HELO to match.
      * <p>This is used to select the scenario to run.
-     * <p>Once the specific ehlo is received the server will enact the matching scenario.
+     * <p>Once the specific HELO is received the server will enact the matching scenario.
      *
      * @return HELO string.
      */
@@ -41,9 +41,20 @@ public class ScenarioConfig extends ConfigFoundation {
     }
 
     /**
+     * Gets LHLO to match.
+     * <p>This is used to select the scenario to run.
+     * <p>Once the specific LHLO is received the server will enact the matching scenario.
+     *
+     * @return LHLO string.
+     */
+    public String getLhlo() {
+        return getStringProperty("lhlo");
+    }
+
+    /**
      * Gets EHLO to match.
      * <p>This is used to select the scenario to run.
-     * <p>Once the specific ehlo is received the server will enact the matching scenario.
+     * <p>Once the specific EHLO is received the server will enact the matching scenario.
      *
      * @return EHLO string.
      */

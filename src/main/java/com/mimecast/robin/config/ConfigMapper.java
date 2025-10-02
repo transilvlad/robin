@@ -61,8 +61,18 @@ public class ConfigMapper {
                 .setProtocols(config.getProtocols())
                 .setCiphers(config.getCiphers());
 
+        // Set HELO domain.
+        if (StringUtils.isNotBlank(config.getHelo())) {
+            session.setHelo(config.getHelo());
+        }
+
+        // Set LHLO domain.
+        else if (StringUtils.isNotBlank(config.getLhlo())) {
+            session.setLhlo(config.getLhlo());
+        }
+
         // Set EHLO domain.
-        if (StringUtils.isNotBlank(config.getEhlo())) {
+        else if (StringUtils.isNotBlank(config.getEhlo())) {
             session.setEhlo(config.getEhlo());
         }
 

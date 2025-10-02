@@ -49,15 +49,21 @@ public class ClientEhlo extends ClientProcessor {
     }
 
     /**
-     * Gets EHLO.
+     * Gets HELO/LHLO/EHLO.
      *
-     * @return EHLO string.
+     * @return Hello string.
      */
     @SuppressWarnings("WeakerAccess")
     public String getEhlo() {
-        String write = "EHLO ";
+        String write = StringUtils.isNotBlank(connection.getSession().getHelo()) ? "HELO " : (
+                StringUtils.isNotBlank(connection.getSession().getLhlo()) ? "LHLO " : "EHLO "
+                );
 
-        if (StringUtils.isNotBlank(connection.getSession().getEhlo())) {
+        if (StringUtils.isNotBlank(connection.getSession().getHelo())) {
+            write += Magic.magicReplace(connection.getSession().getHelo(), connection.getSession());
+        } else if (StringUtils.isNotBlank(connection.getSession().getLhlo())) {
+            write += Magic.magicReplace(connection.getSession().getLhlo(), connection.getSession());
+        } else if (StringUtils.isNotBlank(connection.getSession().getEhlo())) {
             write += Magic.magicReplace(connection.getSession().getEhlo(), connection.getSession());
         } else {
             try {

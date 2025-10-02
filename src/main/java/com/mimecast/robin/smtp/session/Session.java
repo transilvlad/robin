@@ -106,6 +106,16 @@ public class Session {
     private String friendAddr;
 
     /**
+     * [Client] HELO domain.
+     */
+    private String helo = "";
+
+    /**
+     * [Client] LHLO domain.
+     */
+    private String lhlo = "";
+
+    /**
      * [Client] EHLO domain.
      */
     private String ehlo = "";
@@ -561,6 +571,46 @@ public class Session {
      */
     public Session setFriendAddr(String friendAddr) {
         this.friendAddr = friendAddr;
+        return this;
+    }
+
+    /**
+     * Gets HELO domain.
+     *
+     * @return Domain.
+     */
+    public String getHelo() {
+        return helo;
+    }
+
+    /**
+     * Sets HELO domain.
+     *
+     * @param helo HELO domain.
+     * @return Self.
+     */
+    public Session setHelo(String helo) {
+        this.helo = helo;
+        return this;
+    }
+
+    /**
+     * Gets LHLO domain.
+     *
+     * @return Domain.
+     */
+    public String getLhlo() {
+        return lhlo;
+    }
+
+    /**
+     * Sets LHLO domain.
+     *
+     * @param lhlo LHLO domain.
+     * @return Self.
+     */
+    public Session setLhlo(String lhlo) {
+        this.lhlo = lhlo;
         return this;
     }
 

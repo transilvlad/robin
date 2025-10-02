@@ -34,6 +34,7 @@ public class Extensions {
      */
     static {
         map.put("helo", new Extension(ServerEhlo::new, ClientEhlo::new));
+        map.put("lhlo", new Extension(ServerEhlo::new, ClientEhlo::new));
         map.put("ehlo", new Extension(ServerEhlo::new, ClientEhlo::new));
 
         map.put("starttls", new Extension(ServerStartTls::new, ClientStartTls::new));
