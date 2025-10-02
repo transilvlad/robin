@@ -68,7 +68,7 @@ public class ServerEhlo extends ServerProcessor {
     public void writeAdverts() throws IOException {
         List<String> adverts = Lists.newArrayList(Sets.newHashSet(collectAdverts()));
         for (int i = 0; i < adverts.size(); i++) {
-            if (!adverts.get(i).equalsIgnoreCase("STARTLS") || !connection.getSession().isStartTls()) {
+            if (!adverts.get(i).equalsIgnoreCase("STARTTLS") || !connection.getSession().isStartTls()) {
                 connection.write("250" + ((adverts.size() - 1) > i ? "-" : " ") + adverts.get(i));
             }
         }
