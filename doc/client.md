@@ -29,7 +29,11 @@ Usage
             .setProtocols(new String[] { "TLSv1.2" })
             .setCiphers(new String[] { "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384", "TLS_DHE_RSA_WITH_AES_256_GCM_SHA384", })
 
-            // Hello domain.
+            // HELO domain.
+            .setHelo("example.com")
+            // or LHLO domain.
+            .setLhlo("example.com")
+            // or EHLO domain.
             .setEhlo("example.com")
 
             // Authentication etails.

@@ -37,7 +37,10 @@ Glossary
 - `authLoginRetry`  - _(Boolean)_ [default: false] Disable authLoginCombined and retry _AUTH LOGIN_.
 
 
-#### EHLO
+#### HELO/LHLO/EHLO
+HELO takes precedence over the others, LHLO only over EHLO.
+- `helo` - _(String, IP, FQD)_ [default: hostname] _HELO_ domain.
+- `lhlo` - _(String, IP, FQD)_ [default: hostname] _LHLO_ domain.
 - `ehlo` - _(String, IP, FQD)_ [default: hostname] _EHLO_ domain.
 
 
