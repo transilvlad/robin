@@ -38,11 +38,11 @@ public interface StorageClient {
     OutputStream getStream() throws FileNotFoundException;
 
     /**
-     * Gets file token.
+     * Gets file path.
      *
      * @return String.
      */
-    String getToken();
+    String getFile();
 
     /**
      * Saves file.
