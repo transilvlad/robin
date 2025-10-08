@@ -189,6 +189,17 @@ public class MessageEnvelope {
     }
 
     /**
+     * Adds recipients addresses.
+     *
+     * @param rcpt Recipients address.
+     * @return Self.
+     */
+    public MessageEnvelope addRcpts(String rcpt) {
+        this.rcpts.add(rcpt);
+        return this;
+    }
+
+    /**
      * Sets recipients addresses.
      *
      * @param rcpts Recipients address list.
