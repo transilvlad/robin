@@ -143,8 +143,10 @@ public class LocalStorageClient implements StorageClient {
     public void save() {
         if (enabled) {
             try {
-                // Save email path to current envelope.
-                connection.getSession().getEnvelopes().getLast().setFile(getFile());
+                // Save email path to current envelope if any.
+                if (!connection.getSession().getEnvelopes().isEmpty()) {
+                    connection.getSession().getEnvelopes().getLast().setFile(getFile());
+                }
 
                 parser = new EmailParser(getFile()).parse(true);
                 rename();
@@ -197,6 +199,8 @@ public class LocalStorageClient implements StorageClient {
      * <p>Will relay email to provided server.
      */
     private void relay() {
-        new RelayMessage(connection, parser).relay();
+        if (!connection.getSession().getEnvelopes().isEmpty()) {
+            new RelayMessage(connection, parser).relay();
+        }
     }
 }
