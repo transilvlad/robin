@@ -33,9 +33,9 @@ class LocalStorageClientTest {
     void simple() {
         LocalStorageClient localStorageClient = new LocalStorageClient().setConnection(new ConnectionMock(Factories.getSession())).setExtension("dat");
 
-        assertTrue(localStorageClient.getToken().contains("/tmp/store/"));
-        assertTrue(localStorageClient.getToken().contains(new SimpleDateFormat("yyyyMMdd", Config.getProperties().getLocale()).format(new Date()) + "."));
-        assertTrue(localStorageClient.getToken().contains(".dat"));
+        assertTrue(localStorageClient.getFile().contains("/tmp/store/"));
+        assertTrue(localStorageClient.getFile().contains(new SimpleDateFormat("yyyyMMdd", Config.getProperties().getLocale()).format(new Date()) + "."));
+        assertTrue(localStorageClient.getFile().contains(".dat"));
     }
 
     @Test
@@ -43,9 +43,9 @@ class LocalStorageClientTest {
         Connection connection = new Connection(new Session().addRcpt(new InternetAddress("vmarian@mimecast.com")));
         LocalStorageClient localStorageClient = new LocalStorageClient().setConnection(new ConnectionMock(Factories.getSession())).setExtension("dat").setConnection(connection);
 
-        assertTrue(localStorageClient.getToken().contains("/tmp/store/mimecast.com/vmarian/"));
-        assertTrue(localStorageClient.getToken().contains(new SimpleDateFormat("yyyyMMdd", Config.getProperties().getLocale()).format(new Date()) + "."));
-        assertTrue(localStorageClient.getToken().contains(".dat"));
+        assertTrue(localStorageClient.getFile().contains("/tmp/store/mimecast.com/vmarian/"));
+        assertTrue(localStorageClient.getFile().contains(new SimpleDateFormat("yyyyMMdd", Config.getProperties().getLocale()).format(new Date()) + "."));
+        assertTrue(localStorageClient.getFile().contains(".dat"));
     }
 
     @Test
@@ -57,8 +57,8 @@ class LocalStorageClientTest {
         localStorageClient.getStream().write(content.getBytes());
         localStorageClient.save();
 
-        assertEquals(content, PathUtils.readFile(localStorageClient.getToken(), Charset.defaultCharset()));
-        assertTrue(new File(localStorageClient.getToken()).delete());
+        assertEquals(content, PathUtils.readFile(localStorageClient.getFile(), Charset.defaultCharset()));
+        assertTrue(new File(localStorageClient.getFile()).delete());
     }
 
     @Test
@@ -71,12 +71,12 @@ class LocalStorageClientTest {
                 "\r\n";
         localStorageClient.getStream().write(content.getBytes());
 
-        assertTrue(localStorageClient.getToken().endsWith(".dat"));
+        assertTrue(localStorageClient.getFile().endsWith(".dat"));
 
         localStorageClient.save();
 
-        assertTrue(localStorageClient.getToken().endsWith("robin.eml"));
-        assertEquals(content, PathUtils.readFile(localStorageClient.getToken(), Charset.defaultCharset()));
-        assertTrue(new File(localStorageClient.getToken()).delete());
+        assertTrue(localStorageClient.getFile().endsWith("robin.eml"));
+        assertEquals(content, PathUtils.readFile(localStorageClient.getFile(), Charset.defaultCharset()));
+        assertTrue(new File(localStorageClient.getFile()).delete());
     }
 }
