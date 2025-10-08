@@ -23,6 +23,6 @@ class ConfigLoaderTest {
         assertNotNull(Config.getServer());
         assertNotNull(Config.getClient());
         assertNotNull(Config.getProperties());
-        assertTrue(LoggerContext.getContext().getConfiguration().getName().endsWith("/log4j2.xml"));
+        assertTrue(LoggerContext.getContext().getConfiguration().getName().endsWith("log4j2.xml"));
     }
 }
