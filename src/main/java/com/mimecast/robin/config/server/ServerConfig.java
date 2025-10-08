@@ -173,6 +173,15 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
+     * Gets relay config.
+     *
+     * @return BasicConfig instance.
+     */
+    public BasicConfig getRelay() {
+        return new BasicConfig(getMapProperty("relay"));
+    }
+
+    /**
      * Gets users list.
      *
      * @return Users list.

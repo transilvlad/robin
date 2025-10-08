@@ -48,7 +48,36 @@
     ]
   },
 
+  // Email relay configuration.
+  // This default is an example for local Dovecot.
+  relay: {
+    enabled: false,
+
+    // Disable relay by magic header feature.
+    disableRelayHeader: true,
+
+    // Server to forward mail to.
+    host: "localhost",
+
+    // Port of SMTP server to forward mail to.
+    port: 24,
+
+    // Protocol (Default: ESMTP - Options: SMTP, LMTP, ESMTP, DOVECOT-LDA).
+    protocol: "LMTP",
+
+    // Use secure TLS connection to forward mail.
+    tls: false,
+
+    // Mailbox to use when relaying mail via dovecot-lda.
+    // Leave blank to bypass parameter.
+    mailbox: "INBOX",
+
+    // TODO: Bounce email if relay fails.
+    bounce: true
+  },
+
   // Users allowed to authorize to the server.
+  // This feature should be used for testing only.
   users: [
     {
       name: "tony@example.com",
