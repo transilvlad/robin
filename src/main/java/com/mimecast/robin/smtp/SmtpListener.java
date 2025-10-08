@@ -1,6 +1,7 @@
 package com.mimecast.robin.smtp;
 
 import com.mimecast.robin.main.Config;
+import com.mimecast.robin.queue.RelayQueueCron;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -48,6 +49,7 @@ public class SmtpListener {
      */
     public SmtpListener(int port, int backlog, String bind) {
         configure();
+        startup();
 
         try (ServerSocket socket = new ServerSocket(port, backlog, InetAddress.getByName(bind))) {
             listener = socket;
@@ -82,7 +84,15 @@ public class SmtpListener {
     }
 
     /**
-     * Accept incomming connection.
+     * Startup prerequisites.
+     */
+    protected void startup() {
+        // Start relay queue cron job.
+        RelayQueueCron.run();
+    }
+
+    /**
+     * Accept incoming connection.
      */
     private void acceptConnection() {
         try {
