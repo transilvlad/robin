@@ -3,6 +3,7 @@ package com.mimecast.robin.storage;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.main.Foundation;
+import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.connection.ConnectionMock;
 import com.mimecast.robin.smtp.session.Session;
@@ -10,8 +11,6 @@ import com.mimecast.robin.util.PathUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import javax.mail.internet.AddressException;
-import javax.mail.internet.InternetAddress;
 import javax.naming.ConfigurationException;
 import java.io.File;
 import java.io.IOException;
@@ -39,9 +38,13 @@ class LocalStorageClientTest {
     }
 
     @Test
-    void conenction() throws AddressException {
-        Connection connection = new Connection(new Session().addRcpt(new InternetAddress("vmarian@mimecast.com")));
-        LocalStorageClient localStorageClient = new LocalStorageClient().setConnection(new ConnectionMock(Factories.getSession())).setExtension("dat").setConnection(connection);
+    void connection() {
+        Connection connection = new Connection(new Session());
+        MessageEnvelope envelope = new MessageEnvelope().addRcpt("vmarian@mimecast.com");
+        connection.getSession().addEnvelope(envelope);
+        LocalStorageClient localStorageClient = new LocalStorageClient()
+                .setConnection(connection)
+                .setExtension("dat");
 
         assertTrue(localStorageClient.getFile().contains("/tmp/store/mimecast.com/vmarian/"));
         assertTrue(localStorageClient.getFile().contains(new SimpleDateFormat("yyyyMMdd", Config.getProperties().getLocale()).format(new Date()) + "."));
@@ -49,8 +52,10 @@ class LocalStorageClientTest {
     }
 
     @Test
-    void stream() throws AddressException, IOException {
-        Connection connection = new Connection(new Session().addRcpt(new InternetAddress("vmarian@mimecast.com")));
+    void stream() throws IOException {
+        Connection connection = new Connection(new Session());
+        MessageEnvelope envelope = new MessageEnvelope().addRcpt("vmarian@mimecast.com");
+        connection.getSession().addEnvelope(envelope);
         LocalStorageClient localStorageClient = new LocalStorageClient().setConnection(new ConnectionMock(Factories.getSession())).setExtension("eml").setConnection(connection);
 
         String content = "Mime-Version: 1.0\r\n";
@@ -62,8 +67,10 @@ class LocalStorageClientTest {
     }
 
     @Test
-    void filename() throws AddressException, IOException {
-        Connection connection = new Connection(new Session().addRcpt(new InternetAddress("vmarian@mimecast.com")));
+    void filename() throws IOException {
+        Connection connection = new Connection(new Session());
+        MessageEnvelope envelope = new MessageEnvelope().addRcpt("vmarian@mimecast.com");
+        connection.getSession().addEnvelope(envelope);
         LocalStorageClient localStorageClient = new LocalStorageClient().setConnection(new ConnectionMock(Factories.getSession())).setExtension("dat").setConnection(connection);
 
         String content = "Mime-Version: 1.0\r\n" +

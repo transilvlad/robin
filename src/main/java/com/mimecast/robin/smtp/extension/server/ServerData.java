@@ -62,7 +62,7 @@ public class ServerData extends ServerProcessor {
      * @throws IOException Unable to communicate.
      */
     private void ascii() throws IOException {
-        if (connection.getSession().getRcpts().isEmpty()) {
+        if (connection.getSession().getEnvelopes().isEmpty() || connection.getSession().getEnvelopes().getLast().getRcpts().isEmpty()) {
             connection.write("554 5.5.1 No valid recipients [" + connection.getSession().getUID() + "]");
             return;
         }

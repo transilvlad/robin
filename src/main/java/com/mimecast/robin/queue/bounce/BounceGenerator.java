@@ -30,7 +30,7 @@ public class BounceGenerator {
                 "from " + relaySession.getSession().getFriendRdns() + " [" + relaySession.getSession().getFriendAddr() + "]\r\n" +
                 "\r\n" +
                 "   ----- The following addresses had permanent fatal errors -----\r\n" +
-                "From: <" + relaySession.getSession().getMail() + ">\r\n" +
+                "From: <" + relaySession.getSession().getEnvelopes().getLast().getMail() + ">\r\n" +
                 "To: <" + recipient + ">\r\n" +
                 "    (reason: " + relaySession.getRejection() + ")\r\n";
     }

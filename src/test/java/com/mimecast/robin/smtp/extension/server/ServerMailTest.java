@@ -33,7 +33,7 @@ class ServerMailTest {
 
         assertTrue(process);
         assertEquals("tony@example.com", mail.getAddress().getAddress());
-        assertEquals("tony@example.com", connection.getSession().getMail().getAddress());
+        assertEquals("tony@example.com", connection.getSession().getEnvelopes().getLast().getMail());
         assertEquals(42, mail.getSize());
         assertEquals("BINARYMIME", mail.getBody());
         assertEquals("[FAILURE, DELAY]", Arrays.toString(mail.getNotify()));

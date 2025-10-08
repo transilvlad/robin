@@ -92,8 +92,8 @@ public class LocalStorageClient implements StorageClient {
         path = Config.getServer().getStorage().getStringProperty("path", "/tmp/store");
 
         // Append first recipient domain/address to path
-        if (connection != null && !connection.getSession().getRcpts().isEmpty()) {
-            String[] splits = connection.getSession().getRcpts().get(0).getAddress().split("@");
+        if (connection != null && !connection.getSession().getEnvelopes().isEmpty() && !connection.getSession().getEnvelopes().getLast().getRcpts().isEmpty()) {
+            String[] splits = connection.getSession().getEnvelopes().getLast().getRcpts().getFirst().split("@");
             if (splits.length == 2) {
                 path = Paths.get(
                         path,
@@ -149,7 +149,16 @@ public class LocalStorageClient implements StorageClient {
                 }
 
                 parser = new EmailParser(getFile()).parse(true);
+
+                // Rename file if X-Robin-Filename header exists. TODO: Add disablement flag.
                 rename();
+
+                // Save envelope file path.
+                if (!connection.getSession().getEnvelopes().isEmpty()) {
+                    connection.getSession().getEnvelopes().getLast().setFile(getFile());
+                }
+
+                // Relay email if X-Robin-Relay or relay configuration enabled.
                 relay();
 
             } catch (IOException e) {

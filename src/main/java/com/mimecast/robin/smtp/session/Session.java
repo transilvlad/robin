@@ -12,7 +12,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import org.apache.logging.log4j.ThreadContext;
 
-import javax.mail.internet.InternetAddress;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -205,16 +204,6 @@ public class Session {
      * List of envelopes.
      */
     private final List<String> behaviour = new ArrayList<>();
-
-    /**
-     * MAIL FROM envelope address.
-     */
-    private InternetAddress mail;
-
-    /**
-     * RCPT TO envelope addresses.
-     */
-    private final List<InternetAddress> rcpts = new ArrayList<>();
 
     /**
      * List of envelopes.
@@ -982,46 +971,6 @@ public class Session {
      */
     public Session setBehaviour(List<String> list) {
         behaviour.addAll(list);
-        return this;
-    }
-
-    /**
-     * Gets MAIL FROM address.
-     *
-     * @return MAIL FROM address.
-     */
-    public InternetAddress getMail() {
-        return mail;
-    }
-
-    /**
-     * Sets MAIL FROM address.
-     *
-     * @param mail MAIL FROM address.
-     * @return Self.
-     */
-    public Session setMail(InternetAddress mail) {
-        this.mail = mail;
-        return this;
-    }
-
-    /**
-     * Gets RCPT TO address.
-     *
-     * @return RCPT TO address.
-     */
-    public List<InternetAddress> getRcpts() {
-        return rcpts;
-    }
-
-    /**
-     * Adds RCPT TO address.
-     *
-     * @param rcpt RCPT TO address.
-     * @return Self.
-     */
-    public Session addRcpt(InternetAddress rcpt) {
-        this.rcpts.add(rcpt);
         return this;
     }
 

@@ -27,14 +27,15 @@ public class ServerRcpt extends ServerMail {
     public boolean process(Connection connection, Verb verb) throws IOException {
         super.process(connection, verb);
 
+
         // Scenario response.
         Optional<ScenarioConfig> opt = connection.getScenario();
         if (opt.isPresent() && opt.get().getRcpt() != null) {
             for (Map<String, String> entry : opt.get().getRcpt()) {
                 if (getAddress() != null && getAddress().getAddress().matches(entry.get("value"))) {
                     String response = entry.get("response");
-                    if (response.startsWith("2")) {
-                        connection.getSession().addRcpt(getAddress());
+                    if (response.startsWith("2") && !connection.getSession().getEnvelopes().isEmpty()) {
+                        connection.getSession().getEnvelopes().getLast().addRcpt(getAddress().getAddress());
                     }
                     connection.write(response);
                     return response.startsWith("2");
@@ -43,7 +44,9 @@ public class ServerRcpt extends ServerMail {
         }
 
         // Accept all.
-        connection.getSession().addRcpt(getAddress());
+        if (!connection.getSession().getEnvelopes().isEmpty()) {
+            connection.getSession().getEnvelopes().getLast().addRcpt(getAddress().getAddress());
+        }
         connection.write("250 2.1.5 Recipient OK [" + connection.getSession().getUID() + "]");
 
         return true;

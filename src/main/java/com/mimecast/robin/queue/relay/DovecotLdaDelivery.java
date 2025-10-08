@@ -6,7 +6,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import javax.mail.internet.InternetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -29,17 +28,17 @@ public class DovecotLdaDelivery {
     }
 
     public void send() {
-        List<InternetAddress> success = new ArrayList<>();
-        for (InternetAddress recipient : relaySession.getSession().getRcpts()) {
+        List<String> success = new ArrayList<>();
+        for (String recipient : relaySession.getSession().getEnvelopes().getLast().getRcpts()) {
 
             int exitCode = -1;
             try {
                 // Configure command.
                 List<String> command = new ArrayList<>(Arrays.asList(
                         "/usr/lib/dovecot/dovecot-lda",
-                        "-d", relaySession.getSession().getMail().getAddress(),
-                        "-f", relaySession.getSession().getMail().getAddress(),
-                        "-a", recipient.getAddress(),
+                        "-d", relaySession.getSession().getEnvelopes().getLast().getMail(),
+                        "-f", relaySession.getSession().getEnvelopes().getLast().getMail(),
+                        "-a", recipient,
                         // "There can only be one" envelope when relaying. See: RelayMessage.class
                         "-p", relaySession.getSession().getEnvelopes().getFirst().getFile()
                 ));
@@ -71,12 +70,12 @@ public class DovecotLdaDelivery {
             }
 
             if (exitCode != 0) {
-                relaySession.getSession().getSessionTransactionList().addTransaction("LDA", "Dovecot-LDA delivery failed for " + recipient.getAddress(), true);
+                relaySession.getSession().getSessionTransactionList().addTransaction("LDA", "Dovecot-LDA delivery failed for " + recipient, true);
             }
         }
 
-        if (relaySession.getSession().getRcpts().size() != success.size()) {
-            relaySession.getSession().getRcpts().removeAll(success);
+        if (relaySession.getSession().getEnvelopes().getLast().getRcpts().size() != success.size()) {
+            relaySession.getSession().getEnvelopes().getLast().getRcpts().removeAll(success);
             new RelayQueue().enqueue(relaySession);
         }
     }

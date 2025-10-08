@@ -1,6 +1,7 @@
 package com.mimecast.robin.smtp.extension.server;
 
 import com.mimecast.robin.main.Foundation;
+import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.ConnectionMock;
 import com.mimecast.robin.smtp.verb.Verb;
 import org.junit.jupiter.api.BeforeAll;
@@ -23,6 +24,7 @@ class ServerRcptTest {
     void processWithScenario() throws IOException {
         StringBuilder stringBuilder = new StringBuilder();
         ConnectionMock connection = new ConnectionMock(stringBuilder);
+        connection.getSession().addEnvelope(new MessageEnvelope());
 
         Verb verb = new Verb("RCPT TO: <friday-123@example.com>");
 
@@ -31,6 +33,6 @@ class ServerRcptTest {
 
         assertTrue(process);
         assertEquals("friday-123@example.com", rcpt.getAddress().getAddress());
-        assertEquals("friday-123@example.com", connection.getSession().getRcpts().get(0).getAddress());
+        assertEquals("friday-123@example.com", connection.getSession().getEnvelopes().getLast().getRcpts().get(0));
     }
 }

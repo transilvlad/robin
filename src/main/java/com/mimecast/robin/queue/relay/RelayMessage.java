@@ -13,12 +13,10 @@ import com.mimecast.robin.smtp.session.Session;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import javax.mail.internet.InternetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * Relay message.
@@ -40,28 +38,17 @@ public class RelayMessage {
         Optional<MimeHeader> optional = parser.getHeaders().get("x-robin-relay");
         BasicConfig relayConfig = Config.getServer().getRelay();
 
-        // Prepare new envelope.
-        MessageEnvelope envelope = new MessageEnvelope();
-        if (optional.isPresent() || relayConfig.getBooleanProperty("enabled")) {
-            envelope.setMail(connection.getSession().getMail().getAddress())
-                    .setRcpts(connection.getSession().getRcpts()
-                            .stream()
-                            .map(InternetAddress::getAddress)
-                            .collect(Collectors.toList()))
-                    .setFile(file);
-        }
-
         // Sessions for relay.
         final List<Session> sessions = new ArrayList<>();
 
         // Check for relay header if not disabled.
         if (!relayConfig.getBooleanProperty("disableRelayHeader")) {
-            optional.ifPresent(header -> sessions.add(getRelaySession(header, envelope)));
+            optional.ifPresent(header -> sessions.add(getRelaySession(header, connection.getSession().getEnvelopes().getLast())));
         }
 
         // Check relay enabled.
         if (relayConfig.getBooleanProperty("enabled")) {
-            sessions.add(getRelaySession(relayConfig, envelope));
+            sessions.add(getRelaySession(relayConfig, connection.getSession().getEnvelopes().getLast()));
         }
 
         // Deliver sessions if any.

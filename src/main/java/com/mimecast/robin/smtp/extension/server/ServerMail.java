@@ -1,6 +1,7 @@
 package com.mimecast.robin.smtp.extension.server;
 
 import com.mimecast.robin.config.server.ScenarioConfig;
+import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.verb.Verb;
 import org.apache.commons.lang3.StringUtils;
@@ -77,23 +78,32 @@ public class ServerMail extends ServerProcessor {
     public boolean process(Connection connection, Verb verb) throws IOException {
         super.process(connection, verb);
 
-        // Bypass for RCPT extension.
+        // Bypass for RCPT extension which extends this one.
         if (verb.getKey().equals("mail")) {
+
+            // Make envelope.
+            MessageEnvelope envelope = new MessageEnvelope();
+            connection.getSession().addEnvelope(envelope);
 
             // ScenarioConfig response.
             Optional<ScenarioConfig> opt = connection.getScenario();
             if (opt.isPresent() && opt.get().getMail() != null) {
+                if (opt.get().getMail().startsWith("2")) {
+                    envelope.setMail(getAddress().getAddress());
+                }
                 connection.write(opt.get().getMail());
             }
 
             // Accept all.
             else {
-                connection.getSession().setMail(getAddress());
+                envelope.setMail(getAddress().getAddress());
                 connection.write("250 2.1.0 Sender OK [" + connection.getSession().getUID() + "]");
             }
+
+            return true;
         }
 
-        return true;
+        return false;
     }
 
     /**

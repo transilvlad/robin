@@ -11,7 +11,6 @@ import com.mimecast.robin.smtp.MessageEnvelope;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import javax.mail.internet.InternetAddress;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -58,17 +57,17 @@ public class RelayQueueCron {
                         new RelayQueue().enqueue(relaySession);
                     } else {
                         // Generate bounce for each recipient.
-                        for (InternetAddress recipient : relaySession.getSession().getRcpts()) {
+                        for (String recipient : relaySession.getSession().getEnvelopes().getLast().getRcpts()) {
                             BounceGenerator bounceGenerator = new BounceGenerator(relaySession);
-                            String text = bounceGenerator.generatePlainText(recipient.getAddress());
-                            String status = bounceGenerator.generateDeliveryStatus(recipient.getAddress());
+                            String text = bounceGenerator.generatePlainText(recipient);
+                            String status = bounceGenerator.generateDeliveryStatus(recipient);
 
                             // Build MIME.
                             ByteArrayOutputStream stream = new ByteArrayOutputStream();
                             try {
                                 new EmailBuilder(relaySession.getSession(), new MessageEnvelope())
                                         .addHeader("Subject", "Delivery Status Notification (Failure)")
-                                        .addHeader("To", recipient.getAddress())
+                                        .addHeader("To", recipient)
                                         .addHeader("From", "Mail Delivery Subsystem <mailer-daemon@" + Config.getServer().getHostname() + ">")
 
                                         .addPart(new TextMimePart(text.getBytes())
@@ -82,7 +81,7 @@ public class RelayQueueCron {
                                         )
                                         .writeTo(stream);
                             } catch (IOException e) {
-                                log.error("Failed to build bounce message for: {} due to error: {}", recipient.getAddress(), e.getMessage());
+                                log.error("Failed to build bounce message for: {} due to error: {}", recipient, e.getMessage());
                             }
 
                             RelaySession relaySessionBounce = new RelaySession(Factories.getSession())
@@ -90,7 +89,7 @@ public class RelayQueueCron {
 
                             MessageEnvelope envelope = new MessageEnvelope()
                                     .setMail("mailer-daemon@" + Config.getServer().getHostname())
-                                    .setRcpt(recipient.getAddress())
+                                    .setRcpt(recipient)
                                     .setStream(new ByteArrayInputStream(stream.toByteArray()));
 
                             relaySessionBounce.getSession().addEnvelope(envelope);
