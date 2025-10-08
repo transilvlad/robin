@@ -8,8 +8,8 @@ import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.SmtpFoundation;
 import com.mimecast.robin.smtp.transaction.SessionTransactionList;
 import com.mimecast.robin.util.Magic;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
 import org.apache.logging.log4j.ThreadContext;
 
 import javax.mail.internet.InternetAddress;
@@ -22,13 +22,14 @@ import java.util.*;
  * <p>This is the primary container for session data.
  */
 @SuppressWarnings({"UnusedReturnValue", "rawtypes"})
+@Entity
 public class Session {
-    private static final Logger log = LogManager.getLogger(Session.class);
 
     /**
      * UID.
      */
-    private final String uid = UUID.randomUUID().toString();
+    @Id
+    private String uid = UUID.randomUUID().toString();
 
     /**
      * Current RFC 2822 compliant date.
@@ -258,6 +259,16 @@ public class Session {
      */
     public void map(CaseConfig caseConfig) {
         new ConfigMapper(caseConfig).mapTo(this);
+    }
+
+    /**
+     * Sets UID.
+     *
+     * @return Self.
+     */
+    public Session setUID(String uid) {
+        this.uid = uid;
+        return this;
     }
 
     /**
