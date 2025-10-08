@@ -48,8 +48,10 @@ public class DefaultBehaviour implements Behaviour {
      * @throws IOException Unable to communicate.
      */
     boolean ehlo() throws IOException {
-        // HELO/EHLO
-        if (connection.getSession().getEhlo() != null) {
+        // HELO/LHLO/EHLO
+        if (connection.getSession().getHelo() != null ||
+                connection.getSession().getLhlo() != null ||
+                connection.getSession().getEhlo() != null) {
             return process("ehlo", connection);
         }
 
