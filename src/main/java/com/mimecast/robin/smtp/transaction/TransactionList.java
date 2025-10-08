@@ -135,4 +135,14 @@ public abstract class TransactionList {
 
         return found;
     }
+
+    /**
+     * Clears transactions.
+     *
+     * @return TransactionList instance.
+     */
+    public TransactionList clear() {
+        transactions.clear();
+        return this;
+    }
 }
