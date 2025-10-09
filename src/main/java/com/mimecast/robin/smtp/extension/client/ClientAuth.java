@@ -49,6 +49,8 @@ public class ClientAuth extends ClientProcessor {
             return authLogin();
         } else if (connection.getSession().getEhloAuth().contains("plain")) {
             return authPlain();
+        } else {
+            log.error("Unable to authenticate. No supported mechanism found.");
         }
 
         return false;
