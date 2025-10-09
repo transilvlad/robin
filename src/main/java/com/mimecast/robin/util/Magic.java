@@ -238,13 +238,11 @@ public class Magic {
                 if (m.find()) {
                     String group = m.group(1);
                     session.putMagic("transactionResponse", group);
-                    session.putMagic("transactionid", group); // TODO Deprecate.
                 }
             }
 
             // Put UID.
             session.putMagic("transactionUid", UIDExtractor.getUID(new Connection(session), transactionId));
-            session.putMagic("uid", UIDExtractor.getUID(new Connection(session), transactionId)); // TODO Deprecate.
         }
     }
 
