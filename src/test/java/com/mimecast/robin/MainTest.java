@@ -20,7 +20,7 @@ class MainTest {
         assertEquals("", logs.get(2));
         assertEquals("usage:   [--client] [--server]\n" +
                 "    --client   Run as client\n" +
-                "    --server   Run as server\n", logs.get(3));
+                "    --server   Run as server\n", logs.get(3).replaceAll("\r", ""));
         assertEquals("", logs.get(4));
     }
 
@@ -33,7 +33,7 @@ class MainTest {
         assertEquals("", logs.get(2));
         assertEquals("usage:   [--client] [--server]\n" +
                 "    --client   Run as client\n" +
-                "    --server   Run as server\n", logs.get(3));
+                "    --server   Run as server\n", logs.get(3).replaceAll("\r", ""));
         assertEquals("", logs.get(4));
     }
 

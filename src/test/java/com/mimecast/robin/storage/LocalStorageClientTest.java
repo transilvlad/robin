@@ -46,7 +46,7 @@ class LocalStorageClientTest {
                 .setConnection(connection)
                 .setExtension("dat");
 
-        assertTrue(localStorageClient.getFile().contains("/tmp/store/mimecast.com/vmarian/"));
+        assertTrue(localStorageClient.getFile().contains("/tmp/store/mimecast.com/vmarian/") || localStorageClient.getFile().contains("\\tmp\\store\\mimecast.com\\vmarian\\"));
         assertTrue(localStorageClient.getFile().contains(new SimpleDateFormat("yyyyMMdd", Config.getProperties().getLocale()).format(new Date()) + "."));
         assertTrue(localStorageClient.getFile().contains(".dat"));
     }
