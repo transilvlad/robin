@@ -1,6 +1,7 @@
 package com.mimecast.robin.smtp.auth;
 
 import com.mimecast.robin.smtp.connection.Connection;
+import com.mimecast.robin.util.Magic;
 import org.apache.commons.codec.binary.Base64;
 
 /**
@@ -27,8 +28,8 @@ public class Login {
      */
     public Login(Connection connection) {
         if (connection.getSession() != null) {
-            this.username = connection.getSession().getUsername();
-            this.password = connection.getSession().getPassword();
+            this.username = Magic.magicReplace(connection.getSession().getUsername(), connection.getSession());
+            this.password = Magic.magicReplace(connection.getSession().getPassword(), connection.getSession());
         } else {
             this.username = "";
             this.password = "";
