@@ -143,6 +143,8 @@ public class LocalStorageClient implements StorageClient {
     public void save() {
         if (enabled) {
             try {
+                stream.close();
+
                 // Save email path to current envelope if any.
                 if (!connection.getSession().getEnvelopes().isEmpty()) {
                     connection.getSession().getEnvelopes().getLast().setFile(getFile());

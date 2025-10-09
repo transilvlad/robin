@@ -116,6 +116,8 @@ public class EmailParser {
             parseBody();
         }
 
+        stream.close();
+
         return this;
     }
 
