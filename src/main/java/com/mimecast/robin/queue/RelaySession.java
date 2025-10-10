@@ -2,16 +2,15 @@ package com.mimecast.robin.queue;
 
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.smtp.session.Session;
-import jakarta.persistence.Entity;
 
+import java.io.Serializable;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
 /**
  * Relay session.
  */
-@Entity
-public class RelaySession {
+public class RelaySession implements Serializable {
 
     /**
      * Session.
@@ -150,5 +149,15 @@ public class RelaySession {
      */
     public String getRejection() {
         return session.getSessionTransactionList().getErrors().get(0).getResponse();
+    }
+
+    /**
+     * Implements equality check by session UID.
+     *
+     * @return Boolean.
+     */
+    @Override
+    public boolean equals(Object obj) {
+        return obj instanceof RelaySession && session.getUID().equals(((RelaySession) obj).getSession().getUID());
     }
 }

@@ -8,10 +8,9 @@ import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.SmtpFoundation;
 import com.mimecast.robin.smtp.transaction.SessionTransactionList;
 import com.mimecast.robin.util.Magic;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
 import org.apache.logging.log4j.ThreadContext;
 
+import java.io.Serializable;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -21,13 +20,11 @@ import java.util.*;
  * <p>This is the primary container for session data.
  */
 @SuppressWarnings({"UnusedReturnValue", "rawtypes"})
-@Entity
-public class Session {
+public class Session implements Serializable {
 
     /**
      * UID.
      */
-    @Id
     private String uid = UUID.randomUUID().toString();
 
     /**

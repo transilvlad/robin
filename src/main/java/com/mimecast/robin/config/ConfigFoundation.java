@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,7 +27,7 @@ import java.util.Map;
  * @see ClientConfig
  */
 @SuppressWarnings({"unchecked", "rawtypes"})
-public abstract class ConfigFoundation {
+public abstract class ConfigFoundation implements Serializable {
     protected static final Logger log = LogManager.getLogger(ConfigFoundation.class);
 
     /**

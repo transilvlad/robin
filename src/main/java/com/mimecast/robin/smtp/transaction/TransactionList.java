@@ -3,6 +3,7 @@ package com.mimecast.robin.smtp.transaction;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -13,7 +14,7 @@ import java.util.List;
  * <p>This provides an abstract implementation for SMTP transactions.
  */
 @SuppressWarnings("squid:S1192")
-public abstract class TransactionList {
+public abstract class TransactionList implements Serializable {
     private static final Logger log = LogManager.getLogger(TransactionList.class);
 
     /**
