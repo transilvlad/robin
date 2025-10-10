@@ -34,12 +34,10 @@ class MagicTest {
         session.saveResults("host", List.of(Map.of("com", "example.com")));
         assertEquals("example.com", Magic.magicReplace("{$host[0][com]}", session, false));
 
-        int offset = TimeZone.getDefault().getRawOffset();
-
         session.putMagic("date", "20240109000000000");
-        assertEquals(String.valueOf(1704758400000L - offset), Magic.magicReplace("{dateToMillis$date}", session, false));
+        assertEquals(String.valueOf(1704758400000L), Magic.magicReplace("{dateToMillis$date}", session, false));
 
-        session.putMagic("milis", String.valueOf(1704758400000L - offset));
+        session.putMagic("milis", String.valueOf(1704758400000L));
         assertEquals("20240109000000000", Magic.magicReplace("{millisToDate$milis}", session, false));
 
         session.putMagic("upper", "ABC");

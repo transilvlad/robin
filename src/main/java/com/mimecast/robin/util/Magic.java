@@ -249,7 +249,7 @@ public class Magic {
     /**
      * Simple date format instance.
      */
-    protected final static SimpleDateFormat millisDateFormat = new SimpleDateFormat("yyyyMMddHHmmssSSS");
+    protected final static SimpleDateFormat millisDateFormat = new SimpleDateFormat("yyyyMMddHHmmssSSS", Config.getProperties().getLocale());
 
     /**
      * Converts readable date to epoch millis.
