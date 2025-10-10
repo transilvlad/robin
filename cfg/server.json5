@@ -73,7 +73,10 @@
     mailbox: "INBOX",
 
     // TODO: Bounce email if relay fails.
-    bounce: true
+    bounce: true,
+
+    // Queue file to use for persisting messages that could not be relayed.
+    queueFile: "/tmp/robinRelayQueue.db"
   },
 
   // Users allowed to authorize to the server.
