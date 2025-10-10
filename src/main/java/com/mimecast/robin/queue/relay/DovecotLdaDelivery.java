@@ -1,6 +1,7 @@
 package com.mimecast.robin.queue.relay;
 
-import com.mimecast.robin.queue.RelayQueue;
+import com.mimecast.robin.queue.PersistentQueue;
+import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.queue.RelaySession;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -76,7 +77,10 @@ public class DovecotLdaDelivery {
 
         if (relaySession.getSession().getEnvelopes().getLast().getRcpts().size() != success.size()) {
             relaySession.getSession().getEnvelopes().getLast().getRcpts().removeAll(success);
-            new RelayQueue().enqueue(relaySession);
+
+            // Enqueue for retry.
+            PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE)
+                    .enqueue(relaySession);
         }
     }
 }

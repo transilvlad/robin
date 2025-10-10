@@ -5,7 +5,8 @@ import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.headers.MimeHeader;
-import com.mimecast.robin.queue.RelayQueue;
+import com.mimecast.robin.queue.PersistentQueue;
+import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
@@ -26,12 +27,10 @@ public class RelayMessage {
 
     private final Connection connection;
     private final EmailParser parser;
-    private final String file;
 
     public RelayMessage(Connection connection, EmailParser parser) {
         this.connection = connection;
         this.parser = parser;
-        this.file = connection.getSession().getEnvelopes().getLast().getFile();
     }
 
     public void relay() {
@@ -60,8 +59,9 @@ public class RelayMessage {
                         .setMailbox(relayConfig.getStringProperty("mailbox"))
                         .setProtocol(relayConfig.getStringProperty("protocol", "ESMTP"));
 
-                // Enqueue for relay.
-                new RelayQueue().enqueue(relaySession);
+                // Enqueue for retry.
+                PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE)
+                    .enqueue(relaySession);
             }
         }
     }
