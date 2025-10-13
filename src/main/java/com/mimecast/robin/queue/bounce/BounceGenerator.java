@@ -26,7 +26,7 @@ public class BounceGenerator {
      * @return String.
      */
     public String generatePlainText(String recipient) {
-        return "The original message was received at " + relaySession.getLastRetryDate() + "\r\n" +
+        return "The original message was received at " + relaySession.getSession().getDate() + "\r\n" +
                 "from " + relaySession.getSession().getFriendRdns() + " [" + relaySession.getSession().getFriendAddr() + "]\r\n" +
                 "\r\n" +
                 "   ----- The following addresses had permanent fatal errors -----\r\n" +
