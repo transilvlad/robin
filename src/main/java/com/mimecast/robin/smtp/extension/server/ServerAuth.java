@@ -3,6 +3,7 @@ package com.mimecast.robin.smtp.extension.server;
 import com.mimecast.robin.config.server.UserConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Extensions;
+import com.mimecast.robin.sasl.DovecotSaslAuthNative;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.verb.AuthVerb;
 import com.mimecast.robin.smtp.verb.Verb;
@@ -56,14 +57,39 @@ public class ServerAuth extends ServerProcessor {
 
             // Get available users for authentication.
             if (!connection.getSession().getUsername().isEmpty()) {
-                Optional<UserConfig> opt = connection.getUser(connection.getSession().getUsername());
-                if (opt.isPresent() && opt.get().getPass().equals(connection.getSession().getPassword())) {
-                    connection.getSession().setAuth(true);
-                    connection.write("235 2.7.0 Authorized");
-                    return true;
-                } else {
-                    connection.write("535 5.7.1 Unauthorized");
-                    return false;
+                // Check if users are enabled in configuration and try and authenticate if so.
+                if (Config.getServer().isDovecotAuth()) {
+                    try (DovecotSaslAuthNative dovecotSaslAuthNative = new DovecotSaslAuthNative()) {
+                        // Attempt to authenticate against Dovecot.
+                        if (dovecotSaslAuthNative.authenticate(
+                                authVerb.getType(),
+                                connection.getSession().isStartTls(),
+                                connection.getSession().getUsername(),
+                                connection.getSession().getPassword(),
+                                "smtp",
+                                connection.getSession().getAddr(),
+                                connection.getSession().getFriendAddr()
+                        )) {
+                            connection.getSession().setAuth(true);
+                            connection.write("235 2.7.0 Authorized");
+                            return true;
+                        } else {
+                            connection.write("535 5.7.1 Unauthorized");
+                            return false;
+                        }
+                    } catch (Exception e) {
+                        log.error("Dovecot authentication error: {}", e.getMessage());
+                    }
+                } else if (Config.getServer().isUsersEnabled()) {
+                    Optional<UserConfig> opt = connection.getUser(connection.getSession().getUsername());
+                    if (opt.isPresent() && opt.get().getPass().equals(connection.getSession().getPassword())) {
+                        connection.getSession().setAuth(true);
+                        connection.write("235 2.7.0 Authorized");
+                        return true;
+                    } else {
+                        connection.write("535 5.7.1 Unauthorized");
+                        return false;
+                    }
                 }
             }
         }

@@ -182,6 +182,24 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
+     * Is Dovecot authentication via UNIX socket enabled.
+     *
+     * @return Boolean.
+     */
+    public boolean isDovecotAuth() {
+        return getBooleanProperty("dovecotAuth", true);
+    }
+
+    /**
+     * Is users enabled.
+     *
+     * @return Boolean.
+     */
+    public boolean isUsersEnabled() {
+        return !isDovecotAuth() && getBooleanProperty("usersEnabled", true);
+    }
+
+    /**
      * Gets users list.
      *
      * @return Users list.

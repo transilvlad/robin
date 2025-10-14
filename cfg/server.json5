@@ -79,8 +79,16 @@
     queueFile: "/tmp/robinRelayQueue.db"
   },
 
+  // Dovecot authentication configuration.
+  // This default is an example for local Dovecot.
+  // Enabling this will disable the users list below.
+  dovecotAuth: true,
+  dovecotSocketPath: "/var/spool/postfix/private/auth",
+
   // Users allowed to authorize to the server.
   // This feature should be used for testing only.
+  // This is disabled by default for security reasons.
+  usersEnabled: false,
   users: [
     {
       name: "tony@example.com",
