@@ -33,16 +33,16 @@ class ScenarioConfigTest {
 
     @Test
     void getStartTls() {
-        assertEquals("TLSv1.0", scenarioConfig.getStarTls().getListProperty("protocols").get(0));
-        assertEquals("TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA", scenarioConfig.getStarTls().getListProperty("ciphers").get(0));
+        assertEquals("TLSv1.0", scenarioConfig.getStarTls().getListProperty("protocols").getFirst());
+        assertEquals("TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA", scenarioConfig.getStarTls().getListProperty("ciphers").getFirst());
         assertEquals("220 You will fail", scenarioConfig.getStarTls().getStringProperty("response"));
     }
 
     @Test
     void getRcpt() {
         assertFalse(scenarioConfig.getRcpt().isEmpty());
-        assertEquals("ultron@reject\\.com", scenarioConfig.getRcpt().get(0).get("value"));
-        assertEquals("501 Heart not found", scenarioConfig.getRcpt().get(0).get("response"));
+        assertEquals("ultron@reject\\.com", scenarioConfig.getRcpt().getFirst().get("value"));
+        assertEquals("501 Heart not found", scenarioConfig.getRcpt().getFirst().get("response"));
     }
 
     @Test

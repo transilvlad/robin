@@ -28,7 +28,7 @@ class ServerConfigTest {
 
     @Test
     void getBacklog() {
-        assertEquals(20, Config.getServer().getBacklog());
+        assertEquals(25, Config.getServer().getBacklog());
     }
 
     @Test

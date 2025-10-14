@@ -1,13 +1,22 @@
 package com.mimecast.robin.queue.bounce;
 
+import com.mimecast.robin.main.Foundation;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.session.Session;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+
+import javax.naming.ConfigurationException;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BounceGeneratorTest {
+
+    @BeforeAll
+    static void before() throws ConfigurationException {
+        Foundation.init("src/test/resources/");
+    }
 
     private static Session session = new Session();
     private static RelaySession relaySession = new RelaySession(session);
@@ -39,7 +48,7 @@ class BounceGeneratorTest {
         BounceGenerator bounceGenerator = new BounceGenerator(relaySession);
         String result = bounceGenerator.generateDeliveryStatus("tony@example.com");
 
-        assertTrue(result.contains("Reporting-MTA: dns; mimecast.com"));
+        assertTrue(result.contains("Reporting-MTA: dns; example.com"));
         assertTrue(result.contains("Received-From-MTA: DNS; stark.example.com"));
         assertTrue(result.contains("Arrival-Date: " + session.getDate()));
 

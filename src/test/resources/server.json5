@@ -1,64 +1,156 @@
 {
-  "bind": "::",
-  "port": 25,
-  "backlog": 20,
-  "transactionsLimit": 200,
-  "errorLimit": 3,
+  // Hostname to declare in welcome message.
+  hostname: "example.com",
+  
+  // Interface the server will bind too (default: ::).
+  bind: "::",
+  
+  // Port the server will listen too (default: 25).
+  port: 25,
+  
+  // Number of connections to be allowed in the backlog (default: 25).
+  backlog: 25,
+  
+  // Maximum number of SMTP transactions to process over a connection.
+  transactionsLimit: 200,
+  
+  // Number of SMTP errors to allow before terminating connection (default: 3).
+  errorLimit: 3,
 
-  "auth": true,
-  "starttls": true,
-  "chunking": true,
+  // Advertise AUTH support (default: true).
+  auth: true,
 
-  "keystore": "src/test/resources/keystore.jks",
-  "keystorepassword": "avengers",
+  // Advertise STARTTLS support (default: true).
+  starttls: true,
 
-  "storage": {
-    "enabled": true,
-    "path": "/tmp/store"
+  // Advertise CHUNKING support (default: true).
+  chunking: true,
+
+  // Java keystore (default: /usr/local/keystore.jks).
+  keystore: "src/test/resources/keystore.jks",
+
+  // Keystore password.
+  keystorepassword: "avengers",
+
+  // Email storage configuration.
+  storage: {
+    enabled: true,
+
+    // Path to storage folder.
+    path: "/tmp/store",
+
+    // Auto clean storage on service start.
+    clean: true,
+
+    // Auto clean delete matching filenames only.
+    patterns: [
+      "^([0-9]{8}\\.)"
+    ]
   },
 
-  "users": [
+  // Email relay configuration.
+  // This default is an example for local Dovecot.
+  relay: {
+    enabled: false,
+
+    // Disable relay by magic header feature.
+    disableRelayHeader: true,
+
+    // Server to forward mail to.
+    host: "localhost",
+
+    // Port of SMTP server to forward mail to.
+    port: 2025,
+
+    // Protocol (Default: ESMTP - Options: SMTP, LMTP, ESMTP, DOVECOT-LDA).
+    protocol: "LMTP",
+
+    // Use secure TLS connection to forward mail.
+    tls: false,
+
+    // Mailbox to use when relaying mail via dovecot-lda.
+    // Leave blank to bypass parameter.
+    mailbox: "INBOX",
+
+    // Bounce email if relay fails.
+    bounce: true,
+
+    // Queue file to use for persisting messages that could not be relayed.
+    queueFile: "/work/robin/store/robinRelayQueue.db"
+  },
+
+  // Dovecot authentication configuration.
+  // This default is an example for local Dovecot.
+  // Enabling this will disable the users list below.
+  dovecotAuth: false,
+  dovecotSocketPath: "/var/spool/postfix/private/auth",
+
+  // Users allowed to authorize to the server.
+  // This feature should be used for testing only.
+  // This is disabled by default for security reasons.
+  usersEnabled: true,
+  users: [
     {
-      "name": "tony@example.com",
-      "pass": "giveHerTheRing"
+      name: "tony@example.com",
+      pass: "giveHerTheRing"
     }
   ],
 
-  "scenarios": {
+  // Predefined server response scenarios based on EHLO value.
+  scenarios: {
+
+    // Default scenario to use if no others match.
     "*": {
-      "rcpt": [
+      rcpt: [
+        // Custom response for addresses matching value regex.
         {
-          "value": "friday\\-[0-9]+@example\\.com",
-          "response": "252 I think I know this user"
+          value: "friday\\-[0-9]+@example\\.com",
+          response: "252 I think I know this user"
         }
       ]
     },
+
+    // How to reject mail at different commands.
     "reject.com": {
-      "ehlo": "501 Not talking to you",
-      "starttls": {
-        "protocols": ["TLSv1.0"],
-        "ciphers": ["TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"],
-        "response": "220 You will fail"
+      // Custom response for EHLO.
+      ehlo: "501 Not talking to you",
+
+      // How to configure TLS for failure using a deprecated version and weak cipher.
+      // Custom response for STARTTLS.
+      // STARTTLS also supports a list of protocols and ciphers to use handshake.
+      starttls: {
+        response: "220 You will fail",
+        protocols: ["TLSv1.0"],
+        ciphers: ["TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"]
       },
-      "mail": "451 I'm not listening to you",
-      "rcpt": [
+
+      // Custom response for MAIL.
+      mail: "451 I'm not listening to you",
+
+      // Custom response for given recipients.
+      rcpt: [
         {
-          "value": "ultron@reject\\.com",
-          "response": "501 Heart not found"
+          value: "ultron@reject\\.com",
+          response: "501 Heart not found"
         }
       ],
-      "data": "554 Your data is corrupted"
+
+      // Custom response for DATA.
+      data: "554 Your data is corrupted"
     },
+
+    // How to reject specific recipient addresses.
     "rejectmail.com": {
-      "rcpt": [
+      rcpt: [
         {
-          "value": "jane@example\\.com",
-          "response": "501 Invalid address"
+          value: "jane@example\\.com",
+          response: "501 Invalid address"
         }
       ]
     },
+
     "helo.com": {
-      "ehlo": "500 ESMTP Error (Try again using SMTP)"
+      ehlo: "500 ESMTP Error (Try again using SMTP)"
     }
   }
 }

@@ -72,7 +72,7 @@
     // Leave blank to bypass parameter.
     mailbox: "INBOX",
 
-    // TODO: Bounce email if relay fails.
+    // Bounce email if relay fails.
     bounce: true,
 
     // Queue file to use for persisting messages that could not be relayed.

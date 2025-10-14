@@ -16,14 +16,14 @@ class PersistentQueueTest {
     static PersistentQueue<RelaySession> queue;
 
     @BeforeAll
-    static void setUp() {
+    static void before() {
         dbFile = Paths.get(System.getProperty("java.io.tmpdir"), UUID.randomUUID() + ".db").toFile();
         dbFile.deleteOnExit();
         queue = PersistentQueue.getInstance(dbFile);
     }
 
     @AfterAll
-    static void tearDown() {
+    static void after() {
         queue.close();
     }
 
