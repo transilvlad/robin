@@ -187,7 +187,7 @@ public class ServerConfig extends ConfigFoundation {
      * @return Boolean.
      */
     public boolean isDovecotAuth() {
-        return getBooleanProperty("dovecotAuth", true);
+        return getBooleanProperty("dovecotAuth", false);
     }
 
     /**
@@ -196,7 +196,7 @@ public class ServerConfig extends ConfigFoundation {
      * @return Boolean.
      */
     public boolean isUsersEnabled() {
-        return !isDovecotAuth() && getBooleanProperty("usersEnabled", true);
+        return !isDovecotAuth() && getBooleanProperty("usersEnabled", false);
     }
 
     /**
