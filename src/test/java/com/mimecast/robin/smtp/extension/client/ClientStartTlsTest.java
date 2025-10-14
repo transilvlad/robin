@@ -37,7 +37,7 @@ class ClientStartTlsTest {
             }
         });
         thread.start();
-        Thread.sleep(300);
+        Thread.sleep(500);
     }
 
     @AfterAll
