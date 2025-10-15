@@ -39,7 +39,7 @@ public class DovecotLdaDelivery {
             try {
                 // Configure command.
                 List<String> command = new ArrayList<>(Arrays.asList(
-                        Config.getServer().getDovecotLdaSocket(),
+                        Config.getServer().getDovecotLdaBinary(),
                         "-d", relaySession.getSession().getEnvelopes().getLast().getMail(),
                         "-f", relaySession.getSession().getEnvelopes().getLast().getMail(),
                         "-a", recipient,

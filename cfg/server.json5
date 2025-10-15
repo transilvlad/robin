@@ -90,8 +90,8 @@
   // Path to Dovecot authentication socket.
   dovecotAuthSocket: "/run/dovecot/auth-userdb",
 
-  // Path to Dovecot LDA socket.
-  dovecotLdaSocket: "/usr/lib/dovecot/dovecot-lda",
+  // Path to Dovecot LDA binary.
+  dovecotLdaBinary: "/usr/libexec/dovecot/dovecot-lda",
 
   // Users allowed to authorize to the server.
   // This feature should be used for testing only.

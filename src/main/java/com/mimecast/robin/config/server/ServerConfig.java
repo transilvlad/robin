@@ -200,12 +200,12 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
-     * Gets Dovecot LDA socket path.
+     * Gets Dovecot LDA binary path.
      *
      * @return String.
      */
-    public String getDovecotLdaSocket() {
-        return getStringProperty("dovecotLdaSocket", "/usr/lib/dovecot/dovecot-lda");
+    public String getDovecotLdaBinary() {
+        return getStringProperty("dovecotLdaBinary", "/usr/lib/dovecot/dovecot-lda");
     }
 
     /**
