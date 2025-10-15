@@ -45,7 +45,10 @@
     // Auto clean delete matching filenames only.
     patterns: [
       "^([0-9]{8}\\.)"
-    ]
+    ],
+
+    // Save a copy of each email to Dovecot LDA.
+    saveToDovecotLda: false
   },
 
   // Email relay configuration.
@@ -83,7 +86,12 @@
   // This default is an example for local Dovecot.
   // Enabling this will disable the users list below.
   dovecotAuth: true,
-  dovecotSocketPath: "/var/spool/postfix/private/auth",
+
+  // Path to Dovecot authentication socket.
+  dovecotAuthSocket: "/var/spool/postfix/private/auth",
+
+  // Path to Dovecot LDA socket.
+  dovecotLdaSocket: "/usr/lib/dovecot/dovecot-lda",
 
   // Users allowed to authorize to the server.
   // This feature should be used for testing only.

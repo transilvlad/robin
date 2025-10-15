@@ -1,7 +1,6 @@
 package com.mimecast.robin.queue.relay;
 
-import com.mimecast.robin.queue.PersistentQueue;
-import com.mimecast.robin.queue.RelayQueueCron;
+import com.mimecast.robin.main.Config;
 import com.mimecast.robin.queue.RelaySession;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -28,15 +27,19 @@ public class DovecotLdaDelivery {
         this.relaySession = relaySession;
     }
 
-    public void send() {
-        List<String> success = new ArrayList<>();
+    /**
+     * Sends the email using Dovecot LDA.
+     *
+     * @return DovecotLdaDelivery instance.
+     */
+    public DovecotLdaDelivery send() {
         for (String recipient : relaySession.getSession().getEnvelopes().getLast().getRcpts()) {
 
             int exitCode = -1;
             try {
                 // Configure command.
                 List<String> command = new ArrayList<>(Arrays.asList(
-                        "/usr/lib/dovecot/dovecot-lda",
+                        Config.getServer().getDovecotLdaSocket(),
                         "-d", relaySession.getSession().getEnvelopes().getLast().getMail(),
                         "-f", relaySession.getSession().getEnvelopes().getLast().getMail(),
                         "-a", recipient,
@@ -62,7 +65,6 @@ public class DovecotLdaDelivery {
                 // Log result.
                 if (exitCode == 0) {
                     log.info("Dovecot-LDA delivery successfully");
-                    success.add(recipient);
                 } else {
                     log.error("Dovecot-LDA delivery failed with exit code: {}, error: {}", exitCode, error);
                 }
@@ -75,12 +77,6 @@ public class DovecotLdaDelivery {
             }
         }
 
-        if (relaySession.getSession().getEnvelopes().getLast().getRcpts().size() != success.size()) {
-            relaySession.getSession().getEnvelopes().getLast().getRcpts().removeAll(success);
-
-            // Enqueue for retry.
-            PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE)
-                    .enqueue(relaySession);
-        }
+        return this;
     }
 }

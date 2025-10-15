@@ -2,19 +2,18 @@ package com.mimecast.robin.queue;
 
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
-import com.mimecast.robin.mime.EmailBuilder;
-import com.mimecast.robin.mime.parts.TextMimePart;
-import com.mimecast.robin.queue.bounce.BounceGenerator;
+import com.mimecast.robin.queue.bounce.BounceMessageGenerator;
 import com.mimecast.robin.queue.relay.DovecotLdaDelivery;
 import com.mimecast.robin.smtp.EmailDelivery;
 import com.mimecast.robin.smtp.MessageEnvelope;
+import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -32,7 +31,7 @@ public class RelayQueueCron {
      * Main method to start the cron job.
      */
     public static void run() {
-        try(PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(QUEUE_FILE)) {
+        try (PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(QUEUE_FILE)) {
             ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
             Runnable task = () -> {
@@ -54,49 +53,51 @@ public class RelayQueueCron {
                         new EmailDelivery(relaySession.getSession()).send();
                     }
 
-                    // If there are still errors bump the retry count and re-enqueue.
-                    if (!relaySession.getSession().getSessionTransactionList().getErrors().isEmpty()) {
+                    // Remove successful recipients from the envelopes and successful envelopes from the session.
+                    List<EnvelopeTransactionList> envelopes = relaySession.getSession().getSessionTransactionList().getEnvelopes();
+                    List<MessageEnvelope> successfulEnvelopes = new ArrayList<>();
+                    for (int i = 0; i < envelopes.size(); i++) {
+                        EnvelopeTransactionList transactions = envelopes.get(i);
+                        MessageEnvelope envelope = relaySession.getSession().getEnvelopes().get(i);
+
+                        if (transactions.getErrors().isEmpty()) {
+                            successfulEnvelopes.add(envelope);
+                        } else {
+                            // Some recipients succeeded, some failed. Remove successful recipients.
+                            if (transactions.getRecipients() != transactions.getFailedRecipients()) {
+                                envelope.setRcpts(transactions.getFailedRecipients());
+                            }
+                        }
+                    }
+
+                    // Remove fully successful envelopes.
+                    relaySession.getSession().getEnvelopes().removeAll(successfulEnvelopes);
+
+                    // If there are still envelopes to process, check retry count.
+                    // If retry count < 30, bump and re-enqueue.
+                    // If retry count >= 30, generate bounces for each recipient in each envelope.
+                    if (!relaySession.getSession().getEnvelopes().isEmpty()) {
                         if (relaySession.getRetryCount() < 30) {
                             relaySession.bumpRetryCount();
                             queue.enqueue(relaySession);
                         } else {
-                            // Generate bounce for each recipient.
                             for (String recipient : relaySession.getSession().getEnvelopes().getLast().getRcpts()) {
-                                BounceGenerator bounceGenerator = new BounceGenerator(relaySession);
-                                String text = bounceGenerator.generatePlainText(recipient);
-                                String status = bounceGenerator.generateDeliveryStatus(recipient);
+                                // Generate bounce email.
+                                BounceMessageGenerator bounce = new BounceMessageGenerator(relaySession, recipient);
 
-                                // Build MIME.
-                                ByteArrayOutputStream stream = new ByteArrayOutputStream();
-                                try {
-                                    new EmailBuilder(relaySession.getSession(), new MessageEnvelope())
-                                            .addHeader("Subject", "Delivery Status Notification (Failure)")
-                                            .addHeader("To", recipient)
-                                            .addHeader("From", "Mail Delivery Subsystem <mailer-daemon@" + Config.getServer().getHostname() + ">")
-
-                                            .addPart(new TextMimePart(text.getBytes())
-                                                    .addHeader("Content-Type", "text/plain; charset=\"UTF-8\"")
-                                                    .addHeader("Content-Transfer-Encoding", "7bit")
-                                            )
-
-                                            .addPart(new TextMimePart(status.getBytes())
-                                                    .addHeader("Content-Type", "message/delivery-status; charset=\"UTF-8\"")
-                                                    .addHeader("Content-Transfer-Encoding", "7bit")
-                                            )
-                                            .writeTo(stream);
-                                } catch (IOException e) {
-                                    log.error("Failed to build bounce message for: {} due to error: {}", recipient, e.getMessage());
-                                }
-
+                                // Build the session.
                                 RelaySession relaySessionBounce = new RelaySession(Factories.getSession())
                                         .setProtocol("esmtp");
 
+                                // Create the envelope.
                                 MessageEnvelope envelope = new MessageEnvelope()
                                         .setMail("mailer-daemon@" + Config.getServer().getHostname())
                                         .setRcpt(recipient)
-                                        .setStream(new ByteArrayInputStream(stream.toByteArray()));
-
+                                        .setStream(new ByteArrayInputStream(bounce.getStream().toByteArray()));
                                 relaySessionBounce.getSession().addEnvelope(envelope);
+
+                                // Queue bounce for delivery.
+                                queue.enqueue(relaySessionBounce);
                             }
                         }
                     }

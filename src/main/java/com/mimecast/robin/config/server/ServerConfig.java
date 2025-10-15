@@ -191,6 +191,24 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
+     * Gets Dovecot AUTH socket path.
+     *
+     * @return String.
+     */
+    public String getDovecotAuthSocket() {
+        return getStringProperty("dovecotAuthSocket", "/var/run/dovecot/auth-userdb");
+    }
+
+    /**
+     * Gets Dovecot LDA socket path.
+     *
+     * @return String.
+     */
+    public String getDovecotLdaSocket() {
+        return getStringProperty("dovecotLdaSocket", "/usr/lib/dovecot/dovecot-lda");
+    }
+
+    /**
      * Is users enabled.
      *
      * @return Boolean.

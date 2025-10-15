@@ -1,5 +1,6 @@
 package com.mimecast.robin.sasl;
 
+import com.mimecast.robin.main.Config;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -24,7 +25,7 @@ public class DovecotSaslAuthNative implements AutoCloseable {
     protected static final Logger log = LogManager.getLogger(DovecotSaslAuthNative.class);
 
     // Default path to the Dovecot authentication socket.
-    private static final String DEFAULT_DOVECOT_SOCKET_PATH = "/var/spool/postfix/private/auth";
+    private static final String DEFAULT_DOVECOT_AUTH_SOCKET_PATH = Config.getServer().getDovecotAuthSocket();
 
     // The path to the Dovecot authentication socket.
     private final Path socketPath;
@@ -41,7 +42,7 @@ public class DovecotSaslAuthNative implements AutoCloseable {
      * Constructs a new DovecotSaslAuthNative client.
      */
     public DovecotSaslAuthNative() {
-        this(Paths.get(DEFAULT_DOVECOT_SOCKET_PATH));
+        this(Paths.get(DEFAULT_DOVECOT_AUTH_SOCKET_PATH));
     }
 
     /**

@@ -138,6 +138,54 @@ public abstract class TransactionList implements Serializable {
     }
 
     /**
+     * Checks if there was a DATA command error.
+     *
+     * @return boolean.
+     */
+    public boolean isDataError() {
+        for (Transaction transaction : transactions) {
+            if (transaction.getCommand().equalsIgnoreCase("data") && transaction.isError()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Gets failed recipients from RCPT commands.
+     *
+     * @return List of String.
+     */
+    public List<String> getFailedRecipients() {
+        List<String> failedRecipients = new ArrayList<>();
+        for (Transaction transaction : transactions) {
+            if (transaction.getCommand().equalsIgnoreCase("rcpt") && transaction.isError()) {
+                if (transaction.getAddress() != null) {
+                    failedRecipients.add(transaction.getAddress());
+                }
+            }
+        }
+        return failedRecipients;
+    }
+
+    /**
+     * Gets all recipients from RCPT commands.
+     *
+     * @return List of String.
+     */
+    public List<String> getRecipients() {
+        List<String> recipients = new ArrayList<>();
+        for (Transaction transaction : transactions) {
+            if (transaction.getCommand().equalsIgnoreCase("rcpt")) {
+                if (transaction.getAddress() != null) {
+                    recipients.add(transaction.getAddress());
+                }
+            }
+        }
+        return recipients;
+    }
+
+    /**
      * Clears transactions.
      *
      * @return TransactionList instance.

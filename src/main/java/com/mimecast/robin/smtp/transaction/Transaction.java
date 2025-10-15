@@ -71,6 +71,15 @@ public class Transaction {
     }
 
     /**
+     * Gets the SMTP command address if any.
+     *
+     * @return Payload string.
+     */
+    public String getAddress() {
+        return StringUtils.substringBetween(payload, "<", ">");
+    }
+
+    /**
      * Sets the SMTP command response.
      *
      * @param response Response string.

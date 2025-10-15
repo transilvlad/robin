@@ -1,10 +1,19 @@
 package com.mimecast.robin.storage;
 
+import com.mimecast.robin.config.BasicConfig;
 import com.mimecast.robin.main.Config;
+import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.headers.MimeHeader;
+import com.mimecast.robin.queue.PersistentQueue;
+import com.mimecast.robin.queue.RelayQueueCron;
+import com.mimecast.robin.queue.RelaySession;
+import com.mimecast.robin.queue.bounce.BounceMessageGenerator;
+import com.mimecast.robin.queue.relay.DovecotLdaDelivery;
 import com.mimecast.robin.queue.relay.RelayMessage;
+import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
+import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
 import com.mimecast.robin.util.PathUtils;
 import org.apache.commons.io.output.NullOutputStream;
 import org.apache.commons.lang3.StringUtils;
@@ -30,7 +39,7 @@ public class LocalStorageClient implements StorageClient {
     /**
      * Enablement.
      */
-    protected final boolean enabled = Config.getServer().getStorage().getBooleanProperty("enabled");
+    protected final BasicConfig config = Config.getServer().getStorage();
 
     /**
      * Date.
@@ -113,7 +122,7 @@ public class LocalStorageClient implements StorageClient {
      */
     @Override
     public OutputStream getStream() throws FileNotFoundException {
-        if (enabled) {
+        if (config.getBooleanProperty("enabled")) {
             if (PathUtils.makePath(path)) {
                 stream = new FileOutputStream(Paths.get(path, fileName).toString());
             } else {
@@ -141,7 +150,7 @@ public class LocalStorageClient implements StorageClient {
      */
     @Override
     public void save() {
-        if (enabled) {
+        if (config.getBooleanProperty("enabled")) {
             try {
                 stream.close();
 
@@ -159,6 +168,9 @@ public class LocalStorageClient implements StorageClient {
                 if (!connection.getSession().getEnvelopes().isEmpty()) {
                     connection.getSession().getEnvelopes().getLast().setFile(getFile());
                 }
+
+                // Save to Dovecot LDA if enabled.
+                saveToDovecotLda();
 
                 // Relay email if X-Robin-Relay or relay configuration enabled.
                 relay();
@@ -200,6 +212,46 @@ public class LocalStorageClient implements StorageClient {
                 if (new File(source).renameTo(new File(target.toString()))) {
                     fileName = header.getValue();
                     log.info("Storage moved file to: {}", getFile());
+                }
+            }
+        }
+    }
+
+    /**
+     * Save email to Dovecot LDA directly.
+     */
+    private void saveToDovecotLda() throws IOException {
+        if (config.getBooleanProperty("saveToDovecotLda")) {
+            new DovecotLdaDelivery(new RelaySession(connection.getSession())).send();
+
+            // If there are multiple recipients and one fails bounce recipient instead of throwing an exception.
+            EnvelopeTransactionList envelopeTransactionList = connection.getSession().getSessionTransactionList().getEnvelopes().getLast();
+            if (!envelopeTransactionList.getErrors().isEmpty()) {
+                if (envelopeTransactionList.getRecipients() != envelopeTransactionList.getFailedRecipients()) {
+                    connection.getSession().getEnvelopes().getLast().setRcpts(connection.getSession().getSessionTransactionList().getEnvelopes().getLast().getFailedRecipients());
+
+                    for (String recipient : connection.getSession().getEnvelopes().getLast().getRcpts()) {
+                        // Generate bounce email.
+                        BounceMessageGenerator bounce = new BounceMessageGenerator(new RelaySession(connection.getSession()), recipient);
+
+                        // Build the session.
+                        RelaySession relaySessionBounce = new RelaySession(Factories.getSession())
+                                .setProtocol("esmtp");
+
+                        // Create the envelope.
+                        MessageEnvelope envelope = new MessageEnvelope()
+                                .setMail("mailer-daemon@" + Config.getServer().getHostname())
+                                .setRcpt(recipient)
+                                .setStream(new ByteArrayInputStream(bounce.getStream().toByteArray()));
+                        relaySessionBounce.getSession().addEnvelope(envelope);
+
+                        // Queue bounce for delivery.
+                        PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE)
+                                .enqueue(relaySessionBounce);
+                    }
+
+                } else {
+                    throw new IOException("Storage unable to save to Dovecot LDA");
                 }
             }
         }
