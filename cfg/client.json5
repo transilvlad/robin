@@ -29,10 +29,10 @@
   ],
 
   // Default EHLO to use.
-  ehlo: "transilvlad.net",
+  ehlo: "example.com",
 
   // Default sender and recipients.
-  mail: "robin@transilvlad.net",
+  mail: "robin@example.net",
   rcpt: [
     "robin@example.com"
   ],

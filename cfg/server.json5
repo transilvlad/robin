@@ -79,7 +79,7 @@
     bounce: true,
 
     // Queue file to use for persisting messages that could not be relayed.
-    queueFile: "/tmp/robinRelayQueue.db"
+    queueFile: "/usr/local/robin/relayQueue.db"
   },
 
   // Dovecot authentication configuration.
@@ -88,7 +88,7 @@
   dovecotAuth: true,
 
   // Path to Dovecot authentication socket.
-  dovecotAuthSocket: "/var/spool/postfix/private/auth",
+  dovecotAuthSocket: "/run/dovecot/auth-userdb",
 
   // Path to Dovecot LDA socket.
   dovecotLdaSocket: "/usr/lib/dovecot/dovecot-lda",
