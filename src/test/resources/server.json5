@@ -94,7 +94,7 @@
   dovecotAuth: false,
 
   // Path to Dovecot authentication socket.
-  dovecotAuthSocket: "/usr/libexec/dovecot/auth",
+  dovecotAuthSocket: "/run/dovecot/auth-userdb",
 
   // Path to Dovecot LDA binary.
   dovecotLdaBinary: "/usr/libexec/dovecot/dovecot-lda",

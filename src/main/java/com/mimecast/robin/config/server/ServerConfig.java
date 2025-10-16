@@ -214,7 +214,7 @@ public class ServerConfig extends ConfigFoundation {
      * @return String.
      */
     public String getDovecotAuthSocket() {
-        return getStringProperty("dovecotAuthSocket", "/usr/libexec/dovecot/auth");
+        return getStringProperty("dovecotAuthSocket", "/run/dovecot/auth-userdb");
     }
 
     /**
