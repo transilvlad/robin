@@ -4,6 +4,7 @@ import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Extensions;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.extension.Extension;
+import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.smtp.verb.Verb;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -52,11 +53,23 @@ public class EmailReceipt implements Runnable {
     /**
      * Constructs a new EmailReceipt instance with given socket.
      *
-     * @param socket Inbound socket.
+     * @param socket     Inbound socket.
+     * @param secure     Secure (TLS) listener.
+     * @param submission Submission (MSA) listener.
      */
-    public EmailReceipt(Socket socket) {
+    public EmailReceipt(Socket socket, boolean secure, boolean submission) {
         try {
             connection = new Connection(socket);
+
+            // Enable TLS handling if secure listener.
+            if (secure) {
+                connection.startTLS(false);
+                connection.getSession().setStartTls(true);
+                connection.buildStreams();
+            }
+
+            // Set session direction depending on if submission port or not.
+            connection.getSession().setDirection(submission ? Session.Direction.OUTBOUND : Session.Direction.INBOUND);
         } catch (IOException e) {
             log.info("Error initializing streams: {}", e.getMessage());
         }

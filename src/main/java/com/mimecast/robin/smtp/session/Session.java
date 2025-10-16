@@ -23,6 +23,20 @@ import java.util.*;
 public class Session implements Serializable {
 
     /**
+     * Direction enum.
+     */
+    public enum Direction {
+        INBOUND,
+        OUTBOUND
+    }
+
+    /**
+     * Session direction.
+     * <p>Default: INBOUND.
+     */
+    private Direction direction = Direction.INBOUND;
+
+    /**
      * UID.
      */
     private String uid = UUID.randomUUID().toString();
@@ -245,6 +259,26 @@ public class Session implements Serializable {
      */
     public void map(CaseConfig caseConfig) {
         new ConfigMapper(caseConfig).mapTo(this);
+    }
+
+    /**
+     * Sets direction.
+     *
+     * @param direction Enum.
+     * @return Self.
+     */
+    public Session setDirection(Direction direction) {
+        this.direction = direction;
+        return this;
+    }
+
+    /**
+     * Gets direction.
+     *
+     * @return Enum.
+     */
+    public Direction getDirection() {
+        return direction;
     }
 
     /**
@@ -1023,7 +1057,7 @@ public class Session implements Serializable {
     /**
      * Has magic key.
      *
-     * @param key   Magic key.
+     * @param key Magic key.
      * @return Self.
      */
     public boolean hasMagic(String key) {

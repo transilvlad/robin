@@ -1,7 +1,6 @@
 package com.mimecast.robin.smtp;
 
 import com.mimecast.robin.main.Config;
-import com.mimecast.robin.queue.RelayQueueCron;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -43,20 +42,20 @@ public class SmtpListener {
     /**
      * Constructs a new SmtpListener instance.
      *
-     * @param port    Port number.
-     * @param backlog Backlog size.
-     * @param bind    Interface to bind to.
+     * @param port       Port number.
+     * @param backlog    Backlog size.
+     * @param bind       Interface to bind to.
+     * @param secure     Secure (TLS) listener.
+     * @param submission Submission (MSA) listener.
      */
-    public SmtpListener(int port, int backlog, String bind) {
+    public SmtpListener(int port, int backlog, String bind, boolean secure, boolean submission) {
         configure();
-        startup();
 
         try (ServerSocket socket = new ServerSocket(port, backlog, InetAddress.getByName(bind))) {
             listener = socket;
-            log.info("Started listener.");
+            log.info("Listening to [{}]:{}", bind, port);
 
-            log.info("Expecting connection.");
-            acceptConnection();
+            acceptConnection(secure, submission);
 
         } catch (IOException e) {
             log.fatal("Error listening: {}", e.getMessage());
@@ -84,17 +83,12 @@ public class SmtpListener {
     }
 
     /**
-     * Startup prerequisites.
-     */
-    protected void startup() {
-        // Start relay queue cron job.
-        RelayQueueCron.run();
-    }
-
-    /**
      * Accept incoming connection.
+     *
+     * @param secure     Secure (TLS) listener.
+     * @param submission Submission (MSA) listener.
      */
-    private void acceptConnection() {
+    private void acceptConnection(boolean secure, boolean submission) {
         try {
             do {
                 Socket sock = listener.accept();
@@ -102,7 +96,8 @@ public class SmtpListener {
 
                 executor.submit(() -> {
                     try {
-                        new EmailReceipt(sock).run();
+                        new EmailReceipt(sock, secure, submission).run();
+
                     } catch (Exception e) {
                         log.error("Email receipt unexpected exception: {}", e.getMessage());
                     }

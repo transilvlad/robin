@@ -1,5 +1,6 @@
 package com.mimecast.robin.main;
 
+import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.smtp.SmtpListener;
 import com.mimecast.robin.storage.StorageCleaner;
 
@@ -7,6 +8,8 @@ import javax.naming.ConfigurationException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Socket listener.
@@ -21,9 +24,9 @@ import java.nio.file.Paths;
 public class Server extends Foundation {
 
     /**
-     * Listener instance.
+     * Listener instances.
      */
-    private static SmtpListener port25;
+    private static final List<SmtpListener> listeners = new ArrayList<>();
 
     /**
      * Runner.
@@ -33,16 +36,38 @@ public class Server extends Foundation {
      */
     public static void run(String path) throws ConfigurationException {
         init(path); // Initialize foundation.
+        startup(); // Initialize foundation.
         registerShutdown(); // Shutdown hook.
         loadKeystore(); // Load Keystore.
         StorageCleaner.clean(Config.getServer().getStorage()); // Clean storage.
 
-        // Listener.
-        port25 = new SmtpListener(
+        // Configured ports list.
+        List<Integer> ports = List.of(
                 Config.getServer().getPort(),
-                Config.getServer().getBacklog(),
-                Config.getServer().getBind()
+                Config.getServer().getSecurePort(),
+                Config.getServer().getSubmissionPort()
         );
+
+        // Start listeners.
+        for (int port : ports) {
+            if (port != 0) {
+                new Thread(() -> listeners.add(new SmtpListener(
+                        port,
+                        Config.getServer().getBacklog(),
+                        Config.getServer().getBind(),
+                        port == Config.getServer().getSecurePort(),
+                        port == Config.getServer().getSubmissionPort()
+                ))).start();
+            }
+        }
+    }
+
+    /**
+     * Startup prerequisites.
+     */
+    private static void startup() {
+        // Start relay queue cron job.
+        RelayQueueCron.run();
     }
 
     /**
@@ -50,12 +75,14 @@ public class Server extends Foundation {
      */
     private static void registerShutdown() {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            if (port25 != null && port25.getListener() != null) {
-                log.info("Service is shutting down.");
-                try {
-                    port25.serverShutdown();
-                } catch (IOException e) {
-                    log.info("Shutdown in progress.. please wait.");
+            for (SmtpListener listener : listeners) {
+                if (listener != null && listener.getListener() != null) {
+                    log.info("Service is shutting down.");
+                    try {
+                        listener.serverShutdown();
+                    } catch (IOException e) {
+                        log.info("Shutdown in progress.. please wait.");
+                    }
                 }
             }
         }));

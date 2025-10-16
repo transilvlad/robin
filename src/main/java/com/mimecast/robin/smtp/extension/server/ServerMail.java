@@ -3,6 +3,7 @@ package com.mimecast.robin.smtp.extension.server;
 import com.mimecast.robin.config.server.ScenarioConfig;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
+import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.smtp.verb.Verb;
 import org.apache.commons.lang3.StringUtils;
 
@@ -80,6 +81,11 @@ public class ServerMail extends ServerProcessor {
 
         // Bypass for RCPT extension which extends this one.
         if (verb.getKey().equals("mail")) {
+            if (connection.getSession().isAuth() && connection.getSession().getDirection() == Session.Direction.OUTBOUND) {
+                connection.write("530 5.7.57 Authentication required to relay mail [" + connection.getSession().getUID() + "]");
+                return true;
+            }
+
 
             // Make envelope.
             MessageEnvelope envelope = new MessageEnvelope();

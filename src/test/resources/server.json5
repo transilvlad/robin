@@ -5,9 +5,15 @@
   // Interface the server will bind too (default: ::).
   bind: "::",
   
-  // Port the server will listen too (default: 25).
+  // Port the server will listen too (default: 25, 0 to disable).
   port: 25,
   
+  // Port for secure SMTP via SSL/TLS (default: 465, 0 to disable).
+  securePort: 465,
+
+  // Port for mail submission (default: 587, 0 to disable).
+  submissionPort: 587,
+
   // Number of connections to be allowed in the backlog (default: 25).
   backlog: 25,
   
@@ -45,7 +51,10 @@
     // Auto clean delete matching filenames only.
     patterns: [
       "^([0-9]{8}\\.)"
-    ]
+    ],
+
+    // Save a copy of each email to Dovecot LDA.
+    saveToDovecotLda: false
   },
 
   // Email relay configuration.
@@ -60,7 +69,7 @@
     host: "localhost",
 
     // Port of SMTP server to forward mail to.
-    port: 2025,
+    port: 24,
 
     // Protocol (Default: ESMTP - Options: SMTP, LMTP, ESMTP, DOVECOT-LDA).
     protocol: "LMTP",
@@ -83,7 +92,12 @@
   // This default is an example for local Dovecot.
   // Enabling this will disable the users list below.
   dovecotAuth: false,
-  dovecotSocketPath: "/var/spool/postfix/private/auth",
+
+  // Path to Dovecot authentication socket.
+  dovecotAuthSocket: "/usr/libexec/dovecot/auth",
+
+  // Path to Dovecot LDA binary.
+  dovecotLdaBinary: "/usr/libexec/dovecot/dovecot-lda",
 
   // Users allowed to authorize to the server.
   // This feature should be used for testing only.

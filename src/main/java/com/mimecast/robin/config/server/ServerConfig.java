@@ -54,12 +54,30 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
-     * Gets bind port.
+     * Gets SMTP port.
      *
      * @return Bind address number.
      */
     public int getPort() {
         return Math.toIntExact(getLongProperty("port", 25L));
+    }
+
+    /**
+     * Gets SMTPS port.
+     *
+     * @return Bind address number.
+     */
+    public int getSecurePort() {
+        return Math.toIntExact(getLongProperty("securePort", 465L));
+    }
+
+    /**
+     * Gets Submission port.
+     *
+     * @return Bind address number.
+     */
+    public int getSubmissionPort() {
+        return Math.toIntExact(getLongProperty("submissionPort", 587L));
     }
 
     /**
