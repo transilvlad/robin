@@ -6,7 +6,9 @@ import com.mimecast.robin.main.Config;
 import com.mimecast.robin.util.PathUtils;
 import org.apache.commons.lang3.StringUtils;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.io.Serializable;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -16,9 +18,9 @@ import java.util.stream.Stream;
  * Message envelope.
  *
  * <p>This is the container for SMTP envelopes.
- * <p>It will store the meta data associated with each email sent.
+ * <p>It will store the metadata associated with each email sent.
  */
-public class MessageEnvelope {
+public class MessageEnvelope implements Serializable {
 
     // Set MAIL FROM and RCPT TO.
     private String mail = null;
@@ -37,6 +39,8 @@ public class MessageEnvelope {
 
     // Set EML stream or null.
     private InputStream stream = null;
+    // Used for serialisation.
+    private byte[] bytes = null;
 
     // If EML is null set subject and message.
     private String subject = null;
@@ -130,7 +134,7 @@ public class MessageEnvelope {
         if (StringUtils.isNotBlank(rcpt)) {
             return rcpt;
         } else if (!rcpts.isEmpty()) {
-            return rcpts.get(0);
+            return rcpts.getFirst();
         }
         return "";
     }
@@ -367,7 +371,7 @@ public class MessageEnvelope {
      * @return Eml stream.
      */
     public InputStream getStream() {
-        return stream;
+        return stream != null ? stream : (bytes != null ? new ByteArrayInputStream(bytes) : null);
     }
 
     /**
@@ -378,6 +382,17 @@ public class MessageEnvelope {
      */
     public MessageEnvelope setStream(InputStream stream) {
         this.stream = stream;
+        return this;
+    }
+
+    /**
+     * Sets eml byte array.
+     *
+     * @param bytes Eml byte array.
+     * @return Self.
+     */
+    public MessageEnvelope setBytes(byte[] bytes) {
+        this.bytes = bytes;
         return this;
     }
 

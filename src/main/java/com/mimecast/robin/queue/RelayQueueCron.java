@@ -10,7 +10,6 @@ import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -93,7 +92,7 @@ public class RelayQueueCron {
                                 MessageEnvelope envelope = new MessageEnvelope()
                                         .setMail("mailer-daemon@" + Config.getServer().getHostname())
                                         .setRcpt(recipient)
-                                        .setStream(new ByteArrayInputStream(bounce.getStream().toByteArray()));
+                                        .setBytes(bounce.getStream().toByteArray());
                                 relaySessionBounce.getSession().addEnvelope(envelope);
 
                                 // Queue bounce for delivery.
