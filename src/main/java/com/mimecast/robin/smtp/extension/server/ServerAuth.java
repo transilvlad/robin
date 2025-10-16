@@ -81,6 +81,7 @@ public class ServerAuth extends ServerProcessor {
                         log.error("Dovecot authentication error: {}", e.getMessage());
                     }
                 } else if (Config.getServer().isUsersEnabled()) {
+                    // Scenario response.
                     Optional<UserConfig> opt = connection.getUser(connection.getSession().getUsername());
                     if (opt.isPresent() && opt.get().getPass().equals(connection.getSession().getPassword())) {
                         connection.getSession().setAuth(true);

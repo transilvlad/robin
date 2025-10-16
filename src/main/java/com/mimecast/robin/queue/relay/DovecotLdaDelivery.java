@@ -2,16 +2,22 @@ package com.mimecast.robin.queue.relay;
 
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.queue.RelaySession;
+import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 /**
  * Dovecot LDA delivery.
+ * <p>This provides the implementation for delivering emails using Dovecot LDA.
+ * <p>It only supports single envelopes at a time given the way storage implementation works.
+ * See: LocalStorageClient.class
  */
 public class DovecotLdaDelivery {
     private static final Logger log = LogManager.getLogger(DovecotLdaDelivery.class);
@@ -33,50 +39,67 @@ public class DovecotLdaDelivery {
      * @return DovecotLdaDelivery instance.
      */
     public DovecotLdaDelivery send() {
+        relaySession.getSession().getSessionTransactionList().addEnvelope(new EnvelopeTransactionList());
+
         for (String recipient : relaySession.getSession().getEnvelopes().getLast().getRcpts()) {
-
-            int exitCode = -1;
+            Pair<Integer, String> result = null;
             try {
-                // Configure command.
-                List<String> command = new ArrayList<>(Arrays.asList(
-                        Config.getServer().getDovecotLdaBinary(),
-                        "-d", relaySession.getSession().getEnvelopes().getLast().getMail(),
-                        "-f", relaySession.getSession().getEnvelopes().getLast().getMail(),
-                        "-a", recipient,
-                        // "There can only be one" envelope when relaying. See: RelayMessage.class
-                        "-p", relaySession.getSession().getEnvelopes().getFirst().getFile()
-                ));
-
-                if (StringUtils.isNotBlank(relaySession.getMailbox())) {
-                    command.add("-m");
-                    command.add(relaySession.getMailbox());
-                }
-
-                // Instantiate process builder and start running.
-                ProcessBuilder pb = new ProcessBuilder(command);
-                Process process = pb.start();
-
-                // Get error string.
-                String error = new String(process.getErrorStream().readAllBytes());
-
-                // Wait for process to finish and get exit code.
-                exitCode = process.waitFor();
+                result = callDovecotLda(recipient);
 
                 // Log result.
-                if (exitCode == 0) {
-                    log.info("Dovecot-LDA delivery successfully");
+                if (result.getKey() == 0) {
+                    log.info("Dovecot-LDA delivery successful for recipient: {}", recipient);
                 } else {
-                    log.error("Dovecot-LDA delivery failed with exit code: {}, error: {}", exitCode, error);
+                    log.error("Dovecot-LDA delivery failed for recipient: {} with exit code: {}, error: {}", recipient, result.getKey(), result.getValue());
                 }
             } catch (Exception e) {
-                log.error("Dovecot-LDA delivery failed with exception: {}", e.getMessage());
+                log.error("Dovecot-LDA delivery failed for recipient: {} with exception: {}", recipient, e.getMessage());
             }
 
-            if (exitCode != 0) {
-                relaySession.getSession().getSessionTransactionList().addTransaction("LDA", "Dovecot-LDA delivery failed for " + recipient, true);
+            if (result == null || result.getKey() != 0) {
+                relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().addTransaction("RCPT", "RCPT TO:<" + recipient + ">", "550 Dovecot-LDA delivery failed", true);
+            } else {
+                relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().addTransaction("RCPT", "RCPT TO:<" + recipient + ">", "250 Dovecot-LDA delivery successful");
             }
         }
 
         return this;
+    }
+
+    /**
+     * Calls Dovecot LDA with the given recipient.
+     *
+     * @param recipient Recipient email address.
+     * @return Pair of exit code and error message.
+     * @throws IOException          On I/O errors.
+     * @throws InterruptedException On process interruption.
+     */
+    protected Pair<Integer, String> callDovecotLda(String recipient) throws IOException, InterruptedException {
+        // Configure command.
+        List<String> command = new ArrayList<>(Arrays.asList(
+                Config.getServer().getDovecotLdaBinary(),
+                "-d", recipient,
+                "-f", relaySession.getSession().getEnvelopes().getLast().getMail(),
+                "-a", recipient,
+                // "There can only be one" envelope when relaying. See: RelayMessage.class
+                "-p", relaySession.getSession().getEnvelopes().getFirst().getFile()
+        ));
+
+        if (StringUtils.isNotBlank(relaySession.getMailbox())) {
+            command.add("-m");
+            command.add(relaySession.getMailbox());
+        }
+
+        // Instantiate process builder and start running.
+        ProcessBuilder pb = new ProcessBuilder(command);
+        Process process = pb.start();
+
+        // Get error string.
+        String error = new String(process.getErrorStream().readAllBytes());
+
+        // Wait for process to finish and get exit code.
+        int exitCode = process.waitFor();
+
+        return Pair.of(exitCode, error);
     }
 }

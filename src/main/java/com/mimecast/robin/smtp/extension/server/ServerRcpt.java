@@ -1,6 +1,8 @@
 package com.mimecast.robin.smtp.extension.server;
 
 import com.mimecast.robin.config.server.ScenarioConfig;
+import com.mimecast.robin.main.Config;
+import com.mimecast.robin.sasl.DovecotSaslAuthNative;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.verb.Verb;
 
@@ -28,17 +30,33 @@ public class ServerRcpt extends ServerMail {
         super.process(connection, verb);
 
 
-        // Scenario response.
-        Optional<ScenarioConfig> opt = connection.getScenario();
-        if (opt.isPresent() && opt.get().getRcpt() != null) {
-            for (Map<String, String> entry : opt.get().getRcpt()) {
-                if (getAddress() != null && getAddress().getAddress().matches(entry.get("value"))) {
-                    String response = entry.get("response");
-                    if (response.startsWith("2") && !connection.getSession().getEnvelopes().isEmpty()) {
-                        connection.getSession().getEnvelopes().getLast().addRcpt(getAddress().getAddress());
+        // Check if users are enabled in configuration and try and authenticate if so.
+        if (Config.getServer().isDovecotAuth()) {
+            try (DovecotSaslAuthNative dovecotSaslAuthNative = new DovecotSaslAuthNative()) {
+                // Attempt to authenticate against Dovecot.
+                if (dovecotSaslAuthNative.validate(connection.getSession().getUsername(), "smtp")) {
+                    connection.getSession().setAuth(true);
+                    // Return true and add recipient below.
+                } else {
+                    connection.write("550 5.1.1 Unknown destination mailbox address [" + connection.getSession().getUID() + "]");
+                    return false;
+                }
+            } catch (Exception e) {
+                log.error("Dovecot authentication error: {}", e.getMessage());
+            }
+        } else if (Config.getServer().isUsersEnabled()) {
+            // Scenario response.
+            Optional<ScenarioConfig> opt = connection.getScenario();
+            if (opt.isPresent() && opt.get().getRcpt() != null) {
+                for (Map<String, String> entry : opt.get().getRcpt()) {
+                    if (getAddress() != null && getAddress().getAddress().matches(entry.get("value"))) {
+                        String response = entry.get("response");
+                        if (response.startsWith("2") && !connection.getSession().getEnvelopes().isEmpty()) {
+                            connection.getSession().getEnvelopes().getLast().addRcpt(getAddress().getAddress());
+                        }
+                        connection.write(response);
+                        return response.startsWith("2");
                     }
-                    connection.write(response);
-                    return response.startsWith("2");
                 }
             }
         }
