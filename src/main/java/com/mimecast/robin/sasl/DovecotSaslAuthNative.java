@@ -226,13 +226,18 @@ public class DovecotSaslAuthNative implements AutoCloseable {
 
     /**
      * Closes the socket and associated streams.
-     *
-     * @throws Exception if there's an error closing the resources.
      */
     @Override
-    public void close() throws Exception {
-        socket.close();
-        inputStream.close();
-        outputStream.close();
+    public void close() {
+        if (socket == null) {
+            return;
+        }
+        try {
+            socket.close();
+            inputStream.close();
+            outputStream.close();
+        } catch (IOException e) {
+            log.error("Error closing socket: {}", e.getMessage());
+        }
     }
 }

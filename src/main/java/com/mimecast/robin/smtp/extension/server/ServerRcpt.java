@@ -43,6 +43,7 @@ public class ServerRcpt extends ServerMail {
                 }
             } catch (Exception e) {
                 log.error("Dovecot authentication error: {}", e.getMessage());
+                return false;
             }
         } else if (Config.getServer().isUsersEnabled()) {
             // Scenario response.
