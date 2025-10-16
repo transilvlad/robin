@@ -89,10 +89,12 @@ public class DovecotSaslAuthNative implements AutoCloseable {
         }
 
         // Build the authentication request.
-        String request = buildUserRequest(username, service);
+        long requestId = requestIdCounter.getAndIncrement();
+        String request = buildUserRequest(username, service, requestId);
 
-        // A successful response starts with "RESULT<TAB>OK".
-        boolean response = callDovecotSocket(request).startsWith("RESULT\tOK\t");
+        // A successful response starts with "USER" and should match the request ID.
+        boolean response = callDovecotSocket(request).startsWith("USER\t" + requestId);
+
 
         log.info("Validation {} for user: {}", response ? "succeeded" : "failed", username);
         return response;
@@ -151,15 +153,15 @@ public class DovecotSaslAuthNative implements AutoCloseable {
     /**
      * Constructs the validation request string.
      *
-     * @param username The username to validate.
-     * @param service  The service name (e.g., "smtp").
+     * @param username  The username to validate.
+     * @param service   The service name (e.g., "smtp").
+     * @param requestId A unique ID for this specific authentication request.
      * @return The constructed request string.
      */
-    private String buildUserRequest(String username, String service) {
-        return "VERSION\t1\t" +
-                "COMMAND\tUSER\t" +
-                "USERNAME\t" + username + "\t" +
-                "SERVICE\t" + service + "\n";
+    private String buildUserRequest(String username, String service, long requestId) {
+        return "VERSION\t1\t1\t" +
+                "USER\t" + requestId + "\t" + username + "\t" +
+                "service=" + service + "\n";
     }
 
     /**
