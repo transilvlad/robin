@@ -313,7 +313,7 @@ Case
                     // External assertions.
                     external: [
                       {
-                        // Assertion type logs for pulling logs from FFS.
+                        // Assertion type logs for pulling logs.
                         type: "logs",
             
                         // How long to wait before asserting.
