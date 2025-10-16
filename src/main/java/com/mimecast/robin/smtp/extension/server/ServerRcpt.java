@@ -29,14 +29,12 @@ public class ServerRcpt extends ServerMail {
     public boolean process(Connection connection, Verb verb) throws IOException {
         super.process(connection, verb);
 
-
         // Check if users are enabled in configuration and try and authenticate if so.
         if (Config.getServer().isDovecotAuth()) {
             try (DovecotSaslAuthNative dovecotSaslAuthNative = new DovecotSaslAuthNative()) {
-                // Attempt to authenticate against Dovecot.
                 if (dovecotSaslAuthNative.validate(connection.getSession().getUsername(), "smtp")) {
-                    connection.getSession().setAuth(true);
-                    // Return true and add recipient below.
+                    connection.getSession().getEnvelopes().getLast().addRcpt(getAddress().getAddress());
+                    return true;
                 } else {
                     connection.write("550 5.1.1 Unknown destination mailbox address [" + connection.getSession().getUID() + "]");
                     return false;
