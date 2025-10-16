@@ -4,6 +4,7 @@ import com.mimecast.robin.main.Foundation;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.session.Session;
+import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -19,13 +20,16 @@ class BounceGeneratorTest {
     }
 
     private static Session session = new Session();
-    private static RelaySession relaySession = new RelaySession(session);
+    private static final RelaySession relaySession = new RelaySession(session);
 
     static {
+        EnvelopeTransactionList etl = new EnvelopeTransactionList();
+        etl.addTransaction("RCPT", "550 5.0.0 Mailbox not found", true);
+
+        session.getSessionTransactionList().addEnvelope(etl);
         session.setFriendRdns("stark.example.com")
                 .setFriendAddr("10.20.0.1")
-                .addEnvelope(new MessageEnvelope().setMail("peppr@example.com").addRcpt("tony@example.com"))
-                .getSessionTransactionList().addTransaction("RCPT", "550 5.0.0 Mailbox not found", true);
+                .addEnvelope(new MessageEnvelope().setMail("peppr@example.com").addRcpt("tony@example.com"));
     }
 
     @Test

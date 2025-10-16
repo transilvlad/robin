@@ -148,7 +148,7 @@ public class RelaySession implements Serializable {
      * @return String.
      */
     public String getRejection() {
-        return session.getSessionTransactionList().getErrors().get(0).getResponse();
+        return session.getSessionTransactionList().getEnvelopes().getLast().getErrors().getLast().getResponse();
     }
 
     /**
