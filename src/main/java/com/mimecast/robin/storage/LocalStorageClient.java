@@ -39,7 +39,7 @@ public class LocalStorageClient implements StorageClient {
     /**
      * Enablement.
      */
-    protected final BasicConfig config = Config.getServer().getStorage();
+    protected BasicConfig config = Config.getServer().getStorage();
 
     /**
      * Date.
@@ -176,7 +176,7 @@ public class LocalStorageClient implements StorageClient {
                 relay();
 
             } catch (IOException e) {
-                log.error("Storage unable to parse email: {}", e.getMessage());
+                log.error("Storage unable to store the email: {}", e.getMessage());
             }
 
             try {
@@ -222,7 +222,7 @@ public class LocalStorageClient implements StorageClient {
      */
     private void saveToDovecotLda() throws IOException {
         if (config.getBooleanProperty("saveToDovecotLda")) {
-            new DovecotLdaDelivery(new RelaySession(connection.getSession())).send();
+            getDovecotLdaDeliveryInstance().send();
 
             // If there are multiple recipients and one fails bounce recipient instead of throwing an exception.
             EnvelopeTransactionList envelopeTransactionList = connection.getSession().getSessionTransactionList().getEnvelopes().getLast();
@@ -242,7 +242,7 @@ public class LocalStorageClient implements StorageClient {
                         MessageEnvelope envelope = new MessageEnvelope()
                                 .setMail("mailer-daemon@" + Config.getServer().getHostname())
                                 .setRcpt(recipient)
-                                .setStream(new ByteArrayInputStream(bounce.getStream().toByteArray()));
+                                .setBytes(bounce.getStream().toByteArray());
                         relaySessionBounce.getSession().addEnvelope(envelope);
 
                         // Queue bounce for delivery.
@@ -255,6 +255,16 @@ public class LocalStorageClient implements StorageClient {
                 }
             }
         }
+    }
+
+    /**
+     * Get DovecotLdaDelivery instance.
+     * <p>Can be overridden for testing/mocking purposes.
+     *
+     * @return DovecotLdaDelivery instance.
+     */
+    protected DovecotLdaDelivery getDovecotLdaDeliveryInstance() {
+        return new DovecotLdaDelivery(new RelaySession(connection.getSession()));
     }
 
     /**

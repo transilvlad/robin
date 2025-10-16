@@ -15,6 +15,7 @@
         <javamail.version>1.6.2</javamail.version>
         <guava.version>33.5.0-jre</guava.version>
         <log4j.version>2.25.2</log4j.version>
+        <junit.version>6.0.0</junit.version>
         <jmh.version>1.37</jmh.version>
     </properties>
 
@@ -129,17 +130,23 @@
             <version>2.25.2</version>
             <scope>runtime</scope>
         </dependency>
+
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-engine</artifactId>
-            <version>6.0.0</version>
+            <version>${junit.version}</version>
             <scope>test</scope>
         </dependency>
-
         <dependency>
             <groupId>org.junit.platform</groupId>
             <artifactId>junit-platform-launcher</artifactId>
-            <version>6.0.0</version>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-params</artifactId>
+            <version>${junit.version}</version>
             <scope>test</scope>
         </dependency>
 

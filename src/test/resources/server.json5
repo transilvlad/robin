@@ -76,7 +76,7 @@
     bounce: true,
 
     // Queue file to use for persisting messages that could not be relayed.
-    queueFile: "/work/robin/store/relayQueue.db"
+    queueFile: "/work/robin/store/testRelayQueue.db"
   },
 
   // Dovecot authentication configuration.
