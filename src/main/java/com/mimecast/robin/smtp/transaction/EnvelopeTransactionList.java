@@ -31,6 +31,38 @@ public class EnvelopeTransactionList extends TransactionList {
     }
 
     /**
+     * Gets all recipients from RCPT commands.
+     *
+     * @return List of String.
+     */
+    public List<String> getRecipients() {
+        List<String> recipients = new ArrayList<>();
+        for (Transaction transaction : getTransactions("RCPT")) {
+            if (transaction.getCommand().equalsIgnoreCase("rcpt") && transaction.getAddress() != null) {
+                recipients.add(transaction.getAddress());
+            }
+        }
+
+        return recipients;
+    }
+
+    /**
+     * Gets failed recipients from RCPT commands.
+     *
+     * @return List of String.
+     */
+    public List<String> getFailedRecipients() {
+        List<String> failedRecipients = new ArrayList<>();
+        for (Transaction transaction : getTransactions("RCPT")) {
+            if (transaction.getCommand().equalsIgnoreCase("rcpt") && transaction.isError() && transaction.getAddress() != null) {
+                failedRecipients.add(transaction.getAddress());
+            }
+        }
+
+        return failedRecipients;
+    }
+
+    /**
      * Gets RCPT errors logs.
      *
      * @return List of Transaction.
