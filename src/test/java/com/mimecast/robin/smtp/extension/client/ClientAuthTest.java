@@ -132,7 +132,7 @@ class ClientAuthTest {
     @Test
     void processDigestMD5FalseChallenge() throws IOException {
         StringBuilder stringBuilder = new StringBuilder()
-                .append("504 5.7.4 Unrecognized authentication type\r\n");
+                .append("504 5.7.4 Unrecognized authentication mechanism\r\n");
         ConnectionMock connection = getConnection(stringBuilder);
 
         ClientAuth auth = new ClientAuthMock();
@@ -141,7 +141,7 @@ class ClientAuthTest {
         assertFalse(process);
 
         assertEquals(1, connection.getSession().getSessionTransactionList().getTransactions().size());
-        assertEquals("504 5.7.4 Unrecognized authentication type", connection.getSession().getSessionTransactionList().getLast("AUTH").getResponse());
+        assertEquals("504 5.7.4 Unrecognized authentication mechanism", connection.getSession().getSessionTransactionList().getLast("AUTH").getResponse());
         assertTrue(connection.getSession().getSessionTransactionList().getLast("AUTH").isError());
     }
 

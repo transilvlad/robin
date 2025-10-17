@@ -68,21 +68,20 @@ public class ServerEhlo extends ServerProcessor {
      * @throws IOException Unable to communicate.
      */
     public void writeAdverts() throws IOException {
-        List<String> adverts = Lists.newArrayList(Sets.newHashSet(collectAdverts()));
+        List<String> adverts = Lists.newArrayList(Sets.newHashSet(collectAdverts(connection)));
         for (int i = 0; i < adverts.size(); i++) {
-            if (!adverts.get(i).equalsIgnoreCase("STARTTLS") || !connection.getSession().isStartTls()) {
-                connection.write("250" + ((adverts.size() - 1) > i ? "-" : " ") + adverts.get(i));
-            }
+            connection.write("250" + ((adverts.size() - 1) > i ? "-" : " ") + adverts.get(i));
         }
     }
 
     /**
      * Collects adverts from extensions.
      *
+     * @param connection Connection instance.
      * @return List of strings.
      */
     @SuppressWarnings("WeakerAccess")
-    public static List<String> collectAdverts() {
+    public static List<String> collectAdverts(Connection connection) {
         List<String> adverts = new ArrayList<>();
         adverts.add("PIPELINING");
         for (String s : Extensions.getExtensions().keySet()) {
@@ -90,6 +89,15 @@ public class ServerEhlo extends ServerProcessor {
             Optional<Extension> ept = Extensions.getExtension(s);
             if (ept.isPresent()) {
 
+                // Don't advertise server AUTH extensions on main inbound port or insecure connections over submission port.
+                // Secured ports are fine as the connection is already secured before AUTH is advertised and it's not the main port.
+                if (ept.get().getServer() instanceof ServerAuth &&
+                        connection.getSession().isInbound() &&
+                        !connection.getSession().isSecurePort()) {
+                    continue;
+                }
+
+                // Collect advert.
                 String advert = ept.get().getServer().getAdvert();
                 if (StringUtils.isNotBlank(advert)) {
                     adverts.add(advert);

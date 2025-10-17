@@ -2,6 +2,7 @@ package com.mimecast.robin.smtp.extension.server;
 
 import com.mimecast.robin.main.Foundation;
 import com.mimecast.robin.smtp.connection.ConnectionMock;
+import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.smtp.verb.Verb;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,8 @@ class ServerAuthTest {
     void processAuthNone() throws IOException {
         StringBuilder stringBuilder = new StringBuilder();
         ConnectionMock connection = new ConnectionMock(stringBuilder);
+        connection.getSession().setSecurePort(true);
+        connection.getSession().setStartTls(true);
 
         Verb verb = new Verb("AUTH");
 
@@ -37,13 +40,15 @@ class ServerAuthTest {
         assertFalse(process);
 
         connection.parseLines();
-        assertEquals("504 5.7.4 Unrecognized authentication type\r\n", connection.getLine(1));
+        assertEquals("504 5.7.4 Unrecognized authentication mechanism\r\n", connection.getLine(1));
     }
 
     @Test
     void processAuthUnknown() throws IOException {
         StringBuilder stringBuilder = new StringBuilder();
         ConnectionMock connection = new ConnectionMock(stringBuilder);
+        connection.getSession().setSecurePort(true);
+        connection.getSession().setStartTls(true);
 
         Verb verb = new Verb("AUTH DIGEST-MD5");
 
@@ -53,7 +58,7 @@ class ServerAuthTest {
         assertFalse(process);
 
         connection.parseLines();
-        assertEquals("504 5.7.4 Unrecognized authentication type\r\n", connection.getLine(1));
+        assertEquals("504 5.7.4 Unrecognized authentication mechanism\r\n", connection.getLine(1));
     }
 
     @Test
@@ -61,6 +66,8 @@ class ServerAuthTest {
         StringBuilder stringBuilder = new StringBuilder();
         stringBuilder.append("dG9ueUBleGFtcGxlLmNvbQB0b255QGV4YW1wbGUuY29tAGdpdmVIZXJUaGVSaW5n\r\n");
         ConnectionMock connection = new ConnectionMock(stringBuilder);
+        connection.getSession().setSecurePort(true);
+        connection.getSession().setStartTls(true);
 
         Verb verb = new Verb("AUTH PLAIN");
 
@@ -85,6 +92,8 @@ class ServerAuthTest {
         StringBuilder stringBuilder = new StringBuilder();
         stringBuilder.append("AHVsdHJvbkBleGFtcGxlLmNvbQBzYXZlVGhlSHVtYW5z\r\n");
         ConnectionMock connection = new ConnectionMock(stringBuilder);
+        connection.getSession().setSecurePort(true);
+        connection.getSession().setStartTls(true);
 
         Verb verb = new Verb("AUTH PLAIN");
 
@@ -105,6 +114,8 @@ class ServerAuthTest {
     void processAuthPlainOneStep() throws IOException {
         StringBuilder stringBuilder = new StringBuilder();
         ConnectionMock connection = new ConnectionMock(stringBuilder);
+        connection.getSession().setSecurePort(true);
+        connection.getSession().setStartTls(true);
 
         Verb verb = new Verb("AUTH PLAIN AHVsdHJvbkBleGFtcGxlLmNvbQBzYXZlVGhlSHVtYW5z");
 
@@ -115,7 +126,7 @@ class ServerAuthTest {
         assertFalse(connection.getSession().isAuth());
 
         connection.parseLines();
-        assertEquals("504 5.7.4 Unrecognized authentication type\r\n", connection.getLine(1));
+        assertEquals("504 5.7.4 Unrecognized authentication mechanism\r\n", connection.getLine(1));
     }
 
     @Test
@@ -123,6 +134,8 @@ class ServerAuthTest {
         StringBuilder stringBuilder = new StringBuilder();
         stringBuilder.append("TUFJTA==\r\n");
         ConnectionMock connection = new ConnectionMock(stringBuilder);
+        connection.getSession().setSecurePort(true);
+        connection.getSession().setStartTls(true);
 
         Verb verb = new Verb("AUTH PLAIN");
 
@@ -134,7 +147,7 @@ class ServerAuthTest {
 
         connection.parseLines();
         assertEquals("334 UGF5bG9hZDo\r\n", connection.getLine(1));
-        assertEquals("504 5.7.4 Unrecognized authentication type\r\n", connection.getLine(2));
+        assertEquals("504 5.7.4 Unrecognized authentication mechanism\r\n", connection.getLine(2));
     }
 
     @Test
@@ -142,6 +155,8 @@ class ServerAuthTest {
         StringBuilder stringBuilder = new StringBuilder();
         stringBuilder.append("Z2l2ZUhlclRoZVJpbmc=\r\n");
         ConnectionMock connection = new ConnectionMock(stringBuilder);
+        connection.getSession().setDirection(Session.Direction.OUTBOUND);
+        connection.getSession().setStartTls(true);
 
         Verb verb = new Verb("AUTH LOGIN dG9ueUBleGFtcGxlLmNvbQ==");
 
@@ -167,6 +182,8 @@ class ServerAuthTest {
         stringBuilder.append("dG9ueUBleGFtcGxlLmNvbQ==\r\n");
         stringBuilder.append("Z2l2ZUhlclRoZVJpbmc=\r\n");
         ConnectionMock connection = new ConnectionMock(stringBuilder);
+        connection.getSession().setDirection(Session.Direction.OUTBOUND);
+        connection.getSession().setStartTls(true);
 
         Verb verb = new Verb("AUTH LOGIN");
 
@@ -193,6 +210,8 @@ class ServerAuthTest {
         stringBuilder.append("TUFJTA==\r\n");
         stringBuilder.append("UkNQVA==\r\n");
         ConnectionMock connection = new ConnectionMock(stringBuilder);
+        connection.getSession().setDirection(Session.Direction.OUTBOUND);
+        connection.getSession().setStartTls(true);
 
         Verb verb = new Verb("AUTH LOGIN");
 
@@ -206,6 +225,6 @@ class ServerAuthTest {
 
         connection.parseLines();
         assertEquals("334 VXNlcm5hbWU6\r\n", connection.getLine(1));
-        assertEquals("504 5.7.4 Unrecognized authentication type\r\n", connection.getLine(2));
+        assertEquals("504 5.7.4 Unrecognized authentication mechanism\r\n", connection.getLine(2));
     }
 }

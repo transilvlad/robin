@@ -40,6 +40,19 @@ public class ServerAuth extends ServerProcessor {
     public boolean process(Connection connection, Verb verb) throws IOException {
         super.process(connection, verb);
 
+        // Check if port is inbound and secure or submission.
+        if (connection.getSession().isInbound() && !connection.getSession().isSecurePort()) {
+            connection.write("538 5.7.1 Authentication not supported");
+            return false;
+        }
+
+        // Check if connection is secure.
+        if (!connection.getSession().isStartTls()) {
+            connection.write("538 5.7.1 Connection not secured");
+            return false;
+        }
+
+        // Process authentication.
         AuthVerb authVerb = new AuthVerb(verb);
         if (verb.getCount() > 1) {
             switch (authVerb.getType()) {
@@ -95,7 +108,7 @@ public class ServerAuth extends ServerProcessor {
             }
         }
 
-        connection.write("504 5.7.4 Unrecognized authentication type");
+        connection.write("504 5.7.4 Unrecognized authentication mechanism");
         return false;
     }
 

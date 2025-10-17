@@ -61,6 +61,8 @@ class EmailReceiptTest {
         stringBuilder.append("QUIT\r\n");
 
         ConnectionMock connection = getConnection(stringBuilder);
+        connection.getSession().setSecurePort(true);
+        connection.getSession().setStartTls(true);
         new EmailReceipt(connection).run();
 
         connection.parseLines();
@@ -87,6 +89,9 @@ class EmailReceiptTest {
         stringBuilder.append("QUIT\r\n");
 
         ConnectionMock connection = getConnection(stringBuilder);
+        connection.getSession().setSecurePort(true);
+        connection.getSession().setStartTls(true);
+
         new EmailReceipt(connection).run();
 
         connection.parseLines();
@@ -112,6 +117,8 @@ class EmailReceiptTest {
         stringBuilder.append("QUIT\r\n");
 
         ConnectionMock connection = getConnection(stringBuilder);
+        connection.getSession().setSecurePort(true);
+        connection.getSession().setStartTls(true);
         new EmailReceipt(connection).run();
 
         connection.parseLines();

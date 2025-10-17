@@ -66,6 +66,8 @@ public class EmailReceipt implements Runnable {
                 connection.startTLS(false);
                 connection.getSession().setStartTls(true);
                 connection.buildStreams();
+                connection.getSession().setTls(true);
+                connection.getSession().setSecurePort(true);
             }
 
             // Set session direction depending on if submission port or not.

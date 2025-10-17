@@ -182,6 +182,12 @@ public class Session implements Serializable {
     private boolean startTls = false;
 
     /**
+     * Is secure port.
+     * <p>This supports submission unlike main port.
+     */
+    private boolean securePort = false;
+
+    /**
      * Do auth before TLS.
      */
     private boolean authBeforeTls = false;
@@ -279,6 +285,24 @@ public class Session implements Serializable {
      */
     public Direction getDirection() {
         return direction;
+    }
+
+    /**
+     * Gets inbound direction.
+     *
+     * @return Boolean.
+     */
+    public boolean isInbound() {
+        return direction == Direction.INBOUND;
+    }
+
+    /**
+     * Gets outbound direction.
+     *
+     * @return Boolean.
+     */
+    public boolean isOutbound() {
+        return direction == Direction.OUTBOUND;
     }
 
     /**
@@ -862,6 +886,26 @@ public class Session implements Serializable {
      */
     public Session setStartTls(boolean startTls) {
         this.startTls = startTls;
+        return this;
+    }
+
+    /**
+     * Gets secure port enablement.
+     *
+     * @return Secure port enablement.
+     */
+    public boolean isSecurePort() {
+        return securePort;
+    }
+
+    /**
+     * Sets secure port enablement.
+     *
+     * @param securePort Secure port enablement.
+     * @return Self.
+     */
+    public Session setSecurePort(boolean securePort) {
+        this.securePort = securePort;
         return this;
     }
 
