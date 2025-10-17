@@ -182,6 +182,15 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
+     * Gets metrics port.
+     *
+     * @return Bind address number.
+     */
+    public int getMetricsPort() {
+        return Math.toIntExact(getLongProperty("metricsPort", 8080L));
+    }
+
+    /**
      * Gets storage config.
      *
      * @return BasicConfig instance.

@@ -1,5 +1,6 @@
 package com.mimecast.robin.main;
 
+import com.mimecast.robin.endpoints.MetricsEndpoint;
 import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.smtp.SmtpListener;
 import com.mimecast.robin.storage.StorageCleaner;
@@ -70,6 +71,13 @@ public class Server extends Foundation {
 
         // Clean storage on startup.
         StorageCleaner.clean(Config.getServer().getStorage());
+
+        // Start metrics endpoint.
+        try {
+            MetricsEndpoint.start();
+        } catch (IOException e) {
+            log.error("Unable to start monitoring endpoint: {}", e.getMessage());
+        }
     }
 
     /**
