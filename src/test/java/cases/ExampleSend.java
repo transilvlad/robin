@@ -26,6 +26,15 @@ public class ExampleSend {
     }
 
     /**
+     * JSON example of a basic test that sends an eml file.
+     */
+    @Test
+    void imapAssertion() throws AssertException, IOException {
+        new Client()
+                .send("src/test/resources/cases/config/imap.json5");
+    }
+
+    /**
      * JSON example of a basic test that sends a UTF-8 eml file.
      */
     @Test

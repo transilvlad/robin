@@ -2,6 +2,7 @@ package com.mimecast.robin.main;
 
 import com.mimecast.robin.annotation.Plugin;
 import com.mimecast.robin.assertion.client.ExternalClient;
+import com.mimecast.robin.assertion.client.imap.ImapExternalClient;
 import com.mimecast.robin.assertion.client.logs.LogsExternalClient;
 import com.mimecast.robin.config.BasicConfig;
 import com.mimecast.robin.smtp.auth.DigestCache;
@@ -76,8 +77,9 @@ public class Factories {
      * External clients.
      * <p>Used to fetch external service logs for assertion.
      */
-    private static final Map<String, Callable<ExternalClient>> externalClients = new HashMap<String, Callable<ExternalClient>>() {{
+    private static final Map<String, Callable<ExternalClient>> externalClients = new HashMap<>() {{
         put("logs", LogsExternalClient::new);
+        put("imap", ImapExternalClient::new);
     }};
 
     /**
