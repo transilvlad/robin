@@ -54,7 +54,7 @@
     ],
 
     // Save a copy of each email to Dovecot LDA.
-    saveToDovecotLda: false
+    saveToDovecotLda: true
   },
 
   // Email relay configuration.
