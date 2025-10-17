@@ -32,15 +32,13 @@ public class ServerRcpt extends ServerMail {
         // Check if users are enabled in configuration and try and authenticate if so.
         if (Config.getServer().isDovecotAuth()) {
             try (DovecotSaslAuthNative dovecotSaslAuthNative = new DovecotSaslAuthNative()) {
-                if (dovecotSaslAuthNative.validate(connection.getSession().getUsername(), "smtp")) {
-                    connection.getSession().getEnvelopes().getLast().addRcpt(getAddress().getAddress());
-                    return true;
-                } else {
+                if (!dovecotSaslAuthNative.validate(connection.getSession().getUsername(), "smtp")) {
                     connection.write("550 5.1.1 Unknown destination mailbox address [" + connection.getSession().getUID() + "]");
                     return false;
                 }
             } catch (Exception e) {
                 log.error("Dovecot authentication error: {}", e.getMessage());
+                connection.write("451 4.3.2 Internal server error [" + connection.getSession().getUID() + "]");
                 return false;
             }
         } else if (Config.getServer().isUsersEnabled()) {
