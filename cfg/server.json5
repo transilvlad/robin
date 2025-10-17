@@ -46,7 +46,7 @@
     path: "/usr/local/robin/store",
 
     // Auto clean storage on service start.
-    clean: true,
+    clean: false,
 
     // Auto clean delete matching filenames only.
     patterns: [
