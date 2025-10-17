@@ -36,10 +36,9 @@ public class Server extends Foundation {
      */
     public static void run(String path) throws ConfigurationException {
         init(path); // Initialize foundation.
-        startup(); // Initialize foundation.
+        startup(); // Startup prerequisites.
         registerShutdown(); // Shutdown hook.
         loadKeystore(); // Load Keystore.
-        StorageCleaner.clean(Config.getServer().getStorage()); // Clean storage.
 
         // Configured ports list.
         List<Integer> ports = List.of(
@@ -68,6 +67,9 @@ public class Server extends Foundation {
     private static void startup() {
         // Start relay queue cron job.
         RelayQueueCron.run();
+
+        // Clean storage on startup.
+        StorageCleaner.clean(Config.getServer().getStorage());
     }
 
     /**
