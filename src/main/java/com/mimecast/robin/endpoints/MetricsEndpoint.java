@@ -20,6 +20,7 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -62,20 +63,12 @@ public class MetricsEndpoint {
         server.createContext("/", httpExchange -> {
             String endpoints = "Available endpoints:\n" +
                     "/ui - Simple web UI for metrics visualization\n" +
+                    "/graphite - Graphite formatted metrics for the UI\n" +
                     "/metrics - Prometheus metrics scrape endpoint\n" +
-                    "/graphite - Graphite formatted metrics for the UI\n";
+                    "/threads - Thread dump\n";
             httpExchange.sendResponseHeaders(200, endpoints.getBytes().length);
             try (OutputStream os = httpExchange.getResponseBody()) {
                 os.write(endpoints.getBytes());
-            }
-        });
-
-        // Prometheus scrape endpoint.
-        server.createContext("/metrics", httpExchange -> {
-            String response = prometheusRegistry.scrape();
-            httpExchange.sendResponseHeaders(200, response.getBytes().length);
-            try (OutputStream os = httpExchange.getResponseBody()) {
-                os.write(response.getBytes());
             }
         });
 
@@ -99,6 +92,25 @@ public class MetricsEndpoint {
             httpExchange.sendResponseHeaders(200, response.toString().getBytes().length);
             try (OutputStream os = httpExchange.getResponseBody()) {
                 os.write(response.toString().getBytes());
+            }
+        });
+
+        // Prometheus scrape endpoint.
+        server.createContext("/metrics", httpExchange -> {
+            String response = prometheusRegistry.scrape();
+            httpExchange.sendResponseHeaders(200, response.getBytes().length);
+            try (OutputStream os = httpExchange.getResponseBody()) {
+                os.write(response.getBytes());
+            }
+        });
+
+        // Thread dump endpoint.
+        server.createContext("/threads", httpExchange -> {
+            String response = getThreadDump();
+            httpExchange.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
+            httpExchange.sendResponseHeaders(200, response.getBytes(StandardCharsets.UTF_8).length);
+            try (OutputStream os = httpExchange.getResponseBody()) {
+                os.write(response.getBytes(StandardCharsets.UTF_8));
             }
         });
 
@@ -160,6 +172,32 @@ public class MetricsEndpoint {
                                 .map(t -> t.getKey().replaceAll("\\.", "_") + "-" + t.getValue().replaceAll("\\.", "_"))
                                 .collect(Collectors.joining(".")));
         return graphiteRegistry;
+    }
+
+    /**
+     * Returns a string representation of all thread stack traces.
+     *
+     * @return Thread dump as a String.
+     */
+    private static String getThreadDump() {
+        StringBuilder dump = new StringBuilder();
+        Map<Thread, StackTraceElement[]> stackTraces = Thread.getAllStackTraces();
+
+        for (Map.Entry<Thread, StackTraceElement[]> entry : stackTraces.entrySet()) {
+            Thread thread = entry.getKey();
+            dump.append(String.format(
+                    "\"%s\" #%d prio=%d state=%s%n",
+                    thread.getName(),
+                    thread.getId(),
+                    thread.getPriority(),
+                    thread.getState()
+            ));
+            for (StackTraceElement stackTraceElement : entry.getValue()) {
+                dump.append("   at ").append(stackTraceElement).append("\n");
+            }
+            dump.append("\n");
+        }
+        return dump.toString();
     }
 
     /**
