@@ -60,6 +60,7 @@ public class RelayMessage {
                         .setProtocol(relayConfig.getStringProperty("protocol", "ESMTP"));
 
                 // Enqueue for retry.
+                // TODO: Rename files to prevent deletion on restart.
                 PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE)
                     .enqueue(relaySession);
             }
