@@ -178,7 +178,7 @@ public class MetricsEndpoint {
                 "</head>" +
                 "<body>" +
                 "<script>" +
-                "const metricsToChart = ['jvm_memory_used', 'jvm_memory_committed', 'jvm_threads_live', 'system_cpu_usage'];" +
+                "const metricsToChart = ['jvm_buffer_count', 'jvm_buffer_memory_used', 'jvm_buffer_total_capacity', 'jvm_gc_concurrent_phase_time', 'jvm_gc_live_data_size', 'jvm_gc_max_data_size', 'jvm_gc_memory_allocated', 'jvm_gc_memory_promoted', 'jvm_gc_pause', 'jvm_memory_committed', 'jvm_memory_max', 'jvm_memory_used', 'jvm_threads_daemon', 'jvm_threads_live', 'jvm_threads_peak', 'jvm_threads_started', 'jvm_threads_states', 'process_cpu_usage', 'system_cpu_count', 'system_cpu_usage'];" +
                 "const charts = {};" +
                 "metricsToChart.forEach(metric => {" +
                 "  const container = document.createElement('div');" +
