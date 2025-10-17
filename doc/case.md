@@ -235,9 +235,9 @@ Case
     {
         // Magic variables.
         $: { // Use the dollar sign to define a map to hold them.
-            fromAddress: "robin@mimecast.net",
+            fromAddress: "robin@example.come",
             toUser: "smoke",
-            toDomain: "mta11.goldcheesyfish.com",
+            toDomain: "example.net",
             toAddress: "{$toUser}@{$toDomain}" // Can be used immediatelly after defined above.
         },
         

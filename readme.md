@@ -1,4 +1,4 @@
-Robin MTA Tester
+Robin MTA Server and Tester
 ================
 By **Vlad Marian** *<transilvlad@gmail.com>*
 
@@ -6,19 +6,24 @@ By **Vlad Marian** *<transilvlad@gmail.com>*
 Overview
 --------
 <img align="right" width="200" height="200" src="doc/logo.jpg" alt="Logo">
-Robin MTA Tester is a development, debug and testing tool for MTA architects.
+Robin MTA Server and Tester is a development, debug and testing tool for MTA architects.
+However as the name suggests it can also be used as a lightweight MTA server with Dovecot AUTH and mailbox integration support.
+
 It is powered by a highly customizable SMTP client designed to emulate the behaviour of popular email clients.
-A rudimentary server is also provided that is mainly used for testing the client.
+The lightweight server is ideal for a simple configurable catch server for testing or a fully fledged MTA on using Dovecot mailboxes.
 
 The primary usage is done via JSON files called test cases.
 Cases are client configuration files ran as Junit tests.
 
-This project can be compiled into a runnable JAR.
+This project can be compiled into a runnable JAR or built into a Docker container.
+
 A CLI interface is implemented with support for both client and server execution.
 
-Mimecast uses this to run smoke tests every time a new MTA snapshot is built.
-This helps identify bugs early before leaving the development environment.
+Use this to run end-to-end tests manually or in automation.
+This helps identify bugs early before leaving the development and staging environments.
 
+Or set up a lightweight MTA server for your development and testing needs.
+Or both :)
 
 Contributions
 -------------
@@ -43,7 +48,7 @@ This project makes use of sample password as needed for testing and demonstratio
 - giveHerTheRing - Another sample used in unit tests and documentation. (Tony Stark / Pepper Pots Easter egg)
 - avengers - Test keystore password that contains a single entry issued to Tony Stark. (Another Easter egg)
 
-**These passwords are not in use within Mimecast production environments.**
+**These passwords are not in use within our production environments.**
 
 
 More...
