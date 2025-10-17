@@ -1,6 +1,6 @@
 package com.mimecast.robin.smtp.auth;
 
-import org.apache.geronimo.mail.util.Hex;
+import org.apache.commons.codec.binary.Hex;
 
 /**
  * Digest-MD5 authentication mechanism random generator.
@@ -22,6 +22,6 @@ public class SecureRandom implements Random {
         byte[] bytes = new byte[size];
         new java.security.SecureRandom().nextBytes(bytes);
 
-        return new String(Hex.encode(bytes));
+        return Hex.encodeHexString(bytes);
     }
 }

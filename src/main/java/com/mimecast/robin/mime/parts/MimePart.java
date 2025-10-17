@@ -3,9 +3,9 @@ package com.mimecast.robin.mime.parts;
 import com.mimecast.robin.mime.HashType;
 import com.mimecast.robin.mime.headers.MimeHeader;
 import com.mimecast.robin.mime.headers.MimeHeaders;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeUtility;
 import org.apache.commons.io.IOUtils;
-import org.apache.geronimo.mail.util.Base64EncoderStream;
-import org.apache.geronimo.mail.util.QuotedPrintableEncoderStream;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -118,10 +118,15 @@ public abstract class MimePart {
 
         MimeHeader contentEncoding = getHeader("Content-Transfer-Encoding");
         if (contentEncoding != null) {
-            if (contentEncoding.getValue().toLowerCase().contains("quoted-printable")) {
-                writeStream = new QuotedPrintableEncoderStream(outputStream);
-            } else if (contentEncoding.getValue().toLowerCase().contains("base64")) {
-                writeStream = new Base64EncoderStream(outputStream);
+            try {
+                String encoding = contentEncoding.getValue().toLowerCase();
+                if (encoding.contains("quoted-printable")) {
+                    writeStream = MimeUtility.encode(outputStream, "quoted-printable");
+                } else if (encoding.contains("base64")) {
+                    writeStream = MimeUtility.encode(outputStream, "base64");
+                }
+            } catch (MessagingException e) {
+                throw new IOException("Unable to get encoding stream", e);
             }
         }
 

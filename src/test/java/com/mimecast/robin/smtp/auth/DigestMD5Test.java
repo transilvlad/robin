@@ -2,13 +2,12 @@ package com.mimecast.robin.smtp.auth;
 
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Foundation;
-import org.apache.geronimo.javamail.authentication.DigestMD5Authenticator;
-import org.apache.geronimo.mail.util.Hex;
+import org.apache.commons.codec.DecoderException;
+import org.apache.commons.codec.binary.Hex;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import javax.naming.ConfigurationException;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -42,7 +41,7 @@ class DigestMD5Test {
     }
 
     @Test
-    void setRandomSize() {
+    void setRandomSize() throws DecoderException {
         DigestMD5Server server = new DigestMD5Server(host, username,  password, realm);
         server.setDigestDatabase(database);
         server.setRandomSize(Math.toIntExact(Config.getProperties().getLongProperty("digestmd5.random", 32L)));
@@ -51,7 +50,7 @@ class DigestMD5Test {
         DigestData data = DigestUtils.parsePayload(challenge);
 
         assertFalse(data.getNonce().isEmpty());
-        assertEquals(64, Hex.decode(data.getNonce()).length);
+        assertEquals(64, Hex.decodeHex(data.getNonce()).length);
     }
 
     @Test
@@ -193,95 +192,5 @@ class DigestMD5Test {
 
         assertEquals(response, origAuth);
         assertEquals(second, subAuth);
-    }
-
-    @Test
-    void compareGeronimoRealmless() throws Exception {
-        String challenge = "realm=\"\",nonce=\"GrIfgpL9LaBmIYK126s0dg==\",qop=\"auth\",charset=\"utf-8\",algorithm=\"md5-sess\"";
-
-        DigestMD5Authenticator digest = new DigestMD5Authenticator("", username, password, "");
-        String clearDigest = new String(digest.authenticateClient(challenge.getBytes()), StandardCharsets.US_ASCII);
-        DigestData dataDigest = DigestUtils.parsePayload(clearDigest);
-
-        DigestMD5Client client = new DigestMD5Client("", username,  password, "");
-        client.setDigestDatabase(database);
-        client.setRandom(new NotRandom(dataDigest.getCnonce()));
-
-        String clearAuth = DigestUtils.decode(client.authenticateClient(challenge));
-        DigestData dataAuth = DigestUtils.parsePayload(clearAuth);
-
-        assertEquals(dataDigest.getUsername(), dataAuth.getUsername());
-        assertEquals(dataDigest.getRealm(), dataAuth.getRealm());
-
-        assertEquals(dataDigest.getQop(), dataAuth.getQop());
-        assertEquals(dataDigest.getNc(), dataAuth.getNc());
-
-        assertEquals(dataDigest.getNonce(), dataAuth.getNonce());
-        assertEquals(dataDigest.getCnonce(), dataAuth.getCnonce());
-
-        assertEquals(dataDigest.getMap().get("digest-uri"), dataAuth.getMap().get("digest-uri"));
-        assertEquals(dataDigest.getResponse(), dataAuth.getResponse());
-
-        assertEquals(clearDigest.replaceAll("\"", ""), clearAuth.replaceAll("\"", ""));
-    }
-
-    @Test
-    void compareGeronimoRealm() throws Exception {
-        String challenge = "realm=\"example.com\",nonce=\"GrIfgpL9LaBmIYK126s0dg==\",qop=\"auth\",charset=\"utf-8\",algorithm=\"md5-sess\"";
-
-        DigestMD5Authenticator digest = new DigestMD5Authenticator("", username, password, realm);
-        String clearDigest = new String(digest.authenticateClient(challenge.getBytes()), StandardCharsets.US_ASCII);
-        DigestData dataDigest = DigestUtils.parsePayload(clearDigest);
-
-        DigestMD5Client client = new DigestMD5Client("", username,  password, realm);
-        client.setDigestDatabase(database);
-        client.setRandom(new NotRandom(dataDigest.getCnonce()));
-
-        String clearAuth = DigestUtils.decode(client.authenticateClient(challenge));
-        DigestData dataAuth = DigestUtils.parsePayload(clearAuth);
-
-        assertEquals(dataDigest.getUsername(), dataAuth.getUsername());
-        assertEquals(dataDigest.getRealm(), dataAuth.getRealm());
-
-        assertEquals(dataDigest.getQop(), dataAuth.getQop());
-        assertEquals(dataDigest.getNc(), dataAuth.getNc());
-
-        assertEquals(dataDigest.getNonce(), dataAuth.getNonce());
-        assertEquals(dataDigest.getCnonce(), dataAuth.getCnonce());
-
-        assertEquals(dataDigest.getMap().get("digest-uri"), dataAuth.getMap().get("digest-uri"));
-        assertEquals(dataDigest.getResponse(), dataAuth.getResponse());
-
-        assertEquals(clearDigest.replaceAll("\"", ""), clearAuth.replaceAll("\"", ""));
-    }
-
-    @Test
-    void compareGeronimoHostRealm() throws Exception {
-        String challenge = "realm=\"example.com\",nonce=\"GrIfgpL9LaBmIYK126s0dg==\",qop=\"auth\",charset=\"utf-8\",algorithm=\"md5-sess\"";
-
-        DigestMD5Authenticator digest = new DigestMD5Authenticator(host, username, password, realm);
-        String clearDigest = new String(digest.authenticateClient(challenge.getBytes()), StandardCharsets.US_ASCII);
-        DigestData dataDigest = DigestUtils.parsePayload(clearDigest);
-
-        DigestMD5Client client = new DigestMD5Client(host, username,  password, realm);
-        client.setDigestDatabase(database);
-        client.setRandom(new NotRandom(dataDigest.getCnonce()));
-
-        String clearAuth = DigestUtils.decode(client.authenticateClient(challenge));
-        DigestData dataAuth = DigestUtils.parsePayload(clearAuth);
-
-        assertEquals(dataDigest.getUsername(), dataAuth.getUsername());
-        assertEquals(dataDigest.getRealm(), dataAuth.getRealm());
-
-        assertEquals(dataDigest.getQop(), dataAuth.getQop());
-        assertEquals(dataDigest.getNc(), dataAuth.getNc());
-
-        assertEquals(dataDigest.getNonce(), dataAuth.getNonce());
-        assertEquals(dataDigest.getCnonce(), dataAuth.getCnonce());
-
-        assertEquals(dataDigest.getMap().get("digest-uri"), dataAuth.getMap().get("digest-uri"));
-        assertEquals(dataDigest.getResponse(), dataAuth.getResponse());
-
-        assertEquals(clearDigest.replaceAll("\"", ""), clearAuth.replaceAll("\"", ""));
     }
 }

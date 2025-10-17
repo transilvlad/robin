@@ -1,7 +1,7 @@
 package com.mimecast.robin.smtp.auth;
 
+import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.geronimo.mail.util.Hex;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -79,7 +79,7 @@ public class DigestMD5Client extends DigestMD5 {
             digest.update(digestData.getUsername().getBytes(ascii));
             // Realm not used as the server may not use any.
 
-            String token = new String(Hex.encode(digest.digest()), ascii);
+            String token = Hex.encodeHexString(digest.digest());
             log.debug("Token built: {}", token);
 
             return token;
@@ -156,7 +156,7 @@ public class DigestMD5Client extends DigestMD5 {
             digest.update(nonces.getBytes(ascii));
 
             // Client head and body = HEX(digest):nonce:nc:cnonce:qop:HEX(digest).
-            clientHead = new String(Hex.encode(digest.digest()), ascii);
+            clientHead = Hex.encodeHexString(digest.digest());
             clientBody = ":" + map.get(DigestUtils.NONCE) + ":" + DigestUtils.hexadecimal(map.get(DigestUtils.NC)) + ":" + cnonce + ":" + map.get(DigestUtils.QOP) + ":";
             log.debug("Building clientHead: {}", clientHead);
             log.debug("Building clientBody: {}", clientBody);
@@ -166,14 +166,14 @@ public class DigestMD5Client extends DigestMD5 {
             digest.update(auth.getBytes(ascii));
 
             // Client and client tail.
-            String clientTail = new String(Hex.encode(digest.digest()), ascii);
+            String clientTail = Hex.encodeHexString(digest.digest());
             log.debug("Building clientTail: {}", clientTail);
             String client = clientHead + clientBody + clientTail;
             log.debug("Building client: {}", client);
             digest.update(client.getBytes(ascii));
 
             // Return.
-            response = new String(Hex.encode(digest.digest()), ascii);
+            response = Hex.encodeHexString(digest.digest());
             log.debug("Response built: {}", response);
         } catch (UnsupportedEncodingException e) {
             log.fatal("Error encoding to {}: {}", ascii, e.getMessage());
@@ -206,12 +206,12 @@ public class DigestMD5Client extends DigestMD5 {
             digest.update((":smtp/" + digestData.getHost()).getBytes(ascii));
 
             // Client.
-            String client = clientHead + clientBody + new String(Hex.encode(digest.digest()), ascii);
+            String client = clientHead + clientBody + Hex.encodeHexString(digest.digest());
             log.debug("Building client: {}", client);
             digest.update(client.getBytes(ascii));
 
             // Return.
-            return new String(Hex.encode(digest.digest()), ascii);
+            return Hex.encodeHexString(digest.digest());
         } catch (UnsupportedEncodingException e) {
             log.fatal("Error encoding to {}: {}", ascii, e.getMessage());
         }

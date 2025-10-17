@@ -207,7 +207,7 @@ public abstract class MatchExternalClient extends ExternalClient {
     }
 
     /**
-     * Check all matches matched.
+     * Check all matches have matched.
      *
      * @throws AssertException Assertion exception.
      */
