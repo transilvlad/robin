@@ -69,8 +69,8 @@ public class DovecotSaslAuthNative implements AutoCloseable {
                 outputStream = socket.getOutputStream();
                 inputStream = socket.getInputStream();
             }
-        } catch (IOException e) {
-            log.error("Failed to initialize unix socket at {}: {}", socketPath, e.getMessage());
+        } catch (Throwable e) {
+            log.error("Failed to initialize unix socket at {}: {}", socketPath, e);
         }
     }
 
@@ -94,7 +94,6 @@ public class DovecotSaslAuthNative implements AutoCloseable {
 
         // A successful response starts with "USER" and should match the request ID.
         boolean response = callDovecotSocket(request).startsWith("USER\t" + requestId);
-
 
         log.info("Validation {} for user: {}", response ? "succeeded" : "failed", username);
         return response;
@@ -238,7 +237,7 @@ public class DovecotSaslAuthNative implements AutoCloseable {
             socket.close();
             inputStream.close();
             outputStream.close();
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.error("Error closing socket: {}", e.getMessage());
         }
     }
