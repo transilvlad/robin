@@ -90,6 +90,10 @@ public class EmailReceipt implements Runnable {
             Verb verb;
             for (int i = 0; i < transactionsLimit; i++) {
                 String read = connection.read().trim();
+                if (read.isEmpty()) {
+                    log.error("Read empty, breaking.");
+                    break;
+                }
                 verb = new Verb(read);
 
                 // Don't process if error.
