@@ -1,12 +1,20 @@
 services:
   robin:
-    container_name: robin-mta
+    container_name: robin-dovecot
     build:
       context: ./
       dockerfile: ./Dockerfile
     volumes:
+      # Robin specific volumes
       - ./cfg:/usr/local/robin/cfg
-      - ./log:/usr/local/robin/log
+      - ./log:/var/log
       - ./store:/usr/local/robin/store
+      # Dovecot specific volumes
+      - ./store/mail:/var/mail
+      - ./.dovecot/etc:/etc/dovecot
     ports:
-      - "25:25"
+      - "25:25"     # SMTP
+      - "587:587"   # SUBMISSION
+      - "465:465"   # SMTPS
+      - "143:143"   # IMAP
+      - "993:993"   # IMAPS
