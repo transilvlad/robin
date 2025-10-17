@@ -2,7 +2,6 @@ package com.mimecast.robin.sasl;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.net.UnixDomainSocketAddress;
 
 /**
  * A mock subclass of DovecotSaslAuthNative for testing purposes.
@@ -15,7 +14,7 @@ public class DovecotSaslAuthNativeMock extends DovecotSaslAuthNative {
     }
 
     @Override
-    void initSocket(UnixDomainSocketAddress address) {
+    void initSocket() {
         this.outputStream = new ByteArrayOutputStream();
     }
 }

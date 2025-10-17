@@ -4,6 +4,7 @@ import com.mimecast.robin.config.server.ScenarioConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.sasl.DovecotSaslAuthNative;
 import com.mimecast.robin.smtp.connection.Connection;
+import com.mimecast.robin.smtp.verb.MailVerb;
 import com.mimecast.robin.smtp.verb.Verb;
 
 import javax.mail.internet.AddressException;
@@ -32,7 +33,7 @@ public class ServerRcpt extends ServerMail {
         // Check if users are enabled in configuration and try and authenticate if so.
         if (Config.getServer().isDovecotAuth()) {
             try (DovecotSaslAuthNative dovecotSaslAuthNative = new DovecotSaslAuthNative()) {
-                if (!dovecotSaslAuthNative.validate(connection.getSession().getUsername(), "smtp")) {
+                if (!dovecotSaslAuthNative.validate(new MailVerb(verb).getAddress().getAddress(), "smtp")) {
                     connection.write("550 5.1.1 Unknown destination mailbox address [" + connection.getSession().getUID() + "]");
                     return false;
                 }
