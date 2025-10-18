@@ -9,6 +9,7 @@ import com.mimecast.robin.main.Client;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.queue.PersistentQueue;
+import com.mimecast.robin.queue.QueueFiles;
 import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.smtp.MessageEnvelope;
@@ -26,7 +27,9 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -43,6 +46,7 @@ import java.util.Map;
  *       responds with the final {@link Session} serialized as JSON.</li>
  *   <li><b>POST /client/queue</b> — Same inputs as <code>/client/send</code>, but instead of sending immediately, it
  *       enqueues the built {@link Session} as a {@link RelaySession} into the persistent relay queue.</li>
+ *   <li><b>GET /client/queue-list</b> — Lists the current relay queue contents in a simple HTML table.</li>
  *   <li><b>GET /client/health</b> — Simple liveness endpoint returning HTTP 200 with <code>{"status":"UP"}</code>.</li>
  * </ul>
  *
@@ -99,7 +103,6 @@ public class ClientEndpoint {
 
         // Bind the HTTP server to the configured API port.
         int apiPort = getApiPort();
-        log.info("ClientEndpoint starting HTTP server on port {}", apiPort);
         HttpServer server = HttpServer.create(new InetSocketAddress(apiPort), 10);
 
         // Register endpoints.
@@ -109,6 +112,8 @@ public class ClientEndpoint {
         server.createContext("/client/send", this::handleClientSend);
         // Queue endpoint that enqueues a RelaySession for later delivery.
         server.createContext("/client/queue", this::handleClientQueue);
+        // New: Queue listing endpoint.
+        server.createContext("/client/queue-list", this::handleQueueList);
         // Liveness endpoint for client API.
         server.createContext("/client/health", exchange -> sendJson(exchange, 200, "{\"status\":\"UP\"}"));
 
@@ -117,6 +122,7 @@ public class ClientEndpoint {
         log.info("Landing available at http://localhost:{}/", apiPort);
         log.info("Submission endpoint available at http://localhost:{}/client/send", apiPort);
         log.info("Queue endpoint available at http://localhost:{}/client/queue", apiPort);
+        log.info("Queue list available at http://localhost:{}/client/queue-list", apiPort);
         log.info("Health available at http://localhost:{}/client/health", apiPort);
     }
 
@@ -313,6 +319,9 @@ public class ClientEndpoint {
                     .setProtocol(protocolOverride)
                     .setMailbox(mailboxOverride);
 
+            // Persist any envelope files to storage/queue before enqueueing.
+            QueueFiles.persistEnvelopeFiles(relaySession);
+
             // Enqueue for later relay.
             PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
             queue.enqueue(relaySession);
@@ -332,6 +341,111 @@ public class ClientEndpoint {
             log.error("Error processing /client/queue: {}", e.getMessage(), e);
             sendText(exchange, 500, "Internal Server Error: " + e.getMessage());
         }
+    }
+
+    /**
+     * Lists the relay queue contents in a simple HTML table.
+     */
+    private void handleQueueList(HttpExchange exchange) throws IOException {
+        log.debug("GET /client/queue-list from {}", exchange.getRemoteAddress());
+        try {
+            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
+            List<RelaySession> items = queue.snapshot();
+
+            // Load HTML template from resources.
+            String template = readResourceFile("queue-list-ui.html");
+
+            // Build only the dynamic rows HTML.
+            StringBuilder rows = new StringBuilder(Math.max(8192, items.size() * 256));
+            for (int i = 0; i < items.size(); i++) {
+                RelaySession rs = items.get(i);
+                Session s = rs.getSession();
+                List<MessageEnvelope> envs = s != null ? s.getEnvelopes() : null;
+                int envCount = envs != null ? envs.size() : 0;
+
+                // Recipients summary (first 5 unique, then +N)
+                StringBuilder recipients = new StringBuilder();
+                int added = 0;
+                java.util.HashSet<String> seen = new java.util.HashSet<>();
+                if (envs != null) {
+                    for (MessageEnvelope env : envs) {
+                        if (env == null) continue;
+                        for (String r : env.getRcpts()) {
+                            if (seen.add(r)) {
+                                if (added > 0) recipients.append(", ");
+                                recipients.append(escapeHtml(r));
+                                added++;
+                                if (added >= 5) break;
+                            }
+                        }
+                        if (added >= 5) break;
+                    }
+                }
+                if (envs != null) {
+                    int totalRecipients = envs.stream().mapToInt(e -> e.getRcpts() != null ? e.getRcpts().size() : 0).sum();
+                    if (totalRecipients > added) {
+                        recipients.append(" … (+").append(totalRecipients - added).append(")");
+                    }
+                }
+
+                // Files summary (first 5 base names with tooltip of full path)
+                StringBuilder files = new StringBuilder();
+                int fadded = 0;
+                if (envs != null) {
+                    for (MessageEnvelope env : envs) {
+                        if (env == null) continue;
+                        String f = env.getFile();
+                        if (f != null && !f.isBlank()) {
+                            String base = Paths.get(f).getFileName().toString();
+                            if (fadded > 0) files.append(", ");
+                            files.append("<span title='").append(escapeHtml(f)).append("'>").append(escapeHtml(base)).append("</span>");
+                            fadded++;
+                            if (fadded >= 5) break;
+                        }
+                    }
+                }
+
+                String lastRetry = rs.getLastRetryTime() > 0 ? rs.getLastRetryDate() : "-";
+
+                rows.append("<tr>")
+                        .append("<td class='nowrap'>").append(i + 1).append("</td>")
+                        .append("<td class='mono'>").append(escapeHtml(s != null ? s.getUID() : "-")).append("</td>")
+                        .append("<td>").append(escapeHtml(rs.getProtocol())).append("</td>")
+                        .append("<td>").append(escapeHtml(rs.getMailbox())).append("</td>")
+                        .append("<td>").append(rs.getRetryCount()).append("</td>")
+                        .append("<td class='nowrap'>").append(escapeHtml(lastRetry)).append("</td>")
+                        .append("<td>").append(envCount).append("</td>")
+                        .append("<td>").append(recipients).append("</td>")
+                        .append("<td>").append(files).append("</td>")
+                        .append("</tr>");
+            }
+
+            String html = template
+                    .replace("{{TOTAL}}", String.valueOf(items.size()))
+                    .replace("{{ROWS}}", rows.toString());
+
+            sendHtml(exchange, 200, html);
+        } catch (Exception e) {
+            log.error("Error processing /client/queue-list: {}", e.getMessage(), e);
+            sendText(exchange, 500, "Internal Server Error: " + e.getMessage());
+        }
+    }
+
+    /** Escape minimal HTML characters */
+    private String escapeHtml(String s) {
+        if (s == null) return "";
+        StringBuilder out = new StringBuilder(s.length());
+        for (char c : s.toCharArray()) {
+            switch (c) {
+                case '<' -> out.append("&lt;");
+                case '>' -> out.append("&gt;");
+                case '"' -> out.append("&quot;");
+                case '\'' -> out.append("&#39;");
+                case '&' -> out.append("&amp;");
+                default -> out.append(c);
+            }
+        }
+        return out.toString();
     }
 
     /**
@@ -369,7 +483,7 @@ public class ClientEndpoint {
         try (OutputStream os = exchange.getResponseBody()) {
             os.write(bytes);
         }
-        log.debug("Sent HTML response: status={}, bytes={}", code, bytes.length);
+        log.trace("Sent HTML response: status={}, bytes={}", code, bytes.length);
     }
 
     /**

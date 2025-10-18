@@ -6,6 +6,7 @@ import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.headers.MimeHeader;
 import com.mimecast.robin.queue.PersistentQueue;
+import com.mimecast.robin.queue.QueueFiles;
 import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.queue.bounce.BounceMessageGenerator;
@@ -250,6 +251,10 @@ public class LocalStorageClient implements StorageClient {
                                 "queueFile",
                                 RelayQueueCron.QUEUE_FILE.getAbsolutePath()
                         ));
+
+                        // Persist any envelope files (no-op for bytes-only envelopes) before enqueue.
+                        QueueFiles.persistEnvelopeFiles(relaySessionBounce);
+
                         PersistentQueue.getInstance(queueFile)
                                 .enqueue(relaySessionBounce);
                     }

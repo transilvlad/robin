@@ -6,6 +6,7 @@ import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.headers.MimeHeader;
 import com.mimecast.robin.queue.PersistentQueue;
+import com.mimecast.robin.queue.QueueFiles;
 import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.smtp.MessageEnvelope;
@@ -59,8 +60,10 @@ public class RelayMessage {
                         .setMailbox(relayConfig.getStringProperty("mailbox"))
                         .setProtocol(relayConfig.getStringProperty("protocol", "ESMTP"));
 
+                // Persist any envelope files to storage/queue before enqueueing.
+                QueueFiles.persistEnvelopeFiles(relaySession);
+
                 // Enqueue for retry.
-                // TODO: Rename files to prevent deletion on restart.
                 PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE)
                     .enqueue(relaySession);
             }

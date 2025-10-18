@@ -118,6 +118,8 @@ public class MetricsEndpoint {
      * @throws IOException If an I/O error occurs.
      */
     private void handleLandingPage(HttpExchange exchange) throws IOException {
+        log.debug("Handling metrics landing page: method={}, uri={}, remote={}",
+                exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
         try {
             String response = readResourceFile("metrics-endpoints-ui.html");
             sendResponse(exchange, 200, "text/html; charset=utf-8", response);
@@ -134,6 +136,8 @@ public class MetricsEndpoint {
      * @throws IOException If an I/O error occurs.
      */
     private void handleMetricsUi(HttpExchange exchange) throws IOException {
+        log.debug("Handling /metrics UI: method={}, uri={}, remote={}",
+                exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
         try {
             String response = readResourceFile("metrics-ui.html");
             sendResponse(exchange, 200, "text/html; charset=utf-8", response);
@@ -150,6 +154,8 @@ public class MetricsEndpoint {
      * @throws IOException If an I/O error occurs.
      */
     private void handleGraphite(HttpExchange exchange) throws IOException {
+        log.trace("Handling /graphite: method={}, uri={}, remote={}",
+                exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
         StringBuilder response = new StringBuilder();
         graphiteRegistry.getMeters().forEach(meter -> meter.measure().forEach(measurement -> {
             String name = meter.getId().getName().replaceAll("\\.", "_");
@@ -165,6 +171,8 @@ public class MetricsEndpoint {
      * @throws IOException If an I/O error occurs.
      */
     private void handlePrometheus(HttpExchange exchange) throws IOException {
+        log.debug("Handling /prometheus: method={}, uri={}, remote={}",
+                exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
         String response = prometheusRegistry.scrape();
         sendResponse(exchange, 200, "text/plain; charset=utf-8", response);
     }
@@ -176,6 +184,8 @@ public class MetricsEndpoint {
      * @throws IOException If an I/O error occurs.
      */
     private void handleEnv(HttpExchange exchange) throws IOException {
+        log.debug("Handling /env: method={}, uri={}, remote={}",
+                exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
         String response = System.getenv().entrySet().stream()
                 .map(e -> e.getKey() + "=" + e.getValue())
                 .collect(Collectors.joining("\n"));
@@ -189,6 +199,8 @@ public class MetricsEndpoint {
      * @throws IOException If an I/O error occurs.
      */
     private void handleSysProps(HttpExchange exchange) throws IOException {
+        log.debug("Handling /sysprops: method={}, uri={}, remote={}",
+                exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
         String response = System.getProperties().entrySet().stream()
                 .map(e -> e.getKey() + "=" + e.getValue())
                 .collect(Collectors.joining("\n"));
@@ -202,6 +214,8 @@ public class MetricsEndpoint {
      * @throws IOException If an I/O error occurs.
      */
     private void handleThreads(HttpExchange exchange) throws IOException {
+        log.debug("Handling /threads: method={}, uri={}, remote={}",
+                exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
         String response = getThreadDump();
         sendResponse(exchange, 200, "text/plain; charset=utf-8", response);
     }
@@ -213,6 +227,8 @@ public class MetricsEndpoint {
      * @throws IOException If an I/O error occurs.
      */
     private void handleHeapDump(HttpExchange exchange) throws IOException {
+        log.debug("Handling /heapdump: method={}, uri={}, remote={}",
+                exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
         try {
             String path = "heapdump-" + System.currentTimeMillis() + ".hprof";
             HotSpotDiagnostic.getDiagnostic().dumpHeap(path, true);
@@ -232,6 +248,8 @@ public class MetricsEndpoint {
      * @throws IOException If an I/O error occurs.
      */
     private void handleHealth(HttpExchange exchange) throws IOException {
+        log.debug("Handling /health: method={}, uri={}, remote={}",
+                exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
         Duration uptime = Duration.ofMillis(System.currentTimeMillis() - startTime);
         String uptimeString = String.format("%dd %dh %dm %ds",
                 uptime.toDays(),
@@ -301,6 +319,7 @@ public class MetricsEndpoint {
         try (OutputStream os = exchange.getResponseBody()) {
             os.write(responseBytes);
         }
+        log.trace("Sent response: status={}, contentType={}, bytes={}", code, contentType, responseBytes.length);
     }
 
     /**
@@ -317,6 +336,7 @@ public class MetricsEndpoint {
         try (OutputStream os = exchange.getResponseBody()) {
             os.write(responseBytes);
         }
+        log.debug("Sent error response: status={}, bytes={}", code, responseBytes.length);
     }
 
     /**

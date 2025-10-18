@@ -54,6 +54,11 @@ public class StorageCleaner {
             if (files != null) {
                 for (File file : files) {
                     if (file.isDirectory()) {
+                        // Permanently exclude the persistent queue folder from cleaning.
+                        if ("queue".equalsIgnoreCase(file.getName())) {
+                            log.trace("Skipped queue folder: {}", file.getAbsolutePath());
+                            continue;
+                        }
                         cleanDirectory(file, true, patterns);
                     } else {
                         for (Pattern p : patterns) {
