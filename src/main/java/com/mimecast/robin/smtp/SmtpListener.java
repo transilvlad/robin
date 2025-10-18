@@ -98,6 +98,8 @@ public class SmtpListener {
         executor.setKeepAliveTime(Config.getServer().getThreadKeepAliveTime(), TimeUnit.SECONDS);
         executor.setCorePoolSize(Config.getServer().getMinimumPoolSize());
         executor.setMaximumPoolSize(Config.getServer().getMaximumPoolSize());
+        // Avoid rejecting new tasks when the pool is saturated; run in the caller thread instead.
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
     }
 
     /**
@@ -167,5 +169,63 @@ public class SmtpListener {
      */
     public int getActiveThreads() {
         return executor.getActiveCount();
+    }
+
+    // Additional thread pool stats for health reporting
+
+    /**
+     * @return Current core pool size.
+     */
+    public int getCorePoolSize() {
+        return executor.getCorePoolSize();
+    }
+
+    /**
+     * @return Configured maximum pool size.
+     */
+    public int getMaximumPoolSize() {
+        return executor.getMaximumPoolSize();
+    }
+
+    /**
+     * @return Current pool size (number of threads in the pool).
+     */
+    public int getPoolSize() {
+        return executor.getPoolSize();
+    }
+
+    /**
+     * @return Largest pool size reached since the executor started.
+     */
+    public int getLargestPoolSize() {
+        return executor.getLargestPoolSize();
+    }
+
+    /**
+     * @return Queue size for pending tasks (0 for SynchronousQueue in cached thread pool).
+     */
+    public int getQueueSize() {
+        return executor.getQueue() != null ? executor.getQueue().size() : 0;
+    }
+
+    /**
+     * @return Approximate total number of tasks that have completed execution.
+     */
+    public long getCompletedTaskCount() {
+        return executor.getCompletedTaskCount();
+    }
+
+    /**
+     * @return Approximate total number of tasks that have ever been scheduled for execution.
+     */
+    public long getTaskCount() {
+        return executor.getTaskCount();
+    }
+
+    /**
+     * @return Keep-alive time for idle threads in seconds.
+     */
+    public long getKeepAliveSeconds() {
+        return executor.getKeepAliveTime(TimeUnit.SECONDS);
     }
 }
