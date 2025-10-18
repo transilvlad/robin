@@ -6,6 +6,7 @@
     <style>
         body { font-family: sans-serif; margin: 2em; background-color: #fdfdfd; color: #333; }
         h1 { font-size: 1.4rem; }
+        h2 { font-size: 1.2rem; margin-top: 1.6em; }
         ul { list-style-type: none; padding: 0; }
         li { background-color: #fff; border: 1px solid #ddd; margin-bottom: -1px; padding: 12px; }
         li:first-child { border-top-left-radius: 4px; border-top-right-radius: 4px; }
@@ -14,7 +15,7 @@
         a:hover { text-decoration: underline; }
         code { background-color: #eef; padding: 3px 6px; border-radius: 4px; font-family: "Courier New", Courier, monospace; }
         .description { color: #666; margin-left: 10px; }
-        .note { color: #555; font-size: 0.95rem; margin-top: 1em; }
+        .note { color: #555; font-size: 0.95rem; margin-top: 0.8em; }
         pre { background: #f6f8fa; padding: 10px; border: 1px solid #e1e4e8; border-radius: 6px; overflow-x: auto; }
         .header { display: flex; align-items: center; gap: 12px; margin-bottom: 1em; }
         .logo { width: 45px; height: 45px; }
@@ -46,44 +47,78 @@
         <span class="description">- Submit a JSON or JSON5 case via POST (body) or use <code>?path=</code> to point to a case file on disk.</span>
     </li>
     <li>
+        <a href="/client/queue"><code>/client/queue</code></a>
+        <span class="description">- Same inputs as <code>/client/send</code>, but enqueues the built session for relay instead of sending immediately. Optional overrides: <code>?protocol=</code>, <code>?mailbox=</code>.</span>
+    </li>
+    <li>
         <a href="/client/health"><code>/client/health</code></a>
         <span class="description">- Liveness probe for the client API server.</span>
     </li>
 </ul>
-
+<h2>Send by JSON body</h2>
 <div class="note">
-    <p>Example (Case file path via query parameter - Bash):</p>
-    <pre><code>curl -X POST "http://localhost:8090/client/send?path=/home/user/cases/sample.json5"</code></pre>
-</div>
-
-<div class="note">
-    <p>Example (Case file path via query parameter - Windows CMD):</p>
-    <pre><code>curl -X POST "http://localhost:8090/client/send?path=D:/work/robin/src/test/resources/case.json5"</code></pre>
-</div>
-
-<div class="note">
-    <p>Example (Case file path via query parameter - PowerShell):</p>
-    <pre><code>Invoke-RestMethod -Method Post -Uri 'http://localhost:8090/client/send?path=D:/work/robin/src/test/resources/case.json5'</code></pre>
-</div>
-
-<div class="note">
-    <p>Example (Bash):</p>
+    <p>Bash:</p>
     <pre><code>curl -X POST \
   -H "Content-Type: application/json" \
   -d '{"mx":["127.0.0.1"],"port":25,"envelopes":[{"mail":"tony@example.com","rcpt":["pepper@example.com"],"subject":"Urgent","message":"Send Rescue!"}]}' \
   "http://localhost:8090/client/send"</code></pre>
 </div>
-
 <div class="note">
-    <p>Example (Windows CMD):</p>
+    <p>Windows CMD:</p>
     <pre><code>set "DATA={\"mx\":[\"127.0.0.1\"],\"port\":25,\"envelopes\":[{\"mail\":\"tony@example.com\",\"rcpt\":[\"pepper@example.com\"],\"subject\":\"Urgent\",\"message\":\"Send Rescue!\"}]}"
 curl -X POST -H "Content-Type: application/json" -d %DATA% "http://localhost:8090/client/send"</code></pre>
 </div>
-
 <div class="note">
-    <p>Example (PowerShell):</p>
+    <p>PowerShell:</p>
     <pre><code>$body = '{"mx":["127.0.0.1"],"port":25,"envelopes":[{"mail":"tony@example.com","rcpt":["pepper@example.com"],"subject":"Urgent","message":"Send Rescue!"}]}'
 Invoke-RestMethod -Method Post -Uri 'http://localhost:8090/client/send' -ContentType 'application/json' -Body $body</code></pre>
+</div>
+
+<h2>Send by file path</h2>
+<div class="note">
+    <p>Bash:</p>
+    <pre><code>curl -X POST "http://localhost:8090/client/send?path=/home/user/cases/sample.json5"</code></pre>
+</div>
+<div class="note">
+    <p>Windows CMD:</p>
+    <pre><code>curl -X POST "http://localhost:8090/client/send?path=/home/user/cases/case.json5"</code></pre>
+</div>
+<div class="note">
+    <p>PowerShell:</p>
+    <pre><code>Invoke-RestMethod -Method Post -Uri 'http://localhost:8090/client/send?path=/home/user/cases/case.json5'</code></pre>
+</div>
+
+<h2>Queue by file path</h2>
+<div class="note">
+    <p>Bash:</p>
+    <pre><code>curl -X POST "http://localhost:8090/client/queue?path=/home/user/cases/sample.json5"</code></pre>
+</div>
+<div class="note">
+    <p>Windows CMD:</p>
+    <pre><code>curl -X POST "http://localhost:8090/client/queue?path=/home/user/cases/case.json5"</code></pre>
+</div>
+<div class="note">
+    <p>PowerShell:</p>
+    <pre><code>Invoke-RestMethod -Method Post -Uri 'http://localhost:8090/client/queue?path=/home/user/cases/case.json5'</code></pre>
+</div>
+
+<h2>Queue by JSON body</h2>
+<div class="note">
+    <p>Bash:</p>
+    <pre><code>curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"mx":["127.0.0.1"],"port":25,"envelopes":[{"mail":"tony@example.com","rcpt":["pepper@example.com"],"subject":"Queued","message":"Send later"}]}' \
+  "http://localhost:8090/client/queue"</code></pre>
+</div>
+<div class="note">
+    <p>Windows CMD:</p>
+    <pre><code>set "DATA={\"mx\":[\"127.0.0.1\"],\"port\":25,\"envelopes\":[{\"mail\":\"tony@example.com\",\"rcpt\":[\"pepper@example.com\"],\"subject\":\"Queued\",\"message\":\"Send later\"}]}"
+curl -X POST -H "Content-Type: application/json" -d %DATA% "http://localhost:8090/client/queue"</code></pre>
+</div>
+<div class="note">
+    <p>PowerShell:</p>
+    <pre><code>$body = '{"mx":["127.0.0.1"],"port":25,"envelopes":[{"mail":"tony@example.com","rcpt":["pepper@example.com"],"subject":"Queued","message":"Send later"}]}'
+Invoke-RestMethod -Method Post -Uri 'http://localhost:8090/client/queue' -ContentType 'application/json' -Body $body</code></pre>
 </div>
 </body>
 </html>

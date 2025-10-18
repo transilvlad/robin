@@ -7,6 +7,10 @@ import com.google.gson.GsonBuilder;
 import com.mimecast.robin.config.client.CaseConfig;
 import com.mimecast.robin.main.Client;
 import com.mimecast.robin.main.Config;
+import com.mimecast.robin.main.Factories;
+import com.mimecast.robin.queue.PersistentQueue;
+import com.mimecast.robin.queue.RelayQueueCron;
+import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.util.Magic;
@@ -37,6 +41,8 @@ import java.util.Map;
  *   <li><b>POST /client/send</b> — Accepts either a JSON/JSON5 payload describing a case or a query parameter
  *       <code>path</code> that points to a case file on disk. It executes the SMTP client with the supplied case and
  *       responds with the final {@link Session} serialized as JSON.</li>
+ *   <li><b>POST /client/queue</b> — Same inputs as <code>/client/send</code>, but instead of sending immediately, it
+ *       enqueues the built {@link Session} as a {@link RelaySession} into the persistent relay queue.</li>
  *   <li><b>GET /client/health</b> — Simple liveness endpoint returning HTTP 200 with <code>{"status":"UP"}</code>.</li>
  * </ul>
  *
@@ -93,6 +99,7 @@ public class ClientEndpoint {
 
         // Bind the HTTP server to the configured API port.
         int apiPort = getApiPort();
+        log.info("ClientEndpoint starting HTTP server on port {}", apiPort);
         HttpServer server = HttpServer.create(new InetSocketAddress(apiPort), 10);
 
         // Register endpoints.
@@ -100,6 +107,8 @@ public class ClientEndpoint {
         server.createContext("/", this::handleLandingPage);
         // Main endpoint that triggers a Client.send(...) run for the supplied case.
         server.createContext("/client/send", this::handleClientSend);
+        // Queue endpoint that enqueues a RelaySession for later delivery.
+        server.createContext("/client/queue", this::handleClientQueue);
         // Liveness endpoint for client API.
         server.createContext("/client/health", exchange -> sendJson(exchange, 200, "{\"status\":\"UP\"}"));
 
@@ -107,16 +116,20 @@ public class ClientEndpoint {
         new Thread(server::start).start();
         log.info("Landing available at http://localhost:{}/", apiPort);
         log.info("Submission endpoint available at http://localhost:{}/client/send", apiPort);
-        log.info("Health available at http://localhost:{}/health", apiPort);
+        log.info("Queue endpoint available at http://localhost:{}/client/queue", apiPort);
+        log.info("Health available at http://localhost:{}/client/health", apiPort);
     }
 
     /**
      * Serves a simple HTML landing page that documents available client endpoints.
      */
     private void handleLandingPage(HttpExchange exchange) throws IOException {
+        log.debug("Handling landing page request: method={}, uri={}, remote={}",
+                exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
         try {
             String response = readResourceFile("client-endpoints-ui.html");
             sendHtml(exchange, 200, response);
+            log.debug("Landing page served successfully");
         } catch (IOException e) {
             log.error("Could not read client-endpoints-ui.html", e);
             sendText(exchange, 500, "Internal Server Error");
@@ -158,20 +171,25 @@ public class ClientEndpoint {
     private void handleClientSend(HttpExchange exchange) throws IOException {
         // Only POST is supported, reject anything else.
         if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+            log.debug("Rejecting non-POST request to /client/send: method={}", exchange.getRequestMethod());
             sendText(exchange, 405, "Method Not Allowed");
             return;
         }
 
+        log.info("POST /client/send from {}", exchange.getRemoteAddress());
         try {
             // Parse query parameters (e.g., ?path=...).
             Map<String, String> query = parseQuery(exchange.getRequestURI());
+            log.debug("/client/send query params: {}", query);
             String pathParam = query.get("path");
 
             Session session;
             if (pathParam != null && !pathParam.isBlank()) {
                 // File path mode: execute Client.send(<path>).
                 String casePath = pathParam.trim();
+                log.debug("Using case file path: {}", casePath);
                 if (!PathUtils.isFile(casePath)) {
+                    log.info("/client/send invalid case file path: {}", casePath);
                     sendText(exchange, 400, "Invalid case file path");
                     return;
                 }
@@ -180,13 +198,17 @@ public class ClientEndpoint {
                 Client client = new Client();
                 client.send(casePath);
                 session = client.getSession();
+                log.info("/client/send completed from file: sessionUID={}, envelopes={}",
+                        session.getUID(), session.getEnvelopes() != null ? session.getEnvelopes().size() : 0);
             } else {
                 // Body mode: accept a raw JSON/JSON5 payload describing the case.
                 String body = readBody(exchange.getRequestBody());
                 if (body.isBlank()) {
+                    log.info("/client/send empty request body");
                     sendText(exchange, 400, "Empty request body");
                     return;
                 }
+                log.debug("/client/send body length: {} bytes", body.getBytes(StandardCharsets.UTF_8).length);
 
                 // Apply magic replacements similar to how file-based configs are processed.
                 String processed = Magic.streamMagicReplace(body);
@@ -195,6 +217,7 @@ public class ClientEndpoint {
                 @SuppressWarnings("rawtypes")
                 Map map = new Gson().fromJson(processed, Map.class);
                 if (map == null || map.isEmpty()) {
+                    log.info("/client/send invalid JSON body");
                     sendText(exchange, 400, "Invalid JSON body");
                     return;
                 }
@@ -205,14 +228,108 @@ public class ClientEndpoint {
                 Client client = new Client();
                 client.send(caseConfig);
                 session = client.getSession();
+                log.info("/client/send completed from body: sessionUID={}, envelopes={}",
+                        session.getUID(), session.getEnvelopes() != null ? session.getEnvelopes().size() : 0);
             }
 
             // Serialize session to JSON using the filtered Gson (excludes magic/savedResults/stream/bytes).
             String response = gson.toJson(session);
             sendJson(exchange, 200, response);
+            log.debug("/client/send responded 200, bytes={}", response.getBytes(StandardCharsets.UTF_8).length);
         } catch (Exception e) {
             // Any unexpected exception is reported as a 500 with a brief message.
             log.error("Error processing /client/send: {}", e.getMessage(), e);
+            sendText(exchange, 500, "Internal Server Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Handles <b>POST /client/queue</b> requests.
+     *
+     * <p>Supports two modes of input, same as /client/send:
+     * <ol>
+     *   <li><b>Query param</b>: <code>?path=/path/to/case.json5</code> — loads the case from disk and maps a session.</li>
+     *   <li><b>Request body</b>: raw JSON/JSON5 describing the case — parsed and mapped in-memory.</li>
+     * </ol>
+     *
+     * <p>On success, enqueues a {@link RelaySession} for later delivery and returns a JSON confirmation with
+     * the filtered {@link Session} plus queue size.
+     */
+    private void handleClientQueue(HttpExchange exchange) throws IOException {
+        if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+            log.debug("Rejecting non-POST request to /client/queue: method={}", exchange.getRequestMethod());
+            sendText(exchange, 405, "Method Not Allowed");
+            return;
+        }
+
+        log.info("POST /client/queue from {}", exchange.getRemoteAddress());
+        try {
+            Map<String, String> query = parseQuery(exchange.getRequestURI());
+            log.debug("/client/queue query params: {}", query);
+            String pathParam = query.get("path");
+
+            // Optional overrides via query params.
+            String protocolOverride = query.getOrDefault("protocol", Config.getServer().getRelay().getStringProperty("protocol", "ESMTP"));
+            String mailboxOverride = query.getOrDefault("mailbox", Config.getServer().getRelay().getStringProperty("mailbox"));
+            log.debug("/client/queue overrides: protocol={}, mailbox={}", protocolOverride, mailboxOverride);
+
+            CaseConfig caseConfig;
+            if (pathParam != null && !pathParam.isBlank()) {
+                String casePath = pathParam.trim();
+                log.debug("Using case file path: {}", casePath);
+                if (!PathUtils.isFile(casePath)) {
+                    log.info("/client/queue invalid case file path: {}", casePath);
+                    sendText(exchange, 400, "Invalid case file path");
+                    return;
+                }
+                caseConfig = new CaseConfig(casePath);
+            } else {
+                String body = readBody(exchange.getRequestBody());
+                if (body.isBlank()) {
+                    log.info("/client/queue empty request body");
+                    sendText(exchange, 400, "Empty request body");
+                    return;
+                }
+                log.debug("/client/queue body length: {} bytes", body.getBytes(StandardCharsets.UTF_8).length);
+                String processed = Magic.streamMagicReplace(body);
+                @SuppressWarnings("rawtypes")
+                Map map = new Gson().fromJson(processed, Map.class);
+                if (map == null || map.isEmpty()) {
+                    log.info("/client/queue invalid JSON body");
+                    sendText(exchange, 400, "Invalid JSON body");
+                    return;
+                }
+                caseConfig = new CaseConfig(map);
+            }
+
+            // Map a session from the case without sending.
+            Session session = Factories.getSession();
+            session.map(caseConfig);
+            log.info("Queueing session: sessionUID={}, envelopes={}",
+                    session.getUID(), session.getEnvelopes() != null ? session.getEnvelopes().size() : 0);
+
+            // Wrap in RelaySession using config or overrides.
+            RelaySession relaySession = new RelaySession(session)
+                    .setProtocol(protocolOverride)
+                    .setMailbox(mailboxOverride);
+
+            // Enqueue for later relay.
+            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
+            queue.enqueue(relaySession);
+            long size = queue.size();
+            log.info("Relay session queued: protocol={}, mailbox={}, queueSize={}", protocolOverride, mailboxOverride, size);
+
+            // Build confirmation payload.
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "QUEUED");
+            response.put("queueSize", size);
+            response.put("session", session);
+
+            String json = gson.toJson(response);
+            sendJson(exchange, 202, json);
+            log.debug("/client/queue responded 202, bytes={}", json.getBytes(StandardCharsets.UTF_8).length);
+        } catch (Exception e) {
+            log.error("Error processing /client/queue: {}", e.getMessage(), e);
             sendText(exchange, 500, "Internal Server Error: " + e.getMessage());
         }
     }
@@ -233,6 +350,7 @@ public class ClientEndpoint {
         try (OutputStream os = exchange.getResponseBody()) {
             os.write(bytes);
         }
+        log.debug("Sent JSON response: status={}, bytes={}", code, bytes.length);
     }
 
     /**
@@ -251,6 +369,7 @@ public class ClientEndpoint {
         try (OutputStream os = exchange.getResponseBody()) {
             os.write(bytes);
         }
+        log.debug("Sent HTML response: status={}, bytes={}", code, bytes.length);
     }
 
     /**
@@ -269,6 +388,7 @@ public class ClientEndpoint {
         try (OutputStream os = exchange.getResponseBody()) {
             os.write(bytes);
         }
+        log.debug("Sent text response: status={}, bytes={}", code, bytes.length);
     }
 
     /**
@@ -285,7 +405,9 @@ public class ClientEndpoint {
             while ((line = reader.readLine()) != null) {
                 sb.append(line).append('\n');
             }
-            return sb.toString();
+            String s = sb.toString();
+            log.debug("Read request body ({} bytes)", s.getBytes(StandardCharsets.UTF_8).length);
+            return s;
         }
     }
 
@@ -308,7 +430,9 @@ public class ClientEndpoint {
                 while ((line = reader.readLine()) != null) {
                     sb.append(line).append('\n');
                 }
-                return sb.toString();
+                String s = sb.toString();
+                log.debug("Read resource '{}', bytes={}", path, s.getBytes(StandardCharsets.UTF_8).length);
+                return s;
             }
         }
     }
@@ -322,7 +446,10 @@ public class ClientEndpoint {
     private Map<String, String> parseQuery(URI uri) {
         Map<String, String> map = new HashMap<>();
         String query = uri.getRawQuery();
-        if (query == null || query.isEmpty()) return map;
+        if (query == null || query.isEmpty()) {
+            log.debug("No query string in URI: {}", uri);
+            return map;
+        }
         for (String pair : query.split("&")) {
             int idx = pair.indexOf('=');
             if (idx > 0) {
@@ -333,6 +460,7 @@ public class ClientEndpoint {
                 map.put(urlDecode(pair), "");
             }
         }
+        log.debug("Parsed query params: {}", map);
         return map;
     }
 
