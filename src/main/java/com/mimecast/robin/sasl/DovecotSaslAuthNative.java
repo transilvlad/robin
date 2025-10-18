@@ -24,7 +24,7 @@ public class DovecotSaslAuthNative implements AutoCloseable {
     protected static final Logger log = LogManager.getLogger(DovecotSaslAuthNative.class);
 
     // Default path to the Dovecot authentication socket.
-    private static final String DEFAULT_DOVECOT_AUTH_SOCKET_PATH = Config.getServer().getDovecotAuthSocket();
+    private static final String DEFAULT_DOVECOT_AUTH_SOCKET_PATH = Config.getServer().getDovecot().getStringProperty("authSocket");
 
     // The path to the Dovecot authentication socket.
     private final Path socketPath;

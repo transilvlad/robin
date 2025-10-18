@@ -77,7 +77,7 @@ public class DovecotLdaDelivery {
     protected Pair<Integer, String> callDovecotLda(String recipient) throws IOException, InterruptedException {
         // Configure command.
         List<String> command = new ArrayList<>(Arrays.asList(
-                Config.getServer().getDovecotLdaBinary(),
+                Config.getServer().getDovecot().getStringProperty("ldaBinary"),
                 "-d", recipient,
                 "-f", relaySession.getSession().getEnvelopes().getLast().getMail(),
                 "-a", recipient,

@@ -230,30 +230,12 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
-     * Is Dovecot authentication via UNIX socket enabled.
+     * Gets dovecot config.
      *
-     * @return Boolean.
+     * @return BasicConfig instance.
      */
-    public boolean isDovecotAuth() {
-        return getBooleanProperty("dovecotAuth", false);
-    }
-
-    /**
-     * Gets Dovecot AUTH socket path.
-     *
-     * @return String.
-     */
-    public String getDovecotAuthSocket() {
-        return getStringProperty("dovecotAuthSocket", "/run/dovecot/auth-userdb");
-    }
-
-    /**
-     * Gets Dovecot LDA binary path.
-     *
-     * @return String.
-     */
-    public String getDovecotLdaBinary() {
-        return getStringProperty("dovecotLdaBinary", "/usr/libexec/dovecot/dovecot-lda");
+    public BasicConfig getDovecot() {
+        return new BasicConfig(getMapProperty("dovecot"));
     }
 
     /**
@@ -262,7 +244,8 @@ public class ServerConfig extends ConfigFoundation {
      * @return Boolean.
      */
     public boolean isUsersEnabled() {
-        return !isDovecotAuth() && getBooleanProperty("usersEnabled", false);
+        return !getDovecot().getBooleanProperty("auth") &&
+                getBooleanProperty("usersEnabled", false);
     }
 
     /**

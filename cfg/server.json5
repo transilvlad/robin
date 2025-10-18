@@ -103,16 +103,19 @@
     maxDequeuePerTick: 10
   },
 
-  // Dovecot authentication configuration.
+  // Dovecot configuration.
   // This default is an example for local Dovecot.
   // Enabling this will disable the users list below.
-  dovecotAuth: true,
+  dovecot: {
+    // Enablement.
+    auth: true,
 
-  // Path to Dovecot authentication socket.
-  dovecotAuthSocket: "/run/dovecot/auth-userdb",
+    // Path to Dovecot authentication socket.
+    authSocket: "/run/dovecot/auth-userdb",
 
-  // Path to Dovecot LDA binary.
-  dovecotLdaBinary: "/usr/libexec/dovecot/dovecot-lda",
+    // Path to Dovecot LDA binary.
+    ldaBinary: "/usr/libexec/dovecot/dovecot-lda"
+  },
 
   // Users allowed to authorize to the server.
   // This feature should be used for testing only.
