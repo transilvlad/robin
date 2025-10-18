@@ -18,3 +18,4 @@ services:
       - "465:465"   # SMTPS
       - "143:143"   # IMAP
       - "993:993"   # IMAPS
+      - "8080:8080"   # Endpoints
