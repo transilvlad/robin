@@ -80,7 +80,7 @@ The following endpoints are available:
         Heap dump created at: heapdump-1678886400000.hprof
         ```
 
-- **`/health`** - Provides a health check of the application, including its status, uptime, and the number of active listeners.
+- **`/health`** - Provides a health check of the application, including its status, uptime, SMTP listener details (with thread pool stats), and queue/scheduler information.
     - **Content-Type**: `application/json; charset=utf-8`
     - **Example**:
         ```json
@@ -90,16 +90,53 @@ The following endpoints are available:
           "listeners": [
             {
               "port": 25,
-              "threads": 42
-            },
-            {
-              "port": 465,
-              "threads": 7
+              "threadPool": {
+                "core": 2,
+                "max": 50,
+                "size": 8,
+                "largest": 10,
+                "active": 6,
+                "queue": 0,
+                "taskCount": 12345,
+                "completed": 12200,
+                "keepAliveSeconds": 60
+              }
             },
             {
               "port": 587,
-              "threads": 5
+              "threadPool": {
+                "core": 2,
+                "max": 50,
+                "size": 3,
+                "largest": 5,
+                "active": 2,
+                "queue": 0,
+                "taskCount": 2345,
+                "completed": 2300,
+                "keepAliveSeconds": 60
+              }
             }
-          ]
+          ],
+          "queue": {
+            "size": 7,
+            "retryHistogram": {
+              "0": 4,
+              "1": 2,
+              "2": 1
+            }
+          },
+          "scheduler": {
+            "config": {
+              "totalRetries": 10,
+              "firstWaitMinutes": 5,
+              "growthFactor": 2.00
+            },
+            "cron": {
+              "initialDelaySeconds": 10,
+              "periodSeconds": 30,
+              "lastExecutionEpochSeconds": 1697577600,
+              "nextExecutionEpochSeconds": 1697577630
+            }
+          }
         }
         ```

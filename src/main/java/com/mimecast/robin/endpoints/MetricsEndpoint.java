@@ -240,9 +240,17 @@ public class MetricsEndpoint {
 
         List<SmtpListener> listeners = Server.getListeners();
         String listenersJson = listeners.stream()
-                .map(listener -> String.format("{\"port\":%d, \"threads\":%d}",
+                .map(listener -> String.format("{\"port\":%d,\"threadPool\":{\"core\":%d,\"max\":%d,\"size\":%d,\"largest\":%d,\"active\":%d,\"queue\":%d,\"taskCount\":%d,\"completed\":%d,\"keepAliveSeconds\":%d}}",
                         listener.getPort(),
-                        listener.getActiveThreads()))
+                        listener.getCorePoolSize(),
+                        listener.getMaximumPoolSize(),
+                        listener.getPoolSize(),
+                        listener.getLargestPoolSize(),
+                        listener.getActiveThreads(),
+                        listener.getQueueSize(),
+                        listener.getTaskCount(),
+                        listener.getCompletedTaskCount(),
+                        listener.getKeepAliveSeconds()))
                 .collect(Collectors.joining(",", "[", "]"));
 
         // Queue and scheduler stats
