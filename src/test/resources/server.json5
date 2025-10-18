@@ -117,11 +117,5 @@
   // Users allowed to authorize to the server.
   // This feature should be used for testing only.
   // This is disabled by default for security reasons.
-  usersEnabled: true,
-  users: [
-    {
-      name: "tony@example.com",
-      pass: "giveHerTheRing"
-    }
-  ]
+  usersEnabled: true
 }

@@ -271,6 +271,9 @@ public class ServerConfig extends ConfigFoundation {
      * @return Users list.
      */
     public List<UserConfig> getUsers() {
+        // Attempt to lazy-load from users.json5 if present and not already in map
+        loadExternalIfAbsent("users", "users.json5", List.class);
+
         List<UserConfig> users = new ArrayList<>();
         for (Map<String, String> user : (List<Map<String, String>>) getListProperty("users")) {
             users.add(new UserConfig(user));
@@ -300,18 +303,9 @@ public class ServerConfig extends ConfigFoundation {
      */
     @SuppressWarnings("rawtypes")
     public Map<String, ScenarioConfig> getScenarios() {
-        if (!map.containsKey("scenarios") && configDir != null) {
-            String scenariosPath = configDir + File.separator + "scenarios.json5";
-            if (PathUtils.isFile(scenariosPath)) {
-                try {
-                    String content = Magic.streamMagicReplace(PathUtils.readFile(scenariosPath, Charset.defaultCharset()));
-                    Map<String, Object> scenariosMap = new Gson().fromJson(content, Map.class);
-                    map.put("scenarios", scenariosMap);
-                } catch (IOException e) {
-                    log.error("Failed to load scenarios from " + scenariosPath, e);
-                }
-            }
-        }
+        // Attempt to lazy-load from scenarios.json5 if present and not already in map
+        loadExternalIfAbsent("scenarios", "scenarios.json5", Map.class);
+
         Map<String, ScenarioConfig> scenarios = new HashMap<>();
         if (map.containsKey("scenarios")) {
             for (Object object : getMapProperty("scenarios").entrySet()) {
@@ -320,5 +314,28 @@ public class ServerConfig extends ConfigFoundation {
             }
         }
         return scenarios;
+    }
+
+    /**
+     * Helper to lazily load an external JSON5 file into the root config map under the given key
+     * if the key is absent and a config directory is available.
+     *
+     * @param key      Root key to populate in the map.
+     * @param filename File to read from the config directory.
+     * @param clazz    Class to parse the JSON into (e.g., Map.class, List.class).
+     */
+    private void loadExternalIfAbsent(String key, String filename, Class<?> clazz) {
+        if (!map.containsKey(key) && configDir != null) {
+            String path = configDir + File.separator + filename;
+            if (PathUtils.isFile(path)) {
+                try {
+                    String content = Magic.streamMagicReplace(PathUtils.readFile(path, Charset.defaultCharset()));
+                    Object parsed = new Gson().fromJson(content, clazz);
+                    map.put(key, parsed);
+                } catch (IOException e) {
+                    log.error("Failed to load " + key + " from " + path, e);
+                }
+            }
+        }
     }
 }
