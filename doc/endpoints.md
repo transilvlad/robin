@@ -72,10 +72,34 @@ The following endpoints are available:
            at java.base@11.0.12/java.lang.ref.Reference.processPendingReferences(Reference.java:241)
            ...
         ```
-- 
+
 - **`/heapdump`** - Triggers a heap dump programmatically and saves it to a file in the application's working directory. This is an advanced diagnostic tool for memory leak analysis.
     - **Content-Type**: `text/plain`
     - **Example**:
         ```
         Heap dump created at: heapdump-1678886400000.hprof
+        ```
+
+- **`/health`** - Provides a health check of the application, including its status, uptime, and the number of active listeners.
+    - **Content-Type**: `application/json; charset=utf-8`
+    - **Example**:
+        ```json
+        {
+          "status": "UP",
+          "uptime": "4d 2h 7m 5s",
+          "listeners": [
+            {
+              "port": 25,
+              "threads": 42
+            },
+            {
+              "port": 465,
+              "threads": 7
+            },
+            {
+              "port": 587,
+              "threads": 5
+            }
+          ]
+        }
         ```

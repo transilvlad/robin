@@ -39,6 +39,12 @@ public class SmtpListener {
      */
     private boolean serverShutdown = false;
 
+    private final int port;
+    private final int backlog;
+    private final String bind;
+    private final boolean secure;
+    private final boolean submission;
+
     /**
      * Constructs a new SmtpListener instance.
      *
@@ -49,26 +55,38 @@ public class SmtpListener {
      * @param submission Submission (MSA) listener.
      */
     public SmtpListener(int port, int backlog, String bind, boolean secure, boolean submission) {
-        configure();
+        this.port = port;
+        this.backlog = backlog;
+        this.bind = bind;
+        this.secure = secure;
+        this.submission = submission;
 
-        try (ServerSocket socket = new ServerSocket(port, backlog, InetAddress.getByName(bind))) {
-            listener = socket;
+        configure();
+    }
+
+    /**
+     * Starts the listener.
+     * <p>This method opens the server socket and enters a loop to accept connections.
+     */
+    public void listen() {
+        try {
+            listener = new ServerSocket(port, backlog, InetAddress.getByName(bind));
             log.info("Listening to [{}]:{}", bind, port);
 
-            acceptConnection(secure, submission);
+            acceptConnection();
 
         } catch (IOException e) {
             log.fatal("Error listening: {}", e.getMessage());
 
         } finally {
             try {
-                if (listener != null) {
+                if (listener != null && !listener.isClosed()) {
                     listener.close();
-                    log.info("Closed listener.");
+                    log.info("Closed listener for port {}.", port);
                 }
                 executor.shutdown();
             } catch (Exception e) {
-                log.info("Listener already closed.");
+                log.info("Listener for port {} already closed.", port);
             }
         }
     }
@@ -84,15 +102,12 @@ public class SmtpListener {
 
     /**
      * Accept incoming connection.
-     *
-     * @param secure     Secure (TLS) listener.
-     * @param submission Submission (MSA) listener.
      */
-    private void acceptConnection(boolean secure, boolean submission) {
+    private void acceptConnection() {
         try {
             do {
                 Socket sock = listener.accept();
-                log.info("Accepted connection from {}:{}.", sock.getInetAddress().getHostAddress(), sock.getPort());
+                log.info("Accepted connection from {}:{} on port {}.", sock.getInetAddress().getHostAddress(), sock.getPort(), port);
 
                 executor.submit(() -> {
                     try {
@@ -106,8 +121,9 @@ public class SmtpListener {
             } while (!serverShutdown);
 
         } catch (SocketException e) {
-            log.info("Error in socket exchange: {}", e.getMessage());
-
+            if (!serverShutdown) {
+                log.info("Error in socket exchange: {}", e.getMessage());
+            }
         } catch (IOException e) {
             log.info("Error reading/writing: {}", e.getMessage());
         }
@@ -133,5 +149,23 @@ public class SmtpListener {
      */
     public ServerSocket getListener() {
         return listener;
+    }
+
+    /**
+     * Gets the port this listener is on.
+     *
+     * @return Port number.
+     */
+    public int getPort() {
+        return port;
+    }
+
+    /**
+     * Gets the number of active threads in this listener's pool.
+     *
+     * @return Active thread count.
+     */
+    public int getActiveThreads() {
+        return executor.getActiveCount();
     }
 }
