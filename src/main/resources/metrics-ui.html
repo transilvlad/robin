@@ -4,15 +4,39 @@
     <meta charset="UTF-8">
     <title>Metrics Charts</title>
     <style>
-        body { font-family: sans-serif; margin: 2em; background-color: #fdfdfd; color: #333; display:grid; grid-template-columns:repeat(auto-fill,minmax(400px,1fr)); gap:1rem; }
+        body { font-family: sans-serif; margin: 2em; background-color: #fdfdfd; color: #333; }
+        #charts-container { display:grid; grid-template-columns:repeat(auto-fill,minmax(400px,1fr)); gap:1rem; }
         h2 { margin: 0; padding: 0.5rem; background: #e0e0e0; }
         canvas { background-color: #fff; border: 1px solid #ddd; margin-bottom: -1px; padding: 12px; }
         h2 { border-top-left-radius: 4px; border-top-right-radius: 4px; }
         canvas { border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; }
+        h1 { font-size: 1.4rem; margin: 0; }
+        .header { display: flex; align-items: center; gap: 12px; margin-bottom: 1em; }
+        .logo { width: 45px; height: 45px; }
     </style>
     <script src='https://cdn.jsdelivr.net/npm/chart.js'></script>
 </head>
 <body>
+<header class="header">
+    <svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="45" height="45" role="img" aria-label="Robin logo">
+        <title>Robin logo</title>
+        <path fill="#424146" d="m433 51 11 14c2 3 3 6 6 8l9 1c25 2 46 16 63 34l1 4-1 2 1 2-1 6c-7 6-16 7-25 6l-16-2c-18-4-18-4-36 0l-15 14-2 2a56 56 0 0 0-16 43c0 11 6 20 14 27 4 3 8 4 12 5 10 2 16 6 22 14 4 7 4 17 3 25l-3 8-1 4a174 174 0 0 1-41 66l-7 7c-2 4-5 6-9 9l-6 6a260 260 0 0 1-26 21c-15 12-31 22-48 32l-37 24-2 2-33 22-16 9 4-16 1-2c7-15 16-29 27-42l3-5h-2l-9-2c-3-3-3-7-3-11l-2 1-3 1-3 2c-11 4-24 2-35 1-23-4-46-1-69 5l-16 4-14 4-3 1-45 12-3 1-7 2-3 1-9 3-7 1c0-7 6-11 10-15l-5-2 1-4a1497 1497 0 0 1 75-17l3-1a563 563 0 0 0 42-11c64-18 64-18 114-59a361 361 0 0 1 27-35 697 697 0 0 1 25-31c7-11 16-21 24-31l1-2c16-18 16-18 25-25l7-10 1-2 8-17c8-20 18-38 36-51l-1-2c-3-5-5-10-4-16l2-2h3v-3c0-6 0-11 3-17l-2-4-3-3-5-5v-1l9-1 1-9Z"/>
+        <path fill="#FE8502" d="M525 121c5 3 7 7 9 12v9h-12l-6 6c-4 3-7 5-12 6v1c14 1 14 1 27-3l7-1-2-3-2-5 4 1c8 3 16 5 25 6l-3 3h-2l-2 1-3 1-3 1-15 4v17c0 9 0 17 5 25a100 100 0 0 1 14 40c5 43-11 93-37 126a154 154 0 0 1-118 57h-3l-10 1a3658 3658 0 0 0-22 1 1964753589 1964753589 0 0 1 40 52l1 2 2 2 2 2 2 4 4 5 15 1c16 0 16 0 23 2v1l-19 1 7 1 18 5 2 1 10 5c-3 2-6 0-9-1-12-3-12-3-25-4l2 1c7 4 12 9 18 15l-1 2-3-2c-19-11-37-17-59-19 2-3 5-4 9-5l3-1 2-1-2-3a886 886 0 0 1-46-54l-9-10a2242 2242 0 0 0 42 81l13 1c8 0 17 5 24 9h-8c-4-2-8-2-12-2l2 1c9 6 17 11 22 21-4-1-8-4-11-6-7-5-14-8-21-11l3 3c4 4 6 9 8 15l-1 2-3-3a80 80 0 0 0-50-26c3-2 7-3 10-3l4-1h9l-20-38-16-30-1-2a2176 2176 0 0 1-7-12l-1-4h-2c-7-2-12-5-18-9h8l4 1 3 1a191 191 0 0 0 37 5c12 1 21-2 31-7l3-1a189 189 0 0 0 84-74c15-26 25-62 17-92l-4-9-1-3c-10-20-30-32-49-42-7-4-11-9-14-16l-1-11v-2c0-8 1-14 6-20l2-1 1 3c1 5 2 6 6 8 4 1 8 1 12-1 3-3 4-4 4-8 0-5-3-7-6-10h13l14 1c10 1 18 0 28-2l2-1c3-1 5-2 7-5l1-4v-4Z"/>
+        <path fill="#49484D" d="m317 414 15 3c16 4 32 5 49 6-3 3-6 3-10 3h-2l-5 1 2 2a6588 6588 0 0 1 38 50l1 2 2 2 2 2 2 4 4 5 15 1c16 0 16 0 23 2v1l-19 1 7 1 18 5 2 1 10 5c-3 2-6 0-9-1-12-3-12-3-25-4l2 1c7 4 12 9 18 15l-1 2-3-2c-19-11-37-17-59-19 2-3 5-4 9-5l3-1 2-1-2-3a886 886 0 0 1-46-54l-9-10a2242 2242 0 0 0 31 65c4 9 4 9 11 16l13 1c8 0 17 5 24 9h-8c-4-2-8-2-12-2l2 1c9 6 17 11 22 21-4-1-8-4-11-6-7-5-14-8-21-11l3 3c4 4 6 9 8 15l-1 2-3-3a80 80 0 0 0-50-26c3-2 7-3 10-3l4-1h9l-20-38-16-30-1-2a2176 2176 0 0 1-7-12l-1-4h-2c-7-2-12-5-18-9v-1Z"/>
+        <path fill="#444447" d="m433 51 11 14c2 3 3 6 6 8l9 1c21 1 39 12 55 26l4 5-5-1-3-1a649 649 0 0 1-29-7h-2l-35-3a10183 10183 0 0 1-14 0v-9c0-4 1-6 3-10l-2-4-3-3-5-5v-1l9-1 1-9Z"/>
+        <path fill="#44A83A" d="M436 93h10a223 223 0 0 1 66 10c5 1 8 3 11 7v3h-9l-24-2h-3a2395 2395 0 0 0-58 2c-3-6-4-11-4-17 4-3 7-3 11-3Z"/>
+        <path fill="#4D4A4D" d="m534 143 4 1c8 3 16 5 25 6-1 2-1 2-5 3l-5 2-2 1c-19 5-36 8-54-1h7c9 1 19 1 27-3l7-1-2-3-2-5Z"/>
+        <path fill="#F78A12" d="M433 51c4 4 8 8 11 14l7 9 4 8-2-1-5 1-6-2-4-6h-3l-6-6-2-2-4-5 9-1 1-9Z"/>
+        <path fill="#F9F6F3" d="M531 141c3 1 3 1 5 4l2 6-9 3-3 1-13 1h-7l-5-2 2-1c7-2 12-5 17-10 4-4 6-3 11-2Z"/>
+        <path fill="#4D4D51" d="M457 139c4 0 5 2 7 5 0 3 0 5-2 8-3 2-5 1-9 1l-5-2c-1-3-2-4-1-8 3-4 5-5 10-4Z"/>
+        <path fill="#555458" d="m525 144 3 1-1 3-5 2h-2l-2 1c1-5 2-7 7-7Z"/>
+        <path fill="#F3F3F4" d="M453 144h6l-1 5-5-1v-4Z"/>
+        <path fill="#6D6D70" d="M461 507c4 0 7 2 10 4h-7l-3-1-2-1 2-2Z"/>
+        <path fill="#C6C5C7" d="M434 498h9l1 3-11-1 1-2Z"/>
+    </svg>
+    <h1>Metrics Charts</h1>
+</header>
+<div id="charts-container"></div>
 <script>
     const metricsToChart = [
         'jvm_threads_daemon', 'jvm_threads_live', 'jvm_threads_peak', 'jvm_threads_started', 'jvm_threads_states',
@@ -22,13 +46,15 @@
         'jvm_gc_concurrent_phase_time', 'jvm_gc_live_data_size', 'jvm_gc_max_data_size', 'jvm_gc_memory_allocated', 'jvm_gc_memory_promoted', 'jvm_gc_pause'
     ];
     const charts = {};
+    const chartsContainer = document.getElementById('charts-container');
+
     metricsToChart.forEach(metric => {
         const container = document.createElement('div');
         const title = document.createElement('h2');
         title.innerText = metric;
         const canvas = document.createElement('canvas');
         container.appendChild(title); container.appendChild(canvas);
-        document.body.appendChild(container);
+        chartsContainer.appendChild(container);
         const ctx = canvas.getContext('2d');
         charts[metric] = new Chart(ctx, {
             type: 'line',

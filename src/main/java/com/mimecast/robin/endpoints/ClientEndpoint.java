@@ -105,7 +105,7 @@ public class ClientEndpoint {
 
         // Start the embedded server on a background thread.
         new Thread(server::start).start();
-        log.info("Submission UI available at http://localhost:{}/", apiPort);
+        log.info("Landing available at http://localhost:{}/", apiPort);
         log.info("Submission endpoint available at http://localhost:{}/client/send", apiPort);
         log.info("Health available at http://localhost:{}/health", apiPort);
     }

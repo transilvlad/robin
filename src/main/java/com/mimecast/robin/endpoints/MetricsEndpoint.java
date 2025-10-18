@@ -69,6 +69,7 @@ public class MetricsEndpoint {
         shutdownHooks();
 
         new Thread(server::start).start();
+        log.info("Landing available at http://localhost:{}/", metricsPort);
         log.info("UI available at http://localhost:{}/metrics", metricsPort);
         log.info("Graphite data available at http://localhost:{}/graphite", metricsPort);
         log.info("Prometheus data available at http://localhost:{}/prometheus", metricsPort);
