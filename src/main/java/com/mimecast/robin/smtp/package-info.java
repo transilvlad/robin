@@ -54,7 +54,7 @@
  *
  *
  *     // Email stream // Preffered when available.
- *     envelope.setStream(new FileInputStream(new File("src/test/resources/lipsum.eml")));
+ *     envelope.setStream(new FileInputStream(new File("src/test/resources/mime/lipsum.eml")));
  *
  *     // Email file // Preffered over subject and message.
  *     envelope.setFile("/Users/john/Documents/lost.eml");

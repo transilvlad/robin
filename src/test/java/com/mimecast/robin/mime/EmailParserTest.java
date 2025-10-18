@@ -58,7 +58,7 @@ class EmailParserTest {
     @Test
     @DisplayName("Parse lipsum.eml gives 2 parts")
     void parseLipsum() throws IOException {
-        EmailParser parser = new EmailParser(new LineInputStream(new FileInputStream(dir + "lipsum.eml"), 1024))
+        EmailParser parser = new EmailParser(new LineInputStream(new FileInputStream(dir + "mime/lipsum.eml"), 1024))
                 .parse();
 
         assertEquals(3, parser.getParts().size(), "Unexpected number of parts");
@@ -74,7 +74,7 @@ class EmailParserTest {
     @Test
     @DisplayName("Parse lipsum.plain.eml gives 1 part")
     void parseLipsumPlain() throws IOException {
-        EmailParser parser = new EmailParser(new LineInputStream(new FileInputStream(dir + "lipsum.plain.eml"), 1024))
+        EmailParser parser = new EmailParser(new LineInputStream(new FileInputStream(dir + "mime/lipsum.plain.eml"), 1024))
                 .parse();
 
         assertEquals(1, parser.getParts().size(), "Unexpected number of parts");
@@ -89,7 +89,7 @@ class EmailParserTest {
     @Test
     @DisplayName("Parse lipsum.822.eml gives 7 parts")
     void parseLipsum822() throws IOException {
-        EmailParser parser = new EmailParser(new LineInputStream(new FileInputStream(dir + "lipsum.822.eml"), 1024))
+        EmailParser parser = new EmailParser(new LineInputStream(new FileInputStream(dir + "mime/lipsum.822.eml"), 1024))
                 .parse();
 
         assertEquals(7, parser.getParts().size(), "Unexpected number of parts");

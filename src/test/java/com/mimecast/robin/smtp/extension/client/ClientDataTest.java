@@ -81,12 +81,12 @@ class ClientDataTest {
 
     @Test
     void processDataWithFile() throws IOException {
-        processDataWithOptionalFileOrStream("src/test/resources/lipsum.eml", null);
+        processDataWithOptionalFileOrStream("src/test/resources/mime/lipsum.eml", null);
     }
 
     @Test
     void processDataWithStream() throws IOException {
-        processDataWithOptionalFileOrStream(null, new FileInputStream("src/test/resources/lipsum.eml"));
+        processDataWithOptionalFileOrStream(null, new FileInputStream("src/test/resources/mime/lipsum.eml"));
     }
 
     void processDataWithOptionalFileOrStream(String file, InputStream stream) throws IOException {
@@ -210,9 +210,9 @@ class ClientDataTest {
 
         MessageEnvelope envelope = new MessageEnvelope();
         if (stream) {
-            envelope.setFile("src/test/resources/lipsum.eml");
+            envelope.setFile("src/test/resources/mime/lipsum.eml");
         } else {
-            envelope.setStream(new FileInputStream("src/test/resources/lipsum.eml"));
+            envelope.setStream(new FileInputStream("src/test/resources/mime/lipsum.eml"));
         }
         envelope.setChunkSize(512);
         envelope.setChunkBdat(chunkBdat);

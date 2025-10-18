@@ -23,7 +23,7 @@ class MagicInputStreamTest {
         Foundation.init("src/test/resources/");
 
         envelope = new MessageEnvelope();
-        envelope.setFile("src/test/resources/lipsum.eml");
+        envelope.setFile("src/test/resources/mime/lipsum.eml");
         envelope.setMail("rocket@example.com");
         envelope.setRcpt("groot@example.com");
         envelope.addHeader("mail", "peter@example.com");

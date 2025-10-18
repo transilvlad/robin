@@ -21,7 +21,7 @@
       chunkBdat: true,
       chunkWrite: true,
 
-      file: "src/test/resources/lipsum.eml",
+      file: "src/test/resources/mime/lipsum.eml",
       folder: "src/test/resources/",
 
       mail: "tony@example.com",

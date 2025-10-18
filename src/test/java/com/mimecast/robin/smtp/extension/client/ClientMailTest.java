@@ -27,7 +27,7 @@ class ClientMailTest {
 
         MessageEnvelope envelope = new MessageEnvelope();
         envelope.setMail("tony@example.com");
-        envelope.setFile("src/test/resources/lipsum.eml");
+        envelope.setFile("src/test/resources/mime/lipsum.eml");
         connection.getSession().addEnvelope(envelope);
 
         ClientMail mail = new ClientMail();

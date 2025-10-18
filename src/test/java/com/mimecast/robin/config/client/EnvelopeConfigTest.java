@@ -75,7 +75,7 @@ class EnvelopeConfigTest {
 
     @Test
     void getFile() {
-        assertEquals("src/test/resources/lipsum.eml", envelopeConfig1.getFile());
+        assertEquals("src/test/resources/mime/lipsum.eml", envelopeConfig1.getFile());
 
         assertNull(envelopeConfig2.getFile());
     }

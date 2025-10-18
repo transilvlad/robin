@@ -23,7 +23,7 @@ class ChunkedInputStreamTest {
         Foundation.init("src/test/resources/");
 
         envelope = new MessageEnvelope();
-        envelope.setFile("src/test/resources/lipsum.eml");
+        envelope.setFile("src/test/resources/mime/lipsum.eml");
         envelope.setChunkBdat(true);
     }
 
