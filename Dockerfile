@@ -55,7 +55,7 @@ COPY ./src/test/resources/keystore.jks /usr/local/robin/keystore.jks
 # --
 
 # Expose standard SMTP & IMAP ports and Robin endpoints port.
-EXPOSE 25 465 587 143 993 8080
+EXPOSE 25 465 587 143 993 8080 8090
 
 # Run supervisor in foreground.
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf", "-n"]
