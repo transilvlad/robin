@@ -31,9 +31,18 @@ public class ConfigLoader {
      * @throws ConfigurationException Unable to read/parse config file.
      */
     public static synchronized void load(String path) throws ConfigurationException {
-        log.debug("Working directory: {}", System.getProperty("user.dir"));
-
         if (path == null) path = "cfg" + File.separator;
+
+        String log4jFile = "log4j2.xml";
+        if (Config.getProperties().hasProperty("log4j2")) {
+            log4jFile = Config.getProperties().getStringProperty("log4j2");
+        }
+
+        String log4jPath = Paths.get(path, log4jFile).toString();
+        if (PathUtils.isFile(log4jPath)) {
+            Configurator.initialize("Robin", log4jPath);
+            log.debug("Log4j2: {}", log4jPath);
+        }
 
         String propertiesFile = "properties.json5";
         String propertiesPath = Paths.get(path, propertiesFile).toString();
@@ -84,15 +93,6 @@ public class ConfigLoader {
             }
         }
 
-        String log4jFile = "log4j2.xml";
-        if (Config.getProperties().hasProperty("log4j2")) {
-            log4jFile = Config.getProperties().getStringProperty("log4j2");
-        }
-
-        String log4jPath = Paths.get(path, log4jFile).toString();
-        if (PathUtils.isFile(log4jPath)) {
-            log.debug("Log4j2: {}", log4jPath);
-            Configurator.initialize("Robin", log4jPath);
-        }
+        log.debug("Working directory: {}", System.getProperty("user.dir"));
     }
 }
