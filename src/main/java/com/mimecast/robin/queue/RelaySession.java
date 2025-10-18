@@ -5,6 +5,7 @@ import com.mimecast.robin.smtp.session.Session;
 
 import java.io.Serializable;
 import java.text.SimpleDateFormat;
+import java.time.Instant;
 import java.util.Date;
 
 /**
@@ -38,12 +39,12 @@ public class RelaySession implements Serializable {
     private int retryCount = 0;
 
     /**
-     * Session creation time.
+     * Session creation time (epoch seconds).
      */
     private long createTime = 0;
 
     /**
-     * Last retry bump time.
+     * Last retry bump time (epoch seconds).
      */
     private long lastRetryTime = 0;
 
@@ -52,7 +53,7 @@ public class RelaySession implements Serializable {
      */
     public RelaySession(Session session) {
         this.session = session;
-        this.createTime = (int) (System.currentTimeMillis() / 1000L);
+        this.createTime = Instant.now().getEpochSecond();
     }
 
     /**
@@ -111,7 +112,7 @@ public class RelaySession implements Serializable {
      */
     public RelaySession bumpRetryCount() {
         this.retryCount++;
-        this.lastRetryTime = (int) (System.currentTimeMillis() / 1000L);
+        this.lastRetryTime = Instant.now().getEpochSecond();
         return this;
     }
 
@@ -130,7 +131,9 @@ public class RelaySession implements Serializable {
      * @return String.
      */
     public String getLastRetryDate() {
-        return new SimpleDateFormat("E, d MMM yyyy HH:mm:ss Z", Config.getProperties().getLocale()).format(new Date(lastRetryTime));
+        // lastRetryTime is stored as epoch seconds; Date expects milliseconds.
+        return new SimpleDateFormat("E, d MMM yyyy HH:mm:ss Z", Config.getProperties().getLocale())
+                .format(new Date(lastRetryTime * 1000L));
     }
 
     /**

@@ -29,11 +29,11 @@ public class RelayQueueCron {
     // Queue file from config.
     public static final File QUEUE_FILE = new File(Config.getServer().getRelay().getStringProperty("queueFile", "/tmp/robinRelayQueue.db"));
 
-    // Scheduler configuration (seconds)
-    private static final int INITIAL_DELAY_SECONDS = 60; // 1 minute
-    private static final int PERIOD_SECONDS = 60;        // every minute
+    // Scheduler configuration (seconds).
+    private static final int INITIAL_DELAY_SECONDS = Math.toIntExact(Config.getServer().getRelay().getLongProperty("queueInitialDelay", 10L));
+    private static final int PERIOD_SECONDS = Math.toIntExact(Config.getServer().getRelay().getLongProperty("queueInterval", 30L));
 
-    // Batch dequeue configuration (items per tick)
+    // Batch dequeue configuration (items per tick).
     private static final int MAX_DEQUEUE_PER_TICK = Math.toIntExact(Config.getServer().getRelay().getLongProperty("maxDequeuePerTick", 10L));
 
     // Shared state
@@ -84,11 +84,11 @@ public class RelayQueueCron {
 
                     // Not yet time to retry, re-enqueue and move on (won't be retried again this tick due to fixed budget).
                     int nextRetrySeconds = RetryScheduler.getNextRetry(relaySession.getRetryCount());
-                    long nowSecs = System.currentTimeMillis() / 1000L;
-                    long nextAllowed = nowSecs + nextRetrySeconds;
-                    if (relaySession.getLastRetryTime() < nextAllowed) {
-                        log.debug("Re-enqueueing session (too early): sessionUID={}, retryCount={}, lastRetryTime={}, nextAllowed={}, backoffSec={}",
-                                relaySession.getSession().getUID(), relaySession.getRetryCount(), relaySession.getLastRetryTime(), nextAllowed, nextRetrySeconds);
+                    long lastRetryTime = relaySession.getLastRetryTime();
+                    long nextAllowed = lastRetryTime + nextRetrySeconds;
+                    if (now < nextAllowed) {
+                        log.debug("Re-enqueueing session (too early): sessionUID={}, retryCount={}, lastRetryTime={}, now={}, nextAllowed={}, backoffSec={}",
+                                relaySession.getSession().getUID(), relaySession.getRetryCount(), lastRetryTime, now, nextAllowed, nextRetrySeconds);
                         // Persist files again (idempotent) before putting back on queue.
                         QueueFiles.persistEnvelopeFiles(relaySession);
                         queue.enqueue(relaySession);
