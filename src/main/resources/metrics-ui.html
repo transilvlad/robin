@@ -1,8 +1,15 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Metrics UI</title>
-    <style>body{font-family:sans-serif;display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:1rem;background:#f0f2f5;}h2{margin:0;padding:0.5rem;background:#e0e0e0;}canvas{padding:0.5rem;}</style>
+    <meta charset="UTF-8">
+    <title>Metrics Charts</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; background-color: #fdfdfd; color: #333; display:grid; grid-template-columns:repeat(auto-fill,minmax(400px,1fr)); gap:1rem; }
+        h2 { margin: 0; padding: 0.5rem; background: #e0e0e0; }
+        canvas { background-color: #fff; border: 1px solid #ddd; margin-bottom: -1px; padding: 12px; }
+        h2 { border-top-left-radius: 4px; border-top-right-radius: 4px; }
+        canvas { border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; }
+    </style>
     <script src='https://cdn.jsdelivr.net/npm/chart.js'></script>
 </head>
 <body>

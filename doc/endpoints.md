@@ -12,7 +12,7 @@ Endpoints
 The following endpoints are available:
 
 - **/** - Provides a simple discovery mechanism by listing all available endpoints.
-    - **Content-Type**: `text/plain`
+    - **Content-Type**: `text/html; charset=utf-8`
 
 - **/metrics** - This UI fetches data from the `/metrics` endpoint and renders it as a series of charts. It is built using the Chart.js library for visualization.
     - **Content-Type**: `text/html; charset=utf-8`
@@ -39,6 +39,25 @@ The following endpoints are available:
         process_cpu_usage 0.015625
         ```
 
+- **`/env`** - Exposes the system environment variables. This is useful for diagnosing configuration issues related to the environment the application is running in.
+    - **Content-Type**: `text/plain; charset=utf-8`
+    - **Example**:
+        ```
+        PATH=/usr/local/bin:/usr/bin:/bin
+        HOME=/home/user
+        JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+        ```
+
+- **`/sysprops`** - Exposes the Java system properties (`-D` flags, etc.). This helps verify JVM-level settings.
+    - **Content-Type**: `text/plain; charset=utf-8`
+    - **Example**:
+        ```
+        java.version=11.0.12
+        java.vendor=Oracle Corporation
+        os.name=Linux
+        user.dir=/app
+        ```
+
 - **/threads** - Provides a standard Java thread dump, which is useful for diagnosing deadlocks, contention, or other threading-related issues. The format is similar to what `jstack` would produce.
     - **Content-Type**: `text/plain; charset=utf-8`
     - **Example**:
@@ -52,4 +71,11 @@ The following endpoints are available:
            at java.base@11.0.12/java.lang.ref.Reference.waitForReferencePendingList(Native Method)
            at java.base@11.0.12/java.lang.ref.Reference.processPendingReferences(Reference.java:241)
            ...
+        ```
+- 
+- **`/heapdump`** - Triggers a heap dump programmatically and saves it to a file in the application's working directory. This is an advanced diagnostic tool for memory leak analysis.
+    - **Content-Type**: `text/plain`
+    - **Example**:
+        ```
+        Heap dump created at: heapdump-1678886400000.hprof
         ```

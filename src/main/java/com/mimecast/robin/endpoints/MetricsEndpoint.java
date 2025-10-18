@@ -60,14 +60,20 @@ public class MetricsEndpoint {
 
         // Landing page with available endpoints.
         server.createContext("/", httpExchange -> {
-            String endpoints = "Available endpoints:\n" +
-                    "/metrics - Metrics UI\n" +
-                    "/graphite - Graphite data endpoint\n" +
-                    "/prometheus - Prometheus data endpoint\n" +
-                    "/threads - Thread dump endpoint\n";
-            httpExchange.sendResponseHeaders(200, endpoints.getBytes().length);
-            try (OutputStream os = httpExchange.getResponseBody()) {
-                os.write(endpoints.getBytes());
+            try {
+                String response = readResourceFile("endpoints-ui.html");
+                httpExchange.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
+                httpExchange.sendResponseHeaders(200, response.getBytes(StandardCharsets.UTF_8).length);
+                try (OutputStream os = httpExchange.getResponseBody()) {
+                    os.write(response.getBytes(StandardCharsets.UTF_8));
+                }
+            } catch (IOException e) {
+                log.error("Could not read endpoints-ui.html", e);
+                String errorResponse = "500 - Internal Server Error";
+                httpExchange.sendResponseHeaders(500, errorResponse.length());
+                try (OutputStream os = httpExchange.getResponseBody()) {
+                    os.write(errorResponse.getBytes());
+                }
             }
         });
 
@@ -112,6 +118,30 @@ public class MetricsEndpoint {
             }
         });
 
+        // Environment variables endpoint.
+        server.createContext("/env", httpExchange -> {
+            String response = System.getenv().entrySet().stream()
+                    .map(e -> e.getKey() + "=" + e.getValue())
+                    .collect(Collectors.joining("\n"));
+            httpExchange.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
+            httpExchange.sendResponseHeaders(200, response.getBytes(StandardCharsets.UTF_8).length);
+            try (OutputStream os = httpExchange.getResponseBody()) {
+                os.write(response.getBytes(StandardCharsets.UTF_8));
+            }
+        });
+
+        // System properties endpoint.
+        server.createContext("/sysprops", httpExchange -> {
+            String response = System.getProperties().entrySet().stream()
+                    .map(e -> e.getKey() + "=" + e.getValue())
+                    .collect(Collectors.joining("\n"));
+            httpExchange.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
+            httpExchange.sendResponseHeaders(200, response.getBytes(StandardCharsets.UTF_8).length);
+            try (OutputStream os = httpExchange.getResponseBody()) {
+                os.write(response.getBytes(StandardCharsets.UTF_8));
+            }
+        });
+
         // Thread dump endpoint.
         server.createContext("/threads", httpExchange -> {
             String response = getThreadDump();
@@ -119,6 +149,26 @@ public class MetricsEndpoint {
             httpExchange.sendResponseHeaders(200, response.getBytes(StandardCharsets.UTF_8).length);
             try (OutputStream os = httpExchange.getResponseBody()) {
                 os.write(response.getBytes(StandardCharsets.UTF_8));
+            }
+        });
+
+        // Heap dump endpoint.
+        server.createContext("/heapdump", httpExchange -> {
+            try {
+                String path = "heapdump-" + System.currentTimeMillis() + ".hprof";
+                HotSpotDiagnostic.getDiagnostic().dumpHeap(path, true);
+                String response = "Heap dump created at: " + path;
+                httpExchange.sendResponseHeaders(200, response.length());
+                try (OutputStream os = httpExchange.getResponseBody()) {
+                    os.write(response.getBytes());
+                }
+            } catch (Exception e) {
+                log.error("Could not create heap dump", e);
+                String errorResponse = "500 - Could not create heap dump: " + e.getMessage();
+                httpExchange.sendResponseHeaders(500, errorResponse.length());
+                try (OutputStream os = httpExchange.getResponseBody()) {
+                    os.write(errorResponse.getBytes());
+                }
             }
         });
 
