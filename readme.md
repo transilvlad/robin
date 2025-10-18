@@ -63,7 +63,8 @@ More...
 - [HTTP/S Cases](doc/case.md)
 - [Magic](doc/magic.md)
 - [MIME](doc/mime.md)
-- [Plugins](doc/plugin.md)
+- [Plugins](doc/plugins.md)
+- [Endpoints](doc/endpoints.md)
 - [Flowchart](doc/flowchart.md)
 
 

@@ -15,7 +15,7 @@ Additionally, you may want to configure your own routes for even more streamline
 - See ExampleHttp.java for examples on how to craft JSON5 cases to do HTTP requests.
   - Read [request.md](request.md). 
 - See ExampleProgrammatic.java for examples on how to use it as a Java library.
-    - Read [client.md](client.md) and to extend its capabilities [plugin.md](plugin.md).
+    - Read [client.md](client.md) and to extend its capabilities [plugins.md](plugins.md).
 - Read [cli.md](cli.md) for commandline usage.
 
 
