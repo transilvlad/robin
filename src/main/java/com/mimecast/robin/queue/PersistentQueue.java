@@ -6,7 +6,9 @@ import org.mapdb.serializer.SerializerJava;
 import java.io.Closeable;
 import java.io.File;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -100,6 +102,13 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
      */
     public long size() {
         return queue.sizeLong();
+    }
+
+    /**
+     * Take a snapshot copy of current values for read-only inspection (e.g., metrics/health).
+     */
+    public List<T> snapshot() {
+        return new ArrayList<>(queue.values());
     }
 
     /**

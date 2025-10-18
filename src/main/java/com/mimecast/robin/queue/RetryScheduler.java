@@ -56,4 +56,17 @@ public class RetryScheduler {
         // Geometric progression backoff.
         return (int) Math.round(FIRST_WAIT_MINUTES * Math.pow(GROWTH_FACTOR, retryCount)) * 60; // Return wait time in seconds.
     }
+
+    // Added getters to expose scheduler configuration for metrics/health.
+    public static int getTotalRetries() {
+        return TOTAL_RETRIES;
+    }
+
+    public static int getFirstWaitMinutes() {
+        return FIRST_WAIT_MINUTES;
+    }
+
+    public static double getGrowthFactor() {
+        return GROWTH_FACTOR;
+    }
 }

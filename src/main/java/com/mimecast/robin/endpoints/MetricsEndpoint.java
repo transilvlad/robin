@@ -2,6 +2,8 @@ package com.mimecast.robin.endpoints;
 
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Server;
+import com.mimecast.robin.queue.RelayQueueCron;
+import com.mimecast.robin.queue.RetryScheduler;
 import com.mimecast.robin.smtp.SmtpListener;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -26,6 +28,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -242,9 +245,33 @@ public class MetricsEndpoint {
                         listener.getActiveThreads()))
                 .collect(Collectors.joining(",", "[", "]"));
 
-        String response = String.format("{\"status\":\"UP\", \"uptime\":\"%s\", \"listeners\":%s}",
+        // Queue and scheduler stats
+        long queueSize = RelayQueueCron.getQueueSize();
+        Map<Integer, Long> histogram = RelayQueueCron.getRetryHistogram();
+        String histogramJson = histogram.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(e -> String.format("\"%d\":%d", e.getKey(), e.getValue()))
+                .collect(Collectors.joining(",", "{", "}"));
+
+        String schedulerConfigJson = String.format("{\"totalRetries\":%d,\"firstWaitMinutes\":%d,\"growthFactor\":%.2f}",
+                RetryScheduler.getTotalRetries(),
+                RetryScheduler.getFirstWaitMinutes(),
+                RetryScheduler.getGrowthFactor());
+
+        String cronJson = String.format("{\"initialDelaySeconds\":%d,\"periodSeconds\":%d,\"lastExecutionEpochSeconds\":%d,\"nextExecutionEpochSeconds\":%d}",
+                RelayQueueCron.getInitialDelaySeconds(),
+                RelayQueueCron.getPeriodSeconds(),
+                RelayQueueCron.getLastExecutionEpochSeconds(),
+                RelayQueueCron.getNextExecutionEpochSeconds());
+
+        String queueJson = String.format("{\"size\":%d,\"retryHistogram\":%s}", queueSize, histogramJson);
+        String schedulerJson = String.format("{\"config\":%s,\"cron\":%s}", schedulerConfigJson, cronJson);
+
+        String response = String.format("{\"status\":\"UP\", \"uptime\":\"%s\", \"listeners\":%s, \"queue\":%s, \"scheduler\":%s}",
                 uptimeString,
-                listenersJson);
+                listenersJson,
+                queueJson,
+                schedulerJson);
 
         sendResponse(exchange, 200, "application/json; charset=utf-8", response);
     }
@@ -367,3 +394,4 @@ public class MetricsEndpoint {
         }
     }
 }
+
