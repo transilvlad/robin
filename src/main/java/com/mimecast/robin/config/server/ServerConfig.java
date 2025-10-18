@@ -235,6 +235,8 @@ public class ServerConfig extends ConfigFoundation {
      * @return BasicConfig instance.
      */
     public BasicConfig getDovecot() {
+        // Attempt to lazy-load from dovecot.json5 if present and not already in map
+        loadExternalIfAbsent("dovecot", "dovecot.json5", Map.class);
         return new BasicConfig(getMapProperty("dovecot"));
     }
 
