@@ -250,6 +250,10 @@ public class Magic {
      * Simple date format instance.
      */
     protected final static SimpleDateFormat millisDateFormat = new SimpleDateFormat("yyyyMMddHHmmssSSS", Config.getProperties().getLocale());
+    static {
+        // Use UTC for conversions to make results deterministic across environments without altering global timezone.
+        millisDateFormat.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+    }
 
     /**
      * Converts readable date to epoch millis.
