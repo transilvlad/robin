@@ -1,9 +1,14 @@
 package com.mimecast.robin.config.server;
 
+import com.google.gson.Gson;
 import com.mimecast.robin.config.BasicConfig;
 import com.mimecast.robin.config.ConfigFoundation;
+import com.mimecast.robin.util.Magic;
+import com.mimecast.robin.util.PathUtils;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.*;
 
 /**
@@ -19,10 +24,16 @@ import java.util.*;
 public class ServerConfig extends ConfigFoundation {
 
     /**
+     * Configuration directory.
+     */
+    private String configDir;
+
+    /**
      * Constructs a new ServerConfig instance.
      */
     public ServerConfig() {
         super();
+        this.configDir = null;
     }
 
     /**
@@ -33,6 +44,7 @@ public class ServerConfig extends ConfigFoundation {
      */
     public ServerConfig(String path) throws IOException {
         super(path);
+        this.configDir = new File(path).getParent();
     }
 
     /**
@@ -288,10 +300,24 @@ public class ServerConfig extends ConfigFoundation {
      */
     @SuppressWarnings("rawtypes")
     public Map<String, ScenarioConfig> getScenarios() {
+        if (!map.containsKey("scenarios") && configDir != null) {
+            String scenariosPath = configDir + File.separator + "scenarios.json5";
+            if (PathUtils.isFile(scenariosPath)) {
+                try {
+                    String content = Magic.streamMagicReplace(PathUtils.readFile(scenariosPath, Charset.defaultCharset()));
+                    Map<String, Object> scenariosMap = new Gson().fromJson(content, Map.class);
+                    map.put("scenarios", scenariosMap);
+                } catch (IOException e) {
+                    log.error("Failed to load scenarios from " + scenariosPath, e);
+                }
+            }
+        }
         Map<String, ScenarioConfig> scenarios = new HashMap<>();
-        for (Object object : getMapProperty("scenarios").entrySet()) {
-            Map.Entry entry = (Map.Entry) object;
-            scenarios.put((String) entry.getKey(), new ScenarioConfig((Map) entry.getValue()));
+        if (map.containsKey("scenarios")) {
+            for (Object object : getMapProperty("scenarios").entrySet()) {
+                Map.Entry entry = (Map.Entry) object;
+                scenarios.put((String) entry.getKey(), new ScenarioConfig((Map) entry.getValue()));
+            }
         }
         return scenarios;
     }

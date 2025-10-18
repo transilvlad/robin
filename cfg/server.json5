@@ -123,52 +123,5 @@
       name: "tony@example.com",
       pass: "giveHerTheRing"
     }
-  ],
-
-  // Predefined server response scenarios based on EHLO value.
-  scenarios: {
-
-    // Default scenario to use if no others match.
-    "*": {
-      rcpt: [
-        // Custom response for addresses matching value regex.
-        {
-          value: "friday\\-[0-9]+@example\\.com",
-          response: "252 I think I know this user"
-        }
-      ]
-    },
-
-    // How to reject mail at different commands.
-    "reject.com": {
-      // Custom response for EHLO.
-      ehlo: "501 Not talking to you",
-
-      // Custom response for MAIL.
-      mail: "451 I'm not listening to you",
-
-      // Custom response for given recipients.
-      rcpt: [
-        {
-          value: "ultron@reject\\.com",
-          response: "501 Heart not found"
-        }
-      ],
-
-      // Custom response for DATA.
-      data: "554 Your data is corrupted"
-    },
-
-    // How to configure TLS for failure using a deprecated version and weak cipher.
-    "failtls.com" : {
-
-      // Custom response for STARTTLS.
-      // STARTTLS also supports a list of protocols and ciphers to use handshake.
-      starttls: {
-        response: "220 You will fail",
-        protocols: ["TLSv1.0"],
-        ciphers: ["TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"]
-      }
-    }
-  }
+  ]
 }
