@@ -5,7 +5,6 @@ import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.main.Foundation;
 import com.mimecast.robin.queue.PersistentQueue;
-import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.connection.ConnectionMock;
@@ -13,7 +12,6 @@ import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.util.PathUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -22,6 +20,8 @@ import javax.naming.ConfigurationException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
@@ -103,8 +103,14 @@ class LocalStorageClientTest {
 
     @ParameterizedTest
     @CsvSource({"0", "1"})
-    @Disabled // TODO: Fix test by using temp file queue db.
     void saveToDovecotLda(int param) throws IOException {
+        // Use a unique, non-existent queue file path for each run (MapDB should create it).
+        Path tmpDir = Files.createTempDirectory("robinRelayQueue-");
+        File tmpQueueFile = tmpDir.resolve("relayQueue-" + System.nanoTime() + ".db").toFile();
+
+        // Override relay queue file in runtime config so production code writes to this file.
+        Config.getServer().getRelay().getMap().put("queueFile", tmpQueueFile.getAbsolutePath());
+
         Connection connection = new Connection(new Session());
         MessageEnvelope envelope = new MessageEnvelope().addRcpt("vmarian@mimecast.com");
         connection.getSession().addEnvelope(envelope);
@@ -126,8 +132,17 @@ class LocalStorageClientTest {
         assertEquals(content, PathUtils.readFile(localStorageClient.getFile(), Charset.defaultCharset()));
         assertTrue(new File(localStorageClient.getFile()).delete());
 
+        // Clean up the temp queue file and any WALs if we enqueued a bounce.
         if (param != 0) {
-            PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE).dequeue();
+            PersistentQueue.getInstance(tmpQueueFile).dequeue();
+            try { PersistentQueue.getInstance(tmpQueueFile).close(); } catch (Exception ignored) {}
         }
+
+        // Attempt to delete queue file and any potential WAL segments, then the temp directory.
+        try { new File(tmpQueueFile.getAbsolutePath()).delete(); } catch (Exception ignored) {}
+        for (int i = 0; i < 4; i++) {
+            try { new File(tmpQueueFile.getAbsolutePath() + ".wal." + i).delete(); } catch (Exception ignored) {}
+        }
+        try { Files.deleteIfExists(tmpDir); } catch (Exception ignored) {}
     }
 }
