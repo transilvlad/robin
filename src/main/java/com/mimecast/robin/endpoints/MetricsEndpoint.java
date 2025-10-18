@@ -15,8 +15,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -62,27 +61,36 @@ public class MetricsEndpoint {
         // Landing page with available endpoints.
         server.createContext("/", httpExchange -> {
             String endpoints = "Available endpoints:\n" +
-                    "/ui - Simple web UI for metrics visualization\n" +
-                    "/graphite - Graphite formatted metrics for the UI\n" +
-                    "/metrics - Prometheus metrics scrape endpoint\n" +
-                    "/threads - Thread dump\n";
+                    "/metrics - Metrics UI\n" +
+                    "/graphite - Graphite data endpoint\n" +
+                    "/prometheus - Prometheus data endpoint\n" +
+                    "/threads - Thread dump endpoint\n";
             httpExchange.sendResponseHeaders(200, endpoints.getBytes().length);
             try (OutputStream os = httpExchange.getResponseBody()) {
                 os.write(endpoints.getBytes());
             }
         });
 
-        // Simple web UI endpoint.
-        server.createContext("/ui", httpExchange -> {
-            String response = getHtmlContent();
-            httpExchange.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
-            httpExchange.sendResponseHeaders(200, response.getBytes(StandardCharsets.UTF_8).length);
-            try (OutputStream os = httpExchange.getResponseBody()) {
-                os.write(response.getBytes(StandardCharsets.UTF_8));
+        // Simple web UI for Graphite.
+        server.createContext("/metrics", httpExchange -> {
+            try {
+                String response = readResourceFile("metrics-ui.html");
+                httpExchange.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
+                httpExchange.sendResponseHeaders(200, response.getBytes(StandardCharsets.UTF_8).length);
+                try (OutputStream os = httpExchange.getResponseBody()) {
+                    os.write(response.getBytes(StandardCharsets.UTF_8));
+                }
+            } catch (IOException e) {
+                log.error("Could not read graphite-ui.html", e);
+                String errorResponse = "500 - Internal Server Error";
+                httpExchange.sendResponseHeaders(500, errorResponse.length());
+                try (OutputStream os = httpExchange.getResponseBody()) {
+                    os.write(errorResponse.getBytes());
+                }
             }
         });
 
-        // Graphite data endpoint for the UI.
+        // Graphite data endpoint.
         server.createContext("/graphite", httpExchange -> {
             StringBuilder response = new StringBuilder();
             graphiteRegistry.getMeters().forEach(meter -> meter.measure().forEach(measurement -> {
@@ -95,8 +103,8 @@ public class MetricsEndpoint {
             }
         });
 
-        // Prometheus scrape endpoint.
-        server.createContext("/metrics", httpExchange -> {
+        // Prometheus data endpoint.
+        server.createContext("/prometheus", httpExchange -> {
             String response = prometheusRegistry.scrape();
             httpExchange.sendResponseHeaders(200, response.getBytes().length);
             try (OutputStream os = httpExchange.getResponseBody()) {
@@ -119,9 +127,10 @@ public class MetricsEndpoint {
 
         // Start the server in a new thread.
         new Thread(server::start).start();
-        log.info("Prometheus metrics available at http://localhost:{}", Config.getServer().getMetricsPort());
-        log.info("Metrics UI available at http://localhost:{}/ui", Config.getServer().getMetricsPort());
+        log.info("UI available at http://localhost:{}/metrics", Config.getServer().getMetricsPort());
         log.info("Graphite data available at http://localhost:{}/graphite", Config.getServer().getMetricsPort());
+        log.info("Prometheus data available at http://localhost:{}/prometheus", Config.getServer().getMetricsPort());
+        log.info("Threads dump available at http://localhost:{}/threads", Config.getServer().getMetricsPort());
     }
 
     private static void shutdownHooks(HttpServer server, JvmGcMetrics jvmGcMetrics, PrometheusMeterRegistry prometheusRegistry, GraphiteMeterRegistry graphiteRegistry) {
@@ -201,63 +210,21 @@ public class MetricsEndpoint {
     }
 
     /**
-     * Returns the HTML content for the metrics UI.
+     * Reads a resource file from the classpath.
      *
-     * @return HTML content as a String.
+     * @param path The path to the resource file.
+     * @return The content of the file as a String.
+     * @throws IOException If the file cannot be read.
      */
-    private static String getHtmlContent() {
-        // In a real application, this would be loaded from a file.
-        return "<!DOCTYPE html>" +
-                "<html>" +
-                "<head>" +
-                "<title>Metrics UI</title>" +
-                "<style>body{font-family:sans-serif;display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:1rem;background:#f0f2f5;}h2{margin:0;padding:0.5rem;background:#e0e0e0;}canvas{padding:0.5rem;}</style>" +
-                "<script src='https://cdn.jsdelivr.net/npm/chart.js'></script>" +
-                "</head>" +
-                "<body>" +
-                "<script>" +
-                "const metricsToChart = ['jvm_buffer_count', 'jvm_buffer_memory_used', 'jvm_buffer_total_capacity', 'jvm_gc_concurrent_phase_time', 'jvm_gc_live_data_size', 'jvm_gc_max_data_size', 'jvm_gc_memory_allocated', 'jvm_gc_memory_promoted', 'jvm_gc_pause', 'jvm_memory_committed', 'jvm_memory_max', 'jvm_memory_used', 'jvm_threads_daemon', 'jvm_threads_live', 'jvm_threads_peak', 'jvm_threads_started', 'jvm_threads_states', 'process_cpu_usage', 'system_cpu_count', 'system_cpu_usage'];" +
-                "const charts = {};" +
-                "metricsToChart.forEach(metric => {" +
-                "  const container = document.createElement('div');" +
-                "  const title = document.createElement('h2');" +
-                "  title.innerText = metric;" +
-                "  const canvas = document.createElement('canvas');" +
-                "  container.appendChild(title); container.appendChild(canvas);" +
-                "  document.body.appendChild(container);" +
-                "  const ctx = canvas.getContext('2d');" +
-                "  charts[metric] = new Chart(ctx, {" +
-                "    type: 'line'," +
-                "    data: { labels: [], datasets: [{ label: metric, data: [], fill: false, borderColor: 'rgb(75, 192, 192)', tension: 0.1 }] }," +
-                "    options: { animation: false }" +
-                "  });" +
-                "});" +
-                "function fetchData() {" +
-                "  fetch('/graphite')" +
-                "    .then(response => response.text())" +
-                "    .then(text => {" +
-                "      const lines = text.trim().split('\\n');" +
-                "      const now = new Date().toLocaleTimeString();" +
-                "      lines.forEach(line => {" +
-                "        const parts = line.split(' ');" +
-                "        const metricName = parts[0].split('.')[0];" +
-                "        if (metricsToChart.includes(metricName)) {" +
-                "          const chart = charts[metricName];" +
-                "          if (chart.data.labels.length > 20) {" +
-                "            chart.data.labels.shift();" +
-                "            chart.data.datasets[0].data.shift();" +
-                "          }" +
-                "          chart.data.labels.push(now);" +
-                "          chart.data.datasets[0].data.push(parseFloat(parts[1]));" +
-                "          chart.update();" +
-                "        }" +
-                "      });" +
-                "    });" +
-                "}" +
-                "setInterval(fetchData, 2000);" +
-                "fetchData();" +
-                "</script>" +
-                "</body>" +
-                "</html>";
+    private static String readResourceFile(String path) throws IOException {
+        try (InputStream is = MetricsEndpoint.class.getClassLoader().getResourceAsStream(path)) {
+            if (is == null) {
+                throw new IOException("Resource not found: " + path);
+            }
+            try (InputStreamReader isr = new InputStreamReader(is, StandardCharsets.UTF_8);
+                 BufferedReader reader = new BufferedReader(isr)) {
+                return reader.lines().collect(Collectors.joining("\n"));
+            }
+        }
     }
 }
