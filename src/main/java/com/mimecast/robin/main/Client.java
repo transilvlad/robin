@@ -101,7 +101,7 @@ public class Client extends Foundation {
     }
 
     /**
-     * Assert delivery successfull if any.
+     * Assert delivery successful if any.
      *
      * @param connection Connection instance.
      * @throws AssertException Assertion exception.

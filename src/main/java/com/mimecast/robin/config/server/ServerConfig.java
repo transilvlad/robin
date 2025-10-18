@@ -191,6 +191,15 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
+     * Gets API port for client submission endpoint.
+     *
+     * @return Port number.
+     */
+    public int getApiPort() {
+        return Math.toIntExact(getLongProperty("apiPort", 8090L));
+    }
+
+    /**
      * Gets storage config.
      *
      * @return BasicConfig instance.

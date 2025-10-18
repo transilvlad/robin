@@ -140,3 +140,58 @@ The following endpoints are available:
           }
         }
         ```
+
+Client Submission Endpoint
+--------------------------
+
+- **`POST /client/send`** — Executes a client case and returns the final SMTP session as JSON.
+  - Accepts either:
+    - A query parameter `path` with an absolute/relative path to a JSON/JSON5 case file, e.g. `?path=src/test/resources/case.json5`
+    - A raw JSON/JSON5 payload in the request body describing the case
+  - For body mode, set `Content-Type: application/json`
+  - Response: `application/json; charset=utf-8`
+  - The JSON returned is the serialized Session filtered to exclude:
+    - `Session.magic`
+    - `Session.savedResults`
+    - `MessageEnvelope.stream`
+    - `MessageEnvelope.bytes`
+  - Error responses:
+    - `400` for invalid/missing input
+    - `500` on execution errors (e.g., assertion failures or runtime exceptions)
+
+Examples
+--------
+
+- Execute from a case file path:
+  - Bash/Linux/macOS:
+    ```
+    curl -X POST "http://localhost:8090/client/send?path=/home/user/cases/sample.json5"
+    ```
+  - Windows CMD:
+    ```
+    curl -X POST "http://localhost:8090/client/send?path=D:/work/robin/src/test/resources/case.json5"
+    ```
+  - PowerShell:
+    ```powershell
+    Invoke-RestMethod -Method Post -Uri 'http://localhost:8090/client/send?path=D:/work/robin/src/test/resources/case.json5'
+    ```
+
+- Execute from a JSON body (minimal example):
+  - Bash/Linux/macOS:
+    ```
+    # Note: Use single quotes to avoid Bash history expansion (e.g., '!') and simplify quoting.
+    curl -X POST \
+        -H "Content-Type: application/json" \
+        -d '{"mx":["127.0.0.1"],"port":25,"envelopes":[{"mail":"tony@example.com","rcpt":["pepper@example.com"],"subject":"Urgent","message":"Send Rescue!"}]}' \
+        "http://localhost:8090/client/send"
+    ```
+  - Windows CMD:
+    ```bat
+    set "DATA={\"mx\":[\"127.0.0.1\"],\"port\":25,\"envelopes\":[{\"mail\":\"tony@example.com\",\"rcpt\":[\"pepper@example.com\"],\"subject\":\"Urgent\",\"message\":\"Send Rescue!\"}]}"
+    curl -X POST -H "Content-Type: application/json" -d %DATA% "http://localhost:8090/client/send"
+    ```
+  - PowerShell:
+    ```powershell
+    $body = '{"mx":["127.0.0.1"],"port":25,"envelopes":[{"mail":"tony@example.com","rcpt":["pepper@example.com"],"subject":"Urgent","message":"Send Rescue!"}]}'
+    Invoke-RestMethod -Method Post -Uri 'http://localhost:8090/client/send' -ContentType 'application/json' -Body $body
+    ```

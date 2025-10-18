@@ -1,5 +1,6 @@
 package com.mimecast.robin.main;
 
+import com.mimecast.robin.endpoints.ClientEndpoint;
 import com.mimecast.robin.endpoints.MetricsEndpoint;
 import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.smtp.SmtpListener;
@@ -82,6 +83,13 @@ public class Server extends Foundation {
             new MetricsEndpoint().start();
         } catch (IOException e) {
             log.error("Unable to start monitoring endpoint: {}", e.getMessage());
+        }
+
+        // Start client submission endpoint.
+        try {
+            new ClientEndpoint().start();
+        } catch (IOException e) {
+            log.error("Unable to start client submission endpoint: {}", e.getMessage());
         }
     }
 

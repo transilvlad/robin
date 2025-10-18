@@ -41,6 +41,9 @@
   // Metrics endpoint port.
   metricsPort: 8080,
 
+  // API endpoint port.
+  apiPort: 8090,
+
   // Email storage configuration.
   storage: {
     enabled: true,
