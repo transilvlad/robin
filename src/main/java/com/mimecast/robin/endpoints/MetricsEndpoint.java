@@ -118,10 +118,10 @@ public class MetricsEndpoint {
      */
     private void handleLandingPage(HttpExchange exchange) throws IOException {
         try {
-            String response = readResourceFile("endpoints-ui.html");
+            String response = readResourceFile("metrics-endpoints-ui.html");
             sendResponse(exchange, 200, "text/html; charset=utf-8", response);
         } catch (IOException e) {
-            log.error("Could not read endpoints-ui.html", e);
+            log.error("Could not read metrics-endpoints-ui.html", e);
             sendError(exchange, 500, "Internal Server Error");
         }
     }
