@@ -20,7 +20,7 @@ class DigestMD5Test {
 
     @BeforeAll
     static void before() throws ConfigurationException {
-        Foundation.init("src/test/resources/");
+        Foundation.init("src/test/resources/cfg/");
 
         database = new StaticDigestCache();
     }

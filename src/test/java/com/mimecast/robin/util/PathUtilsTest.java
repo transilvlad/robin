@@ -15,12 +15,12 @@ class PathUtilsTest {
 
     @BeforeAll
     static void before() throws ConfigurationException {
-        Foundation.init("src/test/resources/");
+        Foundation.init("src/test/resources/cfg/");
     }
 
     @Test
     void isFile() {
-        assertTrue(PathUtils.isFile("src/test/resources/properties.json5"));
+        assertTrue(PathUtils.isFile("src/test/resources/cfg/properties.json5"));
     }
 
     @Test
@@ -53,7 +53,7 @@ class PathUtilsTest {
 
     @Test
     void readFile() throws IOException {
-        String payload = PathUtils.readFile("src/test/resources/properties.json5", Charset.defaultCharset());
+        String payload = PathUtils.readFile("src/test/resources/cfg/properties.json5", Charset.defaultCharset());
         assertEquals(123, payload.charAt(0));
         assertEquals(125, payload.charAt(payload.length() - 1));
     }

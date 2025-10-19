@@ -25,7 +25,7 @@ class ClientStartTlsTest {
     @BeforeAll
     @SuppressWarnings("squid:S2925")
     static void before() throws InterruptedException, ConfigurationException {
-        Foundation.init("src/test/resources/");
+        Foundation.init("src/test/resources/cfg/");
 
         ServerConfig config = Config.getServer();
 

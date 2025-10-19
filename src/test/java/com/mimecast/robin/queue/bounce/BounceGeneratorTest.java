@@ -16,7 +16,7 @@ class BounceGeneratorTest {
 
     @BeforeAll
     static void before() throws ConfigurationException {
-        Foundation.init("src/test/resources/");
+        Foundation.init("src/test/resources/cfg/");
     }
 
     private static Session session = new Session();

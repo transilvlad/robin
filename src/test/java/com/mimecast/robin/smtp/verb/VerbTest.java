@@ -15,7 +15,7 @@ class VerbTest {
 
     @BeforeAll
     static void before() throws ConfigurationException {
-        Foundation.init("src/test/resources/");
+        Foundation.init("src/test/resources/cfg/");
     }
 
     @Test

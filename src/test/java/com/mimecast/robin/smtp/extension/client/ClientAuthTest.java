@@ -20,7 +20,7 @@ class ClientAuthTest {
 
     @BeforeAll
     static void before() throws ConfigurationException {
-        Foundation.init("src/test/resources/");
+        Foundation.init("src/test/resources/cfg/");
     }
 
     static class ClientAuthMock extends ClientAuth {

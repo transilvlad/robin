@@ -16,7 +16,7 @@ class ScenarioConfigTest {
 
     @BeforeAll
     static void before() throws ConfigurationException {
-        Foundation.init("src/test/resources/");
+        Foundation.init("src/test/resources/cfg/");
 
         scenarioConfig = Config.getServer().getScenarios().get("reject.com");
     }

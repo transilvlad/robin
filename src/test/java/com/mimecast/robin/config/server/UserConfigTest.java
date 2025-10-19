@@ -16,7 +16,7 @@ class UserConfigTest {
 
     @BeforeAll
     static void before() throws ConfigurationException {
-        Foundation.init("src/test/resources/");
+        Foundation.init("src/test/resources/cfg/");
 
         userConfig = Config.getServer().getUser("tony@example.com").get();
     }

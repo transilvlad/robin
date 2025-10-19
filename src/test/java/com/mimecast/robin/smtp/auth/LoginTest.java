@@ -17,7 +17,7 @@ class LoginTest {
 
     @BeforeAll
     static void before() throws ConfigurationException {
-        Foundation.init("src/test/resources/");
+        Foundation.init("src/test/resources/cfg/");
 
         Session session = new Session();
         session.setUsername("tony@example.com");

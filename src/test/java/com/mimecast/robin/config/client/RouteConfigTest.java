@@ -16,7 +16,7 @@ class RouteConfigTest {
 
     @BeforeAll
     static void before() throws ConfigurationException {
-        Foundation.init("src/test/resources/");
+        Foundation.init("src/test/resources/cfg/");
 
         routeConfig1 = Config.getClient().getRoute("com");
         routeConfig2 = Config.getClient().getRoute("net");
