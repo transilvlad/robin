@@ -64,8 +64,8 @@ public final class QueueFiles {
                     continue;
                 }
 
-                String fileName = src.getFileName().toString();
-                Path target = queueDir.resolve("qeml-" + fileName);
+                String fileName = "qeml-" + src.getFileName().toString();
+                Path target = queueDir.resolve(fileName);
 
                 // Ensure unique target if file exists.
                 if (Files.exists(target)) {
