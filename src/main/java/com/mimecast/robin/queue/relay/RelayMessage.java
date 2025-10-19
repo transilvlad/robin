@@ -46,9 +46,21 @@ public class RelayMessage {
             optional.ifPresent(header -> sessions.add(getRelaySession(header, connection.getSession().getEnvelopes().getLast())));
         }
 
-        // Check relay enabled.
-        if (relayConfig.getBooleanProperty("enabled")) {
+        String mailbox = relayConfig.getStringProperty("mailbox");
+
+        // Inbound relay if enabled.
+        if (connection.getSession().isInbound() && relayConfig.getBooleanProperty("enabled")) {
             sessions.add(getRelaySession(relayConfig, connection.getSession().getEnvelopes().getLast()));
+        }
+
+        // Outbound relay if enabled.
+        if (connection.getSession().isOutbound() && relayConfig.getBooleanProperty("outboundEnabled")) {
+            mailbox = relayConfig.getStringProperty("outbox");
+
+            // Outbound MX relay if enabled.
+            if (relayConfig.getBooleanProperty("outboundMxEnabled")) {
+                // TODO: Resolve MX records for each envelope recipient and create sessions accordingly.
+            }
         }
 
         // Deliver sessions if any.
@@ -57,7 +69,7 @@ public class RelayMessage {
             for (Session session : sessions) {
                 // Wrap into a relay session.
                 RelaySession relaySession = new RelaySession(session)
-                        .setMailbox(relayConfig.getStringProperty("mailbox"))
+                        .setMailbox(mailbox)
                         .setProtocol(relayConfig.getStringProperty("protocol", "ESMTP"));
 
                 // Persist any envelope files to storage/queue before enqueueing.

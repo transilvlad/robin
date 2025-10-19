@@ -75,7 +75,15 @@
   // Email relay configuration.
   // This default is an example for local Dovecot.
   relay: {
+    // Enable inbound relay.
     enabled: false,
+
+    // Enable outbound relay.
+    outboundEnabled: true,
+
+    // Enable outbound MX relay.
+    // When enabled, the server will perform MX lookups for recipient domains instead of using inbound relay host.
+    outboundMxEnabled: true,
 
     // Disable relay by magic header feature.
     disableRelayHeader: true,
@@ -92,9 +100,10 @@
     // Use secure TLS connection to forward mail.
     tls: false,
 
-    // Mailbox to use when relaying mail via dovecot-lda.
-    // Leave blank to bypass parameter.
-    mailbox: "INBOX",
+    // Mailbox to use when relaying mail via dovecot-lda depending on direction.
+    // Leave blank to bypass parameters.
+    mailbox: "INBOX", // Inbound
+    outbox: "Sent",   // Outbound
 
     // Bounce email if relay fails.
     bounce: true,

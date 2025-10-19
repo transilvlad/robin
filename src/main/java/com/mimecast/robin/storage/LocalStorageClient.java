@@ -173,7 +173,7 @@ public class LocalStorageClient implements StorageClient {
                 // Save to Dovecot LDA if enabled.
                 saveToDovecotLda();
 
-                // Relay email if X-Robin-Relay or relay configuration enabled.
+                // Relay email if X-Robin-Relay or relay configuration or direction outbound enabled.
                 relay();
 
             } catch (IOException e) {
@@ -273,7 +273,12 @@ public class LocalStorageClient implements StorageClient {
      * @return DovecotLdaDelivery instance.
      */
     protected DovecotLdaDelivery getDovecotLdaDeliveryInstance() {
-        return new DovecotLdaDelivery(new RelaySession(connection.getSession()));
+        RelaySession relaySession = new RelaySession(connection.getSession());
+        if (connection.getSession().isOutbound()) {
+            relaySession.setMailbox(Config.getServer().getDovecot().getStringProperty("outboundMailbox", "Sent"));
+        }
+
+        return new DovecotLdaDelivery(relaySession);
     }
 
     /**
