@@ -1,4 +1,4 @@
-package com.mimecast.robin.endpoints;
+package com.mimecast.robin.endpoints.utils;
 
 import com.google.gson.ExclusionStrategy;
 import com.google.gson.FieldAttributes;

@@ -3,6 +3,7 @@ package com.mimecast.robin.endpoints;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mimecast.robin.config.client.CaseConfig;
+import com.mimecast.robin.endpoints.utils.GsonExclusionStrategy;
 import com.mimecast.robin.main.Client;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
