@@ -53,6 +53,11 @@ public final class QueueFiles {
             }
 
             try {
+                if (filePath.contains("qeml-")) {
+                    log.debug("Envelope file already in queue, skipping move: {}", filePath);
+                    continue;
+                }
+
                 Path src = Paths.get(filePath);
                 if (!Files.exists(src)) {
                     log.debug("Envelope file does not exist, skipping move: {}", filePath);
@@ -60,7 +65,7 @@ public final class QueueFiles {
                 }
 
                 String fileName = src.getFileName().toString();
-                Path target = queueDir.resolve(fileName);
+                Path target = queueDir.resolve("qeml-" + fileName);
 
                 // Ensure unique target if file exists.
                 if (Files.exists(target)) {

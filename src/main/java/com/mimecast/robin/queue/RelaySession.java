@@ -3,6 +3,7 @@ package com.mimecast.robin.queue;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.smtp.session.Session;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
@@ -12,6 +13,8 @@ import java.util.Date;
  * Relay session.
  */
 public class RelaySession implements Serializable {
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     /**
      * Session.

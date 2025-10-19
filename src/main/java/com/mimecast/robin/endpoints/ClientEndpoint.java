@@ -300,7 +300,7 @@ public class ClientEndpoint {
                 List<MessageEnvelope> envs = session != null ? session.getEnvelopes() : null;
                 int envCount = envs != null ? envs.size() : 0;
 
-                // Recipients summary (first 5 unique, then +N)
+                // Recipients summary (first 5 unique, then +N).
                 StringBuilder recipients = new StringBuilder();
                 int added = 0;
                 java.util.HashSet<String> seen = new java.util.HashSet<>();
@@ -325,7 +325,7 @@ public class ClientEndpoint {
                     }
                 }
 
-                // Files summary (first 5 base names with tooltip of full path)
+                // Files summary (first 5 base names with tooltip of full path).
                 StringBuilder files = new StringBuilder();
                 int fadded = 0;
                 if (envs != null) {

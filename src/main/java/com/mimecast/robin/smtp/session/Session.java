@@ -10,6 +10,7 @@ import com.mimecast.robin.smtp.transaction.SessionTransactionList;
 import com.mimecast.robin.util.Magic;
 import org.apache.logging.log4j.ThreadContext;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -21,6 +22,8 @@ import java.util.*;
  */
 @SuppressWarnings({"UnusedReturnValue", "rawtypes"})
 public class Session implements Serializable, Cloneable {
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     /**
      * Direction enum.

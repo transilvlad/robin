@@ -8,6 +8,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.io.Serial;
 import java.io.Serializable;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -21,6 +22,8 @@ import java.util.stream.Stream;
  * <p>It will store the metadata associated with each email sent.
  */
 public class MessageEnvelope implements Serializable, Cloneable {
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     // Set MAIL FROM and RCPT TO.
     private String mail = null;
@@ -38,7 +41,7 @@ public class MessageEnvelope implements Serializable, Cloneable {
     private String folder = null;
 
     // Set EML stream or null.
-    private InputStream stream = null;
+    private transient InputStream stream = null;
     // Used for serialisation.
     private byte[] bytes = null;
 

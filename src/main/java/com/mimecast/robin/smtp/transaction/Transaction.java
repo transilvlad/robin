@@ -4,13 +4,18 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.Serial;
+import java.io.Serializable;
+
 /**
  * Transaction.
  *
  * <p>This provides a container for SMTP transaction details.
  */
-public class Transaction {
+public class Transaction implements Serializable {
     private static final Logger log = LogManager.getLogger(Transaction.class);
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     /**
      * Records the SMTP command of this transaction.
@@ -164,6 +169,6 @@ public class Transaction {
      * @return Transaction string.
      */
     public String toString() {
-        return (StringUtils.isNotBlank(payload) ? command + "> " + payload : command);
+        return (org.apache.commons.lang3.StringUtils.isNotBlank(payload) ? command + "> " + payload : command);
     }
 }
