@@ -17,8 +17,17 @@
   // Number of connections to be allowed in the backlog (default: 25).
   backlog: 25,
   
+  // Minimum number of threads in the pool.
+  minimumPoolSize: 1,
+
+  // Maximum number of threads in the pool.
+  maximumPoolSize: 10,
+
+  // Time (in seconds) to keep idle threads alive.
+  threadKeepAliveTime: 60,
+
   // Maximum number of SMTP transactions to process over a connection.
-  transactionsLimit: 200,
+  transactionsLimit: 305,
   
   // Number of SMTP errors to allow before terminating connection (default: 3).
   errorLimit: 3,
