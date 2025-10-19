@@ -9,6 +9,7 @@ import com.mimecast.robin.mtasts.cache.PolicyCache;
 import com.mimecast.robin.mtasts.client.*;
 import com.mimecast.robin.mtasts.config.Config;
 import com.mimecast.robin.mtasts.exception.*;
+import com.mimecast.robin.trust.TrustManager;
 import org.apache.commons.validator.ValidatorException;
 import org.apache.commons.validator.routines.DomainValidator;
 import org.apache.logging.log4j.LogManager;
@@ -50,13 +51,12 @@ public class StrictTransportSecurity {
     private final PolicyCache cache;
 
     /**
-     * Constructs a new StrictTransportSecurity instance with default DNS record client and Memory policy cache.
+     * Constructs a new StrictTransportSecurity instance with defaults clients and cache.
      *
-     * @param httpsPolicyClient HttpsPolicyClient instance.
-     * @throws InstantiationException Null argument(s) provided.
+     * @throws Exception Null argument(s) provided.
      */
-    public StrictTransportSecurity(HttpsPolicyClient httpsPolicyClient) throws InstantiationException {
-        this(new XBillDnsRecordClient(), httpsPolicyClient, new MemoryPolicyCache());
+    public StrictTransportSecurity() throws Exception {
+        this(new XBillDnsRecordClient(), new OkHttpsPolicyClient(new TrustManager()), new MemoryPolicyCache());
     }
 
     /**

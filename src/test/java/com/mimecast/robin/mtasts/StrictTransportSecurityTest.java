@@ -33,28 +33,30 @@ class StrictTransportSecurityTest {
     private static LocalHttpsServer localHttpsServer;
     private static StrictTransportSecurity strictTransportSecurity;
 
-    private static final String response = "version: STSv1\r\n" +
-            "mode: enforce\r\n" +
-            "mx: *.mimecast.com\r\n" +
-            "max_age: 86400\r\n";
+    private static final String response = """
+            version: STSv1\r
+            mode: enforce\r
+            mx: *.mimecast.com\r
+            max_age: 86400\r
+            """;
 
     @BeforeAll
     static void before() throws CertificateException, UnrecoverableKeyException, NoSuchAlgorithmException, IOException, KeyManagementException, KeyStoreException, InstantiationException {
         // Set local resolver
         Lookup.setDefaultResolver(new LocalDnsResolver());
-        LocalDnsResolver.put("_mta-sts.mimecast.com", Type.TXT, new ArrayList<String>() {{
+        LocalDnsResolver.put("_mta-sts.mimecast.com", Type.TXT, new ArrayList<>() {{
             add("v=STSv1; id=19840507T234501;");
         }});
-        LocalDnsResolver.put("_smtp._tls.mimecast.com", Type.TXT, new ArrayList<String>() {{
+        LocalDnsResolver.put("_smtp._tls.mimecast.com", Type.TXT, new ArrayList<>() {{
             add("v=TLSRPTv1; rua=mailto:tlsrpt@mimecast.com;");
         }});
-        LocalDnsResolver.put("_mta-sts.mimecast.org", Type.TXT, new ArrayList<String>() {{
+        LocalDnsResolver.put("_mta-sts.mimecast.org", Type.TXT, new ArrayList<>() {{
             add("v=STSv1; id=19840507T234501;");
         }});
-        LocalDnsResolver.put("_mta-sts.mimecast.eu", Type.TXT, new ArrayList<String>() {{
+        LocalDnsResolver.put("_mta-sts.mimecast.eu", Type.TXT, new ArrayList<>() {{
             add("v=STSv1; id=;");
         }});
-        LocalDnsResolver.put("_mta-sts.mimecast.uk", Type.TXT, new ArrayList<String>() {{
+        LocalDnsResolver.put("_mta-sts.mimecast.uk", Type.TXT, new ArrayList<>() {{
             add("v=STSv1; id=19840507T234501;");
         }});
 
@@ -85,7 +87,7 @@ class StrictTransportSecurityTest {
 
         assertEquals(response, policy.getPolicy());
         assertEquals(1, policy.getReport().getRua().size());
-        assertEquals("mailto:tlsrpt@mimecast.com", policy.getReport().getRua().get(0));
+        assertEquals("mailto:tlsrpt@mimecast.com", policy.getReport().getRua().getFirst());
     }
 
     @Test
@@ -175,7 +177,7 @@ class StrictTransportSecurityTest {
         assertTrue(policy.isCached());
 
         // Put back into resolver
-        LocalDnsResolver.put("_mta-sts.mimecast.uk", Type.TXT, new ArrayList<String>() {{
+        LocalDnsResolver.put("_mta-sts.mimecast.uk", Type.TXT, new ArrayList<>() {{
             add("v=STSv1; id=19840507T234501;");
         }});
         Lookup.getDefaultCache(DClass.IN).clearCache();
