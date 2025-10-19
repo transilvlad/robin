@@ -2,8 +2,8 @@ package com.mimecast.robin.mtasts;
 
 import com.mimecast.robin.mtasts.cache.MemoryPolicyCache;
 import com.mimecast.robin.mtasts.client.XBillDnsRecordClient;
-import com.mimecast.robin.mtasts.trust.PermissiveTrustManager;
 import com.mimecast.robin.mtasts.util.LocalHttpsPolicyClient;
+import com.mimecast.robin.trust.PermissiveTrustManager;
 
 import java.util.ArrayList;
 import java.util.List;

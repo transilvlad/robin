@@ -1,4 +1,4 @@
-package com.mimecast.robin.mtasts.trust;
+package com.mimecast.robin.trust;
 
 import org.junit.jupiter.api.Test;
 

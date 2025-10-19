@@ -1,6 +1,6 @@
 package com.mimecast.robin.mtasts.util;
 
-import com.mimecast.robin.mtasts.trust.PermissiveTrustManager;
+import com.mimecast.robin.trust.PermissiveTrustManager;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;

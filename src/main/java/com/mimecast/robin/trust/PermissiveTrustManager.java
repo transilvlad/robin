@@ -1,4 +1,4 @@
-package com.mimecast.robin.mtasts.trust;
+package com.mimecast.robin.trust;
 
 import javax.net.ssl.X509TrustManager;
 import java.security.cert.CertificateException;

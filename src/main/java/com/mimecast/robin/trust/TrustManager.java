@@ -1,4 +1,4 @@
-package com.mimecast.robin.mtasts.trust;
+package com.mimecast.robin.trust;
 
 import com.mimecast.robin.main.Config;
 import org.apache.logging.log4j.LogManager;
