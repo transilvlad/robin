@@ -181,16 +181,34 @@ public class ServerConfig extends ConfigFoundation {
      * @return Key store path.
      */
     public String getKeyStore() {
-        return getStringProperty("keystore", "/usr/local/keystore");
+        return getStringProperty("keystore", "/usr/local/keystore.jks");
     }
 
     /**
      * Gets key store password.
      *
-     * @return Key store password string.
+     * @return Key store password string or path.
      */
     public String getKeyStorePassword() {
         return getStringProperty("keystorepassword", "");
+    }
+
+    /**
+     * Gets trust store.
+     *
+     * @return Trust store path.
+     */
+    public String getTrustStore() {
+        return getStringProperty("truststore", "/usr/local/truststore.jks");
+    }
+
+    /**
+     * Gets trust store password.
+     *
+     * @return Trust store password string or path.
+     */
+    public String getTrustStorePassword() {
+        return getStringProperty("truststorepassword", "");
     }
 
     /**

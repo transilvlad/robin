@@ -38,7 +38,7 @@ Configuration
         chunking: true,
 
         // Java keystore (default: /usr/local/keystore.jks).
-        keystore: "/usr/local/keystore",
+        keystore: "/usr/local/keystore.jks",
 
         // Keystore password.
         keystorepassword: "avengers",

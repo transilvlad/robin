@@ -44,8 +44,14 @@
   // Java keystore (default: /usr/local/keystore.jks).
   keystore: "/usr/local/robin/keystore.jks",
 
-  // Keystore password.
+  // Keystore password or path to file.
   keystorepassword: "avengers",
+
+  // Java truststore (default: /usr/local/truststore.jks).
+  truststore: "/usr/local/robin/truststore.jks",
+
+  // Truststore password or path to file.
+  truststorepassword: "avengers",
 
   // Metrics endpoint port.
   metricsPort: 8080,

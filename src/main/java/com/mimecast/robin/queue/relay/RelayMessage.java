@@ -5,6 +5,9 @@ import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.headers.MimeHeader;
+import com.mimecast.robin.mtasts.StrictTransportSecurity;
+import com.mimecast.robin.mtasts.client.OkHttpsPolicyClient;
+import com.mimecast.robin.mtasts.trust.TrustManager;
 import com.mimecast.robin.queue.PersistentQueue;
 import com.mimecast.robin.queue.QueueFiles;
 import com.mimecast.robin.queue.RelayQueueCron;
@@ -58,8 +61,19 @@ public class RelayMessage {
             mailbox = relayConfig.getStringProperty("outbox");
 
             // Outbound MX relay if enabled.
+            StrictTransportSecurity strictTransportSecurity = null;
             if (relayConfig.getBooleanProperty("outboundMxEnabled")) {
-                // TODO: Resolve MX records for each envelope recipient and create sessions accordingly.
+                try {
+                    strictTransportSecurity = new StrictTransportSecurity(new OkHttpsPolicyClient(new TrustManager()));
+                } catch (Exception e) {
+                    log.error("Failed to instantiate StrictTransportSecurity for MTA-STS lookup: {}", e.getMessage());
+                }
+
+                if (strictTransportSecurity != null) {
+                    // TODO: Resolve MTA-STS records for each envelope recipient and create sessions accordingly.
+                } else {
+                    // TODO: Resolve MX records for each envelope recipient and create sessions accordingly.
+                }
             }
         }
 
@@ -77,7 +91,7 @@ public class RelayMessage {
 
                 // Enqueue for retry.
                 PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE)
-                    .enqueue(relaySession);
+                        .enqueue(relaySession);
             }
         }
     }
