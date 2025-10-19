@@ -29,6 +29,11 @@ public class Client extends Foundation {
     protected Connection connection;
 
     /**
+     * Are assertions skipped?
+     */
+    protected Boolean skip = false;
+
+    /**
      * Have assertions been skipped?
      */
     protected Boolean skipped = false;
@@ -83,12 +88,15 @@ public class Client extends Foundation {
         // Delivery Session.
         session = Factories.getSession();
         session.map(caseConfig);
+        session.setDirection(Session.Direction.OUTBOUND);
 
         // Send.
         deliver();
 
         // Assert.
-        assertion(connection);
+        if (!skip) {
+            assertion(connection);
+        }
         return this;
     }
 
@@ -111,11 +119,21 @@ public class Client extends Foundation {
     }
 
     /**
+     * Set skip assertions.
+     *
+     * @return Boolean.
+     */
+    public Client setSkip(boolean skip) {
+        this.skip = skip;
+        return this;
+    }
+
+    /**
      * Have assertions been skipped?
      *
      * @return Boolean.
      */
-    public boolean skipped() {
+    public boolean isSkipped() {
         return skipped;
     }
 

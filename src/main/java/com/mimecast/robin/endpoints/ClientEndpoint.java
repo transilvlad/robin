@@ -1,7 +1,5 @@
 package com.mimecast.robin.endpoints;
 
-import com.google.gson.ExclusionStrategy;
-import com.google.gson.FieldAttributes;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mimecast.robin.config.client.CaseConfig;
@@ -77,27 +75,7 @@ public class ClientEndpoint {
     public void start() throws IOException {
         // Build a Gson serializer that excludes fields we don't want to expose.
         gson = new GsonBuilder()
-                .addSerializationExclusionStrategy(new ExclusionStrategy() {
-                    @Override
-                    public boolean shouldSkipField(FieldAttributes f) {
-                        // Exclude heavy or sensitive fields from Session
-                        if (f.getDeclaringClass() == Session.class) {
-                            String name = f.getName();
-                            return "magic".equals(name) || "savedResults".equals(name);
-                        }
-                        // Exclude binary fields from MessageEnvelope
-                        if (f.getDeclaringClass() == MessageEnvelope.class) {
-                            String name = f.getName();
-                            return "stream".equals(name) || "bytes".equals(name);
-                        }
-                        return false;
-                    }
-
-                    @Override
-                    public boolean shouldSkipClass(Class<?> clazz) {
-                        return false;
-                    }
-                })
+                .addSerializationExclusionStrategy(new GsonExclusionStrategy())
                 .setPrettyPrinting()
                 .create();
 
@@ -106,14 +84,19 @@ public class ClientEndpoint {
         HttpServer server = HttpServer.create(new InetSocketAddress(apiPort), 10);
 
         // Register endpoints.
+
         // Landing page for client endpoint discovery.
         server.createContext("/", this::handleLandingPage);
+
         // Main endpoint that triggers a Client.send(...) run for the supplied case.
         server.createContext("/client/send", this::handleClientSend);
+
         // Queue endpoint that enqueues a RelaySession for later delivery.
         server.createContext("/client/queue", this::handleClientQueue);
+
         // New: Queue listing endpoint.
         server.createContext("/client/queue-list", this::handleQueueList);
+
         // Liveness endpoint for client API.
         server.createContext("/client/health", exchange -> sendJson(exchange, 200, "{\"status\":\"UP\"}"));
 
@@ -201,8 +184,10 @@ public class ClientEndpoint {
                 }
 
                 // Create a new client instance and execute the case from path.
-                Client client = new Client();
-                client.send(casePath);
+                Client client = new Client()
+                        .setSkip(true) // Skip assertions for API runs.
+                        .send(casePath);
+
                 session = client.getSession();
                 log.info("/client/send completed from file: sessionUID={}, envelopes={}",
                         session.getUID(), session.getEnvelopes() != null ? session.getEnvelopes().size() : 0);
@@ -231,8 +216,10 @@ public class ClientEndpoint {
                 CaseConfig caseConfig = new CaseConfig(map);
 
                 // Create a new client instance and execute the case in-memory.
-                Client client = new Client();
-                client.send(caseConfig);
+                Client client = new Client()
+                        .setSkip(true) // Skip assertions for API runs.
+                        .send(caseConfig);
+
                 session = client.getSession();
                 log.info("/client/send completed from body: sessionUID={}, envelopes={}",
                         session.getUID(), session.getEnvelopes() != null ? session.getEnvelopes().size() : 0);

@@ -137,7 +137,7 @@ public class Session implements Serializable {
     private long ehloSize = -1;
 
     /**
-     * [Client] EHLO advertised STARTLS.
+     * [Client] EHLO advertised STARTTLS.
      */
     private boolean ehloTls = false;
 
@@ -172,23 +172,23 @@ public class Session implements Serializable {
     private List<String> ehloAuth = new ArrayList<>();
 
     /**
-     * TLS handshake successful.
+     * Is TLS enabled.
      */
     private boolean tls = false;
 
     /**
-     * Do TLS.
+     * TLS result.
      */
     private boolean startTls = false;
 
     /**
-     * Is secure port.
+     * [Server] Is secure port.
      * <p>This supports submission unlike main port.
      */
     private boolean securePort = false;
 
     /**
-     * Do auth before TLS.
+     * [Client] Do auth before TLS.
      */
     private boolean authBeforeTls = false;
 
@@ -218,7 +218,7 @@ public class Session implements Serializable {
     private String password = "";
 
     /**
-     * List of envelopes.
+     * List of verbs to call in order.
      */
     private final List<String> behaviour = new ArrayList<>();
 
@@ -239,14 +239,14 @@ public class Session implements Serializable {
 
     /**
      * List of magic variables.
-     * <p>Handy palce to store external data for reuse.
+     * <p>Handy place to store external data for reuse.
      */
     private final Map<String, Object> magic = new HashMap<>();
 
     /**
      * Saved results.
      */
-    private final Map<String, List> savedResults = new HashMap<>();
+    private final Map<String, List<?>> savedResults = new HashMap<>();
 
     /**
      * Constructs a new Session instance.
@@ -850,7 +850,7 @@ public class Session implements Serializable {
     }
 
     /**
-     * Gets TLS handshake success.
+     * Gets TLS enablement.
      *
      * @return TLS enabled.
      */
@@ -859,9 +859,9 @@ public class Session implements Serializable {
     }
 
     /**
-     * Sets TLS handshake success if any.
+     * Sets TLS enablement.
      *
-     * @param tls Handshake success.
+     * @param tls Enablement.
      * @return Self.
      */
     public Session setTls(boolean tls) {
@@ -870,18 +870,18 @@ public class Session implements Serializable {
     }
 
     /**
-     * Gets TLS enablement.
+     * Gets TLS result.
      *
-     * @return TLS enablement.
+     * @return TLS result.
      */
     public boolean isStartTls() {
         return startTls;
     }
 
     /**
-     * Sets TLS enablement.
+     * Sets TLS result.
      *
-     * @param startTls TLS enablement.
+     * @param startTls TLS result.
      * @return Self.
      */
     public Session setStartTls(boolean startTls) {
@@ -1154,7 +1154,7 @@ public class Session implements Serializable {
      *
      * @return Map of String, List.
      */
-    public Map<String, List> getSavedResults() {
+    public Map<String, List<?>> getSavedResults() {
         return savedResults;
     }
 }

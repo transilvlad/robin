@@ -70,7 +70,7 @@ public class RelayQueueCron {
                 log.debug("Cron tick: nowEpoch={}, queueSizeBefore={} nextTickInSec={} budget={} ", now, sizeBefore, PERIOD_SECONDS, budget);
 
                 if (budget <= 0) {
-                    log.debug("Cron tick: queue empty, nothing to process");
+                    log.trace("Cron tick: queue empty, nothing to process");
                     return;
                 }
 
@@ -87,8 +87,9 @@ public class RelayQueueCron {
                     long lastRetryTime = relaySession.getLastRetryTime();
                     long nextAllowed = lastRetryTime + nextRetrySeconds;
                     if (now < nextAllowed) {
-                        log.debug("Re-enqueueing session (too early): sessionUID={}, retryCount={}, lastRetryTime={}, now={}, nextAllowed={}, backoffSec={}",
+                        log.info("Re-enqueueing session (too early): sessionUID={}, retryCount={}, lastRetryTime={}, now={}, nextAllowed={}, backoffSec={}",
                                 relaySession.getSession().getUID(), relaySession.getRetryCount(), lastRetryTime, now, nextAllowed, nextRetrySeconds);
+
                         // Persist files again (idempotent) before putting back on queue.
                         QueueFiles.persistEnvelopeFiles(relaySession);
                         queue.enqueue(relaySession);
