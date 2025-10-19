@@ -5,8 +5,6 @@ import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.headers.MimeHeader;
-import com.mimecast.robin.mtasts.StrictTransportSecurity;
-import com.mimecast.robin.mtasts.client.OkHttpsPolicyClient;
 import com.mimecast.robin.queue.PersistentQueue;
 import com.mimecast.robin.queue.QueueFiles;
 import com.mimecast.robin.queue.RelayQueueCron;
@@ -14,7 +12,6 @@ import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.session.Session;
-import com.mimecast.robin.trust.TrustManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -61,19 +58,8 @@ public class RelayMessage {
             mailbox = relayConfig.getStringProperty("outbox");
 
             // Outbound MX relay if enabled.
-            StrictTransportSecurity strictTransportSecurity = null;
             if (relayConfig.getBooleanProperty("outboundMxEnabled")) {
-                try {
-                    strictTransportSecurity = new StrictTransportSecurity(new OkHttpsPolicyClient(new TrustManager()));
-                } catch (Exception e) {
-                    log.error("Failed to instantiate StrictTransportSecurity for MTA-STS lookup: {}", e.getMessage());
-                }
-
-                if (strictTransportSecurity != null) {
-                    // TODO: Resolve MTA-STS records for each envelope recipient and create sessions accordingly.
-                } else {
-                    // TODO: Resolve MX records for each envelope recipient and create sessions accordingly.
-                }
+                // TODO implement MX resolution and session reassigning of recipients according to destination.
             }
         }
 
