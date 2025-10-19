@@ -295,9 +295,9 @@ public class ClientEndpoint {
             // Build only the dynamic rows HTML.
             StringBuilder rows = new StringBuilder(Math.max(8192, items.size() * 256));
             for (int i = 0; i < items.size(); i++) {
-                RelaySession rs = items.get(i);
-                Session s = rs.getSession();
-                List<MessageEnvelope> envs = s != null ? s.getEnvelopes() : null;
+                RelaySession relaySession = items.get(i);
+                Session session = relaySession.getSession();
+                List<MessageEnvelope> envs = session != null ? session.getEnvelopes() : null;
                 int envCount = envs != null ? envs.size() : 0;
 
                 // Recipients summary (first 5 unique, then +N)
@@ -342,14 +342,14 @@ public class ClientEndpoint {
                     }
                 }
 
-                String lastRetry = rs.getLastRetryTime() > 0 ? rs.getLastRetryDate() : "-";
+                String lastRetry = relaySession.getLastRetryTime() > 0 ? relaySession.getLastRetryDate() : "-";
 
                 rows.append("<tr>")
                         .append("<td class='nowrap'>").append(i + 1).append("</td>")
-                        .append("<td class='mono'>").append(escapeHtml(s != null ? s.getUID() : "-")).append("</td>")
-                        .append("<td>").append(escapeHtml(rs.getProtocol())).append("</td>")
-                        .append("<td>").append(escapeHtml(rs.getMailbox())).append("</td>")
-                        .append("<td>").append(rs.getRetryCount()).append("</td>")
+                        .append("<td class='mono'>").append(escapeHtml(session != null ? session.getUID() : "-")).append("</td>")
+                        .append("<td>").append(escapeHtml(session.getDate())).append("</td>")
+                        .append("<td>").append(escapeHtml(relaySession.getProtocol())).append("</td>")
+                        .append("<td>").append(relaySession.getRetryCount()).append("</td>")
                         .append("<td class='nowrap'>").append(escapeHtml(lastRetry)).append("</td>")
                         .append("<td>").append(envCount).append("</td>")
                         .append("<td>").append(recipients).append("</td>")
