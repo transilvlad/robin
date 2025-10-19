@@ -24,9 +24,7 @@ import java.util.Optional;
  * Strict Transport Security.
  * <p>Implementation of MTA-STS RFC8461.
  *
- * @author "Vlad Marian" <vmarian@mimecast.com>
  * @link <a href="https://tools.ietf.org/html/rfc8461">RFC8461</a>
- * @link <a href="http://mimecast.com">Mimecast</a>
  * @see XBillDnsRecordClient
  * @see OkHttpsPolicyClient
  * @see PolicyCache
@@ -283,7 +281,7 @@ public class StrictTransportSecurity {
         Optional<List<DnsRecord>> optional = dnsRecordClient.getMxRecords(domain);
         List<DnsRecord> mxRecords = optional.orElseGet(ArrayList::new);
 
-        Comparator<DnsRecord> compareByName = Comparator.comparing(DnsRecord::getName);
+        Comparator<DnsRecord> compareByName = Comparator.comparing(DnsRecord::getValue);
         mxRecords.sort(compareByName);
 
         Comparator<DnsRecord> compareByPriority = Comparator.comparingInt(DnsRecord::getPriority);

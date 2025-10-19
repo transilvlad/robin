@@ -32,9 +32,6 @@ import java.util.stream.Collectors;
 
 /**
  * CLI runnable.
- *
- * @author "Vlad Marian" <vmarian@mimecast.com>
- * @link <a href="http://mimecast.com">Mimecast</a>
  */
 @SuppressWarnings({"squid:S106","squid:S1192","squid:S3776"})
 public class Main {
@@ -171,7 +168,7 @@ public class Main {
         for (DnsRecord dnsRecord : strictTransportSecurity.getMxRecords(policy.getRecord().getDomain())) {
             Map<String, String> mx = new HashMap<>();
             mx.put("priority", String.valueOf(dnsRecord.getPriority()));
-            mx.put("entry", dnsRecord.getName());
+            mx.put("entry", dnsRecord.getValue());
             mxList.add(mx);
         }
         json.put("mxList", mxList);

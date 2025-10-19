@@ -106,7 +106,7 @@ public class StrictMx {
         if (getPolicy() != null) {
             List<DnsRecord> stsRecords = new ArrayList<>();
             for (DnsRecord mxRecord : mxRecords) {
-                if (policy.matchMx(mxRecord.getName())) {
+                if (policy.matchMx(mxRecord.getValue())) {
                     stsRecords.add(mxRecord);
                 }
             }

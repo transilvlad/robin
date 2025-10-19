@@ -12,8 +12,7 @@ import java.util.*;
 
 /**
  * MXResolver encapsulates MX record resolution with MTA-STS preference.
- *
- * Resolution order:
+ * <p>Resolution order:
  * 1) Attempt to resolve MTA-STS Strict MX records.
  * 2) If none, fall back to regular MX records via DNS client.
  */
@@ -68,7 +67,7 @@ public class MXResolver {
             // Ensure deterministic order: priority asc, then name asc.
             mxRecords.sort(Comparator
                     .comparingInt(DnsRecord::getPriority)
-                    .thenComparing(r -> safeName(r.getName())));
+                    .thenComparing(r -> safeName(r.getValue())));
 
             String canonical = canonicalize(mxRecords);
             String hash = sha256Hex(canonical);
@@ -76,7 +75,7 @@ public class MXResolver {
             MXRoute route = routesByHash.computeIfAbsent(hash, h -> {
                 List<MXServer> servers = new ArrayList<>();
                 for (DnsRecord r : mxRecords) {
-                    servers.add(new MXServer(safeName(r.getName()), r.getPriority()));
+                    servers.add(new MXServer(safeName(r.getValue()), r.getPriority()));
                 }
                 return new MXRoute(h, servers);
             });
@@ -87,20 +86,38 @@ public class MXResolver {
         return new ArrayList<>(routesByHash.values());
     }
 
+    /**
+     * Safely normalizes a name by trimming and converting to lowercase.
+     *
+     * @param name Input name.
+     * @return Normalized name.
+     */
     private static String safeName(String name) {
         return name == null ? "" : name.trim().toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * Creates a canonical string representation of the MX records list.
+     *
+     * @param mxRecords List of DnsRecord objects.
+     * @return Canonical string in the format "priority:name|priority:name|..."
+     */
     private static String canonicalize(List<DnsRecord> mxRecords) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < mxRecords.size(); i++) {
             DnsRecord r = mxRecords.get(i);
             if (i > 0) sb.append('|');
-            sb.append(r.getPriority()).append(':').append(safeName(r.getName()));
+            sb.append(r.getPriority()).append(':').append(safeName(r.getValue()));
         }
         return sb.toString();
     }
 
+    /**
+     * Computes SHA-256 hash of the input data and returns it as a hexadecimal string.
+     *
+     * @param data Input string to hash.
+     * @return Hexadecimal representation of the SHA-256 hash.
+     */
     private static String sha256Hex(String data) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

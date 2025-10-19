@@ -1,9 +1,9 @@
 package com.mimecast.robin.mtasts;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
+import com.mimecast.robin.mtasts.assets.DnsRecord;
+import com.mimecast.robin.mtasts.client.XBillDnsRecordClient;
+
+import java.util.*;
 
 /**
  * Server entry for a route, keeping its host, priority and the domains using it.
@@ -36,6 +36,18 @@ public class MXServer {
      */
     public int getPriority() {
         return priority;
+    }
+
+    public List<String> getIpAddresses() {
+        Optional<List<DnsRecord>> opt = new XBillDnsRecordClient().getARecords(host);
+        List<String> ipAddresses = new ArrayList<>();
+        opt.ifPresent(records -> {
+            for (DnsRecord record : records) {
+                ipAddresses.add(record.getValue());
+            }
+        });
+
+        return ipAddresses;
     }
 
     /**

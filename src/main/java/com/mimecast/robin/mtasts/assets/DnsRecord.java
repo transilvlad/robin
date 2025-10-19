@@ -2,18 +2,15 @@ package com.mimecast.robin.mtasts.assets;
 
 /**
  * DNS Record interface.
- *
- * @author "Vlad Marian" <vmarian@mimecast.com>
- * @link <a href="http://mimecast.com">Mimecast</a>
  */
 public interface DnsRecord {
 
     /**
-     * Gets name.
+     * Gets Value.
      *
-     * @return Name string.
+     * @return Value string.
      */
-    String getName();
+    String getValue();
 
     /**
      * Gets priority.

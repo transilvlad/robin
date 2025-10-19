@@ -1,38 +1,44 @@
 package com.mimecast.robin.mtasts.assets;
 
+import org.xbill.DNS.ARecord;
 import org.xbill.DNS.MXRecord;
+import org.xbill.DNS.Record;
 
 /**
  * DNS Record.
  * <p>Wrapper for DNS Java MXRecord.
  *
  * @see MXRecord
- * @author "Vlad Marian" <vmarian@mimecast.com>
- * @link <a href="http://mimecast.com">Mimecast</a>
  */
 public final class XBillDnsRecord implements DnsRecord {
 
     /**
      * MXRecord instance.
      */
-    private final MXRecord record;
+    private final Record record;
 
     /**
      * Constructs a new DnsRecord instance.
      *
      * @param record Record instance.
      */
-    public XBillDnsRecord(MXRecord record) {
+    public XBillDnsRecord(Record record) {
         this.record = record;
     }
 
     /**
-     * Gets name.
+     * Gets value.
      *
-     * @return Name string.
+     * @return Value string.
      */
-    public String getName() {
-        return record.getAdditionalName().toString(true);
+    public String getValue() {
+        return record instanceof MXRecord ?
+                record.getAdditionalName().toString(true) :
+                (
+                        record instanceof ARecord ?
+                                ((ARecord) record).getAddress().getHostAddress() :
+                                null
+                );
     }
 
     /**
@@ -41,6 +47,6 @@ public final class XBillDnsRecord implements DnsRecord {
      * @return Priority integer.
      */
     public int getPriority() {
-        return record.getPriority();
+        return record instanceof MXRecord ? ((MXRecord) record).getPriority() : -1;
     }
 }

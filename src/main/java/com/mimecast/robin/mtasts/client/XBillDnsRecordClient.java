@@ -23,8 +23,6 @@ import java.util.Optional;
  * <p>A custom resolver can be provided via Lookup.setDefaultResolver().
  * <p>One such resolver is provided for testing purposes.
  *
- * @author "Vlad Marian" <vmarian@mimecast.com>
- * @link <a href="http://mimecast.com">Mimecast</a>
  * @see Lookup
  * @see LocalDnsResolver
  */
@@ -90,9 +88,31 @@ public class XBillDnsRecordClient implements DnsRecordClient {
     }
 
     /**
+     * Gets A MX records.
+     *
+     * @param domain Domain string.
+     * @return Optional of List of MXRecord instances.
+     */
+    public Optional<List<DnsRecord>> getARecords(String domain) {
+        org.xbill.DNS.Record[] recordList = getRecord(domain, Type.A);
+        if (recordList != null) {
+            List<DnsRecord> records = new ArrayList<>();
+            for (org.xbill.DNS.Record record : recordList) {
+                records.add(new XBillDnsRecord(record));
+            }
+
+            if (!records.isEmpty()) {
+                return Optional.of(records);
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    /**
      * Gets DNS MX records.
      * <p>Will query for MX records of the domain provided.
-     * <p>Will not fallback to A record if none found.
+     * <p>Will not fall back to A record if none found.
      *
      * @param domain Domain string.
      * @return Optional of List of MXRecord instances.
@@ -103,7 +123,7 @@ public class XBillDnsRecordClient implements DnsRecordClient {
             List<DnsRecord> records = new ArrayList<>();
             for (org.xbill.DNS.Record record : recordList) {
                 if (record instanceof MXRecord) {
-                    records.add(new XBillDnsRecord((MXRecord) record));
+                    records.add(new XBillDnsRecord(record));
                 }
             }
 
@@ -112,7 +132,7 @@ public class XBillDnsRecordClient implements DnsRecordClient {
             }
         }
 
-        return Optional.empty();
+        return getARecords(domain);
     }
 
     /**

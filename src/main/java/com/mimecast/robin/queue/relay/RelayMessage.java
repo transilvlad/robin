@@ -5,6 +5,8 @@ import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.headers.MimeHeader;
+import com.mimecast.robin.mtasts.MXResolver;
+import com.mimecast.robin.mtasts.MXRoute;
 import com.mimecast.robin.queue.PersistentQueue;
 import com.mimecast.robin.queue.QueueFiles;
 import com.mimecast.robin.queue.RelayQueueCron;
@@ -29,21 +31,41 @@ public class RelayMessage {
     private final Connection connection;
     private final EmailParser parser;
 
+    /**
+     * Constructs a RelayMessage with the given connection and optional parser.
+     *
+     * @param connection Connection instance.
+     */
+    public RelayMessage(Connection connection) {
+        this(connection, null);
+    }
+
+    /**
+     * Constructs a RelayMessage with the given connection and parser.
+     *
+     * @param connection Connection instance.
+     * @param parser     EmailParser instance.
+     */
     public RelayMessage(Connection connection, EmailParser parser) {
         this.connection = connection;
         this.parser = parser;
     }
 
+    /**
+     * Relay the message based on the connection and parser.
+     */
     public void relay() {
-        Optional<MimeHeader> optional = parser.getHeaders().get("x-robin-relay");
         BasicConfig relayConfig = Config.getServer().getRelay();
 
         // Sessions for relay.
         final List<Session> sessions = new ArrayList<>();
 
-        // Check for relay header if not disabled.
-        if (!relayConfig.getBooleanProperty("disableRelayHeader")) {
-            optional.ifPresent(header -> sessions.add(getRelaySession(header, connection.getSession().getEnvelopes().getLast())));
+        // Check if parser given and relay header if not disabled.
+        if (parser != null) {
+            Optional<MimeHeader> optional = parser.getHeaders().get("x-robin-relay");
+            if (!relayConfig.getBooleanProperty("disableRelayHeader")) {
+                optional.ifPresent(header -> sessions.add(getRelaySession(header, connection.getSession().getEnvelopes().getLast())));
+            }
         }
 
         String mailbox = relayConfig.getStringProperty("mailbox");
@@ -59,7 +81,59 @@ public class RelayMessage {
 
             // Outbound MX relay if enabled.
             if (relayConfig.getBooleanProperty("outboundMxEnabled")) {
-                // TODO implement MX resolution and session reassigning of recipients according to destination.
+                // Get unique recipient domains from envelopes.
+                List<String> domains = new ArrayList<>();
+                connection.getSession().getEnvelopes().forEach(messageEnvelope -> messageEnvelope.getRcpts().forEach(rcpt -> {
+                    String domain = rcpt.substring(rcpt.indexOf("@") + 1);
+                    if (!domains.contains(domain)) {
+                        domains.add(domain);
+                    }
+                }));
+
+                // Resolve routes for domains.
+                List<MXRoute> mxRoutes = new MXResolver().resolveRoutes(domains);
+
+                // Create relay sessions for each unique resolved MX.
+                for (MXRoute route : mxRoutes) {
+                    // Get the primary MX server (lowest priority).
+                    if (route.getServers().isEmpty()) {
+                        continue;
+                    }
+
+                    // Create a new session for this route.
+                    Session routeSession = Factories.getSession()
+                            .setUID(connection.getSession().getUID())
+                            .setMx(route.getIpAddresses())
+                            .setPort(25)
+                            .setEhlo(Config.getServer().getHostname());
+
+                    // Iterate through all envelopes and split by recipients for this route.
+                    for (MessageEnvelope envelope : connection.getSession().getEnvelopes()) {
+                        List<String> routeRcpts = new ArrayList<>();
+
+                        // Filter recipients whose domain matches this route.
+                        for (String rcpt : envelope.getRcpts()) {
+                            String domain = rcpt.substring(rcpt.indexOf("@") + 1);
+                            if (route.getDomains().contains(domain)) {
+                                routeRcpts.add(rcpt);
+                            }
+                        }
+
+                        // If we have recipients for this route, create a new envelope.
+                        if (!routeRcpts.isEmpty()) {
+                            MessageEnvelope routeEnvelope = envelope.clone();
+                            routeEnvelope.getRcpts().clear();
+                            routeEnvelope.getRcpts().addAll(routeRcpts);
+
+                            routeSession.addEnvelope(routeEnvelope);
+                        }
+                    }
+
+                    // Only add the session if it has envelopes
+                    if (!routeSession.getEnvelopes().isEmpty()) {
+                        sessions.add(routeSession);
+                    }
+                }
             }
         }
 

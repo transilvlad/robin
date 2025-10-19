@@ -20,7 +20,7 @@ import java.util.stream.Stream;
  * <p>This is the container for SMTP envelopes.
  * <p>It will store the metadata associated with each email sent.
  */
-public class MessageEnvelope implements Serializable {
+public class MessageEnvelope implements Serializable, Cloneable {
 
     // Set MAIL FROM and RCPT TO.
     private String mail = null;
@@ -670,5 +670,40 @@ public class MessageEnvelope implements Serializable {
     public MessageEnvelope setAssertions(AssertConfig assertConfig) {
         this.assertConfig = assertConfig;
         return this;
+    }
+
+    /**
+     * Creates a copy of this MessageEnvelope.
+     * <p>Creates a new instance with all fields copied from this envelope.
+     * <p>Note: date and msgId from the original are preserved in the clone.
+     * <p>Collections and arrays are deep copied to ensure proper isolation.
+     *
+     * @return A cloned MessageEnvelope instance.
+     */
+    @Override
+    public MessageEnvelope clone() {
+        try {
+            MessageEnvelope cloned = (MessageEnvelope) super.clone();
+
+            // Deep copy mutable collections.
+            cloned.rcpts = new ArrayList<>(this.rcpts);
+
+            cloned.params.clear();
+            for (Map.Entry<String, List<String>> entry : this.params.entrySet()) {
+                cloned.params.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+            }
+
+            cloned.headers.clear();
+            cloned.headers.putAll(this.headers);
+
+            // Deep copy byte array if present.
+            if (this.bytes != null) {
+                cloned.bytes = Arrays.copyOf(this.bytes, this.bytes.length);
+            }
+
+            return cloned;
+        } catch (CloneNotSupportedException e) {
+            throw new AssertionError("Clone should be supported", e);
+        }
     }
 }

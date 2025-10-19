@@ -49,6 +49,19 @@ public class MXRoute {
     }
 
     /**
+     * Gets the list of server IP addresses for this route.
+     *
+     * @return Unmodifiable list of IP addresses.
+     */
+    public List<String> getIpAddresses() {
+        List<String> ipAddresses = new ArrayList<>();
+        for (MXServer server : this.servers) {
+            ipAddresses.addAll(server.getIpAddresses());
+        }
+        return Collections.unmodifiableList(ipAddresses);
+    }
+
+    /**
      * Gets the list of domains associated with this route.
      *
      * @return Unmodifiable list of domains.
@@ -65,6 +78,7 @@ public class MXRoute {
         if (!domains.contains(domain)) {
             domains.add(domain);
         }
+
         for (MXServer s : servers) {
             s.addDomain(domain);
         }
