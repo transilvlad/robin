@@ -13,7 +13,6 @@ import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.util.Magic;
-import com.mimecast.robin.util.PathUtils;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -147,13 +146,7 @@ public class ClientEndpoint {
 
     /**
      * Handles <b>POST /client/send</b> requests.
-     *
-     * <p>Supports two modes of input:
-     * <ol>
-     *   <li><b>Query param</b>: <code>?path=/path/to/case.json5</code> — loads the case from disk and executes it.</li>
-     *   <li><b>Request body</b>: raw JSON/JSON5 describing the case — parsed and executed in-memory.</li>
-     * </ol>
-     *
+     * <p>Supports raw JSON/JSON5 describing the case — parsed and executed in-memory.
      * <p>On success, returns the final {@link Session} as filtered JSON.
      * On failure, returns HTTP 4xx/5xx with an explanatory message.
      */
@@ -167,63 +160,37 @@ public class ClientEndpoint {
 
         log.info("POST /client/send from {}", exchange.getRemoteAddress());
         try {
-            // Parse query parameters (e.g., ?path=...).
-            Map<String, String> query = parseQuery(exchange.getRequestURI());
-            log.debug("/client/send query params: {}", query);
-            String pathParam = query.get("path");
-
-            Session session;
-            if (pathParam != null && !pathParam.isBlank()) {
-                // File path mode: execute Client.send(<path>).
-                String casePath = pathParam.trim();
-                log.debug("Using case file path: {}", casePath);
-                if (!PathUtils.isFile(casePath)) {
-                    log.info("/client/send invalid case file path: {}", casePath);
-                    sendText(exchange, 400, "Invalid case file path");
-                    return;
-                }
-
-                // Create a new client instance and execute the case from path.
-                Client client = new Client()
-                        .setSkip(true) // Skip assertions for API runs.
-                        .send(casePath);
-
-                session = client.getSession();
-                log.info("/client/send completed from file: sessionUID={}, envelopes={}",
-                        session.getUID(), session.getEnvelopes() != null ? session.getEnvelopes().size() : 0);
-            } else {
-                // Body mode: accept a raw JSON/JSON5 payload describing the case.
-                String body = readBody(exchange.getRequestBody());
-                if (body.isBlank()) {
-                    log.info("/client/send empty request body");
-                    sendText(exchange, 400, "Empty request body");
-                    return;
-                }
-                log.debug("/client/send body length: {} bytes", body.getBytes(StandardCharsets.UTF_8).length);
-
-                // Apply magic replacements similar to how file-based configs are processed.
-                String processed = Magic.streamMagicReplace(body);
-
-                // Parse into a Map and build CaseConfig.
-                @SuppressWarnings("rawtypes")
-                Map map = new Gson().fromJson(processed, Map.class);
-                if (map == null || map.isEmpty()) {
-                    log.info("/client/send invalid JSON body");
-                    sendText(exchange, 400, "Invalid JSON body");
-                    return;
-                }
-
-                CaseConfig caseConfig = new CaseConfig(map);
-
-                // Create a new client instance and execute the case in-memory.
-                Client client = new Client()
-                        .setSkip(true) // Skip assertions for API runs.
-                        .send(caseConfig);
-
-                session = client.getSession();
-                log.info("/client/send completed from body: sessionUID={}, envelopes={}",
-                        session.getUID(), session.getEnvelopes() != null ? session.getEnvelopes().size() : 0);
+            // Body mode: accept a raw JSON/JSON5 payload describing the case.
+            String body = readBody(exchange.getRequestBody());
+            if (body.isBlank()) {
+                log.error("/client/send empty request body");
+                sendText(exchange, 400, "Empty request body");
+                return;
             }
+            log.debug("/client/send body length: {} bytes", body.getBytes(StandardCharsets.UTF_8).length);
+
+            // Apply magic replacements similar to how file-based configs are processed.
+            String processed = Magic.streamMagicReplace(body);
+
+            // Parse into a Map and build CaseConfig.
+            @SuppressWarnings("rawtypes")
+            Map map = new Gson().fromJson(processed, Map.class);
+            if (map == null || map.isEmpty()) {
+                log.error("/client/send invalid JSON body");
+                sendText(exchange, 400, "Invalid JSON body");
+                return;
+            }
+
+            CaseConfig caseConfig = new CaseConfig(map);
+
+            // Create a new client instance and execute the case in-memory.
+            Client client = new Client()
+                    .setSkip(true) // Skip assertions for API runs.
+                    .send(caseConfig);
+
+            Session session = client.getSession();
+            log.info("/client/send completed from body: sessionUID={}, envelopes={}",
+                    session.getUID(), session.getEnvelopes() != null ? session.getEnvelopes().size() : 0);
 
             // Serialize session to JSON using the filtered Gson (excludes magic/savedResults/stream/bytes).
             String response = gson.toJson(session);
@@ -238,16 +205,11 @@ public class ClientEndpoint {
 
     /**
      * Handles <b>POST /client/queue</b> requests.
-     *
-     * <p>Supports two modes of input, same as /client/send:
-     * <ol>
-     *   <li><b>Query param</b>: <code>?path=/path/to/case.json5</code> — loads the case from disk and maps a session.</li>
-     *   <li><b>Request body</b>: raw JSON/JSON5 describing the case — parsed and mapped in-memory.</li>
-     * </ol>
-     *
+     * <p>Supports raw JSON/JSON5 describing the case — parsed and mapped in-memory.
      * <p>On success, enqueues a {@link RelaySession} for later delivery and returns a JSON confirmation with
      * the filtered {@link Session} plus queue size.
      */
+    @SuppressWarnings("unchecked")
     private void handleClientQueue(HttpExchange exchange) throws IOException {
         if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
             log.debug("Rejecting non-POST request to /client/queue: method={}", exchange.getRequestMethod());
@@ -258,42 +220,28 @@ public class ClientEndpoint {
         log.info("POST /client/queue from {}", exchange.getRemoteAddress());
         try {
             Map<String, String> query = parseQuery(exchange.getRequestURI());
-            log.debug("/client/queue query params: {}", query);
-            String pathParam = query.get("path");
 
             // Optional overrides via query params.
             String protocolOverride = query.getOrDefault("protocol", Config.getServer().getRelay().getStringProperty("protocol", "ESMTP"));
             String mailboxOverride = query.getOrDefault("mailbox", Config.getServer().getRelay().getStringProperty("mailbox"));
             log.debug("/client/queue overrides: protocol={}, mailbox={}", protocolOverride, mailboxOverride);
 
-            CaseConfig caseConfig;
-            if (pathParam != null && !pathParam.isBlank()) {
-                String casePath = pathParam.trim();
-                log.debug("Using case file path: {}", casePath);
-                if (!PathUtils.isFile(casePath)) {
-                    log.info("/client/queue invalid case file path: {}", casePath);
-                    sendText(exchange, 400, "Invalid case file path");
-                    return;
-                }
-                caseConfig = new CaseConfig(casePath);
-            } else {
-                String body = readBody(exchange.getRequestBody());
-                if (body.isBlank()) {
-                    log.info("/client/queue empty request body");
-                    sendText(exchange, 400, "Empty request body");
-                    return;
-                }
-                log.debug("/client/queue body length: {} bytes", body.getBytes(StandardCharsets.UTF_8).length);
-                String processed = Magic.streamMagicReplace(body);
-                @SuppressWarnings("rawtypes")
-                Map map = new Gson().fromJson(processed, Map.class);
-                if (map == null || map.isEmpty()) {
-                    log.info("/client/queue invalid JSON body");
-                    sendText(exchange, 400, "Invalid JSON body");
-                    return;
-                }
-                caseConfig = new CaseConfig(map);
+            String body = readBody(exchange.getRequestBody());
+            if (body.isBlank()) {
+                log.info("/client/queue empty request body");
+                sendText(exchange, 400, "Empty request body");
+                return;
             }
+            log.debug("/client/queue body length: {} bytes", body.getBytes(StandardCharsets.UTF_8).length);
+            String processed = Magic.streamMagicReplace(body);
+
+            Map<String, Object> map = new Gson().fromJson(processed, Map.class);
+            if (map == null || map.isEmpty()) {
+                log.info("/client/queue invalid JSON body");
+                sendText(exchange, 400, "Invalid JSON body");
+                return;
+            }
+            CaseConfig caseConfig = new CaseConfig(map);
 
             // Map a session from the case without sending.
             Session session = Factories.getSession();
@@ -418,7 +366,9 @@ public class ClientEndpoint {
         }
     }
 
-    /** Escape minimal HTML characters */
+    /**
+     * Escape minimal HTML characters
+     */
     private String escapeHtml(String s) {
         if (s == null) return "";
         StringBuilder out = new StringBuilder(s.length());

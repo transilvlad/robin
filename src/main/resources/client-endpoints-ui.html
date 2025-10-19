@@ -59,7 +59,7 @@
         <span class="description">- Liveness probe for the client API server.</span>
     </li>
 </ul>
-<h2>Send by JSON body</h2>
+<h2>Send</h2>
 <div class="note">
     <p>Bash:</p>
     <pre><code>curl -X POST \
@@ -78,35 +78,18 @@ curl -X POST -H "Content-Type: application/json" -d %DATA% "http://localhost:809
 Invoke-RestMethod -Method Post -Uri 'http://localhost:8090/client/send' -ContentType 'application/json' -Body $body</code></pre>
 </div>
 
-<h2>Send by file path</h2>
-<div class="note">
-    <p>Bash:</p>
-    <pre><code>curl -X POST "http://localhost:8090/client/send?path=/home/user/cases/sample.json5"</code></pre>
-</div>
-<div class="note">
-    <p>Windows CMD:</p>
-    <pre><code>curl -X POST "http://localhost:8090/client/send?path=/home/user/cases/case.json5"</code></pre>
-</div>
-<div class="note">
-    <p>PowerShell:</p>
-    <pre><code>Invoke-RestMethod -Method Post -Uri 'http://localhost:8090/client/send?path=/home/user/cases/case.json5'</code></pre>
-</div>
-
-<h2>Queue by file path</h2>
-<div class="note">
-    <p>Bash:</p>
-    <pre><code>curl -X POST "http://localhost:8090/client/queue?path=/home/user/cases/sample.json5"</code></pre>
-</div>
-<div class="note">
-    <p>Windows CMD:</p>
-    <pre><code>curl -X POST "http://localhost:8090/client/queue?path=/home/user/cases/case.json5"</code></pre>
-</div>
-<div class="note">
-    <p>PowerShell:</p>
-    <pre><code>Invoke-RestMethod -Method Post -Uri 'http://localhost:8090/client/queue?path=/home/user/cases/case.json5'</code></pre>
-</div>
-
-<h2>Queue by JSON body</h2>
+<h2>Queue</h2>
+<ul>
+    <li>You can use the following URL parameters:</li>
+    <li>
+        <b>protocol</b> <i>Default: ESMTP</i>
+            <br/>Options: SMTP, LMTP, ESMTP, DOVECOT-LDA
+    </li>
+    <li>
+        <b>mailbox</b> <i>Default: INBOX</i> - Only needed when using DOVECOT-LDA protocol!
+            <br/>Options: INBOX, Sent, Trash, Archive, Junk or whatever your folders are named
+    </li>
+</ul>
 <div class="note">
     <p>Bash:</p>
     <pre><code>curl -X POST \
