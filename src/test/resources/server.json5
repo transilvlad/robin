@@ -44,8 +44,14 @@
   // Java keystore (default: /usr/local/keystore.jks).
   keystore: "src/test/resources/keystore.jks",
 
-  // Keystore password.
+  // Keystore password or path to password file.
   keystorepassword: "avengers",
+
+  // Java truststore (default: /usr/local/truststore.jks).
+  truststore: "/usr/local/robin/truststore.jks",
+
+  // Truststore password or path to password file.
+  truststorepassword: "avengers",
 
   // Metrics endpoint port.
   metricsPort: 8080,
@@ -53,76 +59,8 @@
   // API endpoint port.
   apiPort: 8090,
 
-  // Email storage configuration.
-  storage: {
-    enabled: true,
-
-    // Path to storage folder.
-    path: "/tmp/store",
-
-    // Auto clean storage on service start.
-    clean: true,
-
-    // Auto clean delete matching filenames only.
-    patterns: [
-      "^([0-9]{8}\\.)"
-    ],
-
-    // Save a copy of each email to Dovecot LDA.
-    saveToDovecotLda: false
-  },
-
-  // Email relay configuration.
-  // This default is an example for local Dovecot.
-  relay: {
-    // Enable inbound relay.
-    enabled: false,
-
-    // Enable outbound relay.
-    outboundEnabled: true,
-
-    // Enable outbound MX relay.
-    // When enabled, the server will perform MX lookups for recipient domains instead of using inbound relay host.
-    outboundMxEnabled: true,
-
-    // Disable relay by magic header feature.
-    disableRelayHeader: true,
-
-    // Server to forward mail to.
-    host: "localhost",
-
-    // Port of SMTP server to forward mail to.
-    port: 24,
-
-    // Protocol (Default: ESMTP - Options: SMTP, LMTP, ESMTP, DOVECOT-LDA).
-    protocol: "LMTP",
-
-    // Use secure TLS connection to forward mail.
-    tls: false,
-
-    // Mailbox to use when relaying mail via dovecot-lda depending on direction.
-    // Leave blank to bypass parameters.
-    mailbox: "INBOX", // Inbound
-    outbox: "Sent",   // Outbound
-
-    // Bounce email if relay fails.
-    bounce: true,
-
-    // Queue file to use for persisting messages that could not be relayed.
-    queueFile: "/usr/local/robin/relayQueue.db",
-
-    // Queue initial run delay (in seconds).
-    queueInitialDelay: 10,
-
-    // Queue processing interval (in seconds).
-    queueInterval: 30,
-
-    // Maximum number of messages to attempt to relay per tick.
-    maxDequeuePerTick: 10
-  },
-
   // Users allowed to authorize to the server.
   // This feature should be used for testing only.
   // This is disabled by default for security reasons.
-  usersEnabled: true
+  usersEnabled: true // See users.json5 for user definitions.
 }

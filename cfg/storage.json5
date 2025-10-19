@@ -1,0 +1,19 @@
+{
+  // Enable email storage.
+  enabled: true,
+
+  // Path to storage folder.
+  path: "/usr/local/robin/store",
+
+  // Auto clean storage on service start.
+  clean: false,
+
+  // Auto clean delete matching filenames only.
+  patterns: [
+    "^([0-9]{8}\\.)"
+  ],
+
+  // Save a copy of each email to Dovecot LDA.
+  saveToDovecotLda: true
+}
+

@@ -235,6 +235,8 @@ public class ServerConfig extends ConfigFoundation {
      * @return BasicConfig instance.
      */
     public BasicConfig getStorage() {
+        // Attempt to lazy-load from storage.json5 if present and not already in map
+        loadExternalIfAbsent("storage", "storage.json5", Map.class);
         return new BasicConfig(getMapProperty("storage"));
     }
 
@@ -244,6 +246,8 @@ public class ServerConfig extends ConfigFoundation {
      * @return BasicConfig instance.
      */
     public BasicConfig getRelay() {
+        // Attempt to lazy-load from relay.json5 if present and not already in map
+        loadExternalIfAbsent("relay", "relay.json5", Map.class);
         return new BasicConfig(getMapProperty("relay"));
     }
 
