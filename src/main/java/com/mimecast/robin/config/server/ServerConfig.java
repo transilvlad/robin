@@ -53,7 +53,7 @@ public class ServerConfig extends ConfigFoundation {
      * @return Hostname.
      */
     public String getHostname() {
-        return getStringProperty("hostname", "mimecast.com");
+        return getStringProperty("hostname", "example.com");
     }
 
     /**

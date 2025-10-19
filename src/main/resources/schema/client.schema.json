@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "http://mimecast.com/json-schema/messaging/robin/client",
+  "$id": "http://transilvlad.net/json-schema/messaging/robin/client",
   "title": "Robin Client JSON",
   "description": "This provides the defaults for client mode operandy",
   "type": "object",

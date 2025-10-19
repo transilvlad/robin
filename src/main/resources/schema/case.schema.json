@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "http://mimecast.com/json-schema/messaging/robin/case",
+  "$id": "http://transilvlad.net/json-schema/messaging/robin/case",
   "title": "Robin Case JSON",
   "description": "This provides the deviations from the defaults for each case",
   "type": "object",

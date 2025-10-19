@@ -50,13 +50,13 @@ class LocalStorageClientTest {
     @Test
     void connection() {
         Connection connection = new Connection(new Session());
-        MessageEnvelope envelope = new MessageEnvelope().addRcpt("vmarian@mimecast.com");
+        MessageEnvelope envelope = new MessageEnvelope().addRcpt("tony@example.com");
         connection.getSession().addEnvelope(envelope);
         LocalStorageClient localStorageClient = new LocalStorageClient()
                 .setConnection(connection)
                 .setExtension("dat");
 
-        assertTrue(localStorageClient.getFile().contains("/tmp/store/mimecast.com/vmarian/") || localStorageClient.getFile().contains("\\tmp\\store\\mimecast.com\\vmarian\\"));
+        assertTrue(localStorageClient.getFile().contains("/tmp/store/example.com/tony/") || localStorageClient.getFile().contains("\\tmp\\store\\example.com\\tony\\"));
         assertTrue(localStorageClient.getFile().contains(new SimpleDateFormat("yyyyMMdd", Config.getProperties().getLocale()).format(new Date()) + "."));
         assertTrue(localStorageClient.getFile().contains(".dat"));
     }
@@ -64,7 +64,7 @@ class LocalStorageClientTest {
     @Test
     void stream() throws IOException {
         Connection connection = new Connection(new Session());
-        MessageEnvelope envelope = new MessageEnvelope().addRcpt("vmarian@mimecast.com");
+        MessageEnvelope envelope = new MessageEnvelope().addRcpt("tony@example.com");
         connection.getSession().addEnvelope(envelope);
         LocalStorageClient localStorageClient = new LocalStorageClient()
                 .setConnection(new ConnectionMock(Factories.getSession()))
@@ -81,7 +81,7 @@ class LocalStorageClientTest {
     @Test
     void filename() throws IOException {
         Connection connection = new Connection(new Session());
-        MessageEnvelope envelope = new MessageEnvelope().addRcpt("vmarian@mimecast.com");
+        MessageEnvelope envelope = new MessageEnvelope().addRcpt("tony@example.com");
         connection.getSession().addEnvelope(envelope);
         LocalStorageClient localStorageClient = new LocalStorageClient()
                 .setConnection(new ConnectionMock(Factories.getSession()))
@@ -112,7 +112,7 @@ class LocalStorageClientTest {
         Config.getServer().getRelay().getMap().put("queueFile", tmpQueueFile.getAbsolutePath());
 
         Connection connection = new Connection(new Session());
-        MessageEnvelope envelope = new MessageEnvelope().addRcpt("vmarian@mimecast.com");
+        MessageEnvelope envelope = new MessageEnvelope().addRcpt("tony@example.com");
         connection.getSession().addEnvelope(envelope);
 
         BasicConfig config = new BasicConfig(new HashMap<>(Config.getServer().getStorage().getMap()));
