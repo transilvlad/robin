@@ -1070,6 +1070,16 @@ public class Session implements Serializable, Cloneable {
     }
 
     /**
+     * Clears envelope list.
+     *
+     * @return Self.
+     */
+    public Session clearEnvelopes() {
+        envelopes.clear();
+        return this;
+    }
+
+    /**
      * Gets SessionTransactionList instance.
      *
      * @return SessionTransactionList instance.

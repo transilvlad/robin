@@ -53,8 +53,10 @@ public class RelayMessage {
 
     /**
      * Relay the message based on the connection and parser.
+     *
+     * @return List of Session instances created for relay.
      */
-    public void relay() {
+    public List<Session> relay() {
         BasicConfig relayConfig = Config.getServer().getRelay();
 
         // Sessions for relay.
@@ -136,7 +138,7 @@ public class RelayMessage {
             }
         }
 
-        // Deliver sessions if any.
+        // Enqueue sessions if any.
         if (!sessions.isEmpty()) {
             log.info("Relaying session: {}", sessions.size());
             for (Session session : sessions) {
@@ -153,6 +155,8 @@ public class RelayMessage {
                         .enqueue(relaySession);
             }
         }
+
+        return sessions;
     }
 
     /**
