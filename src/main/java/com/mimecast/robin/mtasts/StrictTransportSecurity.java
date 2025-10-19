@@ -132,6 +132,7 @@ public class StrictTransportSecurity {
 
         // Validate domain.
         if (DomainValidator.getInstance(false).isValid(domain)) {
+            log.info("Fetching record for domain: {}", domain);
 
             // Get DNS TXT record.
             Optional<StsRecord> optional = dnsRecordClient.getStsRecord(domain);

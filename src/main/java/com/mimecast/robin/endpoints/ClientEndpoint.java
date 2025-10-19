@@ -242,6 +242,7 @@ public class ClientEndpoint {
                 sendText(exchange, 400, "Invalid JSON body");
                 return;
             }
+
             CaseConfig caseConfig = new CaseConfig(map);
 
             // Map a session from the case without sending.
