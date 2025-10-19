@@ -115,6 +115,7 @@ public class RelaySession implements Serializable {
      */
     public RelaySession bumpRetryCount() {
         this.retryCount++;
+        session.setRetry(retryCount);
         this.lastRetryTime = Instant.now().getEpochSecond();
         return this;
     }
