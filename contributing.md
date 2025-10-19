@@ -72,9 +72,8 @@ Thank you
 ---------
 
 Thank you for showing interest in Robin!
+Vlad Marian
 
-Mimecast Team
-
-[githubissues]: https://github.com/mimecast/robin/issues
-[githubnewissue]: https://github.com/mimecast/robin/issues/new
-[mailinglist]: mailto:github@mimecast.com
+[githubissues]: https://github.com/transilvlad/robin/issues
+[githubnewissue]: https://github.com/transilvlad/robin/issues/new
+[mailinglist]: mailto:transilvlad@gmail.com

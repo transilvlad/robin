@@ -67,7 +67,7 @@ More...
 - [Endpoints](doc/endpoints.md)
 - [Flowchart](doc/flowchart.md)
 
-- [MTA-STS](doc/mta-sts/readme.md)
+- [MTA-STS](doc/mta-sts/readme.md) - Former MTA-STS library.
 
 - [Contributing](contributing.md)
 - [Code of conduct](code_of_conduct.md)

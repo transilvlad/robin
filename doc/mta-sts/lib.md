@@ -5,7 +5,7 @@ Basic implementation example using default Java Trustmanager and the provided Me
 
 It would be good to implement a cloud cache solution if deploying this in a cloud environment.
 
-Additionally you may wish to implement your own TrustManager implementation if you use one.
+Additionally, you may wish to implement your own TrustManager implementation if you use one.
 
 
     import com.mimecast.mtasts.StrictTransportSecurity;
@@ -33,9 +33,6 @@ Additionally you may wish to implement your own TrustManager implementation if y
     /**
      * Strict MX.
      * <p>Filters MX records against the recipient domain MTA-STS policy if any.
-     *
-     * @author "Vlad Marian" <vmarian@mimecast.com>
-     * @link <a href="http://mimecast.com">Mimecast</a>
      */
     public class StrictMx {
         private static final Logger log = LogManager.getLogger(StrictMx.class);
