@@ -117,7 +117,7 @@
     // Queue processing interval (in seconds).
     queueInterval: 30,
 
-    // Maximum number of messages to attempt to relay per tick.,
+    // Maximum number of messages to attempt to relay per tick.
     maxDequeuePerTick: 10
   },
 
