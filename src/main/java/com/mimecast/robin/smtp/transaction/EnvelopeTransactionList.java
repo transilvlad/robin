@@ -10,7 +10,7 @@ import java.util.List;
  *
  * @see TransactionList
  */
-public class EnvelopeTransactionList extends TransactionList {
+public class EnvelopeTransactionList extends TransactionList implements Cloneable {
 
     /**
      * Gets MAIL transaction.
@@ -94,5 +94,32 @@ public class EnvelopeTransactionList extends TransactionList {
      */
     public List<Transaction> getBdat() {
         return getTransactions("BDAT");
+    }
+
+    /**
+     * Deep clone this EnvelopeTransactionList.
+     *
+     * @return cloned EnvelopeTransactionList instance.
+     */
+    @Override
+    public EnvelopeTransactionList clone() {
+        EnvelopeTransactionList clone = new EnvelopeTransactionList();
+
+        for (Transaction t : this.getTransactions()) {
+            String cmd = t.getCommand();
+            String payload = t.getPayload();
+            String response = t.getResponse();
+            boolean error = t.isError();
+
+            if (payload != null) {
+                clone.addTransaction(cmd, payload, response != null ? response : "", error);
+            } else if (response != null) {
+                clone.addTransaction(cmd, response, error);
+            } else {
+                clone.addTransaction(cmd, "");
+            }
+        }
+
+        return clone;
     }
 }

@@ -101,11 +101,10 @@ public class RelayMessage {
                     }
 
                     // Create a new session for this route.
-                    Session routeSession = Factories.getSession()
-                            .setUID(connection.getSession().getUID())
+                    Session routeSession = connection.getSession().clone()
+                            .clearEnvelopes()
                             .setMx(route.getIpAddresses())
-                            .setPort(25)
-                            .setEhlo(Config.getServer().getHostname());
+                            .setPort(25);
 
                     // Iterate through all envelopes and split by recipients for this route.
                     for (MessageEnvelope envelope : connection.getSession().getEnvelopes()) {

@@ -11,13 +11,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 
 /**
  * Queue file utilities.
  * <p>
- * Ensures that any files referenced by envelopes in a RelaySession are moved to a
+ * Ensures that any files referenced by envelopes in a RelaySession are copied to a
  * persistent "queue" subfolder under the configured storage path. This prevents
  * them from being cleaned up on restart.
  */
@@ -60,13 +59,6 @@ public final class QueueFiles {
                     continue;
                 }
 
-                // Skip if already within the queue directory.
-                Path absQueue = queueDir.toAbsolutePath().normalize();
-                Path absSrcParent = src.toAbsolutePath().getParent();
-                if (absSrcParent != null && absSrcParent.normalize().startsWith(absQueue)) {
-                    continue;
-                }
-
                 String fileName = src.getFileName().toString();
                 Path target = queueDir.resolve(fileName);
 
@@ -76,19 +68,17 @@ public final class QueueFiles {
                     target = queueDir.resolve(unique);
                 }
 
-                // Try atomic move; if across devices, fall back to copy+delete.
+                // Try to copy
                 try {
-                    Files.move(src, target, StandardCopyOption.ATOMIC_MOVE);
-                } catch (IOException atomicEx) {
-                    log.debug("Atomic move failed ({}), trying copy+replace: {}", src, atomicEx.getMessage());
-                    Files.copy(src, target, StandardCopyOption.REPLACE_EXISTING);
-                    Files.deleteIfExists(src);
+                    Files.copy(src, target);
+                } catch (IOException ex) {
+                    log.debug("Copy failed ({}),  {}", src, ex.getMessage());
                 }
 
                 env.setFile(target.toString());
-                log.info("Moved envelope file to persistent queue: {} -> {}", src, target);
+                log.info("Copied envelope file to persistent queue: {} -> {}", src, target);
             } catch (Exception ex) {
-                log.error("Failed moving envelope file to queue: {} ({}): {}", filePath, new File(filePath).exists(), ex.getMessage());
+                log.error("Failed copying envelope file to queue: {} ({}): {}", filePath, new File(filePath).exists(), ex.getMessage());
             }
         }
     }

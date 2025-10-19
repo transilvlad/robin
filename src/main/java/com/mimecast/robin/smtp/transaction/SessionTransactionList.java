@@ -10,7 +10,7 @@ import java.util.List;
  *
  * @see TransactionList
  */
-public class SessionTransactionList extends TransactionList {
+public class SessionTransactionList extends TransactionList implements Cloneable {
 
     /**
      * Gets last SMTP transaction of defined verb.
@@ -25,7 +25,7 @@ public class SessionTransactionList extends TransactionList {
     /**
      * Session envelopes.
      */
-    private final List<EnvelopeTransactionList> envelopes = new ArrayList<>();
+    private List<EnvelopeTransactionList> envelopes = new ArrayList<>();
 
     /**
      * Adds envelope to list.
@@ -43,5 +43,36 @@ public class SessionTransactionList extends TransactionList {
      */
     public List<EnvelopeTransactionList> getEnvelopes() {
         return envelopes;
+    }
+
+    /**
+     * Deep clone this SessionTransactionList.
+     *
+     * @return cloned SessionTransactionList instance.
+     */
+    @Override
+    public SessionTransactionList clone() {
+        SessionTransactionList clone = new SessionTransactionList();
+
+        // Copy top-level transactions.
+        for (Transaction t : this.getTransactions()) {
+            String cmd = t.getCommand();
+            String payload = t.getPayload();
+            String response = t.getResponse();
+            boolean error = t.isError();
+
+            if (payload != null) {
+                clone.addTransaction(cmd, payload, response != null ? response : "", error);
+            } else if (response != null) {
+                clone.addTransaction(cmd, response, error);
+            }
+        }
+
+        // Clone envelope transaction lists.
+        for (EnvelopeTransactionList env : this.envelopes) {
+            clone.addEnvelope(env.clone());
+        }
+
+        return clone;
     }
 }

@@ -11,6 +11,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -133,6 +136,18 @@ public class RelayQueueCron {
                     }
 
                     // Remove fully successful envelopes.
+                    successfulEnvelopes.forEach(envelope -> {
+                        // Delete envelope file if it exists.
+                        Path path = Path.of(envelope.getFile());
+                        if (Files.exists(path)) {
+                            try {
+                                Files.delete(path);
+                                log.debug("Deleted envelope file: {}", envelope.getFile());
+                            } catch (IOException e) {
+                                log.error("Failed to delete envelope file: {}, error={}", envelope.getFile(), e.getMessage());
+                            }
+                        }
+                    });
                     relaySession.getSession().getEnvelopes().removeAll(successfulEnvelopes);
                     int removed = successfulEnvelopes.size();
                     int remaining = relaySession.getSession().getEnvelopes().size();

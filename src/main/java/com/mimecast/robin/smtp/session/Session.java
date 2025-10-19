@@ -20,7 +20,7 @@ import java.util.*;
  * <p>This is the primary container for session data.
  */
 @SuppressWarnings({"UnusedReturnValue", "rawtypes"})
-public class Session implements Serializable {
+public class Session implements Serializable, Cloneable {
 
     /**
      * Direction enum.
@@ -220,17 +220,17 @@ public class Session implements Serializable {
     /**
      * List of verbs to call in order.
      */
-    private final List<String> behaviour = new ArrayList<>();
+    private List<String> behaviour = new ArrayList<>();
 
     /**
      * List of envelopes.
      */
-    private final List<MessageEnvelope> envelopes = new ArrayList<>();
+    private List<MessageEnvelope> envelopes = new ArrayList<>();
 
     /**
      * SessionTransactionList instance.
      */
-    private final SessionTransactionList sessionTransactionList = new SessionTransactionList();
+    private SessionTransactionList sessionTransactionList = new SessionTransactionList();
 
     /**
      * AssertConfig.
@@ -1156,5 +1156,59 @@ public class Session implements Serializable {
      */
     public Map<String, List<?>> getSavedResults() {
         return savedResults;
+    }
+
+    /**
+     * Creates a copy of this Session.
+     * <p>Uses Object.clone() for a field-by-field copy, then deep-copies
+     * mutable arrays and non-final collections that would otherwise be shared.
+     * Final collections and objects without a clone implementation are left as-is.
+     *
+     * @return A cloned Session instance.
+     */
+    @Override
+    public Session clone() {
+        try {
+            Session clone = (Session) super.clone();
+
+            // Assign new UID.
+            clone.setUID(UUID.randomUUID().toString());
+
+            // Deep copy arrays.
+            if (this.protocols != null) {
+                clone.protocols = this.protocols.clone();
+            }
+            if (this.ciphers != null) {
+                clone.ciphers = this.ciphers.clone();
+            }
+
+            // Copy non-final lists to new instances to avoid sharing.
+            if (this.mx != null) {
+                clone.mx = new ArrayList<>(this.mx);
+            }
+            if (this.ehloAuth != null) {
+                clone.ehloAuth = new ArrayList<>(this.ehloAuth);
+            }
+            if (this.behaviour != null) {
+                clone.behaviour = new ArrayList<>(this.behaviour);
+            }
+
+            // Deep clone envelopes and sessionTransactionList.
+            if (this.envelopes != null) {
+                clone.envelopes = new ArrayList<>();
+                this.envelopes.forEach(env -> clone.envelopes.add(env != null ? env.clone() : null));
+            }
+            if (this.sessionTransactionList != null) {
+                clone.sessionTransactionList = sessionTransactionList.clone();
+            }
+
+            // Note: magic and savedResults are final and thus remain shared references after a shallow clone.
+            // This is acceptable as they are intended for cross-component data sharing.
+            // They will however be copied when dequeued from the persistent cache which always creates new instances.
+
+            return clone;
+        } catch (CloneNotSupportedException e) {
+            throw new AssertionError("Clone should be supported", e);
+        }
     }
 }
