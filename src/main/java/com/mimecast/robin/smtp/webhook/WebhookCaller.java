@@ -5,6 +5,7 @@ import com.mimecast.robin.config.server.WebhookConfig;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.verb.Verb;
 import com.mimecast.robin.util.GsonExclusionStrategy;
+import com.mimecast.robin.util.Magic;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -126,27 +127,27 @@ public class WebhookCaller {
         URI uri = URI.create(config.getUrl());
         HttpURLConnection conn = (HttpURLConnection) uri.toURL().openConnection();
         try {
-            // Set method and timeout
+            // Set method and timeout.
             conn.setRequestMethod(config.getMethod());
             conn.setConnectTimeout(config.getTimeout());
             conn.setReadTimeout(config.getTimeout());
 
-            // Set headers
+            // Set headers.
             conn.setRequestProperty("Content-Type", "application/json");
             conn.setRequestProperty("Accept", "application/json");
 
-            // Add authentication
-            addAuthentication(conn, config);
+            // Add authentication.
+            addAuthentication(conn, config, connection);
 
-            // Add custom headers
+            // Add custom headers.
             Map<String, String> headers = config.getHeaders();
             if (headers != null) {
                 for (Map.Entry<String, String> header : headers.entrySet()) {
-                    conn.setRequestProperty(header.getKey(), header.getValue());
+                    conn.setRequestProperty(header.getKey(), Magic.magicReplace(header.getValue(), connection.getSession()));
                 }
             }
 
-            // Send payload for POST/PUT/PATCH
+            // Send payload for POST/PUT/PATCH.
             if ("POST".equalsIgnoreCase(config.getMethod()) ||
                     "PUT".equalsIgnoreCase(config.getMethod()) ||
                     "PATCH".equalsIgnoreCase(config.getMethod())) {
@@ -160,7 +161,7 @@ public class WebhookCaller {
                 }
             }
 
-            // Get response
+            // Get response.
             int statusCode = conn.getResponseCode();
             String responseBody = readResponse(conn, statusCode);
 
@@ -174,12 +175,13 @@ public class WebhookCaller {
     /**
      * Adds authentication to connection.
      *
-     * @param conn   HTTP connection.
-     * @param config Webhook configuration.
+     * @param conn       HTTP connection.
+     * @param config     Webhook configuration.
+     * @param connection Connection instance.
      */
-    private static void addAuthentication(HttpURLConnection conn, WebhookConfig config) {
+    private static void addAuthentication(HttpURLConnection conn, WebhookConfig config, Connection connection) {
         String authType = config.getAuthType();
-        String authValue = config.getAuthValue();
+        String authValue = Magic.magicReplace(config.getAuthValue(), connection.getSession());
 
         if ("basic".equalsIgnoreCase(authType) && !authValue.isEmpty()) {
             String encoded = java.util.Base64.getEncoder().encodeToString(authValue.getBytes(StandardCharsets.UTF_8));
@@ -357,12 +359,12 @@ public class WebhookCaller {
         HttpURLConnection conn = (HttpURLConnection) uri.toURL().openConnection();
 
         try {
-            // Set method and timeout
+            // Set method and timeout.
             conn.setRequestMethod(config.getRawMethod());
             conn.setConnectTimeout(config.getRawTimeout());
             conn.setReadTimeout(config.getRawTimeout());
 
-            // Set headers
+            // Set headers.
             if (config.isRawBase64()) {
                 conn.setRequestProperty("Content-Type", "text/plain; charset=utf-8");
                 conn.setRequestProperty("Content-Transfer-Encoding", "base64");
@@ -371,10 +373,10 @@ public class WebhookCaller {
             }
             conn.setRequestProperty("Accept", "application/json");
 
-            // Add authentication
+            // Add authentication.
             addRawAuthentication(conn, config);
 
-            // Add custom headers
+            // Add custom headers.
             Map<String, String> headers = config.getRawHeaders();
             if (headers != null) {
                 for (Map.Entry<String, String> header : headers.entrySet()) {
@@ -382,7 +384,7 @@ public class WebhookCaller {
                 }
             }
 
-            // Send email content for POST/PUT/PATCH
+            // Send email content for POST/PUT/PATCH.
             if ("POST".equalsIgnoreCase(config.getRawMethod()) ||
                     "PUT".equalsIgnoreCase(config.getRawMethod()) ||
                     "PATCH".equalsIgnoreCase(config.getRawMethod())) {
@@ -391,7 +393,7 @@ public class WebhookCaller {
                 sendRawEmailContent(conn, filePath, config.isRawBase64());
             }
 
-            // Get response
+            // Get response.
             int statusCode = conn.getResponseCode();
             String responseBody = readResponse(conn, statusCode);
 
@@ -434,7 +436,7 @@ public class WebhookCaller {
              java.io.FileInputStream fis = new java.io.FileInputStream(filePath)) {
 
             if (base64) {
-                // Base64 encode the content
+                // Base64 encode the content.
                 byte[] buffer = new byte[8192];
                 java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
                 int bytesRead;
@@ -444,7 +446,7 @@ public class WebhookCaller {
                 byte[] encoded = java.util.Base64.getEncoder().encode(baos.toByteArray());
                 os.write(encoded);
             } else {
-                // Send raw content
+                // Send raw content.
                 byte[] buffer = new byte[8192];
                 int bytesRead;
                 while ((bytesRead = fis.read(buffer)) != -1) {

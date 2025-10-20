@@ -45,6 +45,8 @@
     // Ignore errors and continue processing if webhook fails
     ignoreErrors: false,
 
+    // Tip: headers and authValue below are supported via Magic replacement.
+
     // Authentication type: none, basic, bearer
     authType: "none",
 
