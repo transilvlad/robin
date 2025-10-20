@@ -1,6 +1,6 @@
 package com.mimecast.robin.smtp;
 
-import com.mimecast.robin.main.Config;
+import com.mimecast.robin.config.server.ListenerConfig;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -40,24 +40,24 @@ public class SmtpListener {
     private boolean serverShutdown = false;
 
     private final int port;
-    private final int backlog;
     private final String bind;
     private final boolean secure;
     private final boolean submission;
+    private final ListenerConfig config;
 
     /**
      * Constructs a new SmtpListener instance.
      *
      * @param port       Port number.
-     * @param backlog    Backlog size.
      * @param bind       Interface to bind to.
+     * @param config     Listener configuration.
      * @param secure     Secure (TLS) listener.
      * @param submission Submission (MSA) listener.
      */
-    public SmtpListener(int port, int backlog, String bind, boolean secure, boolean submission) {
+    public SmtpListener(int port, String bind, ListenerConfig config, boolean secure, boolean submission) {
         this.port = port;
-        this.backlog = backlog;
         this.bind = bind;
+        this.config = config;
         this.secure = secure;
         this.submission = submission;
 
@@ -70,7 +70,7 @@ public class SmtpListener {
      */
     public void listen() {
         try {
-            listener = new ServerSocket(port, backlog, InetAddress.getByName(bind));
+            listener = new ServerSocket(port, config.getBacklog(), InetAddress.getByName(bind));
             log.info("Listening to [{}]:{}", bind, port);
 
             acceptConnection();
@@ -95,9 +95,9 @@ public class SmtpListener {
      * Configure thread pool.
      */
     protected void configure() {
-        executor.setKeepAliveTime(Config.getServer().getThreadKeepAliveTime(), TimeUnit.SECONDS);
-        executor.setCorePoolSize(Config.getServer().getMinimumPoolSize());
-        executor.setMaximumPoolSize(Config.getServer().getMaximumPoolSize());
+        executor.setKeepAliveTime(config.getThreadKeepAliveTime(), TimeUnit.SECONDS);
+        executor.setCorePoolSize(config.getMinimumPoolSize());
+        executor.setMaximumPoolSize(config.getMaximumPoolSize());
         // Avoid rejecting new tasks when the pool is saturated; run in the caller thread instead.
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
     }

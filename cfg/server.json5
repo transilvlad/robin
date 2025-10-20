@@ -6,7 +6,7 @@
   bind: "::",
 
   // Port the server will listen too (default: 25, 0 to disable).
-  port: 25,
+  smtpPort: 25,
 
   // Port for secure SMTP via SSL/TLS (default: 465, 0 to disable).
   securePort: 465,
@@ -14,23 +14,46 @@
   // Port for mail submission (default: 587, 0 to disable).
   submissionPort: 587,
 
-  // Number of connections to be allowed in the backlog (default: 25).
-  backlog: 25,
+  // SMTP port configuration
+  smtpConfig: {
+    // Number of connections to be allowed in the backlog (default: 25).
+    backlog: 25,
 
-  // Minimum number of threads in the pool.
-  minimumPoolSize: 1,
+    // Minimum number of threads in the pool.
+    minimumPoolSize: 1,
 
-  // Maximum number of threads in the pool.
-  maximumPoolSize: 10,
+    // Maximum number of threads in the pool.
+    maximumPoolSize: 10,
 
-  // Time (in seconds) to keep idle threads alive.
-  threadKeepAliveTime: 60,
+    // Time (in seconds) to keep idle threads alive.
+    threadKeepAliveTime: 60,
 
-  // Maximum number of SMTP transactions to process over a connection.
-  transactionsLimit: 305,
+    // Maximum number of SMTP transactions to process over a connection.
+    transactionsLimit: 305,
 
-  // Number of SMTP errors to allow before terminating connection (default: 3).
-  errorLimit: 3,
+    // Number of SMTP errors to allow before terminating connection (default: 3).
+    errorLimit: 3
+  },
+
+  // Secure SMTP port configuration
+  secureConfig: {
+    backlog: 25,
+    minimumPoolSize: 1,
+    maximumPoolSize: 10,
+    threadKeepAliveTime: 60,
+    transactionsLimit: 305,
+    errorLimit: 3
+  },
+
+  // Submission port configuration
+  submissionConfig: {
+    backlog: 25,
+    minimumPoolSize: 1,
+    maximumPoolSize: 10,
+    threadKeepAliveTime: 60,
+    transactionsLimit: 305,
+    errorLimit: 3
+  },
 
   // Advertise AUTH support (default: true).
   auth: true,

@@ -22,8 +22,8 @@ class ServerConfigTest {
     }
 
     @Test
-    void getPort() {
-        assertEquals(25, Config.getServer().getPort());
+    void getSmtpPort() {
+        assertEquals(25, Config.getServer().getSmtpPort());
     }
 
     @Test

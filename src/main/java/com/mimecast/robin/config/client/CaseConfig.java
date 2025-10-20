@@ -110,10 +110,10 @@ public class CaseConfig extends ConfigFoundation {
      *
      * @return Port number.
      */
-    public int getPort() {
+    public int getSmtpPort() {
         RouteConfig routeConfig = getRoute();
-        return routeConfig != null && routeConfig.getPort() > 0 ?
-                routeConfig.getPort() :
+        return routeConfig != null && routeConfig.getSmtpPort() > 0 ?
+                routeConfig.getSmtpPort() :
                 Math.toIntExact(getLongProperty("port", 25L));
     }
 

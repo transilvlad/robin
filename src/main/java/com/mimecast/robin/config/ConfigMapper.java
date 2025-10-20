@@ -55,7 +55,7 @@ public class ConfigMapper {
                 .setRetry(config.getRetry())
                 .setDelay(config.getDelay())
                 .setTimeout(config.getTimeout())
-                .setPort(config.getPort())
+                .setPort(config.getSmtpPort())
                 .setTls(config.isTls())
                 .setAuthBeforeTls(config.isAuthBeforeTls())
                 .setProtocols(config.getProtocols())

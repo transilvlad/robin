@@ -43,22 +43,37 @@ public class Server extends Foundation {
         loadKeystore(); // Load Keystore.
 
         // Create listeners and add them to the list.
-        List<Integer> ports = List.of(
-                Config.getServer().getPort(),
-                Config.getServer().getSecurePort(),
-                Config.getServer().getSubmissionPort()
-        );
+        // SMTP listener
+        if (Config.getServer().getSmtpPort() != 0) {
+            listeners.add(new SmtpListener(
+                    Config.getServer().getSmtpPort(),
+                    Config.getServer().getBind(),
+                    Config.getServer().getSmtpConfig(),
+                    false,
+                    false
+            ));
+        }
 
-        for (int port : ports) {
-            if (port != 0) {
-                listeners.add(new SmtpListener(
-                        port,
-                        Config.getServer().getBacklog(),
-                        Config.getServer().getBind(),
-                        port == Config.getServer().getSecurePort(),
-                        port == Config.getServer().getSubmissionPort()
-                ));
-            }
+        // Secure SMTP listener
+        if (Config.getServer().getSecurePort() != 0) {
+            listeners.add(new SmtpListener(
+                    Config.getServer().getSecurePort(),
+                    Config.getServer().getBind(),
+                    Config.getServer().getSecureConfig(),
+                    true,
+                    false
+            ));
+        }
+
+        // Submission listener
+        if (Config.getServer().getSubmissionPort() != 0) {
+            listeners.add(new SmtpListener(
+                    Config.getServer().getSubmissionPort(),
+                    Config.getServer().getBind(),
+                    Config.getServer().getSubmissionConfig(),
+                    false,
+                    true
+            ));
         }
 
         startup(); // Startup prerequisites, including MetricsEndpoint.

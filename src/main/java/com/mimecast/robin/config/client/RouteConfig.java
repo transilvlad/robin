@@ -50,7 +50,7 @@ public class RouteConfig extends ConfigFoundation {
      *
      * @return Port number.
      */
-    public int getPort() {
+    public int getSmtpPort() {
         return Math.toIntExact(getLongProperty("port"));
     }
 

@@ -75,7 +75,7 @@ public class ExampleProgrammatic {
 
             RouteConfig route = Config.getClient().getRoute("local");
             session.setMx(route.getMx())
-                    .setPort(route.getPort())
+                    .setPort(route.getSmtpPort())
                     .setAuth(route.isAuth())
                     .setUsername(route.getUser())
                     .setPassword(route.getPass());

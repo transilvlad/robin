@@ -37,10 +37,10 @@ class RouteConfigTest {
     }
 
     @Test
-    void getPort() {
-        assertEquals(25, routeConfig1.getPort());
+    void getSmtpPort() {
+        assertEquals(25, routeConfig1.getSmtpPort());
 
-        assertEquals(465, routeConfig2.getPort());
+        assertEquals(465, routeConfig2.getSmtpPort());
     }
 
     @Test

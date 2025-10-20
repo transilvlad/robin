@@ -31,8 +31,8 @@ class CaseConfigTest {
     }
 
     @Test
-    void getPort() {
-        assertEquals(465, caseConfig.getPort());
+    void getSmtpPort() {
+        assertEquals(465, caseConfig.getSmtpPort());
     }
 
     @Test
