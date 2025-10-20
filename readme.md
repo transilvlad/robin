@@ -57,6 +57,7 @@ More...
 - [CLI usage](doc/cli.md)
 - [Client usage](doc/client.md)
 - [Server configuration](doc/server.md)
+- [Prometheus Remote Write](doc/prometheus.md)
 
 
 - [E/SMTP Cases](doc/case.md)

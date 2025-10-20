@@ -274,6 +274,17 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
+     * Gets Prometheus remote write config.
+     *
+     * @return BasicConfig instance.
+     */
+    public BasicConfig getPrometheus() {
+        // Attempt to lazy-load from prometheus.json5 if present and not already in map
+        loadExternalIfAbsent("prometheus", "prometheus.json5", Map.class);
+        return new BasicConfig(getMapProperty("prometheus"));
+    }
+
+    /**
      * Is users enabled.
      *
      * @return Boolean.

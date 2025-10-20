@@ -1,0 +1,39 @@
+{
+  // Enable/disable Prometheus remote write push.
+  enabled: false,
+
+  // Your remote write endpoint (Prometheus Agent, VictoriaMetrics, Mimir/Thanos Receive, etc.).
+  // Example (Prometheus Agent default): "http://localhost:9201/api/v1/write".
+  remoteWriteUrl: "",
+
+  // Push interval and HTTP timeout (seconds).
+  intervalSeconds: 15,
+  timeoutSeconds: 10,
+
+  // Compress payload with Snappy framed (recommended by most receivers). Set to false to disable.
+  compress: true,
+
+  // Include/exclude filters (regex); metric names use '_' instead of '.'.
+  include: ["^jvm_.*", "^process_.*", "^system_.*"],
+  exclude: [],
+
+  // Tip: Variables below are supported via Magic replacement.
+
+  // Static labels added to every series.
+  labels: {
+    job: "robin",
+    instance: "{$hostname}"
+  },
+
+  // Optional extra headers to include with the request.
+  headers: {},
+
+  // Authentication (choose one)
+  bearerToken: "",
+  basicAuthUser: "",
+  basicAuthPassword: "",
+
+  // Optional multi-tenancy header
+  tenantHeaderName: "",
+  tenantHeaderValue: "",
+}

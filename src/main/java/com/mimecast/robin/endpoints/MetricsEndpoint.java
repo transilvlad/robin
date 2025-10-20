@@ -3,6 +3,8 @@ package com.mimecast.robin.endpoints;
 import com.mimecast.robin.endpoints.utils.HotSpotDiagnostic;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Server;
+import com.mimecast.robin.metrics.MetricsCron;
+import com.mimecast.robin.metrics.MetricsRegistry;
 import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.queue.RetryScheduler;
 import com.mimecast.robin.smtp.SmtpListener;
@@ -59,6 +61,7 @@ public class MetricsEndpoint {
     public void start() throws IOException {
         prometheusRegistry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
         graphiteRegistry = getGraphiteMeterRegistry();
+        MetricsRegistry.register(prometheusRegistry, graphiteRegistry);
 
         bindJvmMetrics();
 
@@ -66,7 +69,6 @@ public class MetricsEndpoint {
         server = HttpServer.create(new InetSocketAddress(metricsPort), 10);
 
         createContexts();
-
         shutdownHooks();
 
         new Thread(server::start).start();
@@ -292,14 +294,20 @@ public class MetricsEndpoint {
                 RelayQueueCron.getLastExecutionEpochSeconds(),
                 RelayQueueCron.getNextExecutionEpochSeconds());
 
+        String metricsCronJson = String.format("{\"intervalSeconds\":%d,\"lastExecutionEpochSeconds\":%d,\"nextExecutionEpochSeconds\":%d}",
+                MetricsCron.getIntervalSeconds(),
+                MetricsCron.getLastExecutionEpochSeconds(),
+                MetricsCron.getNextExecutionEpochSeconds());
+
         String queueJson = String.format("{\"size\":%d,\"retryHistogram\":%s}", queueSize, histogramJson);
         String schedulerJson = String.format("{\"config\":%s,\"cron\":%s}", schedulerConfigJson, cronJson);
 
-        String response = String.format("{\"status\":\"UP\", \"uptime\":\"%s\", \"listeners\":%s, \"queue\":%s, \"scheduler\":%s}",
+        String response = String.format("{\"status\":\"UP\", \"uptime\":\"%s\", \"listeners\":%s, \"queue\":%s, \"scheduler\":%s, \"metricsCron\":%s}",
                 uptimeString,
                 listenersJson,
                 queueJson,
-                schedulerJson);
+                schedulerJson,
+                metricsCronJson);
 
         sendResponse(exchange, 200, "application/json; charset=utf-8", response);
     }
@@ -424,4 +432,3 @@ public class MetricsEndpoint {
         }
     }
 }
-

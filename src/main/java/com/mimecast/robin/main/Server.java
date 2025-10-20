@@ -2,6 +2,7 @@ package com.mimecast.robin.main;
 
 import com.mimecast.robin.endpoints.ClientEndpoint;
 import com.mimecast.robin.endpoints.MetricsEndpoint;
+import com.mimecast.robin.metrics.MetricsCron;
 import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.smtp.SmtpListener;
 import com.mimecast.robin.storage.StorageCleaner;
@@ -72,11 +73,11 @@ public class Server extends Foundation {
      * Startup prerequisites.
      */
     private static void startup() {
-        // Start relay queue cron job.
-        RelayQueueCron.run();
-
         // Clean storage on startup.
         StorageCleaner.clean(Config.getServer().getStorage());
+
+        // Start relay queue cron job.
+        RelayQueueCron.run();
 
         // Start metrics endpoint.
         try {
@@ -90,6 +91,13 @@ public class Server extends Foundation {
             new ClientEndpoint().start();
         } catch (IOException e) {
             log.error("Unable to start client submission endpoint: {}", e.getMessage());
+        }
+
+        // Start metrics remote write cron (if enabled in config).
+        try {
+            MetricsCron.run();
+        } catch (Exception e) {
+            log.error("Unable to start metrics cron: {}", e.getMessage());
         }
     }
 
