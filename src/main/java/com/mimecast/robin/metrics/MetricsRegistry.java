@@ -1,7 +1,7 @@
 package com.mimecast.robin.metrics;
 
 import io.micrometer.graphite.GraphiteMeterRegistry;
-import io.micrometer.prometheus.PrometheusMeterRegistry;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 
 /**
  * Global access to metric registries for background jobs like MetricsCron.

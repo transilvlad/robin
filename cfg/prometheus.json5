@@ -35,5 +35,5 @@
 
   // Optional multi-tenancy header
   tenantHeaderName: "",
-  tenantHeaderValue: "",
+  tenantHeaderValue: ""
 }
