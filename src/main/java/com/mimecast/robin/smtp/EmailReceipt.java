@@ -1,16 +1,19 @@
 package com.mimecast.robin.smtp;
 
+import com.mimecast.robin.config.server.WebhookConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Extensions;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.extension.Extension;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.smtp.verb.Verb;
+import com.mimecast.robin.smtp.webhook.WebhookCaller;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.net.Socket;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -144,6 +147,11 @@ public class EmailReceipt implements Runnable {
         if (Extensions.isExtension(verb)) {
             Optional<Extension> opt = Extensions.getExtension(verb);
             if (opt.isPresent()) {
+                // Call webhook before processing extension.
+                if (!processWebhook(verb)) {
+                    return; // Webhook intercepted processing.
+                }
+
                 opt.get().getServer().process(connection, verb);
             }
         } else {
@@ -155,5 +163,58 @@ public class EmailReceipt implements Runnable {
 
             connection.write(SmtpResponses.UNRECOGNIZED_CMD_500);
         }
+    }
+
+    /**
+     * Process webhook for extension if configured.
+     *
+     * @param verb Verb instance.
+     * @return True to continue processing, false to stop.
+     * @throws IOException Unable to communicate.
+     */
+    private boolean processWebhook(Verb verb) throws IOException {
+        try {
+            Map<String, WebhookConfig> webhooks = Config.getServer().getWebhooks();
+            String extensionKey = verb.getKey().toLowerCase();
+
+            if (webhooks.containsKey(extensionKey)) {
+                WebhookConfig config = webhooks.get(extensionKey);
+
+                if (!config.isEnabled()) {
+                    return true; // Continue processing.
+                }
+
+                log.debug("Calling webhook for extension: {}", extensionKey);
+                WebhookCaller.WebhookResponse response = WebhookCaller.call(config, connection, verb);
+
+                // Check if webhook returned a custom SMTP response.
+                String smtpResponse = WebhookCaller.extractSmtpResponse(response.getBody());
+                if (smtpResponse != null && !smtpResponse.isEmpty()) {
+                    connection.write(smtpResponse);
+                    return false; // Stop processing, webhook provided response.
+                }
+
+                // Check response status.
+                if (!response.isSuccess()) {
+                    if (config.isIgnoreErrors()) {
+                        log.warn("Webhook failed but ignoring errors: {}", response.getStatusCode());
+                        return true; // Continue processing despite error.
+                    } else {
+                        // Send 451 temporary error.
+                        connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, "Webhook error"));
+                        return false; // Stop processing.
+                    }
+                }
+
+                // 200 OK - continue processing.
+                return true;
+            }
+        } catch (Exception e) {
+            log.error("Error processing webhook: {}", e.getMessage(), e);
+            connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, "Webhook processing error"));
+            return false;
+        }
+
+        return true; // No webhook configured, continue processing.
     }
 }

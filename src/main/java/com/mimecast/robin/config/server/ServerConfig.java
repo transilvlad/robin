@@ -230,6 +230,26 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
+     * Gets webhooks map.
+     *
+     * @return Webhooks map indexed by extension name.
+     */
+    @SuppressWarnings("rawtypes")
+    public Map<String, WebhookConfig> getWebhooks() {
+        // Attempt to lazy-load from webhooks.json5 if present and not already in map
+        loadExternalIfAbsent("webhooks", "webhooks.json5", Map.class);
+
+        Map<String, WebhookConfig> webhooks = new HashMap<>();
+        if (map.containsKey("webhooks")) {
+            for (Object object : getMapProperty("webhooks").entrySet()) {
+                Map.Entry entry = (Map.Entry) object;
+                webhooks.put((String) entry.getKey(), new WebhookConfig((Map) entry.getValue()));
+            }
+        }
+        return webhooks;
+    }
+
+    /**
      * Gets storage config.
      *
      * @return BasicConfig instance.

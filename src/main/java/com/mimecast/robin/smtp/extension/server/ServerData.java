@@ -1,16 +1,19 @@
 package com.mimecast.robin.smtp.extension.server;
 
 import com.mimecast.robin.config.server.ScenarioConfig;
+import com.mimecast.robin.config.server.WebhookConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.verb.BdatVerb;
 import com.mimecast.robin.smtp.verb.Verb;
+import com.mimecast.robin.smtp.webhook.WebhookCaller;
 import com.mimecast.robin.storage.StorageClient;
 import org.apache.commons.io.output.CountingOutputStream;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -71,9 +74,12 @@ public class ServerData extends ServerProcessor {
         // Read email lines and store to disk.
         StorageClient storageClient = asciiRead("eml");
 
+        // Call RAW webhook after successful storage
+        callRawWebhook();
+
         Optional<ScenarioConfig> opt = connection.getScenario();
         if (opt.isPresent() && opt.get().getData() != null) {
-            connection.write(opt.get().getData() + " [" +  connection.getSession().getUID() + "]");
+            connection.write(opt.get().getData() + " [" + connection.getSession().getUID() + "]");
         } else {
             connection.write(String.format(SmtpResponses.RECEIVED_OK_250, connection.getSession().getUID()));
         }
@@ -119,6 +125,9 @@ public class ServerData extends ServerProcessor {
             // Read bytes.
             StorageClient storageClient = Factories.getStorageClient(connection, "eml");
             CountingOutputStream cos = new CountingOutputStream(storageClient.getStream());
+
+            // Call RAW webhook after successful storage
+            callRawWebhook();
             binaryRead(bdatVerb, cos);
             bytesReceived = cos.getByteCount();
 
@@ -128,7 +137,7 @@ public class ServerData extends ServerProcessor {
             }
 
             // Scenario response or accept.
-            scenarioResponse( connection.getSession().getUID());
+            scenarioResponse(connection.getSession().getUID());
         }
     }
 
@@ -165,6 +174,31 @@ public class ServerData extends ServerProcessor {
         // Accept all.
         else {
             connection.write(String.format(SmtpResponses.CHUNK_OK_250, uid));
+        }
+    }
+
+    /**
+     * Calls RAW webhook if configured for DATA extension.
+     * This posts the raw email content as text/plain to the webhook endpoint.
+     */
+    private void callRawWebhook() {
+        try {
+            Map<String, WebhookConfig> webhooks = Config.getServer().getWebhooks();
+
+            if (webhooks.containsKey("data")) {
+                WebhookConfig config = webhooks.get("data");
+
+                if (config.isRaw() && !connection.getSession().getEnvelopes().isEmpty()) {
+                    String filePath = connection.getSession().getEnvelopes().getLast().getFile();
+
+                    if (filePath != null && !filePath.isEmpty()) {
+                        log.debug("Calling RAW webhook for DATA extension with file: {}", filePath);
+                        WebhookCaller.callRaw(config, filePath);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error calling RAW webhook: {}", e.getMessage(), e);
         }
     }
 

@@ -1,0 +1,245 @@
+/*
+ * Webhook Response Format:
+ *
+ * To override the normal SMTP response, your webhook should return a JSON payload with:
+ * {
+ *   "smtpResponse": "250 Custom response message"
+ * }
+ *
+ * If no "smtpResponse" is provided:
+ * - HTTP 200 OK: Extension will process normally
+ * - HTTP 4xx/5xx: Returns "451 4.3.2 Internal server error" unless ignoreErrors is true
+ *
+ * Webhook Payload Format:
+ * {
+ *   "session": { ... session data ... },
+ *   "envelope": { ... envelope data ... },
+ *   "verb": {
+ *     "command": "MAIL",
+ *     "key": "mail",
+ *     "params": "FROM:<sender@example.com>"
+ *   }
+ * }
+ */
+{
+  // Webhook configurations for SMTP extensions
+  // Each extension can have its own webhook configuration
+
+  // EHLO/HELO/LHLO - Initial connection command
+  "ehlo": {
+    // Enable webhook for this extension
+    enabled: false,
+
+    // Webhook endpoint URL
+    url: "http://localhost:8080/webhooks/ehlo",
+
+    // HTTP method (GET, POST, PUT, PATCH, DELETE)
+    method: "POST",
+
+    // Timeout in milliseconds
+    timeout: 5000,
+
+    // Wait for webhook response before processing extension
+    waitForResponse: true,
+
+    // Ignore errors and continue processing if webhook fails
+    ignoreErrors: false,
+
+    // Authentication type: none, basic, bearer
+    authType: "none",
+
+    // Authentication value (username:password for basic, token for bearer)
+    authValue: "",
+
+    // Include session data in payload
+    includeSession: true,
+
+    // Include envelope data in payload
+    includeEnvelope: true,
+
+    // Include verb data in payload
+    includeVerb: true,
+
+    // Custom HTTP headers
+    headers: {
+      "X-Custom-Header": "value"
+    }
+  },
+
+  // STARTTLS - TLS negotiation command
+  "starttls": {
+    enabled: false,
+    url: "http://localhost:8080/webhooks/starttls",
+    method: "POST",
+    timeout: 3000,
+    waitForResponse: true,
+    ignoreErrors: false,
+    authType: "bearer",
+    authValue: "your-api-token-here",
+    includeSession: true,
+    includeEnvelope: false,
+    includeVerb: true,
+    headers: {}
+  },
+
+  // AUTH - Authentication command
+  "auth": {
+    enabled: false,
+    url: "http://localhost:8080/webhooks/auth",
+    method: "POST",
+    timeout: 5000,
+    waitForResponse: true,
+    ignoreErrors: false,
+    authType: "basic",
+    authValue: "username:password",
+    includeSession: true,
+    includeEnvelope: false,
+    includeVerb: true,
+    headers: {
+      "X-Service": "auth-validator"
+    }
+  },
+
+  // MAIL FROM - Sender command
+  "mail": {
+    enabled: false,
+    url: "http://localhost:8080/webhooks/mail",
+    method: "POST",
+    timeout: 5000,
+    waitForResponse: true,
+    ignoreErrors: false,
+    authType: "none",
+    authValue: "",
+    includeSession: true,
+    includeEnvelope: true,
+    includeVerb: true,
+    headers: {}
+  },
+
+  // RCPT TO - Recipient command
+  "rcpt": {
+    enabled: false,
+    url: "http://localhost:8080/webhooks/rcpt",
+    method: "POST",
+    timeout: 5000,
+    waitForResponse: true,
+    ignoreErrors: false,
+    authType: "none",
+    authValue: "",
+    includeSession: true,
+    includeEnvelope: true,
+    includeVerb: true,
+    headers: {}
+  },
+
+  // DATA - Message data command
+  "data": {
+    enabled: false,
+    url: "http://localhost:8080/webhooks/data",
+    method: "POST",
+    timeout: 10000,
+    waitForResponse: true,
+    ignoreErrors: false,
+    authType: "none",
+    authValue: "",
+    includeSession: true,
+    includeEnvelope: true,
+    includeVerb: true,
+    headers: {},
+
+    // RAW webhook configuration (called AFTER successful DATA processing)
+    // Posts the raw email content as text/plain
+    raw: true,
+    rawUrl: "http://localhost:8080/webhooks/data/raw",
+    rawMethod: "POST",
+    rawTimeout: 10000,
+    rawWaitForResponse: false, // Fire and forget for performance
+    rawIgnoreErrors: true, // Don't fail email delivery if webhook fails
+    rawBase64: false, // Set to true to base64 encode email content
+    rawAuthType: "bearer",
+    rawAuthValue: "your-raw-webhook-token",
+    rawHeaders: {
+      "X-Email-Processor": "robin-smtp"
+    }
+  },
+
+  // BDAT - Binary data command (CHUNKING)
+  "bdat": {
+    enabled: false,
+    url: "http://localhost:8080/webhooks/bdat",
+    method: "POST",
+    timeout: 10000,
+    waitForResponse: true,
+    ignoreErrors: false,
+    authType: "none",
+    authValue: "",
+    includeSession: true,
+    includeEnvelope: true,
+    includeVerb: true,
+    headers: {}
+  },
+
+  // RSET - Reset transaction command
+  "rset": {
+    enabled: false,
+    url: "http://localhost:8080/webhooks/rset",
+    method: "POST",
+    timeout: 3000,
+    waitForResponse: false, // Fire and forget
+    ignoreErrors: true,
+    authType: "none",
+    authValue: "",
+    includeSession: true,
+    includeEnvelope: false,
+    includeVerb: true,
+    headers: {}
+  },
+
+  // HELP - Help command
+  "help": {
+    enabled: false,
+    url: "http://localhost:8080/webhooks/help",
+    method: "POST",
+    timeout: 3000,
+    waitForResponse: false,
+    ignoreErrors: true,
+    authType: "none",
+    authValue: "",
+    includeSession: false,
+    includeEnvelope: false,
+    includeVerb: true,
+    headers: {}
+  },
+
+  // QUIT - Connection close command
+  "quit": {
+    enabled: false,
+    url: "http://localhost:8080/webhooks/quit",
+    method: "POST",
+    timeout: 3000,
+    waitForResponse: false, // Don't wait for response on quit
+    ignoreErrors: true,
+    authType: "none",
+    authValue: "",
+    includeSession: true,
+    includeEnvelope: true,
+    includeVerb: true,
+    headers: {}
+  },
+
+  // LHLO - LMTP HELO command (same handler as ehlo)
+  "lhlo": {
+    enabled: false,
+    url: "http://localhost:8080/webhooks/lhlo",
+    method: "POST",
+    timeout: 5000,
+    waitForResponse: true,
+    ignoreErrors: false,
+    authType: "none",
+    authValue: "",
+    includeSession: true,
+    includeEnvelope: false,
+    includeVerb: true,
+    headers: {}
+  }
+}

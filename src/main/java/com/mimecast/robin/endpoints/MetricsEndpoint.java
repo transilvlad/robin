@@ -1,6 +1,5 @@
 package com.mimecast.robin.endpoints;
 
-import com.mimecast.robin.endpoints.utils.HotSpotDiagnostic;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Server;
 import com.mimecast.robin.metrics.MetricsCron;

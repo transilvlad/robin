@@ -1,4 +1,4 @@
-package com.mimecast.robin.endpoints.utils;
+package com.mimecast.robin.endpoints;
 
 import com.sun.management.HotSpotDiagnosticMXBean;
 

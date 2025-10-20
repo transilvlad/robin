@@ -57,6 +57,8 @@ More...
 - [CLI usage](doc/cli.md)
 - [Client usage](doc/client.md)
 - [Server configuration](doc/server.md)
+- [SMTP webhooks](doc/webhooks.md)
+- [Endpoints](doc/endpoints.md)
 - [Prometheus Remote Write](doc/prometheus.md)
 
 
@@ -65,7 +67,6 @@ More...
 - [Magic](doc/magic.md)
 - [MIME](doc/mime.md)
 - [Plugins](doc/plugins.md)
-- [Endpoints](doc/endpoints.md)
 - [Flowchart](doc/flowchart.md)
 
 - [MTA-STS](doc/mta-sts/readme.md) - Former MTA-STS library.
