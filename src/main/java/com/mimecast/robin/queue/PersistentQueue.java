@@ -46,7 +46,7 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
      *
      * @param file The file to store the database.
      */
-    private PersistentQueue(File file) {
+    PersistentQueue(File file) {
         this.file = file;
 
         this.db = DBMaker

@@ -135,7 +135,7 @@ public class RelaySession implements Serializable {
      * @return String.
      */
     public String getLastRetryDate() {
-        // lastRetryTime is stored as epoch seconds; Date expects milliseconds.
+        // LastRetryTime is stored as epoch seconds; Date expects milliseconds.
         return new SimpleDateFormat("E, d MMM yyyy HH:mm:ss Z", Config.getProperties().getLocale())
                 .format(new Date(lastRetryTime * 1000L));
     }
