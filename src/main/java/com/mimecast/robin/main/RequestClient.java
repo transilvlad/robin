@@ -60,8 +60,19 @@ public class RequestClient extends RequestBase {
      */
     @SuppressWarnings("unchecked")
     public RequestClient request(String casePath) throws AssertException, IOException {
-        CaseConfig caseConfig = getConfig(casePath);
+        return request(getConfig(casePath));
+    }
 
+    /**
+     * Make request with given configuration path.
+     *
+     * @param caseConfig Case config instance.
+     * @return Self.
+     * @throws AssertException Assertion exception.
+     * @throws IOException     Unable to communicate.
+     */
+    @SuppressWarnings("unchecked")
+    public RequestClient request(CaseConfig caseConfig) throws AssertException, IOException {
         HttpResponse httpResponse = null;
         RequestConfig requestConfig = null;
         if (caseConfig.hasProperty("request")) {
