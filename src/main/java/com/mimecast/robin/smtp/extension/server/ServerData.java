@@ -3,6 +3,7 @@ package com.mimecast.robin.smtp.extension.server;
 import com.mimecast.robin.config.server.ScenarioConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
+import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.verb.BdatVerb;
 import com.mimecast.robin.smtp.verb.Verb;
@@ -63,7 +64,7 @@ public class ServerData extends ServerProcessor {
      */
     private void ascii() throws IOException {
         if (connection.getSession().getEnvelopes().isEmpty() || connection.getSession().getEnvelopes().getLast().getRcpts().isEmpty()) {
-            connection.write("554 5.5.1 No valid recipients [" + connection.getSession().getUID() + "]");
+            connection.write(String.format(SmtpResponses.NO_VALID_RECIPIENTS_554, connection.getSession().getUID()));
             return;
         }
 
@@ -74,7 +75,7 @@ public class ServerData extends ServerProcessor {
         if (opt.isPresent() && opt.get().getData() != null) {
             connection.write(opt.get().getData() + " [" +  connection.getSession().getUID() + "]");
         } else {
-            connection.write("250 2.0.0 Received OK [" +  connection.getSession().getUID() + "]");
+            connection.write(String.format(SmtpResponses.RECEIVED_OK_250, connection.getSession().getUID()));
         }
     }
 
@@ -86,7 +87,7 @@ public class ServerData extends ServerProcessor {
      * @throws IOException Unable to communicate.
      */
     protected StorageClient asciiRead(String extension) throws IOException {
-        connection.write("354 Ready and willing");
+        connection.write(SmtpResponses.READY_WILLING_354);
 
         StorageClient storageClient = Factories.getStorageClient(connection, extension);
 
@@ -113,7 +114,7 @@ public class ServerData extends ServerProcessor {
         BdatVerb bdatVerb = new BdatVerb(verb);
 
         if (verb.getCount() == 1) {
-            connection.write("501 5.5.4 Invalid arguments");
+            connection.write(SmtpResponses.INVALID_ARGS_501);
         } else {
             // Read bytes.
             StorageClient storageClient = Factories.getStorageClient(connection, "eml");
@@ -163,7 +164,7 @@ public class ServerData extends ServerProcessor {
 
         // Accept all.
         else {
-            connection.write("250 2.0.0 Chunk OK [" + uid + "]");
+            connection.write(String.format(SmtpResponses.CHUNK_OK_250, uid));
         }
     }
 

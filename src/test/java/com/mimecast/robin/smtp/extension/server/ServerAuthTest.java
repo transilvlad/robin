@@ -1,6 +1,7 @@
 package com.mimecast.robin.smtp.extension.server;
 
 import com.mimecast.robin.main.Foundation;
+import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.ConnectionMock;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.smtp.verb.Verb;
@@ -40,7 +41,7 @@ class ServerAuthTest {
         assertFalse(process);
 
         connection.parseLines();
-        assertEquals("504 5.7.4 Unrecognized authentication mechanism\r\n", connection.getLine(1));
+        assertEquals(SmtpResponses.UNRECOGNIZED_AUTH_504 + "\r\n", connection.getLine(1));
     }
 
     @Test
@@ -58,7 +59,7 @@ class ServerAuthTest {
         assertFalse(process);
 
         connection.parseLines();
-        assertEquals("504 5.7.4 Unrecognized authentication mechanism\r\n", connection.getLine(1));
+        assertEquals(SmtpResponses.UNRECOGNIZED_AUTH_504 + "\r\n", connection.getLine(1));
     }
 
     @Test
@@ -80,8 +81,8 @@ class ServerAuthTest {
         assertEquals("giveHerTheRing", connection.getSession().getPassword());
 
         connection.parseLines();
-        assertEquals("334 UGF5bG9hZDo\r\n", connection.getLine(1));
-        assertEquals("235 2.7.0 Authorized\r\n", connection.getLine(2));
+        assertEquals(SmtpResponses.AUTH_PAYLOAD_334 + "\r\n", connection.getLine(1));
+        assertEquals(SmtpResponses.AUTH_SUCCESS_235 + "\r\n", connection.getLine(2));
         assertTrue(connection.getSession().isAuth());
         assertEquals("tony@example.com", connection.getSession().getUsername());
         assertEquals("giveHerTheRing", connection.getSession().getPassword());
@@ -106,8 +107,8 @@ class ServerAuthTest {
         assertEquals("saveTheHumans", connection.getSession().getPassword());
 
         connection.parseLines();
-        assertEquals("334 UGF5bG9hZDo\r\n", connection.getLine(1));
-        assertEquals("535 5.7.1 Unauthorized\r\n", connection.getLine(2));
+        assertEquals(SmtpResponses.AUTH_PAYLOAD_334 + "\r\n", connection.getLine(1));
+        assertEquals(SmtpResponses.AUTH_FAILED_535 + "\r\n", connection.getLine(2));
     }
 
     @Test
@@ -126,7 +127,7 @@ class ServerAuthTest {
         assertFalse(connection.getSession().isAuth());
 
         connection.parseLines();
-        assertEquals("504 5.7.4 Unrecognized authentication mechanism\r\n", connection.getLine(1));
+        assertEquals(SmtpResponses.UNRECOGNIZED_AUTH_504 + "\r\n", connection.getLine(1));
     }
 
     @Test
@@ -146,8 +147,8 @@ class ServerAuthTest {
         assertFalse(connection.getSession().isAuth());
 
         connection.parseLines();
-        assertEquals("334 UGF5bG9hZDo\r\n", connection.getLine(1));
-        assertEquals("504 5.7.4 Unrecognized authentication mechanism\r\n", connection.getLine(2));
+        assertEquals(SmtpResponses.AUTH_PAYLOAD_334 + "\r\n", connection.getLine(1));
+        assertEquals(SmtpResponses.UNRECOGNIZED_AUTH_504 + "\r\n", connection.getLine(2));
     }
 
     @Test
@@ -169,8 +170,8 @@ class ServerAuthTest {
         assertEquals("giveHerTheRing", connection.getSession().getPassword());
 
         connection.parseLines();
-        assertEquals("334 UGFzc3dvcmQ6\r\n", connection.getLine(1));
-        assertEquals("235 2.7.0 Authorized\r\n", connection.getLine(2));
+        assertEquals(SmtpResponses.AUTH_PASSWORD_334 + "\r\n", connection.getLine(1));
+        assertEquals(SmtpResponses.AUTH_SUCCESS_235 + "\r\n", connection.getLine(2));
         assertTrue(connection.getSession().isAuth());
         assertEquals("tony@example.com", connection.getSession().getUsername());
         assertEquals("giveHerTheRing", connection.getSession().getPassword());
@@ -196,9 +197,9 @@ class ServerAuthTest {
         assertEquals("giveHerTheRing", connection.getSession().getPassword());
 
         connection.parseLines();
-        assertEquals("334 VXNlcm5hbWU6\r\n", connection.getLine(1));
-        assertEquals("334 UGFzc3dvcmQ6\r\n", connection.getLine(2));
-        assertEquals( "235 2.7.0 Authorized\r\n", connection.getLine(3));
+        assertEquals(SmtpResponses.AUTH_USERNAME_334 + "\r\n", connection.getLine(1));
+        assertEquals(SmtpResponses.AUTH_PASSWORD_334 + "\r\n", connection.getLine(2));
+        assertEquals(SmtpResponses.AUTH_SUCCESS_235 + "\r\n", connection.getLine(3));
         assertTrue(connection.getSession().isAuth());
         assertEquals("tony@example.com", connection.getSession().getUsername());
         assertEquals("giveHerTheRing", connection.getSession().getPassword());
@@ -224,7 +225,7 @@ class ServerAuthTest {
         assertEquals("", connection.getSession().getPassword());
 
         connection.parseLines();
-        assertEquals("334 VXNlcm5hbWU6\r\n", connection.getLine(1));
-        assertEquals("504 5.7.4 Unrecognized authentication mechanism\r\n", connection.getLine(2));
+        assertEquals(SmtpResponses.AUTH_USERNAME_334 + "\r\n", connection.getLine(1));
+        assertEquals(SmtpResponses.UNRECOGNIZED_AUTH_504 + "\r\n", connection.getLine(2));
     }
 }

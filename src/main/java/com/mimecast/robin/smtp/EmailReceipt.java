@@ -87,7 +87,7 @@ public class EmailReceipt implements Runnable {
      */
     public void run() {
         try {
-            connection.write("220 " + Config.getServer().getHostname() + " Robin ready at " + connection.getSession().getRdns() + " with ESMTP; " + connection.getSession().getDate());
+            connection.write(String.format(SmtpResponses.GREETING_220, Config.getServer().getHostname(), connection.getSession().getRdns(), connection.getSession().getDate()));
 
             Verb verb;
             for (int i = 0; i < transactionsLimit; i++) {
@@ -126,7 +126,7 @@ public class EmailReceipt implements Runnable {
      */
     private boolean isError(Verb verb) throws IOException {
         if (verb.isError()) {
-            connection.write("500 Syntax error");
+            connection.write(SmtpResponses.SYNTAX_ERROR_500);
             errorLimit--;
             return true;
         }
@@ -153,7 +153,7 @@ public class EmailReceipt implements Runnable {
                 return;
             }
 
-            connection.write("500 5.3.3 Unrecognized command");
+            connection.write(SmtpResponses.UNRECOGNIZED_CMD_500);
         }
     }
 }

@@ -4,6 +4,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.mimecast.robin.config.server.ScenarioConfig;
 import com.mimecast.robin.main.Extensions;
+import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.extension.Extension;
 import com.mimecast.robin.smtp.verb.EhloVerb;
@@ -50,12 +51,12 @@ public class ServerEhlo extends ServerProcessor {
 
         // HELO/LHLO response.
         else if (verb.getKey().equals("helo") || verb.getKey().equals("lhlo")) {
-            connection.write("250 " + welcome);
+            connection.write(SmtpResponses.WELCOME_250 + welcome);
         }
 
         // EHLO response.
         else {
-            connection.write("250-" + welcome);
+            connection.write(SmtpResponses.WELCOME_250_MULTILINE + welcome);
             writeAdverts();
         }
 
@@ -70,7 +71,8 @@ public class ServerEhlo extends ServerProcessor {
     public void writeAdverts() throws IOException {
         List<String> adverts = Lists.newArrayList(Sets.newHashSet(collectAdverts(connection)));
         for (int i = 0; i < adverts.size(); i++) {
-            connection.write("250" + ((adverts.size() - 1) > i ? "-" : " ") + adverts.get(i));
+            String prefix = (adverts.size() - 1) > i ? SmtpResponses.ADVERT_250_MULTILINE : SmtpResponses.ADVERT_250_LAST;
+            connection.write(prefix + adverts.get(i));
         }
     }
 

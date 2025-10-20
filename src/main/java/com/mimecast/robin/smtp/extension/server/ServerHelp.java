@@ -1,6 +1,7 @@
 package com.mimecast.robin.smtp.extension.server;
 
 import com.mimecast.robin.main.Extensions;
+import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.verb.Verb;
 
@@ -33,7 +34,7 @@ public class ServerHelp extends ServerProcessor {
     public boolean process(Connection connection, Verb verb) throws IOException {
         super.process(connection, verb);
 
-        connection.write("214 " + Extensions.getHelp());
+        connection.write(SmtpResponses.HELP_214 + Extensions.getHelp());
 
         return true;
     }

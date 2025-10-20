@@ -3,6 +3,7 @@ package com.mimecast.robin.smtp.extension.server;
 import com.mimecast.robin.config.server.ScenarioConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.sasl.DovecotSaslAuthNative;
+import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.verb.MailVerb;
 import com.mimecast.robin.smtp.verb.Verb;
@@ -34,12 +35,12 @@ public class ServerRcpt extends ServerMail {
         if (Config.getServer().getDovecot().getBooleanProperty("auth")) {
             try (DovecotSaslAuthNative dovecotSaslAuthNative = new DovecotSaslAuthNative()) {
                 if (!dovecotSaslAuthNative.validate(new MailVerb(verb).getAddress().getAddress(), "smtp")) {
-                    connection.write("550 5.1.1 Unknown destination mailbox address [" + connection.getSession().getUID() + "]");
+                    connection.write(String.format(SmtpResponses.UNKNOWN_MAILBOX_550, connection.getSession().getUID()));
                     return false;
                 }
             } catch (Exception e) {
                 log.error("Dovecot authentication error: {}", e.getMessage());
-                connection.write("451 4.3.2 Internal server error [" + connection.getSession().getUID() + "]");
+                connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
                 return false;
             }
         } else if (Config.getServer().isUsersEnabled()) {
@@ -63,7 +64,7 @@ public class ServerRcpt extends ServerMail {
         if (!connection.getSession().getEnvelopes().isEmpty()) {
             connection.getSession().getEnvelopes().getLast().addRcpt(getAddress().getAddress());
         }
-        connection.write("250 2.1.5 Recipient OK [" + connection.getSession().getUID() + "]");
+        connection.write(String.format(SmtpResponses.RECIPIENT_OK_250, connection.getSession().getUID()));
 
         return true;
     }

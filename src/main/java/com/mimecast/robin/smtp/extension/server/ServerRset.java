@@ -1,5 +1,6 @@
 package com.mimecast.robin.smtp.extension.server;
 
+import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.verb.Verb;
 
@@ -22,7 +23,7 @@ public class ServerRset extends ServerProcessor {
     public boolean process(Connection connection, Verb verb) throws IOException {
         super.process(connection, verb);
 
-        connection.write("250 2.1.5 All clear");
+        connection.write(SmtpResponses.ALL_CLEAR_250);
         connection.reset();
 
         return true;

@@ -2,6 +2,7 @@ package com.mimecast.robin.queue.relay;
 
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.queue.RelaySession;
+import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
@@ -57,9 +58,9 @@ public class DovecotLdaDelivery {
             }
 
             if (result == null || result.getKey() != 0) {
-                relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().addTransaction("RCPT", "RCPT TO:<" + recipient + ">", "550 Dovecot-LDA delivery failed", true);
+                relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().addTransaction("RCPT", "RCPT TO:<" + recipient + ">", SmtpResponses.DOVECOT_LDA_FAILED_550, true);
             } else {
-                relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().addTransaction("RCPT", "RCPT TO:<" + recipient + ">", "250 Dovecot-LDA delivery successful");
+                relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().addTransaction("RCPT", "RCPT TO:<" + recipient + ">", SmtpResponses.DOVECOT_LDA_SUCCESS_250, false);
             }
         }
 

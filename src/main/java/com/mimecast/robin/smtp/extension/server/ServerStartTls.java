@@ -3,6 +3,7 @@ package com.mimecast.robin.smtp.extension.server;
 import com.mimecast.robin.config.BasicConfig;
 import com.mimecast.robin.config.server.ScenarioConfig;
 import com.mimecast.robin.main.Config;
+import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.verb.Verb;
 
@@ -38,7 +39,7 @@ public class ServerStartTls extends ServerProcessor {
         super.process(connection, verb);
 
         boolean shakeHand = true;
-        String handShake = "220 Ready for handshake [" + connection.getSession().getUID() + "]";
+        String handShake = String.format(SmtpResponses.READY_HANDSHAKE_220, connection.getSession().getUID());
 
         // ScenarioConfig response.
         Optional<ScenarioConfig> opt = connection.getScenario();

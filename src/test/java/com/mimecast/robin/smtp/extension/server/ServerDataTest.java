@@ -2,6 +2,7 @@ package com.mimecast.robin.smtp.extension.server;
 
 import com.mimecast.robin.main.Foundation;
 import com.mimecast.robin.smtp.MessageEnvelope;
+import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.ConnectionMock;
 import com.mimecast.robin.smtp.verb.Verb;
 import org.junit.jupiter.api.BeforeAll;
@@ -45,7 +46,7 @@ class ServerDataTest {
         assertTrue(process);
 
         connection.parseLines();
-        assertEquals("354 Ready and willing\r\n", connection.getLine(1));
+        assertEquals(SmtpResponses.READY_WILLING_354 + "\r\n", connection.getLine(1));
         assertTrue(connection.getLine(2).startsWith("250 2.0.0 Received OK"), "startsWith(\"250 2.0.0 Received OK\")");
         assertEquals(stringBuilder.toString().length() - (5 + 4), data.getBytesReceived());
     }
@@ -74,7 +75,7 @@ class ServerDataTest {
         assertTrue(process);
 
         connection.parseLines();
-        assertEquals("354 Ready and willing\r\n", connection.getLine(1));
+        assertEquals(SmtpResponses.READY_WILLING_354 + "\r\n", connection.getLine(1));
         assertTrue(connection.getLine(2).startsWith("250 2.0.0 Received OK"), "startsWith(\"250 2.0.0 Received OK\")");
         assertEquals(stringBuilder.toString().length() - (3 + 2), data.getBytesReceived());
     }
@@ -103,7 +104,7 @@ class ServerDataTest {
         assertTrue(process);
 
         connection.parseLines();
-        assertEquals("354 Ready and willing\r\n", connection.getLine(1));
+        assertEquals(SmtpResponses.READY_WILLING_354 + "\r\n", connection.getLine(1));
         assertTrue(connection.getLine(2).startsWith("250 2.0.0 Received OK"), "startsWith(\"250 2.0.0 Received OK\")");
         assertEquals(stringBuilder.toString().length() - (3 + 2), data.getBytesReceived());
     }

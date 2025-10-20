@@ -1,5 +1,6 @@
 package com.mimecast.robin.smtp.extension.server;
 
+import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.verb.Verb;
 
@@ -25,7 +26,7 @@ public class ServerXclient extends ServerProcessor {
         connection.getSession().setEhlo(verb.getParam("helo"));
         connection.getSession().setFriendRdns(verb.getParam("name"));
         connection.getSession().setFriendAddr(verb.getParam("addr"));
-        connection.write("220 " + connection.getSession().getRdns() + " ESMTP; " + connection.getSession().getDate());
+        connection.write(String.format(SmtpResponses.XCLIENT_ESMTP_220, connection.getSession().getRdns(), connection.getSession().getDate()));
 
         return true;
     }

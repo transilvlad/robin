@@ -1,6 +1,7 @@
 package com.mimecast.robin.smtp.extension.server;
 
 import com.mimecast.robin.main.Foundation;
+import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.ConnectionMock;
 import com.mimecast.robin.smtp.verb.Verb;
 import org.junit.jupiter.api.BeforeAll;
@@ -32,6 +33,6 @@ class ServerQuitTest {
         assertFalse(process);
 
         connection.parseLines();
-        assertEquals("221 2.0.0 Closing connection\r\n", connection.getLine(1));
+        assertEquals(SmtpResponses.CLOSING_221 + "\r\n", connection.getLine(1));
     }
 }
