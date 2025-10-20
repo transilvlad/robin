@@ -109,7 +109,7 @@ class LocalStorageClientTest {
         File tmpQueueFile = tmpDir.resolve("relayQueue-" + System.nanoTime() + ".db").toFile();
 
         // Override relay queue file in runtime config so production code writes to this file.
-        Config.getServer().getRelay().getMap().put("queueFile", tmpQueueFile.getAbsolutePath());
+        Config.getServer().getQueue().getMap().put("queueFile", tmpQueueFile.getAbsolutePath());
 
         Connection connection = new Connection(new Session());
         MessageEnvelope envelope = new MessageEnvelope().addRcpt("tony@example.com");

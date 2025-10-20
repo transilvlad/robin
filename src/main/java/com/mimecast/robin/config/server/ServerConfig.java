@@ -241,6 +241,17 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
+     * Gets queue config.
+     *
+     * @return BasicConfig instance.
+     */
+    public BasicConfig getQueue() {
+        // Attempt to lazy-load from queue.json5 if present and not already in map
+        loadExternalIfAbsent("queue", "queue.json5", Map.class);
+        return new BasicConfig(getMapProperty("queue"));
+    }
+
+    /**
      * Gets relay config.
      *
      * @return BasicConfig instance.

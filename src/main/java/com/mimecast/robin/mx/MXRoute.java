@@ -114,5 +114,4 @@ public class MXRoute {
                 ", domains=" + domains +
                 '}';
     }
-
 }

@@ -247,7 +247,7 @@ public class LocalStorageClient implements StorageClient {
                         relaySessionBounce.getSession().addEnvelope(envelope);
 
                         // Queue bounce for delivery using runtime-configured queue file (fallback to default).
-                        File queueFile = new File(Config.getServer().getRelay().getStringProperty(
+                        File queueFile = new File(Config.getServer().getQueue().getStringProperty(
                                 "queueFile",
                                 RelayQueueCron.QUEUE_FILE.getAbsolutePath()
                         ));

@@ -31,17 +31,5 @@
 
   // Bounce email if relay fails.
   bounce: true,
-
-  // Queue file to use for persisting messages that could not be relayed.
-  queueFile: "/usr/local/robin/relayQueue.db",
-
-  // Queue initial run delay (in seconds).
-  queueInitialDelay: 10,
-
-  // Queue processing interval (in seconds).
-  queueInterval: 30,
-
-  // Maximum number of messages to attempt to relay per tick.
-  maxDequeuePerTick: 10
 }
 

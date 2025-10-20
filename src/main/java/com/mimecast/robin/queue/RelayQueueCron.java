@@ -25,19 +25,23 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * RelayQueue queue cron job.
+ * <p>Dequeues RelaySession items from the persistent queue and attempts delivery.
+ * <p>Implements retry logic with exponential backoff and maximum retry limits.
+ * <p>Handles processing of email delivery operations based on protocol.
+ * <p>Relay feature if enabled and SMTP submissions will enqueue RelaySession items for processing here.
  */
 public class RelayQueueCron {
     private static final Logger log = LogManager.getLogger(RelayQueueCron.class);
 
     // Queue file from config.
-    public static final File QUEUE_FILE = new File(Config.getServer().getRelay().getStringProperty("queueFile", "/tmp/robinRelayQueue.db"));
+    public static final File QUEUE_FILE = new File(Config.getServer().getQueue().getStringProperty("queueFile", "/tmp/robinRelayQueue.db"));
 
     // Scheduler configuration (seconds).
-    private static final int INITIAL_DELAY_SECONDS = Math.toIntExact(Config.getServer().getRelay().getLongProperty("queueInitialDelay", 10L));
-    private static final int PERIOD_SECONDS = Math.toIntExact(Config.getServer().getRelay().getLongProperty("queueInterval", 30L));
+    private static final int INITIAL_DELAY_SECONDS = Math.toIntExact(Config.getServer().getQueue().getLongProperty("queueInitialDelay", 10L));
+    private static final int PERIOD_SECONDS = Math.toIntExact(Config.getServer().getQueue().getLongProperty("queueInterval", 30L));
 
     // Batch dequeue configuration (items per tick).
-    private static final int MAX_DEQUEUE_PER_TICK = Math.toIntExact(Config.getServer().getRelay().getLongProperty("maxDequeuePerTick", 10L));
+    private static final int MAX_DEQUEUE_PER_TICK = Math.toIntExact(Config.getServer().getQueue().getLongProperty("maxDequeuePerTick", 10L));
 
     // Shared state
     private static volatile ScheduledExecutorService scheduler;
@@ -224,6 +228,9 @@ public class RelayQueueCron {
 
     // ===== Exposed helpers for health/metrics =====
 
+    /**
+     * Get current queue size.
+     */
     public static long getQueueSize() {
         PersistentQueue<RelaySession> q = queue != null ? queue : PersistentQueue.getInstance(QUEUE_FILE);
         return q.size();
@@ -242,18 +249,22 @@ public class RelayQueueCron {
         return histogram;
     }
 
+    /** Getters for timing info */
     public static long getLastExecutionEpochSeconds() {
         return lastExecutionEpochSeconds;
     }
 
+    /** Get next scheduled execution time (epoch seconds). */
     public static long getNextExecutionEpochSeconds() {
         return nextExecutionEpochSeconds;
     }
 
+    /** Getters for scheduler configuration */
     public static int getInitialDelaySeconds() {
         return INITIAL_DELAY_SECONDS;
     }
 
+    /** Get period between executions (seconds). */
     public static int getPeriodSeconds() {
         return PERIOD_SECONDS;
     }

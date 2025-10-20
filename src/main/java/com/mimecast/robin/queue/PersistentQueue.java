@@ -1,5 +1,6 @@
 package com.mimecast.robin.queue;
 
+import com.mimecast.robin.main.Config;
 import org.mapdb.*;
 import org.mapdb.serializer.SerializerJava;
 
@@ -51,7 +52,7 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
         this.db = DBMaker
                 .fileDB(file)
                 .fileMmapEnableIfSupported()
-                .concurrencyScale(10)
+                .concurrencyScale(Math.toIntExact(Config.getServer().getQueue().getLongProperty("concurrencyScale", 32L)))
                 .transactionEnable()
                 .closeOnJvmShutdown()
                 .make();
