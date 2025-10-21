@@ -109,9 +109,19 @@ Host: localhost:8080
 Content-Type: text/plain; charset=utf-8
 Authorization: Bearer your-api-token
 X-Email-Processor: robin-smtp
+Hostname: mail.example.com
+Direction: INBOUND
+UID: 1234567890abcdef
+TLS: true
+EHLO: client.example.com
+Username: authenticated-user
+SenderIP: 192.168.1.100
+SenderRDNS: client.example.com
+Sender: tony@example.com
+Recipients: pepper@example.com,happy@example.com
 
-From: sender@example.com
-To: recipient@example.com
+From: tony@example.com
+To: pepper@example.com, happy@example.com
 Subject: Test Email
 
 This is the raw email content...
@@ -125,6 +135,17 @@ Host: localhost:8080
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: base64
 Authorization: Bearer your-api-token
+X-Email-Processor: robin-smtp
+Hostname: mail.example.com
+Direction: INBOUND
+UID: 1234567890abcdef
+TLS: true
+EHLO: client.example.com
+Username: authenticated-user
+SenderIP: 192.168.1.100
+SenderRDNS: client.example.com
+Sender: tony@example.com
+Recipients: pepper@example.com,happy@example.com
 
 RnJvbTogc2VuZGVyQGV4YW1wbGUuY29tClRvOiByZWNpcGllbnRAZXhhbXBsZS5jb20...
 ```
@@ -157,16 +178,38 @@ The standard webhooks receive a JSON payload with the following structure:
 
 ### Request Headers
 
-Standard headers sent with each request:
-- `Content-Type: application/json` (standard webhooks)
+#### Session Headers (All Webhooks)
+
+The following session-related headers are automatically added to **all webhook requests** (both standard and RAW):
+
+- `Hostname` - Server hostname from configuration
+- `Direction` - Session direction (INBOUND/OUTBOUND)
+- `UID` - Unique session identifier
+- `TLS` - Whether STARTTLS was negotiated (true/false)
+- `HELO` - HELO command value (if present)
+- `EHLO` - EHLO command value (if present)  
+- `LHLO` - LHLO command value (if present)
+- `Secure` - Whether connection uses secure port (only if true)
+- `Username` - Authenticated username (if present)
+- `SenderIP` - Client IP address
+- `SenderRDNS` - Client reverse DNS
+
+#### Standard Webhook Headers
+
+Additional headers sent with standard (JSON) webhooks:
+- `Content-Type: application/json`
 - `Accept: application/json`
 - `Authorization: Basic <credentials>` (if authType is "basic")
 - `Authorization: Bearer <token>` (if authType is "bearer")
 - Any custom headers specified in the configuration
 
-RAW webhook headers:
+#### RAW Webhook Headers
+
+Additional headers sent with RAW webhooks:
 - `Content-Type: text/plain; charset=utf-8`
 - `Content-Transfer-Encoding: base64` (only if `base64: true`)
+- `Sender` - MAIL FROM address from the envelope
+- `Recipients` - Comma-separated list of RCPT TO addresses
 - Same authentication and custom headers as above
 
 ## Webhook Response

@@ -2,7 +2,9 @@ package com.mimecast.robin.smtp.webhook;
 
 import com.google.gson.*;
 import com.mimecast.robin.config.server.WebhookConfig;
+import com.mimecast.robin.main.Config;
 import com.mimecast.robin.smtp.connection.Connection;
+import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.smtp.verb.Verb;
 import com.mimecast.robin.util.GsonExclusionStrategy;
 import com.mimecast.robin.util.Magic;
@@ -133,6 +135,7 @@ public class WebhookCaller {
             conn.setReadTimeout(config.getTimeout());
 
             // Set headers.
+            addSessionHeaders(conn, connection.getSession());
             conn.setRequestProperty("Content-Type", "application/json");
             conn.setRequestProperty("Accept", "application/json");
 
@@ -170,6 +173,31 @@ public class WebhookCaller {
         } finally {
             conn.disconnect();
         }
+    }
+
+    /**
+     * Adds session headers to connection.
+     *
+     * @param conn    HTTP connection.
+     * @param session Session instance.
+     */
+    private static void addSessionHeaders(HttpURLConnection conn, Session session) {
+        conn.setRequestProperty("Hostname", Config.getServer().getHostname());
+        conn.setRequestProperty("Direction", session.getDirection().toString());
+        conn.setRequestProperty("UID", session.getUID());
+        conn.setRequestProperty("TLS", String.valueOf(session.isStartTls()));
+        if (session.getHelo() != null)
+            conn.setRequestProperty("HELO", session.getHelo());
+        if (session.getEhlo() != null)
+            conn.setRequestProperty("EHLO", session.getEhlo());
+        if (session.getLhlo() != null)
+            conn.setRequestProperty("LHLO", session.getLhlo());
+        if (session.isSecurePort())
+            conn.setRequestProperty("Secure", "true");
+        if (session.getUsername() != null)
+            conn.setRequestProperty("Username", session.getUsername());
+        conn.setRequestProperty("SenderIP", session.getFriendAddr());
+        conn.setRequestProperty("SenderRDNS", session.getFriendRdns());
     }
 
     /**
@@ -292,8 +320,8 @@ public class WebhookCaller {
      * Calls RAW webhook with email content as text/plain.
      * This is called after successful DATA processing.
      *
-     * @param config   Webhook configuration.
-     * @param filePath Path to email file.
+     * @param config     Webhook configuration.
+     * @param filePath   Path to email file.
      * @param connection Connection instance.
      * @return WebhookResponse.
      */
@@ -313,8 +341,8 @@ public class WebhookCaller {
     /**
      * Calls RAW webhook synchronously.
      *
-     * @param config   Webhook configuration.
-     * @param filePath Path to email file.
+     * @param config     Webhook configuration.
+     * @param filePath   Path to email file.
      * @param connection Connection instance.
      * @return WebhookResponse.
      */
@@ -333,8 +361,8 @@ public class WebhookCaller {
     /**
      * Calls RAW webhook asynchronously.
      *
-     * @param config   Webhook configuration.
-     * @param filePath Path to email file.
+     * @param config     Webhook configuration.
+     * @param filePath   Path to email file.
      * @param connection Connection instance.
      */
     private static void callRawAsync(WebhookConfig config, String filePath, Connection connection) {
@@ -352,8 +380,8 @@ public class WebhookCaller {
     /**
      * Executes RAW HTTP request to webhook.
      *
-     * @param config   Webhook configuration.
-     * @param filePath Path to email file.
+     * @param config     Webhook configuration.
+     * @param filePath   Path to email file.
      * @param connection Connection instance.
      * @return WebhookResponse.
      * @throws IOException If request fails.
@@ -369,11 +397,12 @@ public class WebhookCaller {
             conn.setReadTimeout(config.getTimeout());
 
             // Set headers.
+            addSessionHeaders(conn, connection.getSession());
+            conn.setRequestProperty("Sender", connection.getSession().getEnvelopes().getLast().getMail());
+            conn.setRequestProperty("Recipients", String.join(",", connection.getSession().getEnvelopes().getLast().getRcpts()));
+            conn.setRequestProperty("Content-Type", "text/plain; charset=utf-8");
             if (config.isBase64()) {
-                conn.setRequestProperty("Content-Type", "text/plain; charset=utf-8");
                 conn.setRequestProperty("Content-Transfer-Encoding", "base64");
-            } else {
-                conn.setRequestProperty("Content-Type", "text/plain; charset=utf-8");
             }
             conn.setRequestProperty("Accept", "application/json");
 
