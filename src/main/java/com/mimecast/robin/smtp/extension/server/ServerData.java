@@ -6,6 +6,7 @@ import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
+import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.mimecast.robin.smtp.verb.BdatVerb;
 import com.mimecast.robin.smtp.verb.Verb;
 import com.mimecast.robin.smtp.webhook.WebhookCaller;
@@ -57,6 +58,9 @@ public class ServerData extends ServerProcessor {
             log.debug("Received: {} bytes", bytesReceived);
         }
 
+        // Track successful email receipt.
+        SmtpMetrics.incrementEmailReceiptSuccess();
+
         return true;
     }
 
@@ -74,7 +78,7 @@ public class ServerData extends ServerProcessor {
         // Read email lines and store to disk.
         StorageClient storageClient = asciiRead("eml");
 
-        // Call RAW webhook after successful storage
+        // Call RAW webhook after successful storage.
         callRawWebhook();
 
         Optional<ScenarioConfig> opt = connection.getScenario();
@@ -126,8 +130,6 @@ public class ServerData extends ServerProcessor {
             StorageClient storageClient = Factories.getStorageClient(connection, "eml");
             CountingOutputStream cos = new CountingOutputStream(storageClient.getStream());
 
-            // Call RAW webhook after successful storage
-            callRawWebhook();
             binaryRead(bdatVerb, cos);
             bytesReceived = cos.getByteCount();
 
@@ -135,6 +137,9 @@ public class ServerData extends ServerProcessor {
                 log.debug("Last chunk received.");
                 storageClient.save();
             }
+
+            // Call RAW webhook after successful storage.
+            callRawWebhook();
 
             // Scenario response or accept.
             scenarioResponse(connection.getSession().getUID());

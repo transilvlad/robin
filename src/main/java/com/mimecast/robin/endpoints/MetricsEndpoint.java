@@ -7,6 +7,7 @@ import com.mimecast.robin.metrics.MetricsRegistry;
 import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.queue.RetryScheduler;
 import com.mimecast.robin.smtp.SmtpListener;
+import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import io.micrometer.core.instrument.Clock;
@@ -63,6 +64,9 @@ public class MetricsEndpoint {
         MetricsRegistry.register(prometheusRegistry, graphiteRegistry);
 
         bindJvmMetrics();
+
+        // Initialize SMTP metrics so they appear with zero values at startup
+        SmtpMetrics.initialize();
 
         int metricsPort = Config.getServer().getMetricsPort();
         server = HttpServer.create(new InetSocketAddress(metricsPort), 10);

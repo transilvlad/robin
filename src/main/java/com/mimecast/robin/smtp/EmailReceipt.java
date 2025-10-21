@@ -5,6 +5,7 @@ import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Extensions;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.extension.Extension;
+import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.smtp.verb.Verb;
 import com.mimecast.robin.smtp.webhook.WebhookCaller;
@@ -92,6 +93,9 @@ public class EmailReceipt implements Runnable {
         try {
             connection.write(String.format(SmtpResponses.GREETING_220, Config.getServer().getHostname(), connection.getSession().getRdns(), connection.getSession().getDate()));
 
+            // Track successful connection.
+            SmtpMetrics.incrementEmailReceiptStart();
+
             Verb verb;
             for (int i = 0; i < transactionsLimit; i++) {
                 String read = connection.read().trim();
@@ -109,15 +113,17 @@ public class EmailReceipt implements Runnable {
                 if (verb.getCommand().equalsIgnoreCase("quit") || errorLimit <= 0) {
                     if (errorLimit <= 0) {
                         log.warn("Error limit reached.");
+                        SmtpMetrics.incrementEmailReceiptLimit();
                     }
                     break;
                 }
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
+            SmtpMetrics.incrementEmailReceiptException(e.getClass().getSimpleName());
             log.info("Error reading/writing: {}", e.getMessage());
+        } finally {
+            connection.close();
         }
-
-        connection.close();
     }
 
     /**

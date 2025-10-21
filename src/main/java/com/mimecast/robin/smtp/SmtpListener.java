@@ -1,6 +1,7 @@
 package com.mimecast.robin.smtp;
 
 import com.mimecast.robin.config.server.ListenerConfig;
+import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -116,6 +117,7 @@ public class SmtpListener {
                         new EmailReceipt(sock, secure, submission).run();
 
                     } catch (Exception e) {
+                        SmtpMetrics.incrementEmailReceiptException(e.getClass().getSimpleName());
                         log.error("Email receipt unexpected exception: {}", e.getMessage());
                     }
                     return null;
