@@ -58,7 +58,7 @@ class MainTest {
         List<String> logs = MainMock.main(null, localHttpsServer.getPort());
 
         assertEquals("java -jar mta-sts.jar", logs.get(0));
-        assertEquals(" SMTP MTA Strict Transport Security", logs.get(1));
+        assertEquals(" Robin MTA-STS client tool", logs.get(1));
         assertEquals("", logs.get(2));
         assertEquals("usage:   [-d <arg>] [-f <arg>] [-j] [-m <arg>]\n" +
                 " -d,--domain <arg>   Domain\n" +
@@ -73,7 +73,7 @@ class MainTest {
         List<String> logs = MainMock.main(new String[0], localHttpsServer.getPort());
 
         assertEquals("java -jar mta-sts.jar", logs.get(0));
-        assertEquals(" SMTP MTA Strict Transport Security", logs.get(1));
+        assertEquals(" Robin MTA-STS client tool", logs.get(1));
         assertEquals("", logs.get(2));
         assertEquals("usage:   [-d <arg>] [-f <arg>] [-j] [-m <arg>]\n" +
                 " -d,--domain <arg>   Domain\n" +
@@ -93,7 +93,7 @@ class MainTest {
         List<String> logs = MainMock.main(argv.toArray(new String[0]), localHttpsServer.getPort());
 
         assertEquals("java -jar mta-sts.jar", logs.get(0));
-        assertEquals(" SMTP MTA Strict Transport Security", logs.get(1));
+        assertEquals(" Robin MTA-STS client tool", logs.get(1));
         assertEquals("", logs.get(2));
         assertEquals("usage:   [-d <arg>] [-f <arg>] [-j] [-m <arg>]\n" +
                 " -d,--domain <arg>   Domain\n" +

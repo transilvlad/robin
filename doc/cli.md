@@ -2,11 +2,12 @@ Command line usage
 ==================
 
     java -jar robin.jar
-     MTA development, debug and testing tool
+     MTA server and tester
 
-    usage:
+    usage:   [--client] [--mtasts] [--server]
         --client   Run as client
         --server   Run as server
+        --mtasts   Run as MTA-STS client
 
 Client
 ------
@@ -14,7 +15,7 @@ Client
     java -jar robin.jar --client
      Email delivery client
 
-    usage:
+    usage:   [-c <arg>] [-f <arg>] [-h] [-j <arg>] [-m <arg>] [-p <arg>] [-r <arg>] [-x <arg>]
      -c,--conf <arg>   Path to configuration dir (Default: cfg/)
      -f,--file <arg>   EML file to send
      -h,--help         Show usage help
@@ -28,13 +29,25 @@ Server
 ------
 
     java -jar robin.jar --server
-     Debug MTA server
+     MTA server
 
-    usage:
+    usage: [<arg>]
      Path to configuration directory
 
     example:
      java -jar robin.jar --server cfg/
+
+MTA-STS
+-------
+    java -jar robin.jar --mtasts
+     Robin MTA-STS client tool
+
+    usage:   [-d <arg>] [-f <arg>] [-j] [-m <arg>]
+     -d,--domain <arg>   Domain
+     -f,--file <arg>     Write policy details to JSON file
+     -j,--json           Show policy details as JSON
+     -m,--mx <arg>       MX to match against policy MX masks
+
 
 Common
 ------

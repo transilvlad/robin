@@ -47,16 +47,21 @@ public class Main {
      *
      * @param args String array.
      */
-    public static void main(String[] args) throws InstantiationException, NoSuchAlgorithmException, KeyStoreException {
+    public static void main(String[] args) {
         System.setProperty("com.sun.net.ssl.checkRevocation", "true");
         Security.setProperty("ocsp.enable", "true");
 
-        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-        trustManagerFactory.init((KeyStore) null);
+        try {
+            TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            trustManagerFactory.init((KeyStore) null);
 
-        strictTransportSecurity = new StrictTransportSecurity(
-                new XBillDnsRecordClient(),
-                new OkHttpsPolicyClient((X509TrustManager) trustManagerFactory.getTrustManagers()[0]));
+            strictTransportSecurity = new StrictTransportSecurity(
+                    new XBillDnsRecordClient(),
+                    new OkHttpsPolicyClient((X509TrustManager) trustManagerFactory.getTrustManagers()[0]));
+        } catch (NoSuchAlgorithmException | KeyStoreException | InstantiationException e) {
+            System.out.println("Error initializing application: " + e.getMessage());
+            return;
+        }
 
         new Main(args);
     }
@@ -244,7 +249,7 @@ public class Main {
      */
     private void optionsUsage(Options options) {
         log("java -jar mta-sts.jar");
-        log(" SMTP MTA Strict Transport Security");
+        log(" Robin MTA-STS client tool");
         log("");
 
         StringWriter out = new StringWriter();

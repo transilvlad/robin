@@ -26,7 +26,7 @@ public class ServerCLI {
     /**
      * Listener description.
      */
-    private static final String DESCRIPTION = "Debug MTA server";
+    private static final String DESCRIPTION = "MTA server";
 
     /**
      * Constructs a new ServerCLI instance.

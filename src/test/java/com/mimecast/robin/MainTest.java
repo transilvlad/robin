@@ -18,8 +18,9 @@ class MainTest {
         assertEquals(Main.USAGE, logs.get(0));
         assertEquals(" " + Main.DESCRIPTION, logs.get(1));
         assertEquals("", logs.get(2));
-        assertEquals("usage:   [--client] [--server]\n" +
+        assertEquals("usage:   [--client] [--mtasts] [--server]\n" +
                 "    --client   Run as client\n" +
+                "    --mtasts   Run as MTA-STS client\n" +
                 "    --server   Run as server\n", logs.get(3).replaceAll("\r", ""));
         assertEquals("", logs.get(4));
     }
@@ -31,8 +32,9 @@ class MainTest {
         assertEquals(Main.USAGE, logs.get(0));
         assertEquals(" " + Main.DESCRIPTION, logs.get(1));
         assertEquals("", logs.get(2));
-        assertEquals("usage:   [--client] [--server]\n" +
+        assertEquals("usage:   [--client] [--mtasts] [--server]\n" +
                 "    --client   Run as client\n" +
+                "    --mtasts   Run as MTA-STS client\n" +
                 "    --server   Run as server\n", logs.get(3).replaceAll("\r", ""));
         assertEquals("", logs.get(4));
     }
@@ -90,7 +92,7 @@ class MainTest {
         List<String> logs = MainMock.main(Collections.singletonList("--server"));
 
         assertEquals("java -jar robin.jar --server", logs.get(0));
-        assertEquals(" Debug MTA server", logs.get(1));
+        assertEquals(" MTA server", logs.get(1));
         assertEquals("", logs.get(2));
         assertEquals("usage:", logs.get(3));
         assertEquals(" Path to configuration directory", logs.get(4));

@@ -14,10 +14,11 @@
  * <h2>CLI usage:</h2>
  * <pre>
  *      $ java -jar robin.jar
- *      MTA development, debug and testing tool
+ *      MTA server and tester
  *
- *      usage:
+ *      usage:   [--client] [--mtasts] [--server]
  *      --client   Run as client
+ *      --mtasts   Run as MTA-STS client
  *      --server   Run as server
  * </pre>
  *
@@ -26,7 +27,7 @@
  *      $ java -jar robin.jar --client
  *      Email delivery client
  *
- *      usage:
+ *      usage:   [-c <arg>] [-f <arg>] [-h] [-j <arg>] [-m <arg>] [-p <arg>] [-r <arg>] [-x <arg>]
  *      -c,--conf &lt;arg&gt;    Path to configuration dir (Default: cfg/)
  *      -f,--file &lt;arg&gt;    EML file to send
  *      -h,--help         Show usage help
@@ -37,12 +38,24 @@
  *      -x,--mx &lt;arg&gt;      Server to connect to
  * </pre>
  *
+ * <h2>CLI usage MTA-STS:</h2>
+ * <pre>
+ *      $ java -jar robin.jar --mtasts
+ *      MTA-STS client
+ *
+ *      usage:   [-d <arg>] [-f <arg>] [-j] [-m <arg>]
+ *      -d,--domain &lt;arg&gt;   Domain
+ *      -f,--file &lt;arg&gt;     Write policy details to JSON file
+ *      -j,--json           Show policy details as JSON
+ *      -m,--mx &lt;arg&gt;       MX to match against policy MX masks
+ * </pre>
+ *
  * <h2>CLI usage server:</h2>
  * <pre>
  *      $ java -jar robin.jar --server
- *      Debug MTA server
+ *      MTA server
  *
- *      usage:
+ *      usage:   <arg>
  *      Path to configuration directory
  *
  *      example:

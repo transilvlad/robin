@@ -6,6 +6,9 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.config.Configurator;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -39,7 +42,7 @@ public class Main {
     /**
      * Application description.
      */
-    public static final String DESCRIPTION = "MTA development, debug and testing tool";
+    public static final String DESCRIPTION = "MTA server and tester";
 
     private String[] args;
 
@@ -60,6 +63,9 @@ public class Main {
     Main(String[] args) {
         this.args = args;
 
+        // Disable logging.
+        Configurator.setAllLevels(LogManager.getRootLogger().getName(), Level.OFF);
+
         // Parse options.
         Optional<CommandLine> opt = parseArgs(options());
 
@@ -76,6 +82,12 @@ public class Main {
             else if (cmd.hasOption("server")) {
                 purgeArg("--server");
                 ServerCLI.main(this);
+            }
+
+            // Run MTA-STS library.
+            else if (cmd.hasOption("mtasts")) {
+                purgeArg("--mtasts");
+                com.mimecast.robin.mx.Main.main(args);
             }
 
             // Show usage.
@@ -100,6 +112,7 @@ public class Main {
         Options options = new Options();
         options.addOption(null, "client", false, "Run as client");
         options.addOption(null, "server", false, "Run as server");
+        options.addOption(null, "mtasts", false, "Run as MTA-STS client");
         return options;
     }
 
