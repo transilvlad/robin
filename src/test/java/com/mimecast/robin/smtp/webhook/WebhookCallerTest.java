@@ -4,6 +4,7 @@ import com.mimecast.robin.config.server.WebhookConfig;
 import com.mimecast.robin.main.Foundation;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
+import com.mimecast.robin.smtp.connection.ConnectionMock;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.smtp.verb.Verb;
 import com.sun.net.httpserver.HttpServer;
@@ -406,7 +407,7 @@ class WebhookCallerTest {
         configMap.put("enabled", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString());
+        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
 
         assertTrue(response.isSuccess());
         assertEquals(200, response.getStatusCode());
@@ -441,7 +442,7 @@ class WebhookCallerTest {
         configMap.put("base64", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString());
+        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
 
         assertTrue(response.isSuccess());
         assertEquals(200, response.getStatusCode());
@@ -478,7 +479,7 @@ class WebhookCallerTest {
         configMap.put("base64", true);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString());
+        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
 
         assertTrue(response.isSuccess());
         assertEquals(200, response.getStatusCode());
@@ -524,7 +525,7 @@ class WebhookCallerTest {
         configMap.put("base64", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString());
+        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
 
         // Async returns immediately with success.
         assertTrue(response.isSuccess());
@@ -565,7 +566,7 @@ class WebhookCallerTest {
         configMap.put("base64", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString());
+        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
 
         assertTrue(response.isSuccess());
         assertNotNull(authHeader.get());
@@ -605,7 +606,7 @@ class WebhookCallerTest {
 
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString());
+        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
 
         assertTrue(response.isSuccess());
         assertEquals("RawValue", customHeader.get());
@@ -636,7 +637,7 @@ class WebhookCallerTest {
         configMap.put("base64", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString());
+        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
 
         assertFalse(response.isSuccess());
         assertEquals(500, response.getStatusCode());
@@ -662,7 +663,7 @@ class WebhookCallerTest {
         configMap.put("base64", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString());
+        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
 
         // With ignoreErrors, the call is considered successful at this level.
         assertTrue(response.isSuccess());
@@ -758,7 +759,7 @@ class WebhookCallerTest {
         configMap.put("ignoreErrors", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, "/nonexistent/file.eml");
+        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, "/nonexistent/file.eml", new ConnectionMock());
 
         assertFalse(response.isSuccess());
         assertEquals(500, response.getStatusCode());

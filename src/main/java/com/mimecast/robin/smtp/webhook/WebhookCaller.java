@@ -11,10 +11,7 @@ import com.mimecast.robin.util.Magic;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -348,7 +345,11 @@ public class WebhookCaller {
      */
     private static WebhookResponse callRawSync(WebhookConfig config, String filePath, Connection connection) {
         try {
-            return executeRawHttpRequest(config, filePath, connection);
+            var response = executeRawHttpRequest(config, filePath, connection);
+            if (config.isIgnoreErrors()) {
+                return new WebhookResponse(200, "", true);
+            }
+            return response;
         } catch (Exception e) {
             log.error("RAW webhook call failed: {}", e.getMessage(), e);
             if (config.isIgnoreErrors()) {
@@ -398,8 +399,12 @@ public class WebhookCaller {
 
             // Set headers.
             addSessionHeaders(conn, connection.getSession());
-            conn.setRequestProperty("Sender", connection.getSession().getEnvelopes().getLast().getMail());
-            conn.setRequestProperty("Recipients", String.join(",", connection.getSession().getEnvelopes().getLast().getRcpts()));
+            if (!connection.getSession().getEnvelopes().isEmpty()) {
+                conn.setRequestProperty("Sender", connection.getSession().getEnvelopes().getLast().getMail());
+                conn.setRequestProperty("Recipients", String.join(",", connection.getSession().getEnvelopes().getLast().getRcpts()));
+            } else {
+                log.error("No envelope available for RAW webhook call");
+            }
             conn.setRequestProperty("Content-Type", "text/plain; charset=utf-8");
             if (config.isBase64()) {
                 conn.setRequestProperty("Content-Transfer-Encoding", "base64");
@@ -449,12 +454,12 @@ public class WebhookCaller {
      */
     private static void sendRawEmailContent(HttpURLConnection conn, String filePath, boolean base64) throws IOException {
         try (OutputStream os = conn.getOutputStream();
-             java.io.FileInputStream fis = new java.io.FileInputStream(filePath)) {
+             FileInputStream fis = new FileInputStream(filePath)) {
 
             if (base64) {
                 // Base64 encode the content.
                 byte[] buffer = new byte[8192];
-                java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 int bytesRead;
                 while ((bytesRead = fis.read(buffer)) != -1) {
                     baos.write(buffer, 0, bytesRead);
