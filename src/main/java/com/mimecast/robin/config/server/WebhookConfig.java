@@ -117,7 +117,7 @@ public class WebhookConfig extends BasicConfig {
      * @return Boolean.
      */
     public boolean isIncludeEnvelope() {
-        return getBooleanProperty("includeEnvelopes", true);
+        return getBooleanProperty("includeEnvelope", true);
     }
 
     /**
@@ -130,93 +130,11 @@ public class WebhookConfig extends BasicConfig {
     }
 
     /**
-     * Whether this is a RAW webhook (for DATA extension only).
-     * RAW webhooks post the email content as text/plain instead of JSON.
-     *
-     * @return Boolean.
-     */
-    public boolean isRaw() {
-        return getBooleanProperty("raw", false);
-    }
-
-    /**
      * Whether to base64 encode the RAW email content.
      *
      * @return Boolean.
      */
-    public boolean isRawBase64() {
-        return getBooleanProperty("rawBase64", false);
-    }
-
-    /**
-     * Gets RAW webhook URL (separate from main webhook URL).
-     *
-     * @return RAW URL string.
-     */
-    public String getRawUrl() {
-        return getStringProperty("rawUrl", "");
-    }
-
-    /**
-     * Gets RAW webhook HTTP method.
-     *
-     * @return HTTP method string.
-     */
-    public String getRawMethod() {
-        return getStringProperty("rawMethod", "POST");
-    }
-
-    /**
-     * Gets RAW webhook timeout in milliseconds.
-     *
-     * @return Timeout value.
-     */
-    public int getRawTimeout() {
-        return Math.toIntExact(getLongProperty("rawTimeout", 10000L));
-    }
-
-    /**
-     * Whether to wait for RAW webhook response.
-     *
-     * @return Boolean.
-     */
-    public boolean isRawWaitForResponse() {
-        return getBooleanProperty("rawWaitForResponse", false);
-    }
-
-    /**
-     * Whether to ignore errors from RAW webhook.
-     *
-     * @return Boolean.
-     */
-    public boolean isRawIgnoreErrors() {
-        return getBooleanProperty("rawIgnoreErrors", true);
-    }
-
-    /**
-     * Gets RAW webhook authentication type.
-     *
-     * @return Auth type string.
-     */
-    public String getRawAuthType() {
-        return getStringProperty("rawAuthType", "none");
-    }
-
-    /**
-     * Gets RAW webhook authentication value.
-     *
-     * @return Auth value string.
-     */
-    public String getRawAuthValue() {
-        return getStringProperty("rawAuthValue", "");
-    }
-
-    /**
-     * Gets RAW webhook custom headers.
-     *
-     * @return Headers map.
-     */
-    public Map<String, String> getRawHeaders() {
-        return (Map<String, String>) getMapProperty("rawHeaders");
+    public boolean isBase64() {
+        return getBooleanProperty("base64", false);
     }
 }

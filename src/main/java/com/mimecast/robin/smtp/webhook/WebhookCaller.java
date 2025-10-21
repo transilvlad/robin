@@ -297,11 +297,11 @@ public class WebhookCaller {
      * @return WebhookResponse.
      */
     public static WebhookResponse callRaw(WebhookConfig config, String filePath) {
-        if (!config.isRaw() || config.getRawUrl().isEmpty()) {
+        if (!config.isEnabled() || config.getUrl().isEmpty()) {
             return new WebhookResponse(200, "", true);
         }
 
-        if (config.isRawWaitForResponse()) {
+        if (config.isWaitForResponse()) {
             return callRawSync(config, filePath);
         } else {
             callRawAsync(config, filePath);
@@ -321,7 +321,7 @@ public class WebhookCaller {
             return executeRawHttpRequest(config, filePath);
         } catch (Exception e) {
             log.error("RAW webhook call failed: {}", e.getMessage(), e);
-            if (config.isRawIgnoreErrors()) {
+            if (config.isIgnoreErrors()) {
                 return new WebhookResponse(200, "", true);
             }
             return new WebhookResponse(500, e.getMessage(), false);
@@ -339,7 +339,7 @@ public class WebhookCaller {
             try {
                 executeRawHttpRequest(config, filePath);
             } catch (Exception e) {
-                if (!config.isRawIgnoreErrors()) {
+                if (!config.isIgnoreErrors()) {
                     log.error("Async RAW webhook call failed: {}", e.getMessage(), e);
                 }
             }
@@ -355,17 +355,17 @@ public class WebhookCaller {
      * @throws IOException If request fails.
      */
     private static WebhookResponse executeRawHttpRequest(WebhookConfig config, String filePath) throws IOException {
-        URI uri = URI.create(config.getRawUrl());
+        URI uri = URI.create(config.getUrl());
         HttpURLConnection conn = (HttpURLConnection) uri.toURL().openConnection();
 
         try {
             // Set method and timeout.
-            conn.setRequestMethod(config.getRawMethod());
-            conn.setConnectTimeout(config.getRawTimeout());
-            conn.setReadTimeout(config.getRawTimeout());
+            conn.setRequestMethod(config.getMethod());
+            conn.setConnectTimeout(config.getTimeout());
+            conn.setReadTimeout(config.getTimeout());
 
             // Set headers.
-            if (config.isRawBase64()) {
+            if (config.isBase64()) {
                 conn.setRequestProperty("Content-Type", "text/plain; charset=utf-8");
                 conn.setRequestProperty("Content-Transfer-Encoding", "base64");
             } else {
@@ -374,10 +374,10 @@ public class WebhookCaller {
             conn.setRequestProperty("Accept", "application/json");
 
             // Add authentication.
-            addRawAuthentication(conn, config);
+            addAuthentication(conn, config, null);
 
             // Add custom headers.
-            Map<String, String> headers = config.getRawHeaders();
+            Map<String, String> headers = config.getHeaders();
             if (headers != null) {
                 for (Map.Entry<String, String> header : headers.entrySet()) {
                     conn.setRequestProperty(header.getKey(), header.getValue());
@@ -385,19 +385,19 @@ public class WebhookCaller {
             }
 
             // Send email content for POST/PUT/PATCH.
-            if ("POST".equalsIgnoreCase(config.getRawMethod()) ||
-                    "PUT".equalsIgnoreCase(config.getRawMethod()) ||
-                    "PATCH".equalsIgnoreCase(config.getRawMethod())) {
+            if ("POST".equalsIgnoreCase(config.getMethod()) ||
+                    "PUT".equalsIgnoreCase(config.getMethod()) ||
+                    "PATCH".equalsIgnoreCase(config.getMethod())) {
 
                 conn.setDoOutput(true);
-                sendRawEmailContent(conn, filePath, config.isRawBase64());
+                sendRawEmailContent(conn, filePath, config.isBase64());
             }
 
             // Get response.
             int statusCode = conn.getResponseCode();
             String responseBody = readResponse(conn, statusCode);
 
-            log.info("RAW webhook called successfully: {} - Status: {}", config.getRawUrl(), statusCode);
+            log.info("RAW webhook called successfully: {} - Status: {}", config.getUrl(), statusCode);
             return new WebhookResponse(statusCode, responseBody, statusCode >= 200 && statusCode < 300);
 
         } finally {
@@ -405,23 +405,6 @@ public class WebhookCaller {
         }
     }
 
-    /**
-     * Adds authentication to RAW connection.
-     *
-     * @param conn   HTTP connection.
-     * @param config Webhook configuration.
-     */
-    private static void addRawAuthentication(HttpURLConnection conn, WebhookConfig config) {
-        String authType = config.getRawAuthType();
-        String authValue = config.getRawAuthValue();
-
-        if ("basic".equalsIgnoreCase(authType) && !authValue.isEmpty()) {
-            String encoded = java.util.Base64.getEncoder().encodeToString(authValue.getBytes(StandardCharsets.UTF_8));
-            conn.setRequestProperty("Authorization", "Basic " + encoded);
-        } else if ("bearer".equalsIgnoreCase(authType) && !authValue.isEmpty()) {
-            conn.setRequestProperty("Authorization", "Bearer " + authValue);
-        }
-    }
 
     /**
      * Sends raw email content to webhook.

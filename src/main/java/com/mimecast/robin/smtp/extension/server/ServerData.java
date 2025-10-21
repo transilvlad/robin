@@ -183,23 +183,23 @@ public class ServerData extends ServerProcessor {
     }
 
     /**
-     * Calls RAW webhook if configured for DATA extension.
-     * This posts the raw email content as text/plain to the webhook endpoint.
+     * Calls RAW webhook if configured.
      */
     private void callRawWebhook() {
         try {
             Map<String, WebhookConfig> webhooks = Config.getServer().getWebhooks();
 
-            if (webhooks.containsKey("data")) {
-                WebhookConfig config = webhooks.get("data");
+            String filePath = connection.getSession().getEnvelopes().isEmpty() ? null :
+                    connection.getSession().getEnvelopes().getLast().getFile();
+            if (filePath == null || filePath.isEmpty()) {
+                return;
+            }
 
-                if (config.isRaw() && !connection.getSession().getEnvelopes().isEmpty()) {
-                    String filePath = connection.getSession().getEnvelopes().getLast().getFile();
-
-                    if (filePath != null && !filePath.isEmpty()) {
-                        log.debug("Calling RAW webhook for DATA extension with file: {}", filePath);
-                        WebhookCaller.callRaw(config, filePath);
-                    }
+            if (webhooks.containsKey("raw")) {
+                WebhookConfig rawCfg = webhooks.get("raw");
+                if (rawCfg.isEnabled()) {
+                    log.debug("Calling RAW webhook with file: {}", filePath);
+                    WebhookCaller.callRaw(rawCfg, filePath);
                 }
             }
         } catch (Exception e) {

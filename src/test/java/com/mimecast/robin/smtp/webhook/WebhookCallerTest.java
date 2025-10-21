@@ -107,7 +107,7 @@ class WebhookCallerTest {
         configMap.put("waitForResponse", true);
         configMap.put("ignoreErrors", false);
         configMap.put("includeSession", true);
-        configMap.put("includeEnvelopes", true);
+        configMap.put("includeEnvelope", true);
         configMap.put("includeVerb", true);
         return new WebhookConfig(configMap);
     }
@@ -401,10 +401,9 @@ class WebhookCallerTest {
     }
 
     @Test
-    void testCallRawWithDisabledRaw() {
+    void testCallRawWithDisabled() {
         Map<String, Object> configMap = new HashMap<>();
-        configMap.put("enabled", true);
-        configMap.put("raw", false);
+        configMap.put("enabled", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
         WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString());
@@ -434,13 +433,12 @@ class WebhookCallerTest {
         String url = "http://localhost:" + mockServerPort + "/raw-webhook";
         Map<String, Object> configMap = new HashMap<>();
         configMap.put("enabled", true);
-        configMap.put("raw", true);
-        configMap.put("rawUrl", url);
-        configMap.put("rawMethod", "POST");
-        configMap.put("rawTimeout", 5000);
-        configMap.put("rawWaitForResponse", true);
-        configMap.put("rawIgnoreErrors", false);
-        configMap.put("rawBase64", false);
+        configMap.put("url", url);
+        configMap.put("method", "POST");
+        configMap.put("timeout", 5000);
+        configMap.put("waitForResponse", true);
+        configMap.put("ignoreErrors", false);
+        configMap.put("base64", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
         WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString());
@@ -472,13 +470,12 @@ class WebhookCallerTest {
         String url = "http://localhost:" + mockServerPort + "/raw-webhook";
         Map<String, Object> configMap = new HashMap<>();
         configMap.put("enabled", true);
-        configMap.put("raw", true);
-        configMap.put("rawUrl", url);
-        configMap.put("rawMethod", "POST");
-        configMap.put("rawTimeout", 5000);
-        configMap.put("rawWaitForResponse", true);
-        configMap.put("rawIgnoreErrors", false);
-        configMap.put("rawBase64", true);
+        configMap.put("url", url);
+        configMap.put("method", "POST");
+        configMap.put("timeout", 5000);
+        configMap.put("waitForResponse", true);
+        configMap.put("ignoreErrors", false);
+        configMap.put("base64", true);
         WebhookConfig config = new WebhookConfig(configMap);
 
         WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString());
@@ -520,12 +517,11 @@ class WebhookCallerTest {
         String url = "http://localhost:" + mockServerPort + "/raw-webhook";
         Map<String, Object> configMap = new HashMap<>();
         configMap.put("enabled", true);
-        configMap.put("raw", true);
-        configMap.put("rawUrl", url);
-        configMap.put("rawMethod", "POST");
-        configMap.put("rawTimeout", 5000);
-        configMap.put("rawWaitForResponse", false); // Async mode.
-        configMap.put("rawBase64", false);
+        configMap.put("url", url);
+        configMap.put("method", "POST");
+        configMap.put("timeout", 5000);
+        configMap.put("waitForResponse", false); // Async mode.
+        configMap.put("base64", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
         WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString());
@@ -560,14 +556,13 @@ class WebhookCallerTest {
         String url = "http://localhost:" + mockServerPort + "/raw-webhook";
         Map<String, Object> configMap = new HashMap<>();
         configMap.put("enabled", true);
-        configMap.put("raw", true);
-        configMap.put("rawUrl", url);
-        configMap.put("rawMethod", "POST");
-        configMap.put("rawTimeout", 5000);
-        configMap.put("rawWaitForResponse", true);
-        configMap.put("rawAuthType", "bearer");
-        configMap.put("rawAuthValue", "rawtoken456");
-        configMap.put("rawBase64", false);
+        configMap.put("url", url);
+        configMap.put("method", "POST");
+        configMap.put("timeout", 5000);
+        configMap.put("waitForResponse", true);
+        configMap.put("authType", "bearer");
+        configMap.put("authValue", "rawtoken456");
+        configMap.put("base64", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
         WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString());
@@ -598,16 +593,15 @@ class WebhookCallerTest {
         String url = "http://localhost:" + mockServerPort + "/raw-webhook";
         Map<String, Object> configMap = new HashMap<>();
         configMap.put("enabled", true);
-        configMap.put("raw", true);
-        configMap.put("rawUrl", url);
-        configMap.put("rawMethod", "POST");
-        configMap.put("rawTimeout", 5000);
-        configMap.put("rawWaitForResponse", true);
-        configMap.put("rawBase64", false);
+        configMap.put("url", url);
+        configMap.put("method", "POST");
+        configMap.put("timeout", 5000);
+        configMap.put("waitForResponse", true);
+        configMap.put("base64", false);
 
         Map<String, String> headers = new HashMap<>();
         headers.put("X-Raw-Header", "RawValue");
-        configMap.put("rawHeaders", headers);
+        configMap.put("headers", headers);
 
         WebhookConfig config = new WebhookConfig(configMap);
 
@@ -634,13 +628,12 @@ class WebhookCallerTest {
         String url = "http://localhost:" + mockServerPort + "/raw-webhook";
         Map<String, Object> configMap = new HashMap<>();
         configMap.put("enabled", true);
-        configMap.put("raw", true);
-        configMap.put("rawUrl", url);
-        configMap.put("rawMethod", "POST");
-        configMap.put("rawTimeout", 5000);
-        configMap.put("rawWaitForResponse", true);
-        configMap.put("rawIgnoreErrors", false);
-        configMap.put("rawBase64", false);
+        configMap.put("url", url);
+        configMap.put("method", "POST");
+        configMap.put("timeout", 5000);
+        configMap.put("waitForResponse", true);
+        configMap.put("ignoreErrors", false);
+        configMap.put("base64", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
         WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString());
@@ -661,20 +654,19 @@ class WebhookCallerTest {
         String url = "http://localhost:" + mockServerPort + "/raw-webhook";
         Map<String, Object> configMap = new HashMap<>();
         configMap.put("enabled", true);
-        configMap.put("raw", true);
-        configMap.put("rawUrl", url);
-        configMap.put("rawMethod", "POST");
-        configMap.put("rawTimeout", 5000);
-        configMap.put("rawWaitForResponse", true);
-        configMap.put("rawIgnoreErrors", true);
-        configMap.put("rawBase64", false);
+        configMap.put("url", url);
+        configMap.put("method", "POST");
+        configMap.put("timeout", 5000);
+        configMap.put("waitForResponse", true);
+        configMap.put("ignoreErrors", true);
+        configMap.put("base64", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
         WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString());
 
-        // With ignoreErrors, a 500 should still be reported as failure.
-        assertFalse(response.isSuccess());
-        assertEquals(500, response.getStatusCode());
+        // With ignoreErrors, the call is considered successful at this level.
+        assertTrue(response.isSuccess());
+        assertEquals(200, response.getStatusCode());
     }
 
     @ParameterizedTest
@@ -759,12 +751,11 @@ class WebhookCallerTest {
         String url = "http://localhost:" + mockServerPort + "/raw-webhook";
         Map<String, Object> configMap = new HashMap<>();
         configMap.put("enabled", true);
-        configMap.put("raw", true);
-        configMap.put("rawUrl", url);
-        configMap.put("rawMethod", "POST");
-        configMap.put("rawTimeout", 5000);
-        configMap.put("rawWaitForResponse", true);
-        configMap.put("rawIgnoreErrors", false);
+        configMap.put("url", url);
+        configMap.put("method", "POST");
+        configMap.put("timeout", 5000);
+        configMap.put("waitForResponse", true);
+        configMap.put("ignoreErrors", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
         WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, "/nonexistent/file.eml");

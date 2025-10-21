@@ -7,8 +7,8 @@
  * }
  *
  * If no "smtpResponse" is provided:
- * - HTTP 200 OK: Extension will process normally
- * - HTTP 4xx/5xx: Returns "451 4.3.2 Internal server error" unless ignoreErrors is true
+ * - HTTP 200 OK: Extension will process normally.
+ * - HTTP 4xx/5xx: Returns "451 4.3.2 Internal server error" unless ignoreErrors is true.
  *
  * Webhook Payload Format:
  * {
@@ -22,56 +22,56 @@
  * }
  */
 {
-  // Webhook configurations for SMTP extensions
-  // Each extension can have its own webhook configuration
+  // Webhook configurations for SMTP extensions.
+  // Each extension can have its own webhook configuration.
 
-  // EHLO/HELO/LHLO - Initial connection command
+  // EHLO/HELO/LHLO - Initial connection command.
   "ehlo": {
-    // Enable webhook for this extension
+    // Enable webhook for this extension.
     enabled: false,
 
-    // Webhook endpoint URL
-    url: "http://localhost:8080/webhooks/ehlo",
+    // Webhook endpoint URL.
+    url: "http://localhost:8000/webhooks/ehlo",
 
-    // HTTP method (GET, POST, PUT, PATCH, DELETE)
+    // HTTP method (GET, POST, PUT, PATCH, DELETE).
     method: "POST",
 
-    // Timeout in milliseconds
+    // Timeout in milliseconds.
     timeout: 5000,
 
-    // Wait for webhook response before processing extension
+    // Wait for webhook response before processing extension.
     waitForResponse: true,
 
-    // Ignore errors and continue processing if webhook fails
+    // Ignore errors and continue processing if webhook fails.
     ignoreErrors: false,
 
     // Tip: headers and authValue below are supported via Magic replacement.
 
-    // Authentication type: none, basic, bearer
+    // Authentication type: none, basic, bearer.
     authType: "none",
 
-    // Authentication value (username:password for basic, token for bearer)
+    // Authentication value (username:password for basic, token for bearer).
     authValue: "",
 
-    // Include session data in payload
+    // Include session data in payload.
     includeSession: true,
 
-    // Include envelope data in payload
+    // Include envelope data in payload.
     includeEnvelope: true,
 
-    // Include verb data in payload
+    // Include verb data in payload.
     includeVerb: true,
 
-    // Custom HTTP headers
+    // Custom HTTP headers.
     headers: {
       "X-Custom-Header": "value"
     }
   },
 
-  // STARTTLS - TLS negotiation command
+  // STARTTLS - TLS negotiation command.
   "starttls": {
     enabled: false,
-    url: "http://localhost:8080/webhooks/starttls",
+    url: "http://localhost:8000/webhooks/starttls",
     method: "POST",
     timeout: 3000,
     waitForResponse: true,
@@ -84,10 +84,10 @@
     headers: {}
   },
 
-  // AUTH - Authentication command
+  // AUTH - Authentication command.
   "auth": {
     enabled: false,
-    url: "http://localhost:8080/webhooks/auth",
+    url: "http://localhost:8000/webhooks/auth",
     method: "POST",
     timeout: 5000,
     waitForResponse: true,
@@ -102,10 +102,10 @@
     }
   },
 
-  // MAIL FROM - Sender command
+  // MAIL FROM - Sender command.
   "mail": {
     enabled: false,
-    url: "http://localhost:8080/webhooks/mail",
+    url: "http://localhost:8000/webhooks/mail",
     method: "POST",
     timeout: 5000,
     waitForResponse: true,
@@ -118,10 +118,10 @@
     headers: {}
   },
 
-  // RCPT TO - Recipient command
+  // RCPT TO - Recipient command.
   "rcpt": {
     enabled: false,
-    url: "http://localhost:8080/webhooks/rcpt",
+    url: "http://localhost:8000/webhooks/rcpt",
     method: "POST",
     timeout: 5000,
     waitForResponse: true,
@@ -134,10 +134,10 @@
     headers: {}
   },
 
-  // DATA - Message data command
+  // DATA - Message data command.
   "data": {
     enabled: false,
-    url: "http://localhost:8080/webhooks/data",
+    url: "http://localhost:8000/webhooks/data",
     method: "POST",
     timeout: 10000,
     waitForResponse: true,
@@ -147,47 +147,48 @@
     includeSession: true,
     includeEnvelope: true,
     includeVerb: true,
-    headers: {},
+    headers: {}
+  },
 
-    // RAW webhook configuration (called AFTER successful DATA processing)
-    // Posts the raw email content as text/plain
-    raw: true,
-    rawUrl: "http://localhost:8080/webhooks/data/raw",
-    rawMethod: "POST",
-    rawTimeout: 10000,
-    rawWaitForResponse: false, // Fire and forget for performance
-    rawIgnoreErrors: true, // Don't fail email delivery if webhook fails
-    rawBase64: false, // Set to true to base64 encode email content
-    rawAuthType: "bearer",
-    rawAuthValue: "your-raw-webhook-token",
-    rawHeaders: {
+  // BDAT - Binary data command (CHUNKING).
+  "bdat": {
+    enabled: false,
+    url: "http://localhost:8000/webhooks/bdat",
+    method: "POST",
+    timeout: 10000,
+    waitForResponse: true,
+    ignoreErrors: false,
+    authType: "none",
+    authValue: "",
+    includeSession: true,
+    includeEnvelope: true,
+    includeVerb: true,
+    headers: {}
+  },
+
+  // RAW - Raw message content webhook (called AFTER successful DATA/BDAT).
+  "raw": {
+    enabled: false,
+    url: "http://localhost:8000/webhooks/data/raw",
+    method: "POST",
+    timeout: 10000,
+    waitForResponse: false, // Fire and forget for performance.
+    ignoreErrors: true, // Don't fail email delivery if webhook fails.
+    base64: false, // Set to true to base64 encode email content.
+    authType: "bearer",
+    authValue: "your-raw-webhook-token",
+    headers: {
       "X-Email-Processor": "robin-smtp"
     }
   },
 
-  // BDAT - Binary data command (CHUNKING)
-  "bdat": {
-    enabled: false,
-    url: "http://localhost:8080/webhooks/bdat",
-    method: "POST",
-    timeout: 10000,
-    waitForResponse: true,
-    ignoreErrors: false,
-    authType: "none",
-    authValue: "",
-    includeSession: true,
-    includeEnvelope: true,
-    includeVerb: true,
-    headers: {}
-  },
-
-  // RSET - Reset transaction command
+  // RSET - Reset transaction command.
   "rset": {
     enabled: false,
-    url: "http://localhost:8080/webhooks/rset",
+    url: "http://localhost:8000/webhooks/rset",
     method: "POST",
     timeout: 3000,
-    waitForResponse: false, // Fire and forget
+    waitForResponse: false, // Fire and forget.
     ignoreErrors: true,
     authType: "none",
     authValue: "",
@@ -197,10 +198,10 @@
     headers: {}
   },
 
-  // HELP - Help command
+  // HELP - Help command.
   "help": {
     enabled: false,
-    url: "http://localhost:8080/webhooks/help",
+    url: "http://localhost:8000/webhooks/help",
     method: "POST",
     timeout: 3000,
     waitForResponse: false,
@@ -213,13 +214,13 @@
     headers: {}
   },
 
-  // QUIT - Connection close command
+  // QUIT - Connection close command.
   "quit": {
     enabled: false,
-    url: "http://localhost:8080/webhooks/quit",
+    url: "http://localhost:8000/webhooks/quit",
     method: "POST",
     timeout: 3000,
-    waitForResponse: false, // Don't wait for response on quit
+    waitForResponse: false, // Don't wait for response on quit.
     ignoreErrors: true,
     authType: "none",
     authValue: "",
@@ -229,10 +230,10 @@
     headers: {}
   },
 
-  // LHLO - LMTP HELO command (same handler as ehlo)
+  // LHLO - LMTP HELO command (same handler as ehlo).
   "lhlo": {
     enabled: false,
-    url: "http://localhost:8080/webhooks/lhlo",
+    url: "http://localhost:8000/webhooks/lhlo",
     method: "POST",
     timeout: 5000,
     waitForResponse: true,
