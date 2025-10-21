@@ -199,7 +199,7 @@ public class ServerData extends ServerProcessor {
                 WebhookConfig rawCfg = webhooks.get("raw");
                 if (rawCfg.isEnabled()) {
                     log.debug("Calling RAW webhook with file: {}", filePath);
-                    WebhookCaller.callRaw(rawCfg, filePath);
+                    WebhookCaller.callRaw(rawCfg, filePath, connection);
                 }
             }
         } catch (Exception e) {

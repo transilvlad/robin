@@ -294,17 +294,18 @@ public class WebhookCaller {
      *
      * @param config   Webhook configuration.
      * @param filePath Path to email file.
+     * @param connection Connection instance.
      * @return WebhookResponse.
      */
-    public static WebhookResponse callRaw(WebhookConfig config, String filePath) {
+    public static WebhookResponse callRaw(WebhookConfig config, String filePath, Connection connection) {
         if (!config.isEnabled() || config.getUrl().isEmpty()) {
             return new WebhookResponse(200, "", true);
         }
 
         if (config.isWaitForResponse()) {
-            return callRawSync(config, filePath);
+            return callRawSync(config, filePath, connection);
         } else {
-            callRawAsync(config, filePath);
+            callRawAsync(config, filePath, connection);
             return new WebhookResponse(200, "", true);
         }
     }
@@ -314,11 +315,12 @@ public class WebhookCaller {
      *
      * @param config   Webhook configuration.
      * @param filePath Path to email file.
+     * @param connection Connection instance.
      * @return WebhookResponse.
      */
-    private static WebhookResponse callRawSync(WebhookConfig config, String filePath) {
+    private static WebhookResponse callRawSync(WebhookConfig config, String filePath, Connection connection) {
         try {
-            return executeRawHttpRequest(config, filePath);
+            return executeRawHttpRequest(config, filePath, connection);
         } catch (Exception e) {
             log.error("RAW webhook call failed: {}", e.getMessage(), e);
             if (config.isIgnoreErrors()) {
@@ -333,11 +335,12 @@ public class WebhookCaller {
      *
      * @param config   Webhook configuration.
      * @param filePath Path to email file.
+     * @param connection Connection instance.
      */
-    private static void callRawAsync(WebhookConfig config, String filePath) {
+    private static void callRawAsync(WebhookConfig config, String filePath, Connection connection) {
         CompletableFuture.runAsync(() -> {
             try {
-                executeRawHttpRequest(config, filePath);
+                executeRawHttpRequest(config, filePath, connection);
             } catch (Exception e) {
                 if (!config.isIgnoreErrors()) {
                     log.error("Async RAW webhook call failed: {}", e.getMessage(), e);
@@ -351,10 +354,11 @@ public class WebhookCaller {
      *
      * @param config   Webhook configuration.
      * @param filePath Path to email file.
+     * @param connection Connection instance.
      * @return WebhookResponse.
      * @throws IOException If request fails.
      */
-    private static WebhookResponse executeRawHttpRequest(WebhookConfig config, String filePath) throws IOException {
+    private static WebhookResponse executeRawHttpRequest(WebhookConfig config, String filePath, Connection connection) throws IOException {
         URI uri = URI.create(config.getUrl());
         HttpURLConnection conn = (HttpURLConnection) uri.toURL().openConnection();
 
@@ -374,7 +378,7 @@ public class WebhookCaller {
             conn.setRequestProperty("Accept", "application/json");
 
             // Add authentication.
-            addAuthentication(conn, config, null);
+            addAuthentication(conn, config, connection);
 
             // Add custom headers.
             Map<String, String> headers = config.getHeaders();
