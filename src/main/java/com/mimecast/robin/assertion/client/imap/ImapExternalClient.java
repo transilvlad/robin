@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableList;
 import com.mimecast.robin.assertion.AssertException;
 import com.mimecast.robin.assertion.AssertExternalGroup;
 import com.mimecast.robin.assertion.client.MatchExternalClient;
+import com.mimecast.robin.imap.ImapClient;
 import com.mimecast.robin.util.Magic;
 import com.mimecast.robin.util.Sleep;
 import jakarta.mail.Message;

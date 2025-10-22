@@ -8,7 +8,7 @@ Overview
 <img align="right" width="200" height="200" src="doc/img/robin.jpg" alt="Logo">
 Robin MTA Server and Tester is a development, debug and testing tool for MTA architects.
 
-However as the name suggests it can also be used as a lightweight MTA server with Dovecot SASL AUTH and mailbox integration.
+However, as the name suggests it can also be used as a lightweight MTA server with Dovecot SASL AUTH and mailbox integration.
 
 It is powered by a highly customizable SMTP client designed to emulate the behaviour of popular email clients.
 
@@ -21,7 +21,7 @@ Cases are client configuration files ran as Junit tests leveraging CI/CD integra
 This project can be compiled into a runnable JAR or built into a Docker container as a stand alone MTA or combined with Dovecot.
 
 A CLI interface is implemented with support for client, server and MTA-STS client execution.
-Robin makes use of the single responsibility principle whenever possible providing stand alone tools and libraries most notably an MTA-STS java implementation library.
+Robin makes use of the single responsibility principle whenever possible providing stand-alone tools and libraries most notably an MTA-STS implementation.
 
 Use this to run end-to-end tests manually or in automation.
 This helps identify bugs early before leaving the development and staging environments.
@@ -52,7 +52,7 @@ This project makes use of sample password as needed for testing and demonstratio
 - giveHerTheRing - Another sample used in unit tests and documentation. (Tony Stark / Pepper Pots Easter egg)
 - avengers - Test keystore password that contains a single entry issued to Tony Stark. (Another Easter egg)
 
-**These passwords are not in use within our production environments.**
+**These passwords are not in use within production environments.**
 
 
 Documentation
@@ -66,8 +66,8 @@ Documentation
 ### MTA Server
 - [Server configuration](doc/server.md)
 - [SMTP webhooks](doc/webhooks.md)
-- [Endpoints](doc/endpoints.md) - Reusable stand-alone JVM metrics implementation library.
-- [Prometheus Remote Write](doc/prometheus.md) - Reusable Prometheus Remote Write implementation library.
+- [Endpoints](doc/endpoints.md) - JVM metrics implementation.
+- [Prometheus Remote Write](doc/prometheus.md) - Prometheus Remote Write implementation.
 
 ### Testing cases
 - [E/SMTP Cases](doc/case.md)
@@ -80,9 +80,10 @@ Documentation
 - [Flowchart](doc/flowchart.md)
 
 ### Libraries
-- [MTA-STS](doc/lib/mta-sts/readme.md) - Former MTA-STS project now reusable implementation library.
-- [Dovecot SASL](doc/lib/dovecot-sasl.md) - Reusable Dovecot SASL authentication implementation library.
-- [MIME Parsing and Building](doc/lib/mime.md) - Reusable RFC 2822 email parsing and composition library.
+- [MTA-STS](doc/lib/mta-sts/readme.md) - Former MTA-STS project now reusable implementation.
+- [Dovecot SASL](doc/lib/dovecot-sasl.md) - Dovecot SASL authentication implementation.
+- [MIME Parsing and Building](doc/lib/mime.md) - RFC 2822 email parsing and composition.
+- [IMAP helper](doc/lib/imap.md) - Lightweight Jakarta Mail helper used by tests and utilities to fetch messages from an IMAP folder.
 
 ### Miscellaneous
 - [Contributing](contributing.md)
