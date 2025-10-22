@@ -6,7 +6,7 @@ These endpoints are served by a lightweight HTTP server and provide insights int
 
 All endpoints are available under the port configured in `server.json5` - `metricsPort` parameter.
 
-<img src="endpoint-metrics.jpg" alt="Metrics Endpoints Diagram" style="max-width: 1200px;"/>
+<img src="img/endpoint-metrics.jpg" alt="Metrics Endpoints Diagram" style="max-width: 1200px;"/>
 
 Endpoints
 ---------
@@ -145,7 +145,7 @@ The following endpoints are available:
 Client Submission Endpoint
 --------------------------
 
-<img src="endpoint-client.jpg" alt="Metrics Endpoints Diagram" style="max-width: 1200px;"/>
+<img src="img/endpoint-client.jpg" alt="Metrics Endpoints Diagram" style="max-width: 1200px;"/>
 
 - **`POST /client/send`** — Executes a client case and returns the final SMTP session as JSON.
   - Accepts either:

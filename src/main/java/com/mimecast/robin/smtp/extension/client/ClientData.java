@@ -1,5 +1,7 @@
 package com.mimecast.robin.smtp.extension.client;
 
+import com.mimecast.robin.config.client.LoggingConfig;
+import com.mimecast.robin.main.Config;
 import com.mimecast.robin.mime.EmailBuilder;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
@@ -90,6 +92,8 @@ public class ClientData extends ClientProcessor {
             try (Closeable ignored = () -> Files.delete(path)) {
                 Magic.putTransactionMagic(messageID, connection.getSession()); // Put magic early for EmailBuilder use.
                 new EmailBuilder(connection.getSession(), envelope)
+                        .setLogTextPartsBody((new LoggingConfig(Config.getProperties().getMapProperty("logging"))
+                                .getBooleanProperty("textPartBody", false)))
                         .buildMime()
                         .writeTo(new FileOutputStream(path.toFile()));
 

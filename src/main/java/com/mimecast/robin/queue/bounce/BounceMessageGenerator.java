@@ -1,5 +1,6 @@
 package com.mimecast.robin.queue.bounce;
 
+import com.mimecast.robin.config.client.LoggingConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.mime.EmailBuilder;
 import com.mimecast.robin.mime.parts.TextMimePart;
@@ -45,6 +46,8 @@ public class BounceMessageGenerator {
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
         try {
             new EmailBuilder(relaySession.getSession(), new MessageEnvelope())
+                    .setLogTextPartsBody((new LoggingConfig(Config.getProperties().getMapProperty("logging"))
+                            .getBooleanProperty("textPartBody", false)))
                     .addHeader("Subject", "Delivery Status Notification (Failure)")
                     .addHeader("To", recipient)
                     .addHeader("From", "Mail Delivery Subsystem <mailer-daemon@" + Config.getServer().getHostname() + ">")

@@ -5,7 +5,7 @@ By **Vlad Marian** *<transilvlad@gmail.com>*
 
 Overview
 --------
-<img align="right" width="200" height="200" src="doc/logo.jpg" alt="Logo">
+<img align="right" width="200" height="200" src="doc/img/robin.jpg" alt="Logo">
 Robin MTA Server and Tester is a development, debug and testing tool for MTA architects.
 
 However as the name suggests it can also be used as a lightweight MTA server with Dovecot SASL AUTH and mailbox integration.
@@ -79,8 +79,10 @@ Documentation
 - [Plugins](doc/plugins.md)
 - [Flowchart](doc/flowchart.md)
 
-### MTA-STS Library
-- [MTA-STS](doc/mta-sts/readme.md) - Former MTA-STS project now reusable implementation library.
+### Libraries
+- [MTA-STS](doc/lib/mta-sts/readme.md) - Former MTA-STS project now reusable implementation library.
+- [Dovecot SASL](doc/lib/dovecot-sasl.md) - Reusable Dovecot SASL authentication implementation library.
+- [MIME Parsing and Building](doc/lib/mime.md) - Reusable RFC 2822 email parsing and composition library.
 
 ### Miscellaneous
 - [Contributing](contributing.md)

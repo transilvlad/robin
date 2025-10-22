@@ -11,6 +11,7 @@ import com.mimecast.robin.smtp.verb.Verb;
 import org.apache.commons.codec.binary.Base64;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Optional;
 
 /**
@@ -73,7 +74,7 @@ public class ServerAuth extends ServerProcessor {
             if (!connection.getSession().getUsername().isEmpty()) {
                 // Check if users are enabled in configuration and try and authenticate if so.
                 if (Config.getServer().getDovecot().getBooleanProperty("auth")) {
-                    try (DovecotSaslAuthNative dovecotSaslAuthNative = new DovecotSaslAuthNative()) {
+                    try (DovecotSaslAuthNative dovecotSaslAuthNative = new DovecotSaslAuthNative(Path.of(Config.getServer().getDovecot().getStringProperty("authSocket")))) {
                         // Attempt to authenticate against Dovecot.
                         if (dovecotSaslAuthNative.authenticate(
                                 authVerb.getType(),

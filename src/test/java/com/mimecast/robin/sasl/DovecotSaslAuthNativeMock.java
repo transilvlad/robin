@@ -9,7 +9,7 @@ import java.io.ByteArrayOutputStream;
 public class DovecotSaslAuthNativeMock extends DovecotSaslAuthNative {
 
     public DovecotSaslAuthNativeMock(String response) {
-        super();
+        super(null);
         this.inputStream = new ByteArrayInputStream((response + "\n").getBytes());
     }
 

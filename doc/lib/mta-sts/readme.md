@@ -3,7 +3,7 @@ MTA-STS
 
 Overview
 --------
-<img align="right" width="200" height="200" src="logo.png">
+<img align="right" width="200" height="200" src="../img/mta-sts.png">
 SMTP MTA Strict Transport Security
 
 This is a Java implementation of MTA-STS with support for TLSRPT record fetching.

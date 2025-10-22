@@ -11,6 +11,7 @@ import com.mimecast.robin.smtp.verb.Verb;
 import javax.mail.internet.AddressException;
 import javax.mail.internet.InternetAddress;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
 
@@ -33,7 +34,7 @@ public class ServerRcpt extends ServerMail {
 
         // Check if users are enabled in configuration and try and authenticate if so.
         if (Config.getServer().getDovecot().getBooleanProperty("auth")) {
-            try (DovecotSaslAuthNative dovecotSaslAuthNative = new DovecotSaslAuthNative()) {
+            try (DovecotSaslAuthNative dovecotSaslAuthNative = new DovecotSaslAuthNative(Path.of(Config.getServer().getDovecot().getStringProperty("authSocket")))) {
                 if (!dovecotSaslAuthNative.validate(new MailVerb(verb).getAddress().getAddress(), "smtp")) {
                     connection.write(String.format(SmtpResponses.UNKNOWN_MAILBOX_550, connection.getSession().getUID()));
                     return false;

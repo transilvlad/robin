@@ -212,4 +212,4 @@ Additional Notes
 ----------------
 The code returns an empty list when strict filtering yields no matches instead of returning the unfiltered MX list. This explicit behavior lets you decide whether to trust fallback or enforce policy strictly.
 
-See also: `doc/mta-sts/mta-sts.md` for protocol fundamentals and policy structure.
+See also: `doc/lib/mta-sts/mta-sts.md` for protocol fundamentals and policy structure.
