@@ -80,10 +80,11 @@ Documentation
 - [Flowchart](doc/flowchart.md)
 
 ### Libraries
-- [MTA-STS](doc/lib/mta-sts/readme.md) - Former MTA-STS project now reusable implementation.
+- [MTA-STS](doc/lib/mta-sts/readme.md) - MTA-STS compliant MX resolver implementation (former MTA-STS library).
 - [Dovecot SASL](doc/lib/dovecot-sasl.md) - Dovecot SASL authentication implementation.
-- [MIME Parsing and Building](doc/lib/mime.md) - RFC 2822 email parsing and composition.
-- [IMAP helper](doc/lib/imap.md) - Lightweight Jakarta Mail helper used by tests and utilities to fetch messages from an IMAP folder.
+- [IMAP helper](doc/lib/imap.md) - Lightweight Jakarta Mail IMAP client.
+- [MIME Parsing and Building](doc/lib/mime.md) - Lightweight RFC 2822 email parsing and composition.
+- [HTTP Request Client](doc/lib/request.md) - Lightweight HTTP request client.
 
 ### Miscellaneous
 - [Contributing](contributing.md)

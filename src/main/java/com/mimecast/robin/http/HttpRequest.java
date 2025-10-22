@@ -11,43 +11,71 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * HTTP/S request container.
+ * HTTP/S request container used across the project.
+ *
+ * <p>This class is a lightweight mutable container that represents the pieces
+ * required to perform an HTTP request. It is used by the project's internal
+ * HTTP client implementations and by higher-level utilities (for example
+ * {@code RequestBase}) to build requests in a fluent, programmatic way.
+ *
+ * <p>Behavior summary:
+ * <ul>
+ *   <li>The URL is immutable after construction.</li>
+ *   <li>The request method defaults to {@code GET} unless supplied otherwise.</li>
+ *   <li>Headers and parameters are stored as maps and can be added with the
+ *       fluent {@code addHeader} and {@code addParam} helpers.</li>
+ *   <li>Files are expressed as a map of parameter name to a pair of
+ *       {@code (filePath, mimeType)} used for multipart uploads.</li>
+ *   <li>Textual content is stored in {@link #content} as a {@code Pair<String, String>}:
+ *       value and MIME type. When present, transports typically ignore
+ *       {@link #params} and {@link #files}.</li>
+ *   <li>Binary payloads may be stored in {@link #object} as a
+ *       {@code Pair<byte[], String>} (bytes and MIME type) and are treated
+ *       similarly to {@link #content} by transports.</li>
+ *   <li>The class is mutable and NOT thread-safe. Create a new instance per
+ *       request or synchronize externally when necessary.</li>
+ * </ul>
+ *
+ * <p>Note: {@link #toString()} purposefully filters the {@code Authorization}
+ * header when rendering headers to avoid leaking secrets in logs.
  */
 public class HttpRequest {
 
     /**
-     * Request URL.
+     * Request URL (immutable after construction).
      */
     private final String url;
 
     /**
-     * Request method.
-     * <p>Default: GET
+     * Request method. Default is GET.
      */
     private HttpMethod method = HttpMethod.GET;
 
     /**
-     * Headers container.
+     * Headers container. Mutable map of header-name -> header-value.
      */
     private final Map<String, String> headers = new HashMap<>();
 
     /**
-     * Parameters container.
+     * Parameters container. Typically used for form parameters in POST requests.
      */
     private final Map<String, String> params = new HashMap<>();
 
     /**
-     * Files container.
+     * Files container for multipart form uploads.
+     * Key: form parameter name; Value: Pair(filePath, mimeType).
      */
     private final Map<String, Pair<String, String>> files = new HashMap<>();
 
     /**
-     * Content container.
+     * Textual content container. Pair<contentString, mimeType>.
+     * When set, transports commonly will not send {@link #params} or {@link #files}.
      */
     private Pair<String, String> content;
 
     /**
-     * Object container.
+     * Binary object container. Pair<bytes, mimeType>.
+     * Acts similarly to {@link #content} but for raw binary payloads.
      */
     private Pair<byte[], String> object;
 
