@@ -5,6 +5,7 @@ import com.mimecast.robin.endpoints.RobinMetricsEndpoint;
 import com.mimecast.robin.metrics.MetricsCron;
 import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.smtp.SmtpListener;
+import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.mimecast.robin.storage.StorageCleaner;
 
 import javax.naming.ConfigurationException;
@@ -96,7 +97,10 @@ public class Server extends Foundation {
 
         // Start metrics endpoint.
         try {
-            new RobinMetricsEndpoint().start();
+            new RobinMetricsEndpoint().start(Config.getServer().getMetricsPort());
+
+            // Initialize SMTP metrics so they appear with zero values at startup.
+            SmtpMetrics.initialize();
         } catch (IOException e) {
             log.error("Unable to start monitoring endpoint: {}", e.getMessage());
         }

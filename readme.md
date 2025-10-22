@@ -27,7 +27,7 @@ Use this to run end-to-end tests manually or in automation.
 This helps identify bugs early before leaving the development and staging environments.
 
 Or set up the MTA server and configure it with for your mailbox hosting, API infrastructure or bespoke needs.
-best do both since Robin is both an MTA and MTA tester :)
+Best do both since Robin is both an MTA and MTA tester :)
 
 Contributions
 -------------
@@ -66,8 +66,8 @@ Documentation
 ### MTA Server
 - [Server configuration](doc/server.md)
 - [SMTP webhooks](doc/webhooks.md)
-- [Endpoints](doc/endpoints.md) - Reusable stand-alone JVM metrics implementation.
-- [Prometheus Remote Write](doc/prometheus.md) - Reusable Prometheus Remote Write implementation.
+- [Endpoints](doc/endpoints.md) - Reusable stand-alone JVM metrics implementation library.
+- [Prometheus Remote Write](doc/prometheus.md) - Reusable Prometheus Remote Write implementation library.
 
 ### Testing cases
 - [E/SMTP Cases](doc/case.md)
@@ -80,8 +80,10 @@ Documentation
 - [Flowchart](doc/flowchart.md)
 
 ### MTA-STS Library
-- [MTA-STS](doc/mta-sts/readme.md) - Former MTA-STS library (stand-alone implementation).
+- [MTA-STS](doc/mta-sts/readme.md) - Former MTA-STS project now reusable implementation library.
 
 ### Miscellaneous
 - [Contributing](contributing.md)
 - [Code of conduct](code_of_conduct.md)
+
+_Robin is designed with single responsibility principle in mind and thus provides reusable components for various tasks._

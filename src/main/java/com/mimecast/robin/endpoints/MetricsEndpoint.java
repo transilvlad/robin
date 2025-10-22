@@ -1,8 +1,6 @@
 package com.mimecast.robin.endpoints;
 
-import com.mimecast.robin.main.Config;
 import com.mimecast.robin.metrics.MetricsRegistry;
-import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import io.micrometer.core.instrument.Clock;
@@ -38,7 +36,7 @@ import java.util.stream.Collectors;
 public class MetricsEndpoint {
     private static final Logger log = LogManager.getLogger(MetricsEndpoint.class);
 
-    private HttpServer server;
+    protected HttpServer server;
     private PrometheusMeterRegistry prometheusRegistry;
     private GraphiteMeterRegistry graphiteRegistry;
     private JvmGcMetrics jvmGcMetrics;
@@ -49,21 +47,16 @@ public class MetricsEndpoint {
      * <p>This method initializes metric registries, binds JVM metrics, creates HTTP contexts for all endpoints,
      * and sets up shutdown hooks for graceful termination.
      *
+     * @param metricsPort The port on which the HTTP server will listen for incoming requests.
      * @throws IOException If an I/O error occurs during server startup.
      */
-    public void start() throws IOException {
+    public void start(int metricsPort) throws IOException {
         prometheusRegistry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
         graphiteRegistry = getGraphiteMeterRegistry();
         MetricsRegistry.register(prometheusRegistry, graphiteRegistry);
-
         bindJvmMetrics();
 
-        // Initialize SMTP metrics so they appear with zero values at startup
-        SmtpMetrics.initialize();
-
-        int metricsPort = Config.getServer().getMetricsPort();
         server = HttpServer.create(new InetSocketAddress(metricsPort), 10);
-
         createContexts();
         shutdownHooks();
 
@@ -98,7 +91,7 @@ public class MetricsEndpoint {
     /**
      * Creates and registers HTTP context handlers for all supported endpoints.
      */
-    private void createContexts() {
+    protected void createContexts() {
         server.createContext("/", this::handleLandingPage);
         server.createContext("/metrics", this::handleMetricsUi);
         server.createContext("/graphite", this::handleGraphite);

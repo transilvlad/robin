@@ -6,6 +6,7 @@ These endpoints are served by a lightweight HTTP server and provide insights int
 
 All endpoints are available under the port configured in `server.json5` - `metricsPort` parameter.
 
+<img src="endpoint-metrics.jpg" alt="Metrics Endpoints Diagram" style="max-width: 1200px;"/>
 
 Endpoints
 ---------
@@ -144,6 +145,8 @@ The following endpoints are available:
 Client Submission Endpoint
 --------------------------
 
+<img src="endpoint-client.jpg" alt="Metrics Endpoints Diagram" style="max-width: 1200px;"/>
+
 - **`POST /client/send`** — Executes a client case and returns the final SMTP session as JSON.
   - Accepts either:
     - A query parameter `path` with an absolute/relative path to a JSON/JSON5 case file, e.g. `?path=src/test/resources/case.json5`
@@ -195,3 +198,62 @@ Examples
     $body = '{"mx":["127.0.0.1"],"port":25,"envelopes":[{"mail":"tony@example.com","rcpt":["pepper@example.com"],"subject":"Urgent","message":"Send Rescue!"}]}'
     Invoke-RestMethod -Method Post -Uri 'http://localhost:8090/client/send' -ContentType 'application/json' -Body $body
     ```
+
+
+Library Usage
+=============
+
+`MetricsEndpoint` can be used as a standalone library in other Java applications to expose metrics and monitoring endpoints.
+
+Basic Usage
+-----------
+
+To integrate `MetricsEndpoint` into your application:
+
+```java
+import com.mimecast.robin.endpoints.MetricsEndpoint;
+
+// In your application initialization method:
+MetricsEndpoint metricsEndpoint = new MetricsEndpoint();
+metricsEndpoint.start(8080); // Start on port 8080.
+```
+
+The endpoint will expose all standard monitoring endpoints (`/metrics`, `/prometheus`, `/graphite`, `/health`, etc.) on the specified port.
+
+Extending MetricsEndpoint
+--------------------------
+
+To create a custom metrics endpoint with application-specific statistics, extend `MetricsEndpoint`:
+
+```java
+import com.mimecast.robin.endpoints.MetricsEndpoint;
+import com.sun.net.httpserver.HttpExchange;
+import java.io.IOException;
+import java.time.Duration;
+
+public class CustomMetricsEndpoint extends MetricsEndpoint {
+    @Override
+    protected void handleHealth(HttpExchange exchange) throws IOException {
+        // Call parent implementation or create custom response.
+        Duration uptime = Duration.ofMillis(System.currentTimeMillis() - startTime);
+        String customStats = ""; // Your custom JSON metrics here.
+        String response = String.format(
+            "{\"status\":\"UP\", \"uptime\":\"%s\", \"customData\":%s}",
+            uptime, customStats);
+        
+        sendResponse(exchange, 200, "application/json; charset=utf-8", response);
+    }
+}
+```
+
+Protected Methods and Fields
+----------------------------
+
+`MetricsEndpoint` provides the following protected members for extension:
+
+- `protected HttpServer server` - The underlying HTTP server instance for context creation.
+- `protected final long startTime` - Application start time in milliseconds.
+- `protected void handleHealth(HttpExchange exchange)` - Override to customize the `/health` endpoint.
+- `protected void createContexts()` - Override to customize the HTTP context creation.
+- `protected void sendResponse(HttpExchange exchange, int code, String contentType, String response)` - Send HTTP responses.
+- `protected void sendError(HttpExchange exchange, int code, String message)` - Send HTTP error responses.
