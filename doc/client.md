@@ -2,9 +2,66 @@ Client
 ======
 Highly customizable SMTP client.
 
+Configuration
+-------------
+Client core configuration lives in `client.json5`.
 
-Usage
------
+External files (auto‑loaded if present in same directory):
+- `routes.json5` Static routing table for deterministic target selection for testing.
+
+Minimal `client.json5` example (core connection & email parameters):
+
+    {
+        // Default MX list and port to attempt to deliver the email to.
+        mx: [
+            "example.com"
+        ],
+        port: 25,
+        
+        // Default TLS enablement.
+        tls: true,
+
+        // Default supported protocols and ciphers.
+        protocols: [
+            "TLSv1.2", "TLSv1.3"
+        ],
+        ciphers: [
+            "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+            "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384",
+            "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+            "TLS_DHE_RSA_WITH_AES_256_GCM_SHA384",
+            "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
+            "TLS_DHE_DSS_WITH_AES_256_GCM_SHA384",
+            "TLS_DHE_RSA_WITH_AES_256_CBC_SHA256",
+            "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+            "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256",
+            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+            "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256",
+            "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
+            "TLS_DHE_RSA_WITH_AES_128_CBC_SHA256"
+        ],
+        
+        // Default EHLO to use.
+        ehlo: "example.com",
+
+
+        // Default sender and recipients.
+        mail: "tony@example.com",
+        rcpt: [
+            "happy@example.com"
+        ],
+
+        // Default asserting configuration.
+        assertions: {
+            protocolFails: true, // If SMTP assertion fails, fail test/exit gracefully.
+            verifyFails: true // If external verify checks fail, fail test/exit gracefully.
+        }
+    }
+
+Java usage
+----------
+Programmatic example:
+
     // Run once.
     AnnotationLoader.load(); // Load XCLIENT plugin and others if any.
 
@@ -81,79 +138,3 @@ Usage
 
     // Send.
     new EmailDelivery(session).send();
-
-
-Configuration
--------------
-*client.json5*
-
-    {
-        // Default MX list and port to attempt to deliver the email to.
-        mx: [
-            "example.com"
-        ],
-        port: 25,
-        
-        // Default TLS enablement.
-        tls: true,
-
-        // Default supported protocols and ciphers.
-        protocols: [
-            "TLSv1.2", "TLSv1.3"
-        ],
-        ciphers: [
-            "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
-            "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384",
-            "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
-            "TLS_DHE_RSA_WITH_AES_256_GCM_SHA384",
-            "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
-            "TLS_DHE_DSS_WITH_AES_256_GCM_SHA384",
-            "TLS_DHE_RSA_WITH_AES_256_CBC_SHA256",
-            "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
-            "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256",
-            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-            "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256",
-            "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
-            "TLS_DHE_RSA_WITH_AES_128_CBC_SHA256"
-        ],
-        
-        // Default EHLO to use.
-        ehlo: "example.com",
-
-
-        // Default sender and recipients.
-        mail: "tony@example.com",
-        rcpt: [
-            "happy@example.com"
-        ],
-
-        // Default asserting configuration.
-        assertions: {
-            protocolFails: true, // If SMTP assertion fails, fail test/exit gracefully.
-            verifyFails: true // If external verify checks fail, fail test/exit gracefully.
-        },
-
-        // Predefined delivery routes to use instead of MX and port.
-        routes: [
-            {
-                name: "com",
-                mx: [
-                    "example.com"
-                ],
-                port: 25
-            },
-            
-            {
-                name: "net",
-                mx: [
-                    "example.net"
-                ],
-                port: 465,
-
-                // Enable authentication when using this route.
-                auth: true,
-                user: "tony@example.com",
-                pass: "giveHerTheRing"
-            }
-        ]
-    }

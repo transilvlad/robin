@@ -51,25 +51,33 @@ This project makes use of sample password as needed for testing and demonstratio
 **These passwords are not in use within our production environments.**
 
 
-More...
--------
+Documentation
+-------------
 - [Introduction](doc/introduction.md)
 - [CLI usage](doc/cli.md)
+
+### Java SMTP/E/SMTP/LMTP Client
 - [Client usage](doc/client.md)
+
+### MTA Server
 - [Server configuration](doc/server.md)
 - [SMTP webhooks](doc/webhooks.md)
 - [Endpoints](doc/endpoints.md)
 - [Prometheus Remote Write](doc/prometheus.md)
 
-
+### Testing cases
 - [E/SMTP Cases](doc/case.md)
 - [HTTP/S Cases](doc/case.md)
 - [Magic](doc/magic.md)
 - [MIME](doc/mime.md)
+
+### Server Library
 - [Plugins](doc/plugins.md)
 - [Flowchart](doc/flowchart.md)
 
+### MTA-STS Library
 - [MTA-STS](doc/mta-sts/readme.md) - Former MTA-STS library.
 
+### Miscellaneous
 - [Contributing](contributing.md)
 - [Code of conduct](code_of_conduct.md)
