@@ -1,6 +1,6 @@
 package com.mimecast.robin.storage;
 
-import com.mimecast.robin.config.BasicConfig;
+import com.mimecast.robin.config.server.ServerConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.mime.EmailParser;
@@ -40,7 +40,7 @@ public class LocalStorageClient implements StorageClient {
     /**
      * Enablement.
      */
-    protected BasicConfig config = Config.getServer().getStorage();
+    protected ServerConfig config = Config.getServer();
 
     /**
      * Date.
@@ -99,7 +99,7 @@ public class LocalStorageClient implements StorageClient {
     @Override
     public LocalStorageClient setConnection(Connection connection) {
         this.connection = connection;
-        path = Config.getServer().getStorage().getStringProperty("path", "/tmp/store");
+        path = config.getStorage().getStringProperty("path", "/tmp/store");
 
         // Append first recipient domain/address to path
         if (connection != null && !connection.getSession().getEnvelopes().isEmpty() && !connection.getSession().getEnvelopes().getLast().getRcpts().isEmpty()) {
@@ -123,7 +123,7 @@ public class LocalStorageClient implements StorageClient {
      */
     @Override
     public OutputStream getStream() throws FileNotFoundException {
-        if (config.getBooleanProperty("enabled")) {
+        if (config.getStorage().getBooleanProperty("enabled")) {
             if (PathUtils.makePath(path)) {
                 stream = new FileOutputStream(Paths.get(path, fileName).toString());
             } else {
@@ -151,7 +151,7 @@ public class LocalStorageClient implements StorageClient {
      */
     @Override
     public void save() {
-        if (config.getBooleanProperty("enabled")) {
+        if (config.getStorage().getBooleanProperty("enabled")) {
             try {
                 stream.close();
 
@@ -222,7 +222,7 @@ public class LocalStorageClient implements StorageClient {
      * Save email to Dovecot LDA directly.
      */
     private void saveToDovecotLda() throws IOException {
-        if (config.getBooleanProperty("saveToDovecotLda")) {
+        if (config.getDovecot().getBooleanProperty("saveToDovecotLda")) {
             getDovecotLdaDeliveryInstance().send();
 
             // If there are multiple recipients and one fails bounce recipient instead of throwing an exception.
@@ -241,13 +241,13 @@ public class LocalStorageClient implements StorageClient {
 
                         // Create the envelope.
                         MessageEnvelope envelope = new MessageEnvelope()
-                                .setMail("mailer-daemon@" + Config.getServer().getHostname())
+                                .setMail("mailer-daemon@" + config.getHostname())
                                 .setRcpt(recipient)
                                 .setBytes(bounce.getStream().toByteArray());
                         relaySessionBounce.getSession().addEnvelope(envelope);
 
                         // Queue bounce for delivery using runtime-configured queue file (fallback to default).
-                        File queueFile = new File(Config.getServer().getQueue().getStringProperty(
+                        File queueFile = new File(config.getQueue().getStringProperty(
                                 "queueFile",
                                 RelayQueueCron.QUEUE_FILE.getAbsolutePath()
                         ));
@@ -275,7 +275,7 @@ public class LocalStorageClient implements StorageClient {
     protected DovecotLdaDelivery getDovecotLdaDeliveryInstance() {
         RelaySession relaySession = new RelaySession(connection.getSession());
         if (connection.getSession().isOutbound()) {
-            relaySession.setMailbox(Config.getServer().getDovecot().getStringProperty("outboundMailbox", "Sent"));
+            relaySession.setMailbox(config.getDovecot().getStringProperty("outboundMailbox", "Sent"));
         }
 
         return new DovecotLdaDelivery(relaySession);

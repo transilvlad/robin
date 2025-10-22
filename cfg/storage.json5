@@ -11,9 +11,5 @@
   // Auto clean delete matching filenames only.
   patterns: [
     "^([0-9]{8}\\.)"
-  ],
-
-  // Save a copy of each email to Dovecot LDA.
-  saveToDovecotLda: true
+  ]
 }
-

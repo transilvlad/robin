@@ -5,6 +5,9 @@
   // Path to Dovecot authentication socket.
   authSocket: "/run/dovecot/auth-userdb",
 
+  // Save a copy of each email to Dovecot LDA.
+  saveToDovecotLda: true,
+
   // Path to Dovecot LDA binary.
   ldaBinary: "/usr/libexec/dovecot/dovecot-lda",
 

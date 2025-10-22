@@ -70,8 +70,7 @@ Below are concise examples for each auxiliary config file.
       enabled: true,
       path: "/usr/local/robin/store",
       clean: false,
-      patterns: ["^([0-9]{8}\\.)"],
-      saveToDovecotLda: true
+      patterns: ["^([0-9]{8}\\.)"]
     }
 
 `users.json5` – Static test users (ignored if `dovecot.auth` is true):
@@ -146,7 +145,9 @@ Below are concise examples for each auxiliary config file.
     {
       auth: true,
       authSocket: "/run/dovecot/auth-userdb",
-      ldaBinary: "/usr/libexec/dovecot/dovecot-lda"
+      saveToDovecotLda: true,
+      ldaBinary: "/usr/libexec/dovecot/dovecot-lda",
+      outboundMailbox: "Sent"
     }
 
 `webhooks.json5` – Optional HTTP hooks per SMTP extension (showing one example only):
