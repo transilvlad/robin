@@ -1,5 +1,5 @@
 Robin MTA Server and Tester
-================
+===========================
 By **Vlad Marian** *<transilvlad@gmail.com>*
 
 
@@ -7,23 +7,27 @@ Overview
 --------
 <img align="right" width="200" height="200" src="doc/logo.jpg" alt="Logo">
 Robin MTA Server and Tester is a development, debug and testing tool for MTA architects.
-However as the name suggests it can also be used as a lightweight MTA server with Dovecot AUTH and mailbox integration support.
+
+However as the name suggests it can also be used as a lightweight MTA server with Dovecot SASL AUTH and mailbox integration.
 
 It is powered by a highly customizable SMTP client designed to emulate the behaviour of popular email clients.
-The lightweight server is ideal for a simple configurable catch server for testing or a fully fledged MTA on using Dovecot mailboxes.
 
-The primary usage is done via JSON files called test cases.
-Cases are client configuration files ran as Junit tests.
+The lightweight server is ideal for a simple configurable catch server for testing or a fully fledged MTA using Dovecot mailboxes or web hooks.
+Provides Prometheus and Graphite metrics with Prometheus remote write built in plus a multitude or other handy endpoints.
 
-This project can be compiled into a runnable JAR or built into a Docker container.
+The testing support is done via JSON files called test cases.
+Cases are client configuration files ran as Junit tests leveraging CI/CD integrations.
 
-A CLI interface is implemented with support for both client and server execution.
+This project can be compiled into a runnable JAR or built into a Docker container as a stand alone MTA or combined with Dovecot.
+
+A CLI interface is implemented with support for client, server and MTA-STS client execution.
+Robin makes use of the single responsibility principle whenever possible providing stand alone tools and libraries most notably an MTA-STS java implementation library.
 
 Use this to run end-to-end tests manually or in automation.
 This helps identify bugs early before leaving the development and staging environments.
 
-Or set up a lightweight MTA server for your development and testing needs.
-Or both :)
+Or set up the MTA server and configure it with for your mailbox hosting, API infrastructure or bespoke needs.
+best do both since Robin is both an MTA and MTA tester :)
 
 Contributions
 -------------
