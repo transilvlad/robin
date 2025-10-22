@@ -36,26 +36,30 @@ public class RobinMetricsEndpoint extends MetricsEndpoint {
      */
     @Override
     protected void handleHealth(HttpExchange exchange) throws IOException {
-        log.debug("Handling /health: method={}, uri={}, remote={}",
-                exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
+        if (!auth.isAuthenticated(exchange)) {
+            log.debug("Handling /health: method={}, uri={}, remote={}",
+                    exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
 
-        Duration uptime = Duration.ofMillis(System.currentTimeMillis() - startTime);
-        String uptimeString = String.format("%dd %dh %dm %ds",
-                uptime.toDays(),
-                uptime.toHoursPart(),
-                uptime.toMinutesPart(),
-                uptime.toSecondsPart());
+            Duration uptime = Duration.ofMillis(System.currentTimeMillis() - startTime);
+            String uptimeString = String.format("%dd %dh %dm %ds",
+                    uptime.toDays(),
+                    uptime.toHoursPart(),
+                    uptime.toMinutesPart(),
+                    uptime.toSecondsPart());
 
-        // Final health JSON response.
-        String response = String.format("{\"status\":\"UP\", \"uptime\":\"%s\", \"listeners\":%s, \"queue\":%s, \"scheduler\":%s, \"metricsCron\":%s}",
-                uptimeString,
-                getListenersJson(), // Listener stats.
-                getQueueJson(), // Queue stats and retry histogram.
-                getSchedulerJson(), // Scheduler config and cron stats.
-                getMetricsCronJson() // Metrics cron stats.
-        );
+            // Final health JSON response.
+            String response = String.format("{\"status\":\"UP\", \"uptime\":\"%s\", \"listeners\":%s, \"queue\":%s, \"scheduler\":%s, \"metricsCron\":%s}",
+                    uptimeString,
+                    getListenersJson(), // Listener stats.
+                    getQueueJson(), // Queue stats and retry histogram.
+                    getSchedulerJson(), // Scheduler config and cron stats.
+                    getMetricsCronJson() // Metrics cron stats.
+            );
 
-        sendResponse(exchange, 200, "application/json; charset=utf-8", response);
+            sendResponse(exchange, 200, "application/json; charset=utf-8", response);
+        } else {
+            super.handleHealth(exchange);
+        }
     }
 
     /**

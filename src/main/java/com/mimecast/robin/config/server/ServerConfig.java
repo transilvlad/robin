@@ -281,12 +281,48 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
+     * Gets metrics authentication username.
+     *
+     * @return Username for metrics endpoint authentication, or null if not configured.
+     */
+    public String getMetricsUsername() {
+        return getStringProperty("metricsUsername", null);
+    }
+
+    /**
+     * Gets metrics authentication password.
+     *
+     * @return Password for metrics endpoint authentication, or null if not configured.
+     */
+    public String getMetricsPassword() {
+        return getStringProperty("metricsPassword", null);
+    }
+
+    /**
      * Gets API port for client submission endpoint.
      *
      * @return Port number.
      */
     public int getApiPort() {
         return Math.toIntExact(getLongProperty("apiPort", 8090L));
+    }
+
+    /**
+     * Gets API authentication username.
+     *
+     * @return Username for API endpoint authentication, or null if not configured.
+     */
+    public String getApiUsername() {
+        return getStringProperty("apiUsername", null);
+    }
+
+    /**
+     * Gets API authentication password.
+     *
+     * @return Password for API endpoint authentication, or null if not configured.
+     */
+    public String getApiPassword() {
+        return getStringProperty("apiPassword", null);
     }
 
     /**

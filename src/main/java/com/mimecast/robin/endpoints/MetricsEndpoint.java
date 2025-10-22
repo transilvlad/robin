@@ -41,6 +41,7 @@ public class MetricsEndpoint {
     private GraphiteMeterRegistry graphiteRegistry;
     private JvmGcMetrics jvmGcMetrics;
     protected final long startTime = System.currentTimeMillis();
+    protected HttpBasicAuth auth;
 
     /**
      * Starts the embedded HTTP server for the metrics and management endpoint.
@@ -51,6 +52,22 @@ public class MetricsEndpoint {
      * @throws IOException If an I/O error occurs during server startup.
      */
     public void start(int metricsPort) throws IOException {
+        start(metricsPort, null, null);
+    }
+
+    /**
+     * Starts the embedded HTTP server for the metrics and management endpoint with authentication.
+     * <p>This method initializes metric registries, binds JVM metrics, creates HTTP contexts for all endpoints,
+     * and sets up shutdown hooks for graceful termination.
+     *
+     * @param metricsPort The port on which the HTTP server will listen for incoming requests.
+     * @param username The username for HTTP Basic Authentication (null to disable authentication).
+     * @param password The password for HTTP Basic Authentication.
+     * @throws IOException If an I/O error occurs during server startup.
+     */
+    public void start(int metricsPort, String username, String password) throws IOException {
+        this.auth = new HttpBasicAuth(username, password, "Metrics Endpoint");
+
         prometheusRegistry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
         graphiteRegistry = getGraphiteMeterRegistry();
         MetricsRegistry.register(prometheusRegistry, graphiteRegistry);
@@ -70,6 +87,9 @@ public class MetricsEndpoint {
         log.info("Threads dump available at http://localhost:{}/threads", metricsPort);
         log.info("Heap dump available at http://localhost:{}/heapdump", metricsPort);
         log.info("Health available at http://localhost:{}/health", metricsPort);
+        if (auth.isAuthEnabled()) {
+            log.info("HTTP Basic Authentication is enabled for metrics endpoint");
+        }
     }
 
     /**
@@ -112,6 +132,10 @@ public class MetricsEndpoint {
     private void handleLandingPage(HttpExchange exchange) throws IOException {
         log.debug("Handling metrics landing page: method={}, uri={}, remote={}",
                 exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
+        if (!auth.isAuthenticated(exchange)) {
+            auth.sendAuthRequired(exchange);
+            return;
+        }
         try {
             String response = readResourceFile("metrics-endpoints-ui.html");
             sendResponse(exchange, 200, "text/html; charset=utf-8", response);
@@ -130,6 +154,10 @@ public class MetricsEndpoint {
     private void handleMetricsUi(HttpExchange exchange) throws IOException {
         log.debug("Handling /metrics UI: method={}, uri={}, remote={}",
                 exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
+        if (!auth.isAuthenticated(exchange)) {
+            auth.sendAuthRequired(exchange);
+            return;
+        }
         try {
             String response = readResourceFile("metrics-ui.html");
             sendResponse(exchange, 200, "text/html; charset=utf-8", response);
@@ -148,6 +176,10 @@ public class MetricsEndpoint {
     private void handleGraphite(HttpExchange exchange) throws IOException {
         log.trace("Handling /graphite: method={}, uri={}, remote={}",
                 exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
+        if (!auth.isAuthenticated(exchange)) {
+            auth.sendAuthRequired(exchange);
+            return;
+        }
         StringBuilder response = new StringBuilder();
         graphiteRegistry.getMeters().forEach(meter -> meter.measure().forEach(measurement -> {
             String name = meter.getId().getName().replaceAll("\\.", "_");
@@ -165,6 +197,10 @@ public class MetricsEndpoint {
     private void handlePrometheus(HttpExchange exchange) throws IOException {
         log.debug("Handling /prometheus: method={}, uri={}, remote={}",
                 exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
+        if (!auth.isAuthenticated(exchange)) {
+            auth.sendAuthRequired(exchange);
+            return;
+        }
         String response = prometheusRegistry.scrape();
         sendResponse(exchange, 200, "text/plain; charset=utf-8", response);
     }
@@ -178,6 +214,10 @@ public class MetricsEndpoint {
     private void handleEnv(HttpExchange exchange) throws IOException {
         log.debug("Handling /env: method={}, uri={}, remote={}",
                 exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
+        if (!auth.isAuthenticated(exchange)) {
+            auth.sendAuthRequired(exchange);
+            return;
+        }
         String response = System.getenv().entrySet().stream()
                 .map(e -> e.getKey() + "=" + e.getValue())
                 .collect(Collectors.joining("\n"));
@@ -193,6 +233,10 @@ public class MetricsEndpoint {
     private void handleSysProps(HttpExchange exchange) throws IOException {
         log.debug("Handling /sysprops: method={}, uri={}, remote={}",
                 exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
+        if (!auth.isAuthenticated(exchange)) {
+            auth.sendAuthRequired(exchange);
+            return;
+        }
         String response = System.getProperties().entrySet().stream()
                 .map(e -> e.getKey() + "=" + e.getValue())
                 .collect(Collectors.joining("\n"));
@@ -208,6 +252,10 @@ public class MetricsEndpoint {
     private void handleThreads(HttpExchange exchange) throws IOException {
         log.debug("Handling /threads: method={}, uri={}, remote={}",
                 exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
+        if (!auth.isAuthenticated(exchange)) {
+            auth.sendAuthRequired(exchange);
+            return;
+        }
         String response = getThreadDump();
         sendResponse(exchange, 200, "text/plain; charset=utf-8", response);
     }
@@ -221,6 +269,10 @@ public class MetricsEndpoint {
     private void handleHeapDump(HttpExchange exchange) throws IOException {
         log.debug("Handling /heapdump: method={}, uri={}, remote={}",
                 exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
+        if (!auth.isAuthenticated(exchange)) {
+            auth.sendAuthRequired(exchange);
+            return;
+        }
         try {
             String path = "heapdump-" + System.currentTimeMillis() + ".hprof";
             HotSpotDiagnostic.getDiagnostic().dumpHeap(path, true);
@@ -376,3 +428,4 @@ public class MetricsEndpoint {
         }
     }
 }
+

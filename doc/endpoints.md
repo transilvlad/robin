@@ -8,6 +8,31 @@ All endpoints are available under the port configured in `server.json5` - `metri
 
 <img src="img/endpoint-metrics.jpg" alt="Metrics Endpoints Diagram" style="max-width: 1200px;"/>
 
+Authentication
+--------------
+
+The metrics endpoints support HTTP Basic Authentication for securing access to sensitive metrics and diagnostic information.
+
+To enable authentication, configure the following parameters in `server.json5`:
+Make use of magic to load secrets, see [Secrets, magic and Local Secrets File](secrets.md).
+
+**Do NOT commit real secrets into the repository!!!**
+
+```json5
+{
+  metricsPort: 8080,
+  metricsUsername: "{$metricsUsername}",
+  metricsPassword: "{$metricsPassword}"
+}
+```
+
+When both `metricsUsername` and `metricsPassword` are configured (non-empty strings), all endpoints except `/health` will require HTTP Basic Authentication.
+
+- The `/health` endpoint remains accessible but limited to status and uptime without authentication to support monitoring systems and health checks without internal details.
+- All other endpoints (/, /metrics, /prometheus, /graphite, /env, /sysprops, /threads, /heapdump) require authentication when enabled.
+
+If authentication is required but not provided, the server responds with `401 Unauthorized` and a `WWW-Authenticate` header.
+
 Endpoints
 ---------
 The following endpoints are available:
@@ -147,6 +172,48 @@ Client Submission Endpoint
 
 <img src="img/endpoint-client.jpg" alt="Metrics Endpoints Diagram" style="max-width: 1200px;"/>
 
+All client endpoints are available under the port configured in `server.json5` - `apiPort` parameter.
+
+Authentication
+--------------
+
+The client API endpoints support HTTP Basic Authentication for securing access to submission and queue management operations.
+
+To enable authentication, configure the following parameters in `server.json5`:
+Make use of magic to load secrets, see [Secrets, magic and Local Secrets File](secrets.md).
+
+**Do NOT commit real secrets into the repository!!!**
+
+```json5
+{
+  apiPort: 8090,
+  apiUsername: "{$apiUsername}",
+  apiPassword: "{$apiPassword}"
+}
+```
+
+When both `apiUsername` and `apiPassword` are configured (non-empty strings), all endpoints except `/client/health` will require HTTP Basic Authentication.
+
+- The `/client/health` endpoint remains accessible without authentication to support monitoring systems and health checks.
+- All other endpoints (/, /client/send, /client/queue, /client/queue-list) require authentication when enabled.
+
+**Example authenticated request:**
+
+```bash
+curl -u admin:secretPassword -X POST \
+  -H "Content-Type: application/json" \
+  -d @testcase.json5 \
+  http://localhost:8090/client/send
+```
+
+If authentication is required but not provided, the server responds with `401 Unauthorized` and a `WWW-Authenticate` header.
+
+Endpoints
+---------
+
+- **/** - Provides a simple discovery mechanism by listing all available client endpoints.
+    - **Content-Type**: `text/html; charset=utf-8`
+
 - **`POST /client/send`** — Executes a client case and returns the final SMTP session as JSON.
   - Accepts either:
     - A query parameter `path` with an absolute/relative path to a JSON/JSON5 case file, e.g. `?path=src/test/resources/case.json5`
@@ -161,6 +228,31 @@ Client Submission Endpoint
   - Error responses:
     - `400` for invalid/missing input
     - `500` on execution errors (e.g., assertion failures or runtime exceptions)
+
+- **`POST /client/queue`** — Queues a client case for later delivery via the relay queue.
+  - Accepts the same inputs as `/client/send`
+  - Optional query parameters:
+    - `protocol` - Override relay protocol (default: ESMTP)
+    - `mailbox` - Override target mailbox (default: from relay config)
+  - Response: `application/json; charset=utf-8`
+  - Returns a confirmation with queue size and the filtered Session object
+  - HTTP status: `202 Accepted`
+
+- **`GET /client/queue-list`** — Lists all items currently in the relay queue.
+  - Response: `text/html; charset=utf-8`
+  - Returns an HTML table showing queued sessions with details:
+    - Session UID
+    - Enqueue date
+    - Protocol
+    - Retry count and last retry time
+    - Envelope count
+    - Recipients (first 5 shown)
+    - Files (first 5 shown)
+
+- **`GET /client/health`** — Simple health check endpoint.
+  - Response: `application/json; charset=utf-8`
+  - Returns: `{"status":"UP"}`
+  - This endpoint is always accessible without authentication
 
 Examples
 --------

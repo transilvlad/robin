@@ -7,7 +7,9 @@ import com.mimecast.robin.metrics.MetricsCron;
 import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.smtp.SmtpListener;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
+import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.storage.StorageCleaner;
+import com.mimecast.robin.util.Magic;
 
 import javax.naming.ConfigurationException;
 import java.io.IOException;
@@ -120,7 +122,11 @@ public class Server extends Foundation {
 
         // Start the metrics endpoint for monitoring.
         try {
-            new RobinMetricsEndpoint().start(Config.getServer().getMetricsPort());
+            new RobinMetricsEndpoint().start(
+                    Config.getServer().getMetricsPort(),
+                    Magic.magicReplace(Config.getServer().getMetricsUsername(), new Session()),
+                    Magic.magicReplace(Config.getServer().getMetricsPassword(), new Session())
+            );
             // Initialize SMTP metrics to ensure they appear with zero values at startup.
             SmtpMetrics.initialize();
         } catch (IOException e) {
@@ -136,7 +142,10 @@ public class Server extends Foundation {
 
         // Start the client submission endpoint.
         try {
-            new ClientEndpoint().start();
+            new ClientEndpoint().start(
+                    Magic.magicReplace(Config.getServer().getApiUsername(), new Session()),
+                    Magic.magicReplace(Config.getServer().getApiPassword(), new Session())
+            );
         } catch (IOException e) {
             log.error("Unable to start client submission endpoint: {}", e.getMessage());
         }

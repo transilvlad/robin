@@ -65,6 +65,11 @@ public class ClientEndpoint {
     private Gson gson;
 
     /**
+     * HTTP Basic Authentication handler for securing API endpoints.
+     */
+    private HttpBasicAuth auth;
+
+    /**
      * Starts the client submission endpoint on the configured API port.
      *
      * <p>Port is read from {@code server.json5} (property: {@code apiPort}).
@@ -73,6 +78,20 @@ public class ClientEndpoint {
      * @throws IOException If an I/O error occurs during server startup.
      */
     public void start() throws IOException {
+        start(null, null);
+    }
+
+    /**
+     * Starts the client submission endpoint on the configured API port with authentication.
+     *
+     * @param username The username for HTTP Basic Authentication (null to disable authentication).
+     * @param password The password for HTTP Basic Authentication.
+     * @throws IOException If an I/O error occurs during server startup.
+     */
+    public void start(String username, String password) throws IOException {
+        // Initialize authentication handler.
+        this.auth = new HttpBasicAuth(username, password, "Client API");
+
         // Build a Gson serializer that excludes fields we don't want to expose.
         gson = new GsonBuilder()
                 .addSerializationExclusionStrategy(new GsonExclusionStrategy())
@@ -107,6 +126,9 @@ public class ClientEndpoint {
         log.info("Queue endpoint available at http://localhost:{}/client/queue", apiPort);
         log.info("Queue list available at http://localhost:{}/client/queue-list", apiPort);
         log.info("Health available at http://localhost:{}/client/health", apiPort);
+        if (auth.isAuthEnabled()) {
+            log.info("HTTP Basic Authentication is enabled for client API endpoint");
+        }
     }
 
     /**
@@ -115,6 +137,12 @@ public class ClientEndpoint {
     private void handleLandingPage(HttpExchange exchange) throws IOException {
         log.debug("Handling landing page request: method={}, uri={}, remote={}",
                 exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
+
+        if (!auth.isAuthenticated(exchange)) {
+            auth.sendAuthRequired(exchange);
+            return;
+        }
+
         try {
             String response = readResourceFile("client-endpoints-ui.html");
             sendHtml(exchange, 200, response);
@@ -159,6 +187,11 @@ public class ClientEndpoint {
             return;
         }
 
+        if (!auth.isAuthenticated(exchange)) {
+            auth.sendAuthRequired(exchange);
+            return;
+        }
+
         log.info("POST /client/send from {}", exchange.getRemoteAddress());
         try {
             // Body mode: accept a raw JSON/JSON5 payload describing the case.
@@ -187,6 +220,7 @@ public class ClientEndpoint {
             // Create a new client instance and execute the case in-memory.
             Client client = new Client()
                     .setSkip(true) // Skip assertions for API runs.
+
                     .send(caseConfig);
 
             Session session = client.getSession();
@@ -215,6 +249,11 @@ public class ClientEndpoint {
         if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
             log.debug("Rejecting non-POST request to /client/queue: method={}", exchange.getRequestMethod());
             sendText(exchange, 405, "Method Not Allowed");
+            return;
+        }
+
+        if (!auth.isAuthenticated(exchange)) {
+            auth.sendAuthRequired(exchange);
             return;
         }
 
@@ -285,6 +324,12 @@ public class ClientEndpoint {
      */
     private void handleQueueList(HttpExchange exchange) throws IOException {
         log.debug("GET /client/queue-list from {}", exchange.getRemoteAddress());
+
+        if (!auth.isAuthenticated(exchange)) {
+            auth.sendAuthRequired(exchange);
+            return;
+        }
+
         try {
             PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
             List<RelaySession> items = queue.snapshot();

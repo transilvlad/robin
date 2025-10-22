@@ -58,9 +58,21 @@ Minimal `server.json5` example (core listeners & feature flags):
       truststore: "/usr/local/robin/truststore.jks",
       truststorepassword: "avengers",
       metricsPort: 8080,
+      metricsUsername: "",
+      metricsPassword: "",
       apiPort: 8090,
+      apiUsername: "",
+      apiPassword: "",
       usersEnabled: false
     }
+
+**Metrics Authentication**: Configure `metricsUsername` and `metricsPassword` to enable HTTP Basic Authentication for the metrics endpoint. 
+When both values are non-empty, all endpoints except `/health` will require authentication.
+Leave empty to disable authentication.
+
+**API Authentication**: Configure `apiUsername` and `apiPassword` to enable HTTP Basic Authentication for the client API endpoint.
+When both values are non-empty, all endpoints except `/client/health` will require authentication.
+Leave empty to disable authentication.
 
 Below are concise examples for each auxiliary config file.
 

@@ -79,8 +79,16 @@
   // Metrics endpoint port.
   metricsPort: 8080,
 
+  // Metrics endpoint authentication (optional, leave empty to disable).
+  metricsUsername: "",
+  metricsPassword: "",
+
   // API endpoint port.
   apiPort: 8090,
+
+  // API endpoint authentication (optional, leave empty to disable).
+  apiUsername: "",
+  apiPassword: "",
 
   // Users allowed to authorize to the server.
   // This feature should be used for testing only.
