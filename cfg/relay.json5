@@ -30,6 +30,5 @@
   outbox: "Sent",   // Outbound
 
   // Bounce email if relay fails.
-  bounce: true,
+  bounce: true
 }
-
