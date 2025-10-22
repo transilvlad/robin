@@ -58,6 +58,34 @@ Minimal `client.json5` example (core connection & email parameters):
         }
     }
 
+Below ia a concise example the auxiliary config file.
+
+`routes.json5` – Static routing table example:
+
+    [
+      {
+        name: "local",
+        mx: ["127.0.0.1"],
+        port: 25
+      },
+    
+      {
+        name: "com",
+        mx: ["example.com"],
+        port: 25
+      },
+    
+      {
+        name: "net",
+        mx: ["example.net"],
+        port: 465,
+        auth: true,
+        user: "tony@example.com",
+        pass: "giveHerTheRing"
+      }
+    ]
+
+
 Java usage
 ----------
 Programmatic example:
