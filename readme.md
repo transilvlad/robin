@@ -70,8 +70,8 @@ Documentation
 - [Prometheus Remote Write](doc/prometheus.md) - Prometheus Remote Write implementation.
 
 ### Testing cases
-- [E/SMTP Cases](doc/case.md)
-- [HTTP/S Cases](doc/case.md)
+- [E/SMTP Cases](doc/case-smtp.md)
+- [HTTP/S Cases](doc/case-http.md)
 - [Magic](doc/magic.md)
 - [MIME](doc/mime.md)
 

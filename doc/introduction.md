@@ -11,7 +11,7 @@ You may want to adjust the following values: mx, port, ehlo, main and rcpt.
 Additionally, you may want to configure your own routes for even more streamlined case config.
 
 - See ExampleSend.java for examples on how to craft JSON5 cases to send emails.
-  - Read [case.md](case.md), [magic.md](magic.md) and [mime.md](mime.md). 
+  - Read [case-smtp.md](case-smtp.md), [magic.md](magic.md) and [mime.md](mime.md). 
 - See ExampleHttp.java for examples on how to craft JSON5 cases to do HTTP requests.
   - Read [request.md](request.md). 
 - See ExampleProgrammatic.java for examples on how to use it as a Java library.
