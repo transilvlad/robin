@@ -37,6 +37,15 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
+     * Constructs a new ServerConfig instance.
+     *
+     * @param map Configuration map.
+     */
+    public ServerConfig(Map<String, Object> map) {
+        super(map);
+    }
+
+    /**
      * Constructs a new ServerConfig instance with configuration path.
      *
      * @param path Path to configuration file.

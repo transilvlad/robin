@@ -42,26 +42,30 @@ public class DovecotLdaDelivery {
     public DovecotLdaDelivery send() {
         relaySession.getSession().getSessionTransactionList().addEnvelope(new EnvelopeTransactionList());
 
-        for (String recipient : relaySession.getSession().getEnvelopes().getLast().getRcpts()) {
-            Pair<Integer, String> result = null;
-            try {
-                result = callDovecotLda(recipient);
+        if (!relaySession.getSession().getEnvelopes().isEmpty()) {
+            for (String recipient : relaySession.getSession().getEnvelopes().getLast().getRcpts()) {
+                Pair<Integer, String> result = null;
+                try {
+                    result = callDovecotLda(recipient);
 
-                // Log result.
-                if (result.getKey() == 0) {
-                    log.info("Dovecot-LDA delivery successful for recipient: {}", recipient);
-                } else {
-                    log.error("Dovecot-LDA delivery failed for recipient: {} with exit code: {}, error: {}", recipient, result.getKey(), result.getValue());
+                    // Log result.
+                    if (result.getKey() == 0) {
+                        log.info("Dovecot-LDA delivery successful for recipient: {}", recipient);
+                    } else {
+                        log.error("Dovecot-LDA delivery failed for recipient: {} with exit code: {}, error: {}", recipient, result.getKey(), result.getValue());
+                    }
+                } catch (Exception e) {
+                    log.error("Dovecot-LDA delivery failed for recipient: {} with exception: {}", recipient, e.getMessage());
                 }
-            } catch (Exception e) {
-                log.error("Dovecot-LDA delivery failed for recipient: {} with exception: {}", recipient, e.getMessage());
-            }
 
-            if (result == null || result.getKey() != 0) {
-                relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().addTransaction("RCPT", "RCPT TO:<" + recipient + ">", SmtpResponses.DOVECOT_LDA_FAILED_550, true);
-            } else {
-                relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().addTransaction("RCPT", "RCPT TO:<" + recipient + ">", SmtpResponses.DOVECOT_LDA_SUCCESS_250, false);
+                if (result == null || result.getKey() != 0) {
+                    relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().addTransaction("RCPT", "RCPT TO:<" + recipient + ">", SmtpResponses.DOVECOT_LDA_FAILED_550, true);
+                } else {
+                    relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().addTransaction("RCPT", "RCPT TO:<" + recipient + ">", SmtpResponses.DOVECOT_LDA_SUCCESS_250, false);
+                }
             }
+        } else {
+            log.warn("No recipients found in the last envelope for Dovecot-LDA delivery.");
         }
 
         return this;
