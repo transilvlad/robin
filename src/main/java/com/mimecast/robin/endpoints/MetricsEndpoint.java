@@ -1,12 +1,7 @@
 package com.mimecast.robin.endpoints;
 
 import com.mimecast.robin.main.Config;
-import com.mimecast.robin.main.Server;
-import com.mimecast.robin.metrics.MetricsCron;
 import com.mimecast.robin.metrics.MetricsRegistry;
-import com.mimecast.robin.queue.RelayQueueCron;
-import com.mimecast.robin.queue.RetryScheduler;
-import com.mimecast.robin.smtp.SmtpListener;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -30,8 +25,6 @@ import java.lang.management.ThreadMXBean;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -49,7 +42,7 @@ public class MetricsEndpoint {
     private PrometheusMeterRegistry prometheusRegistry;
     private GraphiteMeterRegistry graphiteRegistry;
     private JvmGcMetrics jvmGcMetrics;
-    private final long startTime = System.currentTimeMillis();
+    protected final long startTime = System.currentTimeMillis();
 
     /**
      * Starts the embedded HTTP server for the metrics and management endpoint.
@@ -248,12 +241,12 @@ public class MetricsEndpoint {
 
     /**
      * Handles requests for the application's health status.
-     * <p>Provides a JSON response with the status, uptime, and number of active listeners.
+     * <p>Provides a JSON response with the status and uptime.
      *
      * @param exchange The HTTP exchange object.
      * @throws IOException If an I/O error occurs.
      */
-    private void handleHealth(HttpExchange exchange) throws IOException {
+    protected void handleHealth(HttpExchange exchange) throws IOException {
         log.debug("Handling /health: method={}, uri={}, remote={}",
                 exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
         Duration uptime = Duration.ofMillis(System.currentTimeMillis() - startTime);
@@ -263,54 +256,9 @@ public class MetricsEndpoint {
                 uptime.toMinutesPart(),
                 uptime.toSecondsPart());
 
-        List<SmtpListener> listeners = Server.getListeners();
-        String listenersJson = listeners.stream()
-                .map(listener -> String.format("{\"port\":%d,\"threadPool\":{\"core\":%d,\"max\":%d,\"size\":%d,\"largest\":%d,\"active\":%d,\"queue\":%d,\"taskCount\":%d,\"completed\":%d,\"keepAliveSeconds\":%d}}",
-                        listener.getPort(),
-                        listener.getCorePoolSize(),
-                        listener.getMaximumPoolSize(),
-                        listener.getPoolSize(),
-                        listener.getLargestPoolSize(),
-                        listener.getActiveThreads(),
-                        listener.getQueueSize(),
-                        listener.getTaskCount(),
-                        listener.getCompletedTaskCount(),
-                        listener.getKeepAliveSeconds()))
-                .collect(Collectors.joining(",", "[", "]"));
-
-        // Queue and scheduler stats
-        long queueSize = RelayQueueCron.getQueueSize();
-        Map<Integer, Long> histogram = RelayQueueCron.getRetryHistogram();
-        String histogramJson = histogram.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .map(e -> String.format("\"%d\":%d", e.getKey(), e.getValue()))
-                .collect(Collectors.joining(",", "{", "}"));
-
-        String schedulerConfigJson = String.format("{\"totalRetries\":%d,\"firstWaitMinutes\":%d,\"growthFactor\":%.2f}",
-                RetryScheduler.getTotalRetries(),
-                RetryScheduler.getFirstWaitMinutes(),
-                RetryScheduler.getGrowthFactor());
-
-        String cronJson = String.format("{\"initialDelaySeconds\":%d,\"periodSeconds\":%d,\"lastExecutionEpochSeconds\":%d,\"nextExecutionEpochSeconds\":%d}",
-                RelayQueueCron.getInitialDelaySeconds(),
-                RelayQueueCron.getPeriodSeconds(),
-                RelayQueueCron.getLastExecutionEpochSeconds(),
-                RelayQueueCron.getNextExecutionEpochSeconds());
-
-        String metricsCronJson = String.format("{\"intervalSeconds\":%d,\"lastExecutionEpochSeconds\":%d,\"nextExecutionEpochSeconds\":%d}",
-                MetricsCron.getIntervalSeconds(),
-                MetricsCron.getLastExecutionEpochSeconds(),
-                MetricsCron.getNextExecutionEpochSeconds());
-
-        String queueJson = String.format("{\"size\":%d,\"retryHistogram\":%s}", queueSize, histogramJson);
-        String schedulerJson = String.format("{\"config\":%s,\"cron\":%s}", schedulerConfigJson, cronJson);
-
-        String response = String.format("{\"status\":\"UP\", \"uptime\":\"%s\", \"listeners\":%s, \"queue\":%s, \"scheduler\":%s, \"metricsCron\":%s}",
-                uptimeString,
-                listenersJson,
-                queueJson,
-                schedulerJson,
-                metricsCronJson);
+        // Final health JSON response.
+        String response = String.format("{\"status\":\"UP\", \"uptime\":\"%s\"}",
+                uptimeString);
 
         sendResponse(exchange, 200, "application/json; charset=utf-8", response);
     }
@@ -324,7 +272,7 @@ public class MetricsEndpoint {
      * @param response    The response body as a string.
      * @throws IOException If an I/O error occurs.
      */
-    private void sendResponse(HttpExchange exchange, int code, String contentType, String response) throws IOException {
+    protected void sendResponse(HttpExchange exchange, int code, String contentType, String response) throws IOException {
         byte[] responseBytes = response.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", contentType);
         exchange.sendResponseHeaders(code, responseBytes.length);
@@ -342,7 +290,7 @@ public class MetricsEndpoint {
      * @param message  The error message.
      * @throws IOException If an I/O error occurs.
      */
-    private void sendError(HttpExchange exchange, int code, String message) throws IOException {
+    protected void sendError(HttpExchange exchange, int code, String message) throws IOException {
         byte[] responseBytes = message.getBytes(StandardCharsets.UTF_8);
         exchange.sendResponseHeaders(code, responseBytes.length);
         try (OutputStream os = exchange.getResponseBody()) {

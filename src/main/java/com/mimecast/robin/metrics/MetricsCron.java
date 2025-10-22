@@ -1,7 +1,6 @@
 package com.mimecast.robin.metrics;
 
 import com.mimecast.robin.config.BasicConfig;
-import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.util.Magic;
@@ -74,11 +73,13 @@ public class MetricsCron {
     /**
      * Initializes and starts the metrics push scheduler.
      * Called by Server.startup(); safe to call once.
+     *
+     * @param config BasicConfig instance.
      */
-    public static synchronized void run() {
+    public static synchronized void run(BasicConfig config) {
         if (scheduler != null) return;
 
-        loadConfig();
+        loadConfig(config);
         if (!enabled) {
             log.info("MetricsCron disabled (prometheus.enabled=false)");
             return;
@@ -116,23 +117,23 @@ public class MetricsCron {
 
     /**
      * Loads configuration from prometheus.json5 and initializes HTTP client and headers.
+     *
+     * @param config BasicConfig instance.
      */
-    private static void loadConfig() {
-        BasicConfig cfg = Config.getServer().getPrometheus();
-
-        enabled = cfg.getBooleanProperty("enabled", false);
-        remoteWriteUrl = cfg.getStringProperty("remoteWriteUrl", "");
-        intervalSeconds = Math.toIntExact(cfg.getLongProperty("intervalSeconds", 15L));
-        timeoutSeconds = Math.toIntExact(cfg.getLongProperty("timeoutSeconds", 10L));
-        compress = cfg.getBooleanProperty("compress", true);
+    private static void loadConfig(BasicConfig config) {
+        enabled = config.getBooleanProperty("enabled", false);
+        remoteWriteUrl = config.getStringProperty("remoteWriteUrl", "");
+        intervalSeconds = Math.toIntExact(config.getLongProperty("intervalSeconds", 15L));
+        timeoutSeconds = Math.toIntExact(config.getLongProperty("timeoutSeconds", 10L));
+        compress = config.getBooleanProperty("compress", true);
 
         // Get session for magic replacements.
         Session session = Factories.getSession();
 
         // Parse static labels.
         Map<String, String> labels = new HashMap<>();
-        if (cfg.getMapProperty("labels") != null) {
-            for (Object o : cfg.getMapProperty("labels").entrySet()) {
+        if (config.getMapProperty("labels") != null) {
+            for (Object o : config.getMapProperty("labels").entrySet()) {
                 Map.Entry<?, ?> e = (Map.Entry<?, ?>) o;
                 labels.put(String.valueOf(e.getKey()), Magic.magicReplace(String.valueOf(e.getValue()), session));
             }
@@ -148,8 +149,8 @@ public class MetricsCron {
 
         // Parse additional headers.
         Map<String, String> hdrs = new HashMap<>();
-        if (cfg.getMapProperty("headers") != null) {
-            for (Object o : cfg.getMapProperty("headers").entrySet()) {
+        if (config.getMapProperty("headers") != null) {
+            for (Object o : config.getMapProperty("headers").entrySet()) {
                 Map.Entry<?, ?> e = (Map.Entry<?, ?>) o;
                 hdrs.put(String.valueOf(e.getKey()), Magic.magicReplace(String.valueOf(e.getValue()), session));
             }
@@ -157,19 +158,19 @@ public class MetricsCron {
         headers = hdrs;
 
         // Parse authentication settings.
-        bearerToken = Magic.magicReplace(cfg.getStringProperty("bearerToken", ""), session);
-        basicUser = Magic.magicReplace(cfg.getStringProperty("basicAuthUser", ""), session);
-        basicPass = Magic.magicReplace(cfg.getStringProperty("basicAuthPassword", ""), session);
+        bearerToken = Magic.magicReplace(config.getStringProperty("bearerToken", ""), session);
+        basicUser = Magic.magicReplace(config.getStringProperty("basicAuthUser", ""), session);
+        basicPass = Magic.magicReplace(config.getStringProperty("basicAuthPassword", ""), session);
 
         // Parse multi-tenancy header.
-        tenantHeaderName = Magic.magicReplace(cfg.getStringProperty("tenantHeaderName", ""), session);
-        tenantHeaderValue = Magic.magicReplace(cfg.getStringProperty("tenantHeaderValue", ""), session);
+        tenantHeaderName = Magic.magicReplace(config.getStringProperty("tenantHeaderName", ""), session);
+        tenantHeaderValue = Magic.magicReplace(config.getStringProperty("tenantHeaderValue", ""), session);
 
         // Compile include/exclude filters.
         includes = new ArrayList<>();
         excludes = new ArrayList<>();
-        List<?> inclAny = cfg.getListProperty("include");
-        List<?> exclAny = cfg.getListProperty("exclude");
+        List<?> inclAny = config.getListProperty("include");
+        List<?> exclAny = config.getListProperty("exclude");
         for (Object pObj : (inclAny != null ? inclAny : List.of())) {
             String p = String.valueOf(pObj);
             try {

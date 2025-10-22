@@ -1,7 +1,7 @@
 package com.mimecast.robin.main;
 
 import com.mimecast.robin.endpoints.ClientEndpoint;
-import com.mimecast.robin.endpoints.MetricsEndpoint;
+import com.mimecast.robin.endpoints.RobinMetricsEndpoint;
 import com.mimecast.robin.metrics.MetricsCron;
 import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.smtp.SmtpListener;
@@ -96,7 +96,7 @@ public class Server extends Foundation {
 
         // Start metrics endpoint.
         try {
-            new MetricsEndpoint().start();
+            new RobinMetricsEndpoint().start();
         } catch (IOException e) {
             log.error("Unable to start monitoring endpoint: {}", e.getMessage());
         }
@@ -110,7 +110,7 @@ public class Server extends Foundation {
 
         // Start metrics remote write cron (if enabled in config).
         try {
-            MetricsCron.run();
+            MetricsCron.run(Config.getServer().getPrometheus());
         } catch (Exception e) {
             log.error("Unable to start metrics cron: {}", e.getMessage());
         }

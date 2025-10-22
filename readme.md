@@ -62,8 +62,8 @@ Documentation
 ### MTA Server
 - [Server configuration](doc/server.md)
 - [SMTP webhooks](doc/webhooks.md)
-- [Endpoints](doc/endpoints.md)
-- [Prometheus Remote Write](doc/prometheus.md)
+- [Endpoints](doc/endpoints.md) - Reusable stand-alone JVM metrics implementation.
+- [Prometheus Remote Write](doc/prometheus.md) - Reusable Prometheus Remote Write implementation.
 
 ### Testing cases
 - [E/SMTP Cases](doc/case.md)
@@ -76,7 +76,7 @@ Documentation
 - [Flowchart](doc/flowchart.md)
 
 ### MTA-STS Library
-- [MTA-STS](doc/mta-sts/readme.md) - Former MTA-STS library.
+- [MTA-STS](doc/mta-sts/readme.md) - Former MTA-STS library (stand-alone implementation).
 
 ### Miscellaneous
 - [Contributing](contributing.md)
