@@ -69,6 +69,9 @@ Documentation
 - [Endpoints](doc/endpoints.md) - JVM metrics implementation.
 - [Prometheus Remote Write](doc/prometheus.md) - Prometheus Remote Write implementation.
 
+### Secrets
+- [Secrets, magic and Local Secrets File](doc/secrets.md)
+
 ### Testing cases
 - [E/SMTP Cases](doc/case-smtp.md)
 - [HTTP/S Cases](doc/case-http.md)
