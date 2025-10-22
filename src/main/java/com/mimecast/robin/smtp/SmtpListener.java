@@ -1,6 +1,7 @@
 package com.mimecast.robin.smtp;
 
 import com.mimecast.robin.config.server.ListenerConfig;
+import com.mimecast.robin.main.Server;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -10,35 +11,39 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
-import java.util.concurrent.Executors;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
- * SMTP socket listener.
- *
- * <p>This runs a ServerSocket bound to configured interface and port.
- * <p>An email receipt instance will be constructed for each accepted connection.
+ * SMTP socket listener for handling client connections.
+ * <p>This class runs a {@link ServerSocket} bound to a configured network interface and port.
+ * <p>For each accepted connection, it creates an {@link EmailReceipt} instance to handle the SMTP session.
+ * <p>It uses a {@link ThreadPoolExecutor} to manage concurrent connections efficiently.
  *
  * @see EmailReceipt
+ * @see Server
  */
 public class SmtpListener {
     private static final Logger log = LogManager.getLogger(SmtpListener.class);
 
     /**
-     * ServerSocket instance.
+     * The underlying server socket that listens for incoming connections.
      */
     private ServerSocket listener;
 
     /**
-     * ThreadPoolExecutor instance.
+     * Thread pool for handling client connections.
+     * Using a ThreadPoolExecutor allows for fine-tuning of thread management,
+     * which is crucial for performance and resource control.
      */
-    private final ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newCachedThreadPool();
+    private final ThreadPoolExecutor executor;
 
     /**
-     * Server shutdown boolean.
+     * Flag to indicate a server shutdown is in progress.
+     * This is used to gracefully stop the connection acceptance loop.
      */
-    private boolean serverShutdown = false;
+    private volatile boolean serverShutdown = false;
 
     private final int port;
     private final String bind;
@@ -47,13 +52,13 @@ public class SmtpListener {
     private final ListenerConfig config;
 
     /**
-     * Constructs a new SmtpListener instance.
+     * Constructs a new SmtpListener instance with the specified configuration.
      *
-     * @param port       Port number.
-     * @param bind       Interface to bind to.
-     * @param config     Listener configuration.
-     * @param secure     Secure (TLS) listener.
-     * @param submission Submission (MSA) listener.
+     * @param port       The port number to listen on.
+     * @param bind       The network interface address to bind to.
+     * @param config     The {@link ListenerConfig} containing listener-specific settings.
+     * @param secure     {@code true} if the listener should handle secure (TLS) connections.
+     * @param submission {@code true} if the listener is for mail submission (MSA).
      */
     public SmtpListener(int port, String bind, ListenerConfig config, boolean secure, boolean submission) {
         this.port = port;
@@ -62,12 +67,20 @@ public class SmtpListener {
         this.secure = secure;
         this.submission = submission;
 
-        configure();
+        // Initialize and configure the thread pool executor.
+        this.executor = new ThreadPoolExecutor(
+                config.getMinimumPoolSize(),
+                config.getMaximumPoolSize(),
+                config.getThreadKeepAliveTime(), TimeUnit.SECONDS,
+                new SynchronousQueue<>(),
+                new ThreadPoolExecutor.CallerRunsPolicy()
+        );
     }
 
     /**
      * Starts the listener.
-     * <p>This method opens the server socket and enters a loop to accept connections.
+     * <p>This method opens the server socket and enters a loop to accept incoming connections.
+     * Each new connection is passed to the thread pool for processing.
      */
     public void listen() {
         try {
@@ -93,18 +106,8 @@ public class SmtpListener {
     }
 
     /**
-     * Configure thread pool.
-     */
-    protected void configure() {
-        executor.setKeepAliveTime(config.getThreadKeepAliveTime(), TimeUnit.SECONDS);
-        executor.setCorePoolSize(config.getMinimumPoolSize());
-        executor.setMaximumPoolSize(config.getMaximumPoolSize());
-        // Avoid rejecting new tasks when the pool is saturated; run in the caller thread instead.
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
-    }
-
-    /**
-     * Accept incoming connection.
+     * Accepts incoming connections in a loop until a shutdown is initiated.
+     * For each connection, it submits a new {@link EmailReceipt} task to the thread pool.
      */
     private void acceptConnection() {
         try {
@@ -134,9 +137,11 @@ public class SmtpListener {
     }
 
     /**
-     * Shutdown.
+     * Initiates a graceful shutdown of the listener.
+     * <p>This method gracefully shuts down the listener by closing the server socket
+     * and terminating the thread pool.
      *
-     * @throws IOException Unable to communicate.
+     * @throws IOException If an I/O error occurs when closing the socket.
      */
     public void serverShutdown() throws IOException {
         serverShutdown = true;
@@ -147,27 +152,27 @@ public class SmtpListener {
     }
 
     /**
-     * Gets listener.
+     * Gets the underlying {@link ServerSocket} instance.
      *
-     * @return ServerSocket instance.
+     * @return The {@link ServerSocket} instance.
      */
     public ServerSocket getListener() {
         return listener;
     }
 
     /**
-     * Gets the port this listener is on.
+     * Gets the port number this listener is configured to use.
      *
-     * @return Port number.
+     * @return The port number.
      */
     public int getPort() {
         return port;
     }
 
     /**
-     * Gets the number of active threads in this listener's pool.
+     * Gets the number of currently active threads in this listener's thread pool.
      *
-     * @return Active thread count.
+     * @return The number of active threads.
      */
     public int getActiveThreads() {
         return executor.getActiveCount();
@@ -176,56 +181,73 @@ public class SmtpListener {
     // Additional thread pool stats for health reporting
 
     /**
-     * @return Current core pool size.
+     * Gets the core number of threads for the thread pool.
+     *
+     * @return The core pool size.
      */
     public int getCorePoolSize() {
         return executor.getCorePoolSize();
     }
 
     /**
-     * @return Configured maximum pool size.
+     * Gets the maximum allowed number of threads for the thread pool.
+     *
+     * @return The maximum pool size.
      */
     public int getMaximumPoolSize() {
         return executor.getMaximumPoolSize();
     }
 
     /**
-     * @return Current pool size (number of threads in the pool).
+     * Gets the current number of threads in the pool.
+     *
+     * @return The current pool size.
      */
     public int getPoolSize() {
         return executor.getPoolSize();
     }
 
     /**
-     * @return Largest pool size reached since the executor started.
+     * Gets the largest number of threads that have ever simultaneously been in the pool.
+     *
+     * @return The largest pool size reached.
      */
     public int getLargestPoolSize() {
         return executor.getLargestPoolSize();
     }
 
     /**
-     * @return Queue size for pending tasks (0 for SynchronousQueue in cached thread pool).
+     * Gets the current size of the task queue.
+     * For a {@link SynchronousQueue}, this will always be 0.
+     *
+     * @return The number of tasks in the queue.
      */
     public int getQueueSize() {
         return executor.getQueue() != null ? executor.getQueue().size() : 0;
     }
 
     /**
-     * @return Approximate total number of tasks that have completed execution.
+     * Gets the approximate total number of tasks that have completed execution.
+     *
+     * @return The completed task count.
      */
     public long getCompletedTaskCount() {
         return executor.getCompletedTaskCount();
     }
 
     /**
-     * @return Approximate total number of tasks that have ever been scheduled for execution.
+     * Gets the approximate total number of tasks that have ever been scheduled for execution.
+     *
+     * @return The total task count.
      */
     public long getTaskCount() {
         return executor.getTaskCount();
     }
 
     /**
-     * @return Keep-alive time for idle threads in seconds.
+     * Gets the keep-alive time for idle threads in seconds.
+     *
+     * @return The thread keep-alive time in seconds.
      */
     public long getKeepAliveSeconds() {
         return executor.getKeepAliveTime(TimeUnit.SECONDS);
