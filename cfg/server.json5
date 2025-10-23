@@ -31,6 +31,15 @@
     // Maximum number of SMTP transactions to process over a connection.
     transactionsLimit: 305,
 
+    // Maximum number of recipients (emails) allowed per envelope (default: 100).
+    recipientsLimit: 100,
+
+    // Maximum number of envelopes (emails) allowed per connection (default: 100).
+    envelopeLimit: 100,
+
+    // Maximum size of a message in megabytes (default: 10242400).
+    messageSizeLimit: 10242400, // 10 MB
+
     // Number of SMTP errors to allow before terminating connection (default: 3).
     errorLimit: 3
   },
@@ -42,6 +51,9 @@
     maximumPoolSize: 10,
     threadKeepAliveTime: 60,
     transactionsLimit: 305,
+    recipientsLimit: 100,
+    envelopeLimit: 100,
+    messageSizeLimit: 10242400, // 10 MB
     errorLimit: 3
   },
 
@@ -52,6 +64,9 @@
     maximumPoolSize: 10,
     threadKeepAliveTime: 60,
     transactionsLimit: 305,
+    recipientsLimit: 100,
+    envelopeLimit: 100,
+    messageSizeLimit: 10242400, // 10 MB
     errorLimit: 3
   },
 

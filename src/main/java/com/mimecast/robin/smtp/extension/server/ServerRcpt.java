@@ -21,6 +21,11 @@ import java.util.Optional;
 public class ServerRcpt extends ServerMail {
 
     /**
+     * Recipients limit.
+     */
+    private int recipientsLimit = 100;
+
+    /**
      * RCPT processor.
      *
      * @param connection Connection instance.
@@ -68,6 +73,17 @@ public class ServerRcpt extends ServerMail {
         connection.write(String.format(SmtpResponses.RECIPIENT_OK_250, connection.getSession().getUID()));
 
         return true;
+    }
+
+    /**
+     * Sets recipients limit.
+     *
+     * @param limit Limit value.
+     * @return ServerMail instance.
+     */
+    public ServerRcpt setRecipientsLimit(int limit) {
+        this.recipientsLimit = limit;
+        return this;
     }
 
     /**

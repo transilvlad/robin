@@ -1,5 +1,6 @@
 package com.mimecast.robin.smtp;
 
+import com.mimecast.robin.config.server.ListenerConfig;
 import com.mimecast.robin.config.server.WebhookConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Extensions;
@@ -7,6 +8,10 @@ import com.mimecast.robin.scanners.rbl.RblChecker;
 import com.mimecast.robin.scanners.rbl.RblResult;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.extension.Extension;
+import com.mimecast.robin.smtp.extension.server.ServerData;
+import com.mimecast.robin.smtp.extension.server.ServerMail;
+import com.mimecast.robin.smtp.extension.server.ServerProcessor;
+import com.mimecast.robin.smtp.extension.server.ServerRcpt;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.smtp.verb.Verb;
@@ -36,16 +41,15 @@ public class EmailReceipt implements Runnable {
     protected Connection connection;
 
     /**
-     * Transactions limitation.
-     * <p>Limits how many commands will be processed.
+     * Listener config instance.
      */
-    private final int transactionsLimit = Config.getServer().getTransactionsLimit();
+    private ListenerConfig config = new ListenerConfig();
 
     /**
      * Error limitation.
-     * <p>Limits how many eronious commands will be permitted.
+     * <p>Limits how many erroneous commands will be permitted.
      */
-    private int errorLimit = Config.getServer().getErrorLimit();
+    private int errorLimit = 3;
 
     /**
      * Constructs a new EmailReceipt instance with given Connection instance.
@@ -61,12 +65,15 @@ public class EmailReceipt implements Runnable {
      * Constructs a new EmailReceipt instance with given socket.
      *
      * @param socket     Inbound socket.
+     * @param config     Listener configuration instance.
      * @param secure     Secure (TLS) listener.
      * @param submission Submission (MSA) listener.
      */
-    public EmailReceipt(Socket socket, boolean secure, boolean submission) {
+    public EmailReceipt(Socket socket, ListenerConfig config, boolean secure, boolean submission) {
         try {
             connection = new Connection(socket);
+            this.config = config;
+            errorLimit = config.getErrorLimit();
 
             // Enable TLS handling if secure listener.
             if (secure) {
@@ -113,7 +120,7 @@ public class EmailReceipt implements Runnable {
             SmtpMetrics.incrementEmailReceiptStart();
 
             Verb verb;
-            for (int i = 0; i < transactionsLimit; i++) {
+            for (int i = 0; i < config.getTransactionsLimit(); i++) {
                 String read = connection.read().trim();
                 if (read.isEmpty()) {
                     log.error("Read empty, breaking.");
@@ -232,7 +239,20 @@ public class EmailReceipt implements Runnable {
                     return; // Webhook intercepted processing.
                 }
 
-                opt.get().getServer().process(connection, verb);
+                ServerProcessor server = opt.get().getServer();
+
+                // Set limit if applicable.
+                if (server instanceof ServerMail) {
+                    ((ServerMail) server).setEnvelopeLimit(config.getEnvelopeLimit());
+                }
+                if (server instanceof ServerRcpt) {
+                    ((ServerRcpt) server).setRecipientsLimit(config.getRecipientsLimit());
+                }
+                if (server instanceof ServerData) {
+                    ((ServerData) server).setEmailSizeLimit(config.getEmailSizeLimit());
+                }
+
+                server.process(connection, verb);
             }
         } else {
             errorLimit--;

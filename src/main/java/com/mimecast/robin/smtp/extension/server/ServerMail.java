@@ -59,6 +59,11 @@ public class ServerMail extends ServerProcessor {
     private InternetAddress oRcpt;
 
     /**
+     * Envelope limit.
+     */
+    private int envelopeLimit = 100;
+
+    /**
      * Advert getter.
      *
      * @return Advert string.
@@ -87,6 +92,12 @@ public class ServerMail extends ServerProcessor {
                 return true;
             }
 
+            // Check envelope limit before adding new envelope.
+            if (connection.getSession().getEnvelopes().size() >= envelopeLimit) {
+                connection.write(String.format(SmtpResponses.ENVELOPE_LIMIT_EXCEEDED_452, connection.getSession().getUID()));
+                return true;
+
+            }
 
             // Make envelope.
             MessageEnvelope envelope = new MessageEnvelope();
@@ -111,6 +122,17 @@ public class ServerMail extends ServerProcessor {
         }
 
         return false;
+    }
+
+    /**
+     * Sets envelope limit.
+     *
+     * @param limit Limit value.
+     * @return ServerMail instance.
+     */
+    public ServerMail setEnvelopeLimit(int limit) {
+        this.envelopeLimit = limit;
+        return this;
     }
 
     /**

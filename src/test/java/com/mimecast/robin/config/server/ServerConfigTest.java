@@ -27,16 +27,6 @@ class ServerConfigTest {
     }
 
     @Test
-    void getBacklog() {
-        assertEquals(25, Config.getServer().getBacklog());
-    }
-
-    @Test
-    void getErrorLimit() {
-        assertEquals(3, Config.getServer().getErrorLimit());
-    }
-
-    @Test
     void isAuth() {
         assertTrue(Config.getServer().isAuth());
     }

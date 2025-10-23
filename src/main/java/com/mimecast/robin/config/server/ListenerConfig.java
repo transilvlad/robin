@@ -72,7 +72,37 @@ public class ListenerConfig extends ConfigFoundation {
      * @return Transactions limit.
      */
     public int getTransactionsLimit() {
-        return Math.toIntExact(getLongProperty("transactionsLimit", 200L));
+        return Math.toIntExact(getLongProperty("transactionsLimit", 305L));
+    }
+
+    /**
+     * Gets recipients limit.
+     * <p>This defines how many recipients will be processed before rejecting them.
+     *
+     * @return Recipients limit.
+     */
+    public int getRecipientsLimit() {
+        return Math.toIntExact(getLongProperty("recipientsLimit", 100L));
+    }
+
+    /**
+     * Gets envelope limit.
+     * <p>This defines how many envelopes will be processed before breaking receipt loop.
+     *
+     * @return Envelope limit.
+     */
+    public int getEnvelopeLimit() {
+        return Math.toIntExact(getLongProperty("envelopeLimit", 100L));
+    }
+
+    /**
+     * Gets email size limit.
+     * <p>This defines how big emails will be accepted.
+     *
+     * @return Email size limit.
+     */
+    public int getEmailSizeLimit() {
+        return Math.toIntExact(getLongProperty("emailSizeLimit", 10242400L)); // 10 MB.
     }
 
     /**

@@ -13,6 +13,7 @@ import com.mimecast.robin.smtp.webhook.WebhookCaller;
 import com.mimecast.robin.storage.StorageClient;
 import org.apache.commons.io.output.CountingOutputStream;
 
+import javax.naming.LimitExceededException;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
@@ -26,6 +27,11 @@ public class ServerData extends ServerProcessor {
      * Number of MIME bytes received.
      */
     protected long bytesReceived = 0L;
+
+    /**
+     * Envelope limit.
+     */
+    private int emailSizeLimit = 10242400; // 10 MB.
 
     /**
      * CHUNKING advert.
@@ -76,7 +82,11 @@ public class ServerData extends ServerProcessor {
         }
 
         // Read email lines and store to disk.
-        StorageClient storageClient = asciiRead("eml");
+        try {
+            StorageClient storageClient = asciiRead("eml");
+        } catch (LimitExceededException e) {
+            connection.write(String.format(SmtpResponses.MESSAGE_SIZE_LIMIT_EXCEEDED_552, connection.getSession().getUID()));
+        }
 
         // Call RAW webhook after successful storage.
         callRawWebhook();
@@ -95,17 +105,17 @@ public class ServerData extends ServerProcessor {
      * @param extension File extension.
      * @return StorageClient StorageClient instance.
      * @throws IOException Unable to communicate.
+     * @throws LimitExceededException Limit exceeded.
      */
-    protected StorageClient asciiRead(String extension) throws IOException {
+    protected StorageClient asciiRead(String extension) throws IOException, LimitExceededException {
         connection.write(SmtpResponses.READY_WILLING_354);
 
         StorageClient storageClient = Factories.getStorageClient(connection, extension);
 
         try (CountingOutputStream cos = new CountingOutputStream(storageClient.getStream())) {
             connection.setTimeout(connection.getSession().getExtendedTimeout());
-            connection.readMultiline(cos);
+            connection.readMultiline(cos, emailSizeLimit);
             bytesReceived = cos.getByteCount();
-
         } finally {
             connection.setTimeout(connection.getSession().getTimeout());
         }
@@ -117,6 +127,7 @@ public class ServerData extends ServerProcessor {
 
     /**
      * Binary receipt.
+     * TODO: Support multiple BDAT chunks.
      *
      * @throws IOException Unable to communicate.
      */
@@ -125,6 +136,8 @@ public class ServerData extends ServerProcessor {
 
         if (verb.getCount() == 1) {
             connection.write(SmtpResponses.INVALID_ARGS_501);
+        } else if (bdatVerb.getSize() > emailSizeLimit) {
+            connection.write(String.format(SmtpResponses.MESSAGE_SIZE_LIMIT_EXCEEDED_552, connection.getSession().getUID()));
         } else {
             // Read bytes.
             StorageClient storageClient = Factories.getStorageClient(connection, "eml");
@@ -162,6 +175,17 @@ public class ServerData extends ServerProcessor {
             connection.setTimeout(connection.getSession().getTimeout());
             log.info("<< BYTES {}", cos.getByteCount());
         }
+    }
+
+    /**
+     * Sets email size limit.
+     *
+     * @param limit Limit value.
+     * @return ServerData instance.
+     */
+    public ServerData setEmailSizeLimit(int limit) {
+        this.emailSizeLimit = limit;
+        return this;
     }
 
     /**

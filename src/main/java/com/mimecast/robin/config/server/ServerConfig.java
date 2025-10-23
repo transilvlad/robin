@@ -126,11 +126,7 @@ public class ServerConfig extends ConfigFoundation {
      * @return ListenerConfig instance.
      */
     public ListenerConfig getSmtpConfig() {
-        if (map.containsKey("smtpConfig")) {
-            return new ListenerConfig(getMapProperty("smtpConfig"));
-        }
-        // Fallback to legacy flat config
-        return new ListenerConfig(map);
+        return new ListenerConfig(getMapProperty("smtpConfig"));
     }
 
     /**
@@ -139,11 +135,7 @@ public class ServerConfig extends ConfigFoundation {
      * @return ListenerConfig instance.
      */
     public ListenerConfig getSecureConfig() {
-        if (map.containsKey("secureConfig")) {
-            return new ListenerConfig(getMapProperty("secureConfig"));
-        }
-        // Fallback to legacy flat config
-        return new ListenerConfig(map);
+        return new ListenerConfig(getMapProperty("secureConfig"));
     }
 
     /**
@@ -152,79 +144,7 @@ public class ServerConfig extends ConfigFoundation {
      * @return ListenerConfig instance.
      */
     public ListenerConfig getSubmissionConfig() {
-        if (map.containsKey("submissionConfig")) {
-            return new ListenerConfig(getMapProperty("submissionConfig"));
-        }
-        // Fallback to legacy flat config
-        return new ListenerConfig(map);
-    }
-
-    /**
-     * Gets backlog size.
-     * @deprecated Use getSmtpConfig().getBacklog() instead.
-     *
-     * @return Backlog size.
-     */
-    @Deprecated
-    public int getBacklog() {
-        return getSmtpConfig().getBacklog();
-    }
-
-    /**
-     * Gets minimum pool size.
-     * @deprecated Use getSmtpConfig().getMinimumPoolSize() instead.
-     *
-     * @return Thread pool min size.
-     */
-    @Deprecated
-    public int getMinimumPoolSize() {
-        return getSmtpConfig().getMinimumPoolSize();
-    }
-
-    /**
-     * Gets maximum pool size.
-     * @deprecated Use getSmtpConfig().getMaximumPoolSize() instead.
-     *
-     * @return Thread pool max size.
-     */
-    @Deprecated
-    public int getMaximumPoolSize() {
-        return getSmtpConfig().getMaximumPoolSize();
-    }
-
-    /**
-     * Gets thread keep alive time.
-     * @deprecated Use getSmtpConfig().getThreadKeepAliveTime() instead.
-     *
-     * @return Time in seconds.
-     */
-    @Deprecated
-    public int getThreadKeepAliveTime() {
-        return getSmtpConfig().getThreadKeepAliveTime();
-    }
-
-    /**
-     * Gets transactions limit.
-     * <p>This defines how many commands will be processed before breaking receipt loop.
-     * @deprecated Use getSmtpConfig().getTransactionsLimit() instead.
-     *
-     * @return Error limit.
-     */
-    @Deprecated
-    public int getTransactionsLimit() {
-        return getSmtpConfig().getTransactionsLimit();
-    }
-
-    /**
-     * Gets error limit.
-     * <p>This defines how many syntax errors should be permitted before iterrupting the receipt.
-     * @deprecated Use getSmtpConfig().getErrorLimit() instead.
-     *
-     * @return Error limit.
-     */
-    @Deprecated
-    public int getErrorLimit() {
-        return getSmtpConfig().getErrorLimit();
+        return new ListenerConfig(getMapProperty("submissionConfig"));
     }
 
     /**

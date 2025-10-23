@@ -117,7 +117,7 @@ public class SmtpListener {
 
                 executor.submit(() -> {
                     try {
-                        new EmailReceipt(sock, secure, submission).run();
+                        new EmailReceipt(sock, config, secure, submission).run();
 
                     } catch (Exception e) {
                         SmtpMetrics.incrementEmailReceiptException(e.getClass().getSimpleName());

@@ -8,6 +8,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import javax.naming.LimitExceededException;
 import javax.net.ssl.SSLSocket;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -205,14 +206,23 @@ public abstract class SmtpFoundation {
      * <p>This lets us check previous line endings + current line for the terminator as per RFC 5321.
      *
      * @param out OutputStream instance.
+     * @param emailSizeLimit Email size limit.
      * @throws IOException Unable to communicate.
+     * @throws LimitExceededException Email size limit exceeded.
      */
-    public void readMultiline(OutputStream out) throws IOException {
+    public void readMultiline(OutputStream out, int emailSizeLimit) throws IOException, LimitExceededException {
         try {
             byte[] read;
             byte[] eol = new byte[0];
+            int totalLength = 0;
             while ((read = inc.readLine()) != null) {
-                // Stop if terminator found
+                totalLength += read.length;
+
+                if (totalLength > emailSizeLimit) {
+                    throw new LimitExceededException("Email size limit exceeded.");
+                }
+
+                // Stop if terminator found.
                 int length = eol.length + read.length;
                 if ((length == 5 || length == 3) && isTerminator(eol, read)) {
                     break;

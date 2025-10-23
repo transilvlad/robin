@@ -124,6 +124,11 @@ public final class SmtpResponses {
      */
     public static final String INTERNAL_ERROR_451 = "451 4.3.2 Internal server error [%s]";
 
+    /**
+     * 452 Envelope limit exceeded.
+     */
+    public static final String ENVELOPE_LIMIT_EXCEEDED_452 = "452 4.5.3 Envelope limit exceeded [%s]";
+
     // ========== 5xx Permanent Failure Codes ==========
 
     /**
@@ -185,6 +190,11 @@ public final class SmtpResponses {
      * 550 Dovecot-LDA delivery failed.
      */
     public static final String DOVECOT_LDA_FAILED_550 = "550 Dovecot-LDA delivery failed";
+
+    /**
+     * 552 Message size limit exceeded.
+     */
+    public static final String MESSAGE_SIZE_LIMIT_EXCEEDED_552 = "552 5.3.4 Message size limit exceeded [%s]";
 
     /**
      * 554 Virus detected.
