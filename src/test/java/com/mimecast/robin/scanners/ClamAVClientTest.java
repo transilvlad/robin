@@ -124,6 +124,19 @@ class ClamAVClientTest {
     }
 
     @Test
+    void testScanCleanBytes() {
+        String cleanContent = "This is clean content";
+        ScanResult result = client.scanBytes(cleanContent.getBytes(StandardCharsets.UTF_8));
+        assertInstanceOf(ScanResult.OK.class, result, "Clean stream should return OK result");
+    }
+
+    @Test
+    void testScanVirusBytes() {
+        ScanResult result = client.scanBytes(EICAR_TEST_SIGNATURE.getBytes(StandardCharsets.UTF_8));
+        assertInstanceOf(ScanResult.VirusFound.class, result, "Virus stream should return VirusFound result");
+    }
+
+    @Test
     void testScanCleanStream() {
         String cleanContent = "This is clean content";
         InputStream inputStream = new ByteArrayInputStream(cleanContent.getBytes(StandardCharsets.UTF_8));

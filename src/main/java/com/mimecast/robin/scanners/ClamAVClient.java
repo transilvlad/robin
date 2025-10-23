@@ -5,6 +5,7 @@ import org.apache.logging.log4j.Logger;
 import xyz.capybara.clamav.ClamavClient;
 import xyz.capybara.clamav.commands.scan.result.ScanResult;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,8 +38,8 @@ public class ClamAVClient {
     /**
      * Constructor with specific host and port.
      *
-     * @param host The ClamAV server host
-     * @param port The ClamAV server port
+     * @param host The ClamAV server host.
+     * @param port The ClamAV server port.
      */
     public ClamAVClient(String host, int port) {
         client = new ClamavClient(host, port);
@@ -48,7 +49,7 @@ public class ClamAVClient {
     /**
      * Ping the ClamAV server to check if it's available.
      *
-     * @return True if the server responded to ping, false otherwise
+     * @return True if the server responded to ping, false otherwise.
      */
     public boolean ping() {
         try {
@@ -64,7 +65,7 @@ public class ClamAVClient {
     /**
      * Get the ClamAV server version.
      *
-     * @return The server version as a string or empty if unable to retrieve
+     * @return The server version as a string or empty if unable to retrieve.
      */
     public Optional<String> getVersion() {
         try {
@@ -80,9 +81,9 @@ public class ClamAVClient {
     /**
      * Scan a file for viruses.
      *
-     * @param file The file to scan
-     * @return The scan result object with status and details
-     * @throws IOException If the file cannot be read
+     * @param file The file to scan.
+     * @return The scan result object with status and details.
+     * @throws IOException If the file cannot be read.
      */
     public ScanResult scanFile(File file) throws IOException {
         log.debug("Scanning file: {}", file.getAbsolutePath());
@@ -92,10 +93,21 @@ public class ClamAVClient {
     }
 
     /**
+     * Scan a byte array for viruses.
+     *
+     * @param bytes The byte array to scan.
+     * @return The scan result object with status and details.
+     */
+    public ScanResult scanBytes(byte[] bytes) {
+        log.debug("Scanning byte array");
+        return client.scan(new ByteArrayInputStream(bytes));
+    }
+
+    /**
      * Scan an input stream for viruses.
      *
-     * @param inputStream The input stream to scan
-     * @return The scan result object with status and details
+     * @param inputStream The input stream to scan.
+     * @return The scan result object with status and details.
      */
     public ScanResult scanStream(InputStream inputStream) {
         log.debug("Scanning input stream");
@@ -105,9 +117,9 @@ public class ClamAVClient {
     /**
      * Check if a file contains viruses.
      *
-     * @param file The file to scan
-     * @return True if the file is infected, false if it's clean
-     * @throws IOException If the file cannot be read
+     * @param file The file to scan.
+     * @return True if the file is infected, false if it's clean.
+     * @throws IOException If the file cannot be read.
      */
     public boolean isInfected(File file) throws IOException {
         ScanResult result = scanFile(file);
@@ -121,7 +133,7 @@ public class ClamAVClient {
     /**
      * Get the map of detected viruses after a scan.
      *
-     * @return Map of virus names to affected files
+     * @return Map of virus names to affected files.
      */
     public Map<String, Collection<String>> getViruses() {
         return viruses;
