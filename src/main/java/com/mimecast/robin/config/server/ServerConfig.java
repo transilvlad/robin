@@ -29,6 +29,22 @@ public class ServerConfig extends ConfigFoundation {
     private String configDir;
 
     /**
+     * Mapping of configuration keys to their filenames for lazy loading.
+     */
+    private static final Map<String, String> CONFIG_FILENAMES = new HashMap<>();
+
+    static {
+        CONFIG_FILENAMES.put("webhooks", "webhooks.json5");
+        CONFIG_FILENAMES.put("storage", "storage.json5");
+        CONFIG_FILENAMES.put("queue", "queue.json5");
+        CONFIG_FILENAMES.put("relay", "relay.json5");
+        CONFIG_FILENAMES.put("dovecot", "dovecot.json5");
+        CONFIG_FILENAMES.put("prometheus", "prometheus.json5");
+        CONFIG_FILENAMES.put("users", "users.json5");
+        CONFIG_FILENAMES.put("scenarios", "scenarios.json5");
+    }
+
+    /**
      * Constructs a new ServerConfig instance.
      */
     public ServerConfig() {
@@ -357,8 +373,7 @@ public class ServerConfig extends ConfigFoundation {
      */
     @SuppressWarnings("rawtypes")
     public Map<String, WebhookConfig> getWebhooks() {
-        // Attempt to lazy-load from webhooks.json5 if present and not already in map
-        loadExternalIfAbsent("webhooks", "webhooks.json5", Map.class);
+        loadExternalIfAbsent("webhooks", Map.class);
 
         Map<String, WebhookConfig> webhooks = new HashMap<>();
         if (map.containsKey("webhooks")) {
@@ -376,8 +391,7 @@ public class ServerConfig extends ConfigFoundation {
      * @return BasicConfig instance.
      */
     public BasicConfig getStorage() {
-        // Attempt to lazy-load from storage.json5 if present and not already in map
-        loadExternalIfAbsent("storage", "storage.json5", Map.class);
+        loadExternalIfAbsent("storage", Map.class);
         return new BasicConfig(getMapProperty("storage"));
     }
 
@@ -387,8 +401,7 @@ public class ServerConfig extends ConfigFoundation {
      * @return BasicConfig instance.
      */
     public BasicConfig getQueue() {
-        // Attempt to lazy-load from queue.json5 if present and not already in map
-        loadExternalIfAbsent("queue", "queue.json5", Map.class);
+        loadExternalIfAbsent("queue", Map.class);
         return new BasicConfig(getMapProperty("queue"));
     }
 
@@ -398,8 +411,7 @@ public class ServerConfig extends ConfigFoundation {
      * @return BasicConfig instance.
      */
     public BasicConfig getRelay() {
-        // Attempt to lazy-load from relay.json5 if present and not already in map
-        loadExternalIfAbsent("relay", "relay.json5", Map.class);
+        loadExternalIfAbsent("relay", Map.class);
         return new BasicConfig(getMapProperty("relay"));
     }
 
@@ -409,8 +421,7 @@ public class ServerConfig extends ConfigFoundation {
      * @return BasicConfig instance.
      */
     public BasicConfig getDovecot() {
-        // Attempt to lazy-load from dovecot.json5 if present and not already in map
-        loadExternalIfAbsent("dovecot", "dovecot.json5", Map.class);
+        loadExternalIfAbsent("dovecot", Map.class);
         return new BasicConfig(getMapProperty("dovecot"));
     }
 
@@ -420,8 +431,7 @@ public class ServerConfig extends ConfigFoundation {
      * @return BasicConfig instance.
      */
     public BasicConfig getPrometheus() {
-        // Attempt to lazy-load from prometheus.json5 if present and not already in map
-        loadExternalIfAbsent("prometheus", "prometheus.json5", Map.class);
+        loadExternalIfAbsent("prometheus", Map.class);
         return new BasicConfig(getMapProperty("prometheus"));
     }
 
@@ -441,8 +451,7 @@ public class ServerConfig extends ConfigFoundation {
      * @return Users list.
      */
     public List<UserConfig> getUsers() {
-        // Attempt to lazy-load from users.json5 if present and not already in map
-        loadExternalIfAbsent("users", "users.json5", List.class);
+        loadExternalIfAbsent("users", List.class);
 
         List<UserConfig> users = new ArrayList<>();
         for (Map<String, String> user : (List<Map<String, String>>) getListProperty("users")) {
@@ -473,8 +482,7 @@ public class ServerConfig extends ConfigFoundation {
      */
     @SuppressWarnings("rawtypes")
     public Map<String, ScenarioConfig> getScenarios() {
-        // Attempt to lazy-load from scenarios.json5 if present and not already in map
-        loadExternalIfAbsent("scenarios", "scenarios.json5", Map.class);
+        loadExternalIfAbsent("scenarios", Map.class);
 
         Map<String, ScenarioConfig> scenarios = new HashMap<>();
         if (map.containsKey("scenarios")) {
@@ -490,12 +498,12 @@ public class ServerConfig extends ConfigFoundation {
      * Helper to lazily load an external JSON5 file into the root config map under the given key
      * if the key is absent and a config directory is available.
      *
-     * @param key      Root key to populate in the map.
-     * @param filename File to read from the config directory.
-     * @param clazz    Class to parse the JSON into (e.g., Map.class, List.class).
+     * @param key   Root key to populate in the map.
+     * @param clazz Class to parse the JSON into (e.g., Map.class, List.class).
      */
-    private void loadExternalIfAbsent(String key, String filename, Class<?> clazz) {
-        if (!map.containsKey(key) && configDir != null) {
+    private void loadExternalIfAbsent(String key, Class<?> clazz) {
+        if (!map.containsKey(key) && configDir != null && CONFIG_FILENAMES.containsKey(key)) {
+            String filename = CONFIG_FILENAMES.get(key);
             String path = configDir + File.separator + filename;
             if (PathUtils.isFile(path)) {
                 try {
