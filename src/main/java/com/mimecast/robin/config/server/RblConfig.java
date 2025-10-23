@@ -30,6 +30,15 @@ public class RblConfig {
     }
 
     /**
+     * Check if RBL rejection is enabled.
+     *
+     * @return true if RBL rejection is enabled, false otherwise.
+     */
+    public boolean isRejectEnabled() {
+        return map.containsKey("rejectEnabled") && (Boolean) map.get("rejectEnabled");
+    }
+
+    /**
      * Get the list of RBL providers to check against.
      *
      * @return List of RBL provider domains.

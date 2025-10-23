@@ -120,6 +120,16 @@ public class Session implements Serializable, Cloneable {
     private String friendAddr;
 
     /**
+     * Remote IP RBL presence.
+     */
+    private boolean friendInRbl;
+
+    /**
+     * Remote IP found in RBL list.
+     */
+    private String friendRbl;
+
+    /**
      * [Client] HELO domain.
      */
     private String helo = "";
@@ -629,6 +639,46 @@ public class Session implements Serializable, Cloneable {
      */
     public Session setFriendAddr(String friendAddr) {
         this.friendAddr = friendAddr;
+        return this;
+    }
+
+    /**
+     * Is remote IP present in RBL.
+     *
+     * @return Boolean.
+     */
+    public boolean isFriendInRbl() {
+        return friendInRbl;
+    }
+
+    /**
+     * Sets remote IP RBL presence.
+     *
+     * @param friendInRbl Remote IP RBL presence.
+     * @return Self.
+     */
+    public Session setFriendInRbl(boolean friendInRbl) {
+        this.friendInRbl = friendInRbl;
+        return this;
+    }
+
+    /**
+     * Gets remote IP found in RBL list.
+     *
+     * @return RBL name.
+     */
+    public String getFriendRbl() {
+        return friendRbl;
+    }
+
+    /**
+     * Sets remote IP found in RBL list.
+     *
+     * @param friendRbl RBL name.
+     * @return Self.
+     */
+    public Session setFriendRbl(String friendRbl) {
+        this.friendRbl = friendRbl;
         return this;
     }
 

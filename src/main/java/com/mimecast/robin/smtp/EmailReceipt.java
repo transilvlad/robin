@@ -168,7 +168,13 @@ public class EmailReceipt implements Runnable {
             }
         }
 
-        if (isBlacklisted) {
+        // Update session with RBL status and provider.
+        connection.getSession()
+                .setFriendInRbl(isBlacklisted)
+                .setFriendRbl(blacklistingRbl);
+
+        // Send appropriate greeting or rejection based on RBL status and enablement.
+        if (isBlacklisted && Config.getServer().getRblConfig().isRejectEnabled()) {
             // Send rejection message for blacklisted IP.
             connection.write(SmtpResponses.LISTED_CLIENT_550);
 

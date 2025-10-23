@@ -93,7 +93,12 @@
   // RBL (Realtime Blackhole List) configuration.
   rbl: {
     // Enable or disable RBL checking (default: false).
-    enabled: false,
+    enabled: true,
+
+    // Reject messages from blacklisted IPs (default: false).
+    // If false, checks will be made and result saved in session.
+    // Handy when using webhooks to decide on rejection.
+    rejectEnabled: true,
 
     // List of RBL providers to check against.
     providers: [
