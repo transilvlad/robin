@@ -326,6 +326,18 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
+     * Gets Vault configuration.
+     *
+     * @return VaultConfig instance.
+     */
+    public VaultConfig getVault() {
+        if (map.containsKey("vault")) {
+            return new VaultConfig(getMapProperty("vault"));
+        }
+        return new VaultConfig(new HashMap<>());
+    }
+
+    /**
      * Gets webhooks map.
      *
      * @return Webhooks map indexed by extension name.

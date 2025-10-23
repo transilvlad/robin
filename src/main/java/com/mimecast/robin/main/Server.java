@@ -10,6 +10,9 @@ import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.storage.StorageCleaner;
 import com.mimecast.robin.util.Magic;
+import com.mimecast.robin.util.VaultClient;
+import com.mimecast.robin.util.VaultClientFactory;
+import com.mimecast.robin.util.VaultMagicProvider;
 
 import javax.naming.ConfigurationException;
 import java.io.IOException;
@@ -114,6 +117,9 @@ public class Server extends Foundation {
      * This includes storage cleaning, queue management, metrics, and client endpoints.
      */
     private static void startup() {
+        // Initialize Vault integration for secrets management.
+        initializeVault();
+
         // Clean storage directory on startup.
         StorageCleaner.clean(Config.getServer().getStorage());
 
@@ -150,6 +156,27 @@ public class Server extends Foundation {
             log.error("Unable to start client submission endpoint: {}", e.getMessage());
         }
     }
+
+    /**
+     * Initializes HashiCorp Vault integration for secrets management.
+     * Vault secrets can be used as magic variables in configurations.
+     * Secrets are fetched on-demand and cached for performance.
+     */
+    private static void initializeVault() {
+        try {
+            ServerConfig serverConfig = Config.getServer();
+            VaultClient vaultClient = VaultClientFactory.createFromConfig(serverConfig);
+            VaultMagicProvider.initialize(vaultClient);
+
+            if (vaultClient.isEnabled()) {
+                log.info("Vault integration initialized successfully - secrets will be fetched on-demand");
+            }
+        } catch (Exception e) {
+            log.error("Failed to initialize Vault integration: {}", e.getMessage());
+            log.warn("Continuing without Vault integration");
+        }
+    }
+
 
     /**
      * Registers a shutdown hook to ensure graceful termination of the server.

@@ -166,6 +166,11 @@ public class Magic {
             value = values.get(key);
         }
 
+        // If not found in session magic, try Vault secrets.
+        if (value == null) {
+            value = VaultMagicProvider.getSecret(magicName);
+        }
+
         return value;
     }
 

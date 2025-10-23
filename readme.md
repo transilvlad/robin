@@ -63,8 +63,9 @@ Documentation
 ### Java SMTP/E/SMTP/LMTP Client
 - [Client usage](doc/client.md)
 
-### MTA Server
+### Server
 - [Server configuration](doc/server.md)
+- [HashiCorp Vault](doc/vault.md)
 - [SMTP webhooks](doc/webhooks.md)
 - [Endpoints](doc/endpoints.md) - JVM metrics implementation.
 - [Prometheus Remote Write](doc/prometheus.md) - Prometheus Remote Write implementation.
