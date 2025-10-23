@@ -1,4 +1,4 @@
-package com.mimecast.robin.mx.rbl;
+package com.mimecast.robin.scanners.rbl;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

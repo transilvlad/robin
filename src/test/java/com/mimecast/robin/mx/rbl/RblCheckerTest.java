@@ -1,6 +1,8 @@
 package com.mimecast.robin.mx.rbl;
 
 import com.mimecast.robin.mx.util.LocalDnsResolver;
+import com.mimecast.robin.scanners.rbl.RblChecker;
+import com.mimecast.robin.scanners.rbl.RblResult;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.xbill.DNS.Lookup;

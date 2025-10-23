@@ -1,4 +1,4 @@
-package com.mimecast.robin.mx.rbl;
+package com.mimecast.robin.scanners.rbl;
 
 import java.util.Collections;
 import java.util.List;
