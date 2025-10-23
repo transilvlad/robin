@@ -13,9 +13,9 @@ class LocalStorageClientMock extends LocalStorageClient {
 
     private final Pair<Integer, String> result;
 
-    public LocalStorageClientMock(ServerConfig config, Pair<Integer, String> result) {
+    public LocalStorageClientMock(ServerConfig config, Pair<Integer, String> ldaResult) {
         this.config = config;
-        this.result = result;
+        this.result = ldaResult;
     }
 
     protected DovecotLdaDelivery getDovecotLdaDeliveryInstance() {

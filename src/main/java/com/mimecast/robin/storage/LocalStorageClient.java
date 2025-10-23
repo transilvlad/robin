@@ -5,6 +5,7 @@ import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.headers.MimeHeader;
+import com.mimecast.robin.mime.parts.TextMimePart;
 import com.mimecast.robin.queue.PersistentQueue;
 import com.mimecast.robin.queue.QueueFiles;
 import com.mimecast.robin.queue.RelayQueueCron;
@@ -160,7 +161,15 @@ public class LocalStorageClient implements StorageClient {
                     connection.getSession().getEnvelopes().getLast().setFile(getFile());
                 }
 
+                // TODO: Scan email with ClamAV.
+
                 parser = new EmailParser(getFile()).parse(true);
+                parser.getParts().forEach(part -> {
+                    // Scan each non-text part with ClamAV.
+                    if (!(part instanceof TextMimePart)) {
+                        // TODO: Scan each part with ClamAV.
+                    }
+                });
 
                 // Rename file if X-Robin-Filename header exists and feature enabled.
                 if (!config.getStorage().getBooleanProperty("disableRenameHeader")) {

@@ -140,6 +140,12 @@
         </dependency>
 
         <dependency>
+            <groupId>xyz.capybara</groupId>
+            <artifactId>clamav-client</artifactId>
+            <version>2.1.2</version>
+        </dependency>
+
+        <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-api</artifactId>
             <version>${log4j.version}</version>
