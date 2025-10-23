@@ -16,6 +16,7 @@ import com.mimecast.robin.queue.bounce.BounceMessageGenerator;
 import com.mimecast.robin.queue.relay.DovecotLdaDelivery;
 import com.mimecast.robin.queue.relay.RelayMessage;
 import com.mimecast.robin.scanners.ClamAVClient;
+import com.mimecast.robin.scanners.RspamdClient;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
@@ -170,6 +171,11 @@ public class LocalStorageClient implements StorageClient {
                     return;
                 }
 
+                // Scan email with Rspamd.
+                if (!isHam(Files.readAllBytes(Paths.get(getFile())))) {
+                    return;
+                }
+
                 // Parse email for further processing.
                 parser = new EmailParser(getFile()).parse(true);
 
@@ -240,6 +246,40 @@ public class LocalStorageClient implements StorageClient {
 
                 } else if ("discard".equalsIgnoreCase(onVirus)) {
                     log.warn("Virus found, discarding.");
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Scan with Rspamd.
+     *
+     * @param bytes File bytes.
+     * @return Boolean false if spam/phishing detected and to be dropped.
+     * @throws IOException Unable to access file.
+     */
+    private boolean isHam(byte[] bytes) throws IOException {
+        BasicConfig rspamdConfig = config.getRspamd();
+        if (rspamdConfig.getBooleanProperty("enabled")) {
+            RspamdClient rspamdClient = new RspamdClient(
+                    rspamdConfig.getStringProperty("host", "localhost"),
+                    rspamdConfig.getLongProperty("port", 11333L).intValue()
+            );
+
+            if (rspamdClient.isSpam(bytes, rspamdConfig.getDoubleProperty("requiredScore", 7.0))) {
+                double score = rspamdClient.getScore();
+                log.warn("Spam/phishing detected in {} with score {}: {}", getFile(), score, rspamdClient.getSymbols());
+                String onSpam = rspamdConfig.getStringProperty("onSpam", "reject");
+
+                if ("reject".equalsIgnoreCase(onSpam)) {
+                    connection.write(String.format(SmtpResponses.SPAM_FOUND_550, connection.getSession().getUID()));
+                    return false;
+
+                } else if ("discard".equalsIgnoreCase(onSpam)) {
+                    log.warn("Spam/phishing detected, discarding.");
                     return false;
                 }
             }

@@ -44,6 +44,7 @@ public class ServerConfig extends ConfigFoundation {
         CONFIG_FILENAMES.put("scenarios", "scenarios.json5");
         CONFIG_FILENAMES.put("vault", "vault.json5");
         CONFIG_FILENAMES.put("clamav", "clamav.json5");
+        CONFIG_FILENAMES.put("rspamd", "rspamd.json5");
     }
 
     /**
@@ -437,6 +438,16 @@ public class ServerConfig extends ConfigFoundation {
     public BasicConfig getClamAV() {
         loadExternalIfAbsent("clamav", Map.class);
         return new BasicConfig(getMapProperty("clamav"));
+    }
+
+    /**
+     * Gets Rspamd config.
+     *
+     * @return BasicConfig instance.
+     */
+    public BasicConfig getRspamd() {
+        loadExternalIfAbsent("rspamd", Map.class);
+        return new BasicConfig(getMapProperty("rspamd"));
     }
 
     /**

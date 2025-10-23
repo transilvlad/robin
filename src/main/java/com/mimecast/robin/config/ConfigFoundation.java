@@ -167,6 +167,17 @@ public abstract class ConfigFoundation implements Serializable {
     }
 
     /**
+     * Gets Double property.
+     *
+     * @param name Property name.
+     * @param def  Default value.
+     * @return Double.
+     */
+    public Double getDoubleProperty(String name, Double def) {
+        return map.get(name) != null ? (Double) map.get(name) : def;
+    }
+
+    /**
      * Gets Boolean property.
      *
      * @param name Property name.

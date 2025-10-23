@@ -31,6 +31,7 @@ public class RspamdClient {
     private static final String SCAN_ENDPOINT = "/checkv2";
     private static final MediaType APPLICATION_OCTET_STREAM = MediaType.parse("application/octet-stream");
     private static final int DEFAULT_TIMEOUT_SECONDS = 30;
+    private static final Double DEFAULT_SPAM_SCORE = 7.0;
 
     private final String baseUrl;
     private final OkHttpClient httpClient;
@@ -181,12 +182,36 @@ public class RspamdClient {
     /**
      * Check if content is detected as spam.
      *
+     * @param content       The content to check (bytes).
+     * @param spamThreshold The spam score threshold.
+     * @return True if content is marked as spam, false otherwise.
+     */
+    public boolean isSpam(byte[] content, Double spamThreshold) {
+        Map<String, Object> result = scanBytes(content);
+        return isSpamResult(result, spamThreshold);
+    }
+
+    /**
+     * Check if content is detected as spam.
+     *
      * @param content The content to check (bytes).
      * @return True if content is marked as spam, false otherwise.
      */
     public boolean isSpam(byte[] content) {
-        Map<String, Object> result = scanBytes(content);
-        return isSpamResult(result);
+        return isSpam(content, DEFAULT_SPAM_SCORE);
+    }
+
+    /**
+     * Check if content is detected as spam.
+     *
+     * @param file          The file to check.
+     * @param spamThreshold The spam score threshold.
+     * @return True if content is marked as spam, false otherwise.
+     * @throws IOException If the file cannot be read.
+     */
+    public boolean isSpam(File file, Double spamThreshold) throws IOException {
+        Map<String, Object> result = scanFile(file);
+        return isSpamResult(result, spamThreshold);
     }
 
     /**
@@ -197,22 +222,28 @@ public class RspamdClient {
      * @throws IOException If the file cannot be read.
      */
     public boolean isSpam(File file) throws IOException {
-        Map<String, Object> result = scanFile(file);
-        return isSpamResult(result);
+        return isSpam(file, DEFAULT_SPAM_SCORE);
     }
 
     /**
      * Check if a scan result indicates spam.
      *
-     * @param result The scan result map.
+     * @param result        The scan result map.
+     * @param spamThreshold The spam score threshold.
      * @return True if spam is detected, false otherwise.
      */
-    private boolean isSpamResult(Map<String, Object> result) {
+    private boolean isSpamResult(Map<String, Object> result, Double spamThreshold) {
         if (result == null || result.isEmpty()) {
             return false;
         }
-        Object spamObj = result.get("spam");
-        return spamObj instanceof Boolean && (Boolean) spamObj;
+        // If the "spam" key is present and true, consider it spam.
+        if (result.get("spam") instanceof Boolean && (Boolean) result.get("spam") &&
+                result.get("score") instanceof Double && (Double) result.get("score") >= spamThreshold) {
+            log.info("Content marked as SPAM with score: {} above threshold: {}", result.get("score"), spamThreshold);
+            return true;
+        }
+
+        return false;
     }
 
     /**

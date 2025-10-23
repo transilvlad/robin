@@ -1,0 +1,26 @@
+{
+  // Rspamd server settings
+  rspamd: {
+
+    // Enable/disable Rspamd scanning.
+    enabled: false,
+
+    // Rspamd server host.
+    host: "localhost",
+
+    // Rspamd server port.
+    port: 11333,
+
+    // Connection timeout in seconds.
+    timeout: 30,
+
+    // Required spam score threshold for rejection.
+    requiredScore: 7.0,
+
+    // Action to take when spam/phishing is detected.
+    // "reject" - Reject the email with a 5xx error.
+    // "discard" - Accept the email and discard it.
+    onSpam: "reject"
+  }
+}
+
