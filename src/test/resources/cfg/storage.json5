@@ -2,6 +2,9 @@
   // Enable email storage.
   enabled: true,
 
+  // Disable rename by magic header feature.
+  disableRenameHeader: false,
+
   // Path to storage folder.
     path: "/tmp/store",
 

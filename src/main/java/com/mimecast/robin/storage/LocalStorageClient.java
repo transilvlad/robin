@@ -162,8 +162,10 @@ public class LocalStorageClient implements StorageClient {
 
                 parser = new EmailParser(getFile()).parse(true);
 
-                // Rename file if X-Robin-Filename header exists. TODO: Add disablement flag.
-                rename();
+                // Rename file if X-Robin-Filename header exists and feature enabled.
+                if (!config.getStorage().getBooleanProperty("disableRenameHeader")) {
+                    rename();
+                }
 
                 // Save envelope file path.
                 if (!connection.getSession().getEnvelopes().isEmpty()) {
