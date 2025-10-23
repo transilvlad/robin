@@ -11,10 +11,11 @@ instead of storing them in configuration files.
 Configuration
 -------------
 
-The Vault configuration has been added to your `server.json5` file:
+Vault configuration is stored in a separate `vault.json5` file in your configuration directory.
+The file is automatically loaded when needed by the application:
 
 ```json5
-vault: {
+{
   // Enable or disable Vault integration (default: false).
   enabled: false,
 
@@ -57,7 +58,7 @@ vault: {
 **Store tokens in files, not in configuration:**
 
 ```json5
-vault: {
+{
   enabled: true,
   address: "https://vault.example.com:8200",
   token: "/usr/local/robin/secrets/vault-token",  // File path.

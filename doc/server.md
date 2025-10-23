@@ -15,8 +15,9 @@ External files (auto‑loaded if present in same directory):
 - `relay.json5` Automatic relay settings.
 - `queue.json5` Persistent relay / retry queue.
 - `prometheus.json5` Prometheus remote write metrics settings.
-- `webhooks.json5` Per-command HTTP callbacks with optional response override.
 - `dovecot.json5` Socket auth & LDA integration replacing static users.
+- `webhooks.json5` Per-command HTTP callbacks with optional response override.
+- `vault.json5` HashiCorp Vault integration settings for secrets management.
 
 Minimal `server.json5` example (core listeners & feature flags):
 
@@ -180,25 +181,15 @@ Below are concise examples for each auxiliary config file.
       }
     } /* other verbs: ehlo, starttls, auth, rcpt, data, bdat, raw, rset, help, quit, lhlo */
 
-`routes.json5` – Static domains routing (used by outbound relay when MX disabled or for overrides):
+`vault.json5` – HashiCorp Vault integration for secrets management:
 
-    [
-      {
-        name: "local",
-        mx: ["127.0.0.1"],
-        port: 25
-      },
-      {
-        name: "com",
-        mx: ["example.com"],
-        port: 25
-      },
-      {
-        name: "net",
-        mx: ["example.net"],
-        port: 465,
-        auth: true,
-        user: "tony@example.com",
-        pass: "giveHerTheRing"
-      }
-    ]
+    {
+      enabled: false,
+      address: "https://vault.example.com:8200",
+      token: "",
+      namespace: "",
+      skipTlsVerification: false,
+      connectTimeout: 30,
+      readTimeout: 30,
+      writeTimeout: 30
+    }

@@ -42,6 +42,7 @@ public class ServerConfig extends ConfigFoundation {
         CONFIG_FILENAMES.put("prometheus", "prometheus.json5");
         CONFIG_FILENAMES.put("users", "users.json5");
         CONFIG_FILENAMES.put("scenarios", "scenarios.json5");
+        CONFIG_FILENAMES.put("vault", "vault.json5");
     }
 
     /**
@@ -347,6 +348,8 @@ public class ServerConfig extends ConfigFoundation {
      * @return VaultConfig instance.
      */
     public VaultConfig getVault() {
+        loadExternalIfAbsent("vault", Map.class);
+
         if (map.containsKey("vault")) {
             return new VaultConfig(getMapProperty("vault"));
         }
