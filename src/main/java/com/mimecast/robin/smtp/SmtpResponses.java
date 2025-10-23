@@ -172,6 +172,11 @@ public final class SmtpResponses {
     public static final String UNKNOWN_MAILBOX_550 = "550 5.1.1 Unknown destination mailbox address [%s]";
 
     /**
+     * 550 Service unavailable.
+     */
+    public static final String LISTED_CLIENT_550 = "550 5.7.1 Service unavailable; client IP blocked by RBL [%s]";
+
+    /**
      * 550 Dovecot-LDA delivery failed.
      */
     public static final String DOVECOT_LDA_FAILED_550 = "550 Dovecot-LDA delivery failed";

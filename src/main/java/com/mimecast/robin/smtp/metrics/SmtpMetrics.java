@@ -16,6 +16,7 @@ public final class SmtpMetrics {
     private static volatile Counter emailReceiptStartCounter;
     private static volatile Counter emailReceiptSuccessCounter;
     private static volatile Counter emailReceiptLimitCounter;
+    private static volatile Counter emailRblRejectionCounter;
 
     /**
      * Private constructor for utility class.
@@ -134,6 +135,27 @@ public final class SmtpMetrics {
     }
 
     /**
+     * Increment the email RBL rejection counter.
+     * <p>Called when an email connection is rejected due to RBL listing.
+     */
+    public static void incrementEmailRblRejection() {
+        try {
+            if (emailRblRejectionCounter == null) {
+                synchronized (SmtpMetrics.class) {
+                    if (emailRblRejectionCounter == null) {
+                        initializeCounters();
+                    }
+                }
+            }
+            if (emailRblRejectionCounter != null) {
+                emailRblRejectionCounter.increment();
+            }
+        } catch (Exception e) {
+            log.warn("Failed to increment email RBL rejection counter: {}", e.getMessage());
+        }
+    }
+
+    /**
      * Initialize the metric counters.
      * <p>This is called lazily on first use to ensure registries are available.
      */
@@ -149,6 +171,10 @@ public final class SmtpMetrics {
 
             emailReceiptLimitCounter = Counter.builder("smtp.email.receipt.limit")
                     .description("Number of email receipt operations terminated due to error or transaction limits")
+                    .register(MetricsRegistry.getPrometheusRegistry());
+
+            emailRblRejectionCounter = Counter.builder("smtp.email.rbl.rejection")
+                    .description("Number of connections rejected due to RBL listings")
                     .register(MetricsRegistry.getPrometheusRegistry());
 
             // Initialize exception counter with common exception types so it appears in metrics from the start

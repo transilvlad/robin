@@ -3,6 +3,8 @@ package com.mimecast.robin.smtp;
 import com.mimecast.robin.config.server.WebhookConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Extensions;
+import com.mimecast.robin.mx.rbl.RblChecker;
+import com.mimecast.robin.mx.rbl.RblResult;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.extension.Extension;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
@@ -14,6 +16,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.net.Socket;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -91,7 +94,11 @@ public class EmailReceipt implements Runnable {
      */
     public void run() {
         try {
-            connection.write(String.format(SmtpResponses.GREETING_220, Config.getServer().getHostname(), connection.getSession().getRdns(), connection.getSession().getDate()));
+            // Check client against RBLs and send appropriate greeting.
+            // If connection was rejected due to RBL listing, exit early.
+            if (!performRblCheckAndSendGreeting()) {
+                return;
+            }
 
             // Track successful connection.
             SmtpMetrics.incrementEmailReceiptStart();
@@ -123,6 +130,56 @@ public class EmailReceipt implements Runnable {
             log.info("Error reading/writing: {}", e.getMessage());
         } finally {
             connection.close();
+        }
+    }
+
+    /**
+     * Performs RBL check on client IP and sends appropriate greeting.
+     * <p>If the client IP is listed in any RBL, sends a rejection message.
+     * <p>Otherwise sends the standard SMTP greeting.
+     *
+     * @return true if connection should continue (IP not blacklisted), false otherwise
+     * @throws IOException if there is an error writing to the connection
+     */
+    private boolean performRblCheckAndSendGreeting() throws IOException {
+        String clientIp = connection.getSession().getFriendAddr();
+        boolean isBlacklisted = false;
+        String blacklistingRbl = null;
+
+        // Only perform RBL check if enabled in configuration
+        if (Config.getServer().getRblConfig().isEnabled()) {
+            log.debug("Checking IP {} against RBL lists", clientIp);
+
+            List<String> rblProviders = Config.getServer().getRblConfig().getProviders();
+            int timeoutSeconds = Config.getServer().getRblConfig().getTimeoutSeconds();
+
+            // Check the client IP against configured RBL providers
+            List<RblResult> results = RblChecker.checkIpAgainstRbls(clientIp, rblProviders, timeoutSeconds);
+
+            // Find the first RBL that lists this IP (if any)
+            Optional<RblResult> blacklisted = results.stream()
+                    .filter(RblResult::isListed)
+                    .findFirst();
+
+            if (blacklisted.isPresent()) {
+                isBlacklisted = true;
+                blacklistingRbl = blacklisted.get().getRblProvider();
+                log.info("Client IP {} is blacklisted by {}", clientIp, blacklistingRbl);
+            }
+        }
+
+        if (isBlacklisted) {
+            // Send rejection message for blacklisted IP.
+            connection.write(SmtpResponses.LISTED_CLIENT_550);
+
+            // Track rejected connections due to RBL listing.
+            SmtpMetrics.incrementEmailRblRejection();
+            return false;
+        } else {
+            // Send normal welcome message for clean IPs.
+            connection.write(String.format(SmtpResponses.GREETING_220, Config.getServer().getHostname(),
+                    connection.getSession().getRdns(), connection.getSession().getDate()));
+            return true;
         }
     }
 

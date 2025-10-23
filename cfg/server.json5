@@ -117,6 +117,22 @@
     writeTimeout: 30
   },
 
+  // RBL (Realtime Blackhole List) configuration.
+  rbl: {
+    // Enable or disable RBL checking (default: false).
+    enabled: true,
+
+    // List of RBL providers to check against.
+    providers: [
+      "zen.spamhaus.org",
+      "bl.spamcop.net",
+      "dnsbl.sorbs.net"
+    ],
+
+    // Maximum time in seconds to wait for RBL responses (default: 5).
+    timeoutSeconds: 5
+  },
+
   // Users allowed to authorize to the server.
   // This feature should be used for testing only.
   // This is disabled by default for security reasons.

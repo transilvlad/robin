@@ -338,6 +338,19 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
+     * Gets RBL (Realtime Blackhole List) configuration.
+     *
+     * @return RblConfig instance.
+     */
+    public RblConfig getRblConfig() {
+        if (map.containsKey("rbl")) {
+            return new RblConfig(getMapProperty("rbl"));
+        }
+        // Return default config if not defined.
+        return new RblConfig(null);
+    }
+
+    /**
      * Gets webhooks map.
      *
      * @return Webhooks map indexed by extension name.
