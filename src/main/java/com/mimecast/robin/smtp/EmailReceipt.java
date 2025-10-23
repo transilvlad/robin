@@ -95,9 +95,18 @@ public class EmailReceipt implements Runnable {
     public void run() {
         try {
             // Check client against RBLs and send appropriate greeting.
-            // If connection was rejected due to RBL listing, exit early.
-            if (!performRblCheckAndSendGreeting()) {
+            // If blacklisted and inbound non-secure, send rejection.
+            // Secure connections will perform RBL check at MAIL command.
+            if (connection.getSession().isInbound() &&
+                    !connection.getSession().isSecurePort() &&
+                    !isReputableIp()) {
+                // Send rejection message for blacklisted IP.
+                connection.write(SmtpResponses.LISTED_CLIENT_550);
                 return;
+            } else {
+                // Send normal welcome message for clean IPs.
+                connection.write(String.format(SmtpResponses.GREETING_220, Config.getServer().getHostname(),
+                        connection.getSession().getRdns(), connection.getSession().getDate()));
             }
 
             // Track successful connection.
@@ -114,6 +123,18 @@ public class EmailReceipt implements Runnable {
 
                 // Don't process if error.
                 if (!isError(verb)) process(verb);
+
+                // Special handling for MAIL command on secure inbound connections.
+                // Perform RBL check here once we know the connection is not outbound.
+                // Secure port supports submission when authenticated.
+                if (verb.getVerb().equalsIgnoreCase("mail") &&
+                        connection.getSession().isInbound() &&
+                        connection.getSession().isSecurePort() &&
+                        !isReputableIp()) {
+                    // Send rejection message for blacklisted IP.
+                    connection.write(SmtpResponses.LISTED_CLIENT_550);
+                    break;
+                }
 
                 // Break the loop.
                 // Break if error limit reached.
@@ -134,29 +155,26 @@ public class EmailReceipt implements Runnable {
     }
 
     /**
-     * Performs RBL check on client IP and sends appropriate greeting.
-     * <p>If the client IP is listed in any RBL, sends a rejection message.
-     * <p>Otherwise sends the standard SMTP greeting.
+     * Performs RBL check on client IP.
      *
-     * @return true if connection should continue (IP not blacklisted), false otherwise
-     * @throws IOException if there is an error writing to the connection
+     * @return true if blacklist check passed or not enabled, false if blacklisted.
      */
-    private boolean performRblCheckAndSendGreeting() throws IOException {
+    private boolean isReputableIp() {
         String clientIp = connection.getSession().getFriendAddr();
         boolean isBlacklisted = false;
         String blacklistingRbl = null;
 
-        // Only perform RBL check if enabled in configuration
+        // Only perform RBL check if enabled in configuration.
         if (Config.getServer().getRblConfig().isEnabled()) {
             log.debug("Checking IP {} against RBL lists", clientIp);
 
             List<String> rblProviders = Config.getServer().getRblConfig().getProviders();
             int timeoutSeconds = Config.getServer().getRblConfig().getTimeoutSeconds();
 
-            // Check the client IP against configured RBL providers
+            // Check the client IP against configured RBL providers.
             List<RblResult> results = RblChecker.checkIpAgainstRbls(clientIp, rblProviders, timeoutSeconds);
 
-            // Find the first RBL that lists this IP (if any)
+            // Find the first RBL that lists this IP (if any).
             Optional<RblResult> blacklisted = results.stream()
                     .filter(RblResult::isListed)
                     .findFirst();
@@ -175,18 +193,11 @@ public class EmailReceipt implements Runnable {
 
         // Send appropriate greeting or rejection based on RBL status and enablement.
         if (isBlacklisted && Config.getServer().getRblConfig().isRejectEnabled()) {
-            // Send rejection message for blacklisted IP.
-            connection.write(SmtpResponses.LISTED_CLIENT_550);
-
             // Track rejected connections due to RBL listing.
             SmtpMetrics.incrementEmailRblRejection();
-            return false;
-        } else {
-            // Send normal welcome message for clean IPs.
-            connection.write(String.format(SmtpResponses.GREETING_220, Config.getServer().getHostname(),
-                    connection.getSession().getRdns(), connection.getSession().getDate()));
-            return true;
         }
+
+        return !isBlacklisted;
     }
 
     /**
