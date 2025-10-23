@@ -101,7 +101,7 @@ public class EmailReceipt implements Runnable {
                     !connection.getSession().isSecurePort() &&
                     !isReputableIp()) {
                 // Send rejection message for blacklisted IP.
-                connection.write(SmtpResponses.LISTED_CLIENT_550);
+                connection.write(String.format(SmtpResponses.LISTED_CLIENT_550, connection.getSession().getUID()));
                 return;
             } else {
                 // Send normal welcome message for clean IPs.
@@ -132,7 +132,7 @@ public class EmailReceipt implements Runnable {
                         connection.getSession().isSecurePort() &&
                         !isReputableIp()) {
                     // Send rejection message for blacklisted IP.
-                    connection.write(SmtpResponses.LISTED_CLIENT_550);
+                    connection.write(String.format(SmtpResponses.LISTED_CLIENT_550, connection.getSession().getUID()));
                     break;
                 }
 

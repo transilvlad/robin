@@ -1,10 +1,12 @@
 package com.mimecast.robin.storage;
 
+import com.mimecast.robin.config.BasicConfig;
 import com.mimecast.robin.config.server.ServerConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.headers.MimeHeader;
+import com.mimecast.robin.mime.parts.MimePart;
 import com.mimecast.robin.mime.parts.TextMimePart;
 import com.mimecast.robin.queue.PersistentQueue;
 import com.mimecast.robin.queue.QueueFiles;
@@ -13,7 +15,9 @@ import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.queue.bounce.BounceMessageGenerator;
 import com.mimecast.robin.queue.relay.DovecotLdaDelivery;
 import com.mimecast.robin.queue.relay.RelayMessage;
+import com.mimecast.robin.scanners.ClamAVClient;
 import com.mimecast.robin.smtp.MessageEnvelope;
+import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
 import com.mimecast.robin.util.PathUtils;
@@ -161,15 +165,24 @@ public class LocalStorageClient implements StorageClient {
                     connection.getSession().getEnvelopes().getLast().setFile(getFile());
                 }
 
-                // TODO: Scan email with ClamAV.
+                // Scan email with ClamAV.
+                if (!isClean(Files.readAllBytes(Paths.get(getFile())))) {
+                    return;
+                }
 
+                // Parse email for further processing.
                 parser = new EmailParser(getFile()).parse(true);
-                parser.getParts().forEach(part -> {
-                    // Scan each non-text part with ClamAV.
-                    if (!(part instanceof TextMimePart)) {
-                        // TODO: Scan each part with ClamAV.
+
+                // Scan each non-text part with ClamAV for improved results if enabled.
+                if (config.getClamAV().getBooleanProperty("scanAttachments")) {
+                    for (MimePart part : parser.getParts()) {
+                        if (!(part instanceof TextMimePart)) {
+                            if (!isClean(part.getBytes())) {
+                                return;
+                            }
+                        }
                     }
-                });
+                }
 
                 // Rename file if X-Robin-Filename header exists and feature enabled.
                 if (!config.getStorage().getBooleanProperty("disableRenameHeader")) {
@@ -200,6 +213,39 @@ public class LocalStorageClient implements StorageClient {
                 log.error("Storage file not flushed/closed: {}", e.getMessage());
             }
         }
+    }
+
+    /**
+     * Scan with ClamAV.
+     *
+     * @param bytes File bytes.
+     * @return Boolean false if infected and to be dropped.
+     * @throws IOException Unable to access file.
+     */
+    private boolean isClean(byte[] bytes) throws IOException {
+        BasicConfig clamAVConfig = config.getClamAV();
+        if (clamAVConfig.getBooleanProperty("enabled")) {
+            ClamAVClient clamAVClient = new ClamAVClient(
+                    clamAVConfig.getStringProperty("host", "localhost"),
+                    clamAVConfig.getLongProperty("port", 3310L).intValue()
+            );
+
+            if (clamAVClient.isInfected(bytes)) {
+                log.warn("Virus found in {}: {}", getFile(), clamAVClient.getViruses());
+                String onVirus = clamAVConfig.getStringProperty("onVirus", "reject");
+
+                if ("reject".equalsIgnoreCase(onVirus)) {
+                    connection.write(String.format(SmtpResponses.VIRUS_FOUND_550, connection.getSession().getUID()));
+                    return false;
+
+                } else if ("discard".equalsIgnoreCase(onVirus)) {
+                    log.warn("Virus found, discarding.");
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     /**

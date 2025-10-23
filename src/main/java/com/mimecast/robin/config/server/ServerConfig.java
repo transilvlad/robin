@@ -43,6 +43,7 @@ public class ServerConfig extends ConfigFoundation {
         CONFIG_FILENAMES.put("users", "users.json5");
         CONFIG_FILENAMES.put("scenarios", "scenarios.json5");
         CONFIG_FILENAMES.put("vault", "vault.json5");
+        CONFIG_FILENAMES.put("clamav", "clamav.json5");
     }
 
     /**
@@ -426,6 +427,16 @@ public class ServerConfig extends ConfigFoundation {
     public BasicConfig getDovecot() {
         loadExternalIfAbsent("dovecot", Map.class);
         return new BasicConfig(getMapProperty("dovecot"));
+    }
+
+    /**
+     * Gets ClamAV config.
+     *
+     * @return BasicConfig instance.
+     */
+    public BasicConfig getClamAV() {
+        loadExternalIfAbsent("clamav", Map.class);
+        return new BasicConfig(getMapProperty("clamav"));
     }
 
     /**

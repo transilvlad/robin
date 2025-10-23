@@ -131,6 +131,21 @@ public class ClamAVClient {
     }
 
     /**
+     * Check if a byte array contains viruses.
+     *
+     * @param bytes The byte array to scan.
+     * @return True if the byte array is infected, false if it's clean.
+     */
+    public boolean isInfected(byte[] bytes) {
+        ScanResult result = scanBytes(bytes);
+        log.debug("Byte array scan status: {}", result);
+        if (result instanceof ScanResult.VirusFound) {
+            viruses = ((ScanResult.VirusFound) result).getFoundViruses();
+        }
+        return result instanceof ScanResult.VirusFound;
+    }
+
+    /**
      * Get the map of detected viruses after a scan.
      *
      * @return Map of virus names to affected files.

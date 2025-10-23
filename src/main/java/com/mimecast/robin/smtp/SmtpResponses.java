@@ -182,6 +182,11 @@ public final class SmtpResponses {
     public static final String DOVECOT_LDA_FAILED_550 = "550 Dovecot-LDA delivery failed";
 
     /**
+     * 554 Virus detected.
+     */
+    public static final String VIRUS_FOUND_550 = "554 5.7.1 Virus detected [%s]";
+
+    /**
      * 554 No valid recipients.
      */
     public static final String NO_VALID_RECIPIENTS_554 = "554 5.5.1 No valid recipients [%s]";

@@ -55,7 +55,7 @@ class ClamAVClientTest {
         cleanFile = File.createTempFile("clamav-test-clean-", ".txt");
         Files.writeString(cleanFile.toPath(), "This is a clean test file.");
 
-        // Create a test virus file using simulated marker to avoid OS AV quarantine.
+        // Create a test virus file using simulated marker to avoid OS AV.
         virusFile = File.createTempFile("clamav-test-virus-", ".txt");
         Files.writeString(virusFile.toPath(), "SIMULATED_VIRUS test payload");
     }

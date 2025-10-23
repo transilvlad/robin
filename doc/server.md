@@ -18,6 +18,7 @@ External files (auto‑loaded if present in same directory):
 - `dovecot.json5` Socket auth & LDA integration replacing static users.
 - `webhooks.json5` Per-command HTTP callbacks with optional response override.
 - `vault.json5` HashiCorp Vault integration settings for secrets management.
+- `clamav.json5` ClamAV integration for virus scanning.
 
 Minimal `server.json5` example (core listeners & feature flags):
 
@@ -192,4 +193,17 @@ Below are concise examples for each auxiliary config file.
       connectTimeout: 30,
       readTimeout: 30,
       writeTimeout: 30
+    }
+
+`clamav.json5` – ClamAV integration for virus scanning:
+
+    {
+      clamav: {
+        enabled: false,
+        scanAttachments: false,
+        host: "localhost",
+        port: 3310,
+        timeout: 5,
+        onVirus: "reject"
+      }
     }

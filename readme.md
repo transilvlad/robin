@@ -68,7 +68,8 @@ Documentation
 - [HashiCorp Vault](doc/vault.md)
 - [SMTP webhooks](doc/webhooks.md)
 - [Endpoints](doc/endpoints.md) - JVM metrics implementation.
-- [Prometheus Remote Write](doc/prometheus.md) - Prometheus Remote Write implementation.
+- [Prometheus Remote Write](doc/prometheus.md) - Prometheus Remote Write implementation and library.
+- [ClamAV Integration](doc/clamav.md) - ClamAV virus scanning integration and library.
 
 ### Secrets
 - [Secrets, magic and Local Secrets File](doc/secrets.md)

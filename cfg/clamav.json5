@@ -1,0 +1,25 @@
+{
+  // ClamAV server settings
+  clamav: {
+
+    // Enable/disable ClamAV scanning.
+    enabled: false,
+
+    // Scan email attachments individually for better results.
+    scanAttachments: false,
+
+    // ClamAV server host.
+    host: "localhost",
+
+    // ClamAV server port.
+    port: 3310,
+
+    // Connection timeout in seconds.
+    timeout: 5,
+
+    // Action to take when a virus is found.
+    // "reject" - Reject the email with a 5xx error.
+    // "discard" - Accept the email and discard it.
+    onVirus: "reject"
+  }
+}
