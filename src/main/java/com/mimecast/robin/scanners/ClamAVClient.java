@@ -122,12 +122,7 @@ public class ClamAVClient {
      * @throws IOException If the file cannot be read.
      */
     public boolean isInfected(File file) throws IOException {
-        ScanResult result = scanFile(file);
-        log.debug("File {} scan status: {}", file.getAbsolutePath(), result);
-        if (result instanceof ScanResult.VirusFound) {
-            viruses = ((ScanResult.VirusFound) result).getFoundViruses();
-        }
-        return result instanceof ScanResult.VirusFound;
+        return processScanResult(scanFile(file));
     }
 
     /**
@@ -137,12 +132,23 @@ public class ClamAVClient {
      * @return True if the byte array is infected, false if it's clean.
      */
     public boolean isInfected(byte[] bytes) {
-        ScanResult result = scanBytes(bytes);
-        log.debug("Byte array scan status: {}", result);
-        if (result instanceof ScanResult.VirusFound) {
+        return processScanResult(scanBytes(bytes));
+    }
+
+    /**
+     * Process a scan result to check for infections and log findings.
+     *
+     * @param result The scan result to process.
+     * @return True if the scan result indicates an infection, false otherwise.
+     */
+    private boolean processScanResult(ScanResult result) {
+        boolean isInfected = result instanceof ScanResult.VirusFound;
+        log.info("ClamAV scan result: {}", isInfected ? "Virus Found" : "Clean");
+        if (isInfected) {
             viruses = ((ScanResult.VirusFound) result).getFoundViruses();
+            log.debug("ClamAV found viruses: {}", viruses);
         }
-        return result instanceof ScanResult.VirusFound;
+        return isInfected;
     }
 
     /**
