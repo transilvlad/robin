@@ -97,7 +97,7 @@ public class Session implements Serializable, Cloneable {
     /**
      * [Client] Destination port.
      */
-    private int port;
+    private int port = 25;
 
     /**
      * Own rDNS.

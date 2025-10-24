@@ -5,8 +5,7 @@ import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.headers.MimeHeader;
-import com.mimecast.robin.mx.MXResolver;
-import com.mimecast.robin.mx.MXRoute;
+import com.mimecast.robin.mx.SessionRouting;
 import com.mimecast.robin.queue.PersistentQueue;
 import com.mimecast.robin.queue.QueueFiles;
 import com.mimecast.robin.queue.RelayQueueCron;
@@ -83,58 +82,8 @@ public class RelayMessage {
 
             // Outbound MX relay if enabled.
             if (relayConfig.getBooleanProperty("outboundMxEnabled")) {
-                // Get unique recipient domains from envelopes.
-                List<String> domains = new ArrayList<>();
-                connection.getSession().getEnvelopes().forEach(messageEnvelope -> messageEnvelope.getRcpts().forEach(rcpt -> {
-                    String domain = rcpt.substring(rcpt.indexOf("@") + 1);
-                    if (!domains.contains(domain)) {
-                        domains.add(domain);
-                    }
-                }));
-
-                // Resolve routes for domains.
-                List<MXRoute> mxRoutes = new MXResolver().resolveRoutes(domains);
-
-                // Create relay sessions for each unique resolved MX.
-                for (MXRoute route : mxRoutes) {
-                    // Get the primary MX server (lowest priority).
-                    if (route.getServers().isEmpty()) {
-                        continue;
-                    }
-
-                    // Create a new session for this route.
-                    Session routeSession = connection.getSession().clone()
-                            .clearEnvelopes()
-                            .setMx(route.getIpAddresses())
-                            .setPort(25);
-
-                    // Iterate through all envelopes and split by recipients for this route.
-                    for (MessageEnvelope envelope : connection.getSession().getEnvelopes()) {
-                        List<String> routeRcpts = new ArrayList<>();
-
-                        // Filter recipients whose domain matches this route.
-                        for (String rcpt : envelope.getRcpts()) {
-                            String domain = rcpt.substring(rcpt.indexOf("@") + 1);
-                            if (route.getDomains().contains(domain)) {
-                                routeRcpts.add(rcpt);
-                            }
-                        }
-
-                        // If we have recipients for this route, create a new envelope.
-                        if (!routeRcpts.isEmpty()) {
-                            MessageEnvelope routeEnvelope = envelope.clone();
-                            routeEnvelope.getRcpts().clear();
-                            routeEnvelope.getRcpts().addAll(routeRcpts);
-
-                            routeSession.addEnvelope(routeEnvelope);
-                        }
-                    }
-
-                    // Only add the session if it has envelopes
-                    if (!routeSession.getEnvelopes().isEmpty()) {
-                        sessions.add(routeSession);
-                    }
-                }
+                // Resolve MX and create sessions.
+                sessions.addAll(new SessionRouting(connection.getSession()).getSessions());
             }
         }
 

@@ -100,9 +100,13 @@ public class Connection extends SmtpFoundation {
 
         int retry = session.getRetry() > 0 ? session.getRetry() : 1;
 
+        if (session.getMx().isEmpty()) {
+            throw new SmtpException("No MX to connect to");
+        }
+
         for (int i = 0; i < retry; i++) {
-            server = session.getMx().get(i % session.getMx().size());
             try {
+                server = session.getMx().get(i % session.getMx().size());
                 log.info("Connecting to: {}:{}", server, session.getPort());
 
                 socket = new Socket();
@@ -124,11 +128,11 @@ public class Connection extends SmtpFoundation {
                     session.getSessionTransactionList().addTransaction("SMTP", read, false);
                     break;
                 }
-            } catch (IOException e) {
+            } catch (Exception e) {
                 if (i == retry - 1) {
                     throw e;
                 }
-                log.info("Error reading/writing: {}", e.getMessage());
+                log.info("Connection error: {}", e.getMessage());
                 Sleep.nap(session.getDelay() * 1000);
             }
         }
