@@ -3,7 +3,7 @@
   enabled: false,
 
   // Your remote write endpoint (Prometheus Agent, VictoriaMetrics, Mimir/Thanos Receive, etc.).
-  // Example (Prometheus Agent default): "http://localhost:9201/api/v1/write".
+  // Example (Prometheus Agent default): "http://localhost:9090/api/v1/write".
   remoteWriteUrl: "",
 
   // Push interval and HTTP timeout (seconds).
