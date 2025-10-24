@@ -43,7 +43,7 @@ public class ClamAVClient {
      */
     public ClamAVClient(String host, int port) {
         client = new ClamavClient(host, port);
-        log.debug("ClamAV client initialized with {}:{}", host, port);
+        log.trace("ClamAV client initialized with {}:{}", host, port);
     }
 
     /**
@@ -54,7 +54,7 @@ public class ClamAVClient {
     public boolean ping() {
         try {
             client.ping();
-            log.debug("ClamAV server ping successful");
+            log.trace("ClamAV server ping successful");
             return true;
         } catch (Exception e) {
             log.error("Failed to ping ClamAV server: {}", e.getMessage());
@@ -70,7 +70,7 @@ public class ClamAVClient {
     public Optional<String> getVersion() {
         try {
             String version = client.version();
-            log.debug("ClamAV server version: {}", version);
+            log.trace("ClamAV server version: {}", version);
             return Optional.of(version);
         } catch (Exception e) {
             log.error("Failed to get ClamAV server version: {}", e.getMessage());
@@ -86,7 +86,7 @@ public class ClamAVClient {
      * @throws IOException If the file cannot be read.
      */
     public ScanResult scanFile(File file) throws IOException {
-        log.debug("Scanning file: {}", file.getAbsolutePath());
+        log.trace("Scanning file: {}", file.getAbsolutePath());
         try (InputStream is = Files.newInputStream(file.toPath())) {
             return scanStream(is);
         }
@@ -99,7 +99,7 @@ public class ClamAVClient {
      * @return The scan result object with status and details.
      */
     public ScanResult scanBytes(byte[] bytes) {
-        log.debug("Scanning byte array");
+        log.trace("Scanning byte array");
         return client.scan(new ByteArrayInputStream(bytes));
     }
 
@@ -110,7 +110,7 @@ public class ClamAVClient {
      * @return The scan result object with status and details.
      */
     public ScanResult scanStream(InputStream inputStream) {
-        log.debug("Scanning input stream");
+        log.trace("Scanning input stream");
         return client.scan(inputStream);
     }
 
@@ -143,10 +143,10 @@ public class ClamAVClient {
      */
     private boolean processScanResult(ScanResult result) {
         boolean isInfected = result instanceof ScanResult.VirusFound;
-        log.info("ClamAV scan result: {}", isInfected ? "Virus Found" : "Clean");
+        log.debug("ClamAV scan result: {}", isInfected ? "Virus Found" : "Clean");
         if (isInfected) {
             viruses = ((ScanResult.VirusFound) result).getFoundViruses();
-            log.debug("ClamAV found viruses: {}", viruses);
+            log.trace("ClamAV found viruses: {}", viruses);
         }
         return isInfected;
     }

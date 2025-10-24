@@ -5,7 +5,6 @@ import com.mimecast.robin.mime.headers.MimeHeader;
 import com.mimecast.robin.mime.headers.MimeHeaders;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeUtility;
-import org.apache.commons.io.IOUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -147,8 +146,10 @@ public abstract class MimePart {
      * @throws IOException Unable to read stream.
      */
     public byte[] getBytes() throws IOException {
-        body.reset();
-        return IOUtils.toByteArray(body);
+        if (body.markSupported()) {
+            body.reset();
+        }
+        return body.readAllBytes();
     }
 
     /**

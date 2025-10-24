@@ -456,44 +456,60 @@ public class EmailParser {
             MessageDigest digestMD5 = MessageDigest.getInstance(HashType.MD_5.getKey());
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ByteArrayOutputStream content = new ByteArrayOutputStream();
+            MimePart part;
 
-            byte[] bytes;
-            while ((bytes = stream.readLine()) != null) {
-                String line = new String(bytes);
-                if (boundary != null && !boundary.isEmpty() && line.contains(boundary)) {
-                    if (line.contains(boundary + "--")) {
-                        stream.unread(bytes);
+            if (isTextPart) {
+                byte[] bytes;
+                while ((bytes = stream.readLine()) != null) {
+                    String line = new String(bytes);
+                    if (boundary != null && !boundary.isEmpty() && line.contains(boundary)) {
+                        if (line.contains(boundary + "--")) {
+                            stream.unread(bytes);
+                        }
+                        break;
                     }
-                    break;
+
+                    baos.write(bytes);
                 }
 
-                baos.write(bytes);
-            }
+                // Decode if needed.
+                if (isBase64) {
+                    content.write(Base64.decodeBase64(baos.toByteArray()));
 
-            // Decode if needed.
-            if (isBase64) {
-                content.write(Base64.decodeBase64(baos.toByteArray()));
+                } else if (isQuotedPrintable) {
+                    try {
+                        content.write(QuotedPrintableDecoder.decode(baos.toByteArray()));
 
-            } else if (isQuotedPrintable) {
-                try {
-                    content.write(QuotedPrintableDecoder.decode(baos.toByteArray()));
-
-                } catch (DecoderException de) {
-                    log.error("EmailParser decoder exception: {}", de.getMessage());
+                    } catch (DecoderException de) {
+                        log.error("EmailParser decoder exception: {}", de.getMessage());
+                        content.write(baos.toByteArray());
+                    }
+                } else {
                     content.write(baos.toByteArray());
                 }
-            } else {
-                content.write(baos.toByteArray());
-            }
-            baos.close();
-
-            // Construct part.
-            MimePart part;
-            if (isTextPart) {
+                baos.close();
                 part = new TextMimePart(content.toByteArray());
-
             } else {
-                part = new FileMimePart();
+                File tempFile = File.createTempFile("mimepart-", ".tmp");
+                FileOutputStream fos = new FileOutputStream(tempFile);
+
+                // Decode if needed.
+                if (isBase64) {
+                    fos.write(Base64.decodeBase64(stream.readAllBytes()));
+                } else if (isQuotedPrintable) {
+                    try {
+                        fos.write(QuotedPrintableDecoder.decode(stream.readAllBytes()));
+
+                    } catch (DecoderException e) {
+                        log.error("EmailParser decoder exception: {}", e.getMessage());
+                        content.write(baos.toByteArray());
+                    }
+                } else {
+                    fos.write(stream.readAllBytes());
+                }
+
+                fos.close();
+                part = new FileMimePart(tempFile);
             }
 
             // Set part details.

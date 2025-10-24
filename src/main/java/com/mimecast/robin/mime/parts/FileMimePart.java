@@ -3,10 +3,7 @@ package com.mimecast.robin.mime.parts;
 import com.google.common.primitives.Bytes;
 import com.mimecast.robin.mime.headers.MimeHeader;
 
-import java.io.BufferedInputStream;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
 import java.security.SecureRandom;
 
 /**
@@ -20,6 +17,16 @@ public class FileMimePart extends MimePart {
     protected int appendRandomBytes = 0;
 
     /**
+     * Default buffer size.
+     */
+    protected int defaultBufferSize = 8192;
+
+    /**
+     * File instance if any.
+     */
+    protected File file;
+
+    /**
      * Constructs a new FileMimePart instance.
      */
     public FileMimePart() {
@@ -29,11 +36,21 @@ public class FileMimePart extends MimePart {
     /**
      * Constructs a new FileMimePart instance with given path.
      *
+     * @param file File instance.
+     * @throws IOException Unable to open/read from file.
+     */
+    public FileMimePart(File file) throws IOException {
+        this.file = file;
+        body = new FileInputStream(file);
+    }
+
+    /**
+     * Constructs a new FileMimePart instance with given path.
+     *
      * @param path Path to file.
      * @throws IOException Unable to open/read from file.
      */
     public FileMimePart(String path) throws IOException {
-        int defaultBufferSize = 8192;
         body = new BufferedInputStream(new FileInputStream(path), defaultBufferSize);
         body.mark(defaultBufferSize);
     }
@@ -99,5 +116,14 @@ public class FileMimePart extends MimePart {
         }
 
         return bytes;
+    }
+
+    /**
+     * Gets the file instance if any.
+     *
+     * @return File instance or null.
+     */
+    public File getFile() {
+        return file;
     }
 }

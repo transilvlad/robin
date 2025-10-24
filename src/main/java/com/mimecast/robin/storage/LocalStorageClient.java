@@ -6,8 +6,8 @@ import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.headers.MimeHeader;
+import com.mimecast.robin.mime.parts.FileMimePart;
 import com.mimecast.robin.mime.parts.MimePart;
-import com.mimecast.robin.mime.parts.TextMimePart;
 import com.mimecast.robin.queue.PersistentQueue;
 import com.mimecast.robin.queue.QueueFiles;
 import com.mimecast.robin.queue.RelayQueueCron;
@@ -167,7 +167,7 @@ public class LocalStorageClient implements StorageClient {
                 }
 
                 // Scan email with ClamAV.
-                if (!isClean(Files.readAllBytes(Paths.get(getFile())))) {
+                if (!isClean(Files.readAllBytes(Paths.get(getFile())), "email")) {
                     return;
                 }
 
@@ -177,13 +177,16 @@ public class LocalStorageClient implements StorageClient {
                 }
 
                 // Parse email for further processing.
-                parser = new EmailParser(getFile()).parse(true);
+                parser = new EmailParser(getFile()).parse();
 
                 // Scan each non-text part with ClamAV for improved results if enabled.
                 if (config.getClamAV().getBooleanProperty("scanAttachments")) {
                     for (MimePart part : parser.getParts()) {
-                        if (!(part instanceof TextMimePart)) {
-                            if (!isClean(part.getBytes())) {
+                        if (part instanceof FileMimePart) {
+                            String partInfo = part.getHeader("content-type") != null ? part.getHeader("content-type").getValue() : "attachment";
+                            boolean isClean = isClean(part.getBytes(), partInfo);
+                            ((FileMimePart) part).getFile().delete();
+                            if (!isClean) {
                                 return;
                             }
                         }
@@ -225,10 +228,11 @@ public class LocalStorageClient implements StorageClient {
      * Scan with ClamAV.
      *
      * @param bytes File bytes.
+     * @param part  Part description for logging.
      * @return Boolean false if infected and to be dropped.
      * @throws IOException Unable to access file.
      */
-    private boolean isClean(byte[] bytes) throws IOException {
+    private boolean isClean(byte[] bytes, String part) throws IOException {
         BasicConfig clamAVConfig = config.getClamAV();
         if (clamAVConfig.getBooleanProperty("enabled")) {
             ClamAVClient clamAVClient = new ClamAVClient(
@@ -237,7 +241,7 @@ public class LocalStorageClient implements StorageClient {
             );
 
             if (clamAVClient.isInfected(bytes)) {
-                log.warn("Virus found in {}: {}", getFile(), clamAVClient.getViruses());
+                log.warn("Virus found in {}: {}", part, clamAVClient.getViruses());
                 String onVirus = clamAVConfig.getStringProperty("onVirus", "reject");
 
                 if ("reject".equalsIgnoreCase(onVirus)) {
@@ -248,6 +252,8 @@ public class LocalStorageClient implements StorageClient {
                     log.warn("Virus found, discarding.");
                     return false;
                 }
+            } else {
+                log.info("AV scan clean for {}", part.replaceAll("\\s+", " "));
             }
         }
 
@@ -282,6 +288,8 @@ public class LocalStorageClient implements StorageClient {
                     log.warn("Spam/phishing detected, discarding.");
                     return false;
                 }
+            } else {
+                log.info("Spam scan clean with score {}", rspamdClient.getScore());
             }
         }
 
