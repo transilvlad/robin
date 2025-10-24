@@ -10,7 +10,7 @@ import io.micrometer.core.instrument.Tag;
 import okhttp3.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.xerial.snappy.SnappyFramedOutputStream;
+import org.xerial.snappy.Snappy;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 
 /**
  * Periodically collects Micrometer metrics and pushes them to a Prometheus-compatible backend
- * using the Remote Write protocol (protobuf) with Snappy framed compression.
+ * using the Remote Write protocol (protobuf) with optional Snappy block compression.
  *
  * <p>Configuration is read from Config.getServer().getPrometheus() (prometheus.json5), supporting:
  * <ul>
@@ -100,7 +100,7 @@ public class MetricsCron {
                 nextExecutionEpochSeconds = lastExecutionEpochSeconds + intervalSeconds;
                 pushOnce();
             } catch (Exception e) {
-                log.error("MetricsCron push error: {}", e.getMessage(), e);
+                log.error("MetricsCron push error: {}", e.getMessage(), e.getMessage());
             }
         };
 
@@ -246,12 +246,13 @@ public class MetricsCron {
 
         byte[] compressed;
         if (compress) {
-            // Snappy framed compression (as required by many Remote Write receivers).
-            ByteArrayOutputStream baos = new ByteArrayOutputStream(body.length + 128);
-            try (SnappyFramedOutputStream sf = new SnappyFramedOutputStream(baos)) {
-                sf.write(body);
+            // Prometheus remote_write expects raw Snappy block compression (NOT framed).
+            try {
+                compressed = Snappy.compress(body);
+            } catch (IOException e) {
+                log.warn("MetricsCron: Snappy compression failed, sending uncompressed. error={}", e.getMessage());
+                compressed = body;
             }
-            compressed = baos.toByteArray();
         } else {
             // No compression when disabled.
             compressed = body;
