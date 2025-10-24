@@ -66,12 +66,36 @@ public class WebhookCaller {
             return new WebhookResponse(200, "", true);
         }
 
+        // Check if webhook direction matches session direction.
+        if (!isDirectionMatched(config, connection.getSession().getDirection())) {
+            return new WebhookResponse(200, "", true);
+        }
+
         if (config.isWaitForResponse()) {
             return callSync(config, connection, verb);
         } else {
             callAsync(config, connection, verb);
             return new WebhookResponse(200, "", true);
         }
+    }
+
+    /**
+     * Checks if webhook direction filter matches the session direction.
+     *
+     * @param config  Webhook configuration.
+     * @param direction Session.Direction instance.
+     * @return true if direction matches or is set to both, false otherwise.
+     */
+    private static boolean isDirectionMatched(WebhookConfig config, Session.Direction direction) {
+        String configDirection = config.getDirection().toLowerCase();
+
+        // "both" matches all directions.
+        if ("both".equals(configDirection)) {
+            return true;
+        }
+
+        // Get session direction and check for match.
+        return configDirection.equals(direction.toString().toLowerCase());
     }
 
     /**

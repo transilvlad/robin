@@ -67,6 +67,16 @@ public class WebhookConfig extends BasicConfig {
     }
 
     /**
+     * Gets direction filter (inbound, outbound, both).
+     * Returns null if not configured or defaults to "both".
+     *
+     * @return Direction string: "inbound", "outbound", or "both".
+     */
+    public String getDirection() {
+        return getStringProperty("direction", "both");
+    }
+
+    /**
      * Gets custom headers map.
      *
      * @return Headers map.

@@ -45,6 +45,9 @@
     // Ignore errors and continue processing if webhook fails.
     ignoreErrors: false,
 
+    // Direction filter: "inbound", "outbound", or "both" (default: "both").
+    direction: "both",
+
     // Tip: headers and authValue below are supported via Magic replacement.
 
     // Authentication type: none, basic, bearer.
@@ -76,6 +79,7 @@
     timeout: 3000,
     waitForResponse: true,
     ignoreErrors: false,
+    direction: "both",
     authType: "bearer",
     authValue: "your-api-token-here",
     includeSession: true,
@@ -92,6 +96,7 @@
     timeout: 5000,
     waitForResponse: true,
     ignoreErrors: false,
+    direction: "both",
     authType: "basic",
     authValue: "username:password",
     includeSession: true,
@@ -110,6 +115,7 @@
     timeout: 5000,
     waitForResponse: true,
     ignoreErrors: false,
+    direction: "both",
     authType: "none",
     authValue: "",
     includeSession: true,
@@ -126,6 +132,7 @@
     timeout: 5000,
     waitForResponse: true,
     ignoreErrors: false,
+    direction: "both",
     authType: "none",
     authValue: "",
     includeSession: true,
@@ -142,6 +149,7 @@
     timeout: 10000,
     waitForResponse: true,
     ignoreErrors: false,
+    direction: "both",
     authType: "none",
     authValue: "",
     includeSession: true,
@@ -158,6 +166,7 @@
     timeout: 10000,
     waitForResponse: true,
     ignoreErrors: false,
+    direction: "both",
     authType: "none",
     authValue: "",
     includeSession: true,
@@ -174,6 +183,7 @@
     timeout: 10000,
     waitForResponse: false, // Fire and forget for performance.
     ignoreErrors: true, // Don't fail email delivery if webhook fails.
+    direction: "both",
     base64: false, // Set to true to base64 encode email content.
     authType: "bearer",
     authValue: "your-raw-webhook-token",
@@ -190,6 +200,7 @@
     timeout: 3000,
     waitForResponse: false, // Fire and forget.
     ignoreErrors: true,
+    direction: "both",
     authType: "none",
     authValue: "",
     includeSession: true,
@@ -206,6 +217,7 @@
     timeout: 3000,
     waitForResponse: false,
     ignoreErrors: true,
+    direction: "both",
     authType: "none",
     authValue: "",
     includeSession: false,
@@ -222,6 +234,7 @@
     timeout: 3000,
     waitForResponse: false, // Don't wait for response on quit.
     ignoreErrors: true,
+    direction: "both",
     authType: "none",
     authValue: "",
     includeSession: true,
@@ -238,6 +251,7 @@
     timeout: 5000,
     waitForResponse: true,
     ignoreErrors: false,
+    direction: "both",
     authType: "none",
     authValue: "",
     includeSession: true,

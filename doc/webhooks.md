@@ -19,6 +19,7 @@ Webhooks are configured in `cfg/webhooks.json5`. Each SMTP extension can have it
 | `timeout` | number | 5000 | Timeout in milliseconds |
 | `waitForResponse` | boolean | true | Wait for webhook response before processing extension |
 | `ignoreErrors` | boolean | false | Continue processing even if webhook fails |
+| `direction` | string | "both" | Direction filter: "inbound", "outbound", or "both" |
 | `authType` | string | "none" | Authentication type: "none", "basic", "bearer" |
 | `authValue` | string | "" | Authentication credentials (username:password for basic, token for bearer) |
 | `includeSession` | boolean | true | Include session data in payload |
@@ -46,6 +47,7 @@ Given the RAW nature of this webhook, it does not include session/envelope/verb 
 | `timeout` | number | 10000 | RAW webhook timeout in milliseconds |
 | `waitForResponse` | boolean | false | Wait for RAW webhook response |
 | `ignoreErrors` | boolean | true | Continue if RAW webhook fails |
+| `direction` | string | "both" | Direction filter: "inbound", "outbound", or "both" |
 | `base64` | boolean | false | Base64 encode email content |
 | `authType` | string | "none" | RAW webhook authentication type |
 | `authValue` | string | "" | RAW webhook authentication credentials |
@@ -62,6 +64,7 @@ Given the RAW nature of this webhook, it does not include session/envelope/verb 
     timeout: 5000,
     waitForResponse: true,
     ignoreErrors: false,
+    direction: "both",
     authType: "bearer",
     authValue: "your-api-token-here",
     includeSession: true,
@@ -151,6 +154,56 @@ RnJvbTogc2VuZGVyQGV4YW1wbGUuY29tClRvOiByZWNpcGllbnRAZXhhbXBsZS5jb20...
 ```
 
 ### RAW Webhook Response
+
+The RAW webhook response does not affect email acceptance. The email has already been accepted before the RAW webhook is called.
+However, the response can be used for:
+- Logging/tracking purposes
+- Triggering subsequent actions
+- Error reporting (if `ignoreErrors: false`)
+
+## Direction Filtering
+
+The `direction` option allows you to filter webhooks based on the SMTP session direction. This is useful when you need different handling for:
+- **Inbound** emails (external senders to your server)
+- **Outbound** emails (your server to external recipients)
+
+### Direction Values
+
+| Value | Description |
+|-------|-------------|
+| `"inbound"` | Webhook fires only for incoming SMTP connections |
+| `"outbound"` | Webhook fires only for outgoing SMTP connections |
+| `"both"` (default) | Webhook fires for all connections |
+
+### Examples
+
+Only validate recipients on inbound connections:
+```json5
+{
+  "rcpt": {
+    enabled: true,
+    url: "http://localhost:8080/webhooks/rcpt",
+    direction: "inbound", // Only for incoming emails.
+    waitForResponse: true,
+    ignoreErrors: false
+  }
+}
+```
+
+Log all outbound emails to archive:
+```json5
+{
+  "raw": {
+    enabled: true,
+    url: "http://archive.example.com/store",
+    direction: "outbound", // Only for outgoing emails.
+    waitForResponse: false,
+    ignoreErrors: true
+  }
+}
+```
+
+Webhook Response
 
 The RAW webhook response does not affect email acceptance. The email has already been accepted before the RAW webhook is called.
 However, the response can be used for:
