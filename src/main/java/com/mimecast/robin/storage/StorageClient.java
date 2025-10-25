@@ -38,6 +38,13 @@ public interface StorageClient {
     OutputStream getStream() throws FileNotFoundException;
 
     /**
+     * Gets path.
+     *
+     * @return String.
+     */
+    String getPath();
+
+    /**
      * Gets file path.
      *
      * @return String.

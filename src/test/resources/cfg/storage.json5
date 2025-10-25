@@ -12,6 +12,12 @@
   // Path to storage folder.
     path: "/tmp/store",
 
+  // Folder for inbound emails. Leave empty to disable. Default: new
+  inboundFolder: "new",
+
+  // Folder for outbound emails. Leave empty to disable. Default: .Sent/new
+  outboundFolder: ".Sent/new",
+
   // Auto clean storage on service start.
     clean: true,
 
@@ -20,4 +26,3 @@
     "^([0-9]{8}\\.)"
   ]
 }
-

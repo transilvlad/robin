@@ -12,8 +12,14 @@
   // Path to storage folder.
   path: "/usr/local/robin/store",
 
+  // Folder for inbound emails. Leave empty to disable. Default: new
+  inboundFolder: "new",
+
+  // Folder for outbound emails. Leave empty to disable. Default: .Sent/new
+  outboundFolder: ".Sent/new",
+
   // Auto clean storage on service start.
-  clean: false,
+  clean: true,
 
   // Auto clean delete matching filenames only.
   patterns: [

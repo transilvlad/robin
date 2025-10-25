@@ -131,8 +131,8 @@ public class LocalStorageClient implements StorageClient {
     @Override
     public OutputStream getStream() throws FileNotFoundException {
         if (config.getStorage().getBooleanProperty("enabled")) {
-            if (PathUtils.makePath(path)) {
-                stream = new FileOutputStream(Paths.get(path, fileName).toString());
+            if (PathUtils.makePath(getPath())) {
+                stream = new FileOutputStream(getFile());
             } else {
                 log.error("Storage path could not be created");
             }
@@ -144,13 +144,24 @@ public class LocalStorageClient implements StorageClient {
     }
 
     /**
+     * Gets path.
+     *
+     * @return String.
+     */
+    @Override
+    public String getPath() {
+        String folder = config.getStorage().getStringProperty(connection.getSession().isInbound() ? "inboundFolder" : "outboundFolder");
+        return folder != null ? Paths.get(path, folder).toString() : path;
+    }
+
+    /**
      * Gets file path.
      *
      * @return String.
      */
     @Override
     public String getFile() {
-        return Paths.get(path, fileName).toString();
+        return  Paths.get(getPath(), fileName).toString();
     }
 
     /**
@@ -304,7 +315,7 @@ public class LocalStorageClient implements StorageClient {
             MimeHeader header = optional.get();
 
             String source = getFile();
-            Path target = Paths.get(path, header.getValue());
+            Path target = Paths.get(getPath(), header.getValue());
 
             if (StringUtils.isNotBlank(header.getValue())) {
                 if (Files.deleteIfExists(target)) {
