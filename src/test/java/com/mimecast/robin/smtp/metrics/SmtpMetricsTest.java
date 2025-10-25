@@ -22,12 +22,13 @@ class SmtpMetricsTest {
         testRegistry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
         MetricsRegistry.register(testRegistry, null);
         SmtpMetrics.resetCounters();
+        SmtpMetrics.initialize();
     }
 
     @AfterEach
     void tearDown() {
-        MetricsRegistry.register(null, null);
         SmtpMetrics.resetCounters();
+        MetricsRegistry.register(null, null);
     }
 
     @Test
@@ -38,7 +39,7 @@ class SmtpMetricsTest {
         SmtpMetrics.incrementEmailReceiptSuccess();
 
         // Assert
-        Counter counter = testRegistry.find("smtp.email.receipt.success").counter();
+        Counter counter = testRegistry.find("robin.email.receipt.success").counter();
         assertNotNull(counter, "Success counter should be registered");
         assertEquals(3.0, counter.count(), 0.001, "Counter should have incremented 3 times");
     }
@@ -51,13 +52,13 @@ class SmtpMetricsTest {
         SmtpMetrics.incrementEmailReceiptException("NullPointerException");
 
         // Assert
-        Counter ioExceptionCounter = testRegistry.find("smtp.email.receipt.exceptions")
+        Counter ioExceptionCounter = testRegistry.find("robin.email.receipt.exception")
                 .tag("exception_type", "IOException")
                 .counter();
         assertNotNull(ioExceptionCounter, "IOException counter should be registered");
         assertEquals(2.0, ioExceptionCounter.count(), 0.001, "IOException counter should have incremented 2 times");
 
-        Counter npeCounter = testRegistry.find("smtp.email.receipt.exceptions")
+        Counter npeCounter = testRegistry.find("robin.email.receipt.exception")
                 .tag("exception_type", "NullPointerException")
                 .counter();
         assertNotNull(npeCounter, "NullPointerException counter should be registered");
@@ -72,7 +73,7 @@ class SmtpMetricsTest {
         SmtpMetrics.incrementEmailReceiptStart();
 
         // Assert
-        Counter counter = testRegistry.find("smtp.email.receipt.start").counter();
+        Counter counter = testRegistry.find("robin.email.receipt.start").counter();
         assertNotNull(counter, "Start counter should be registered");
         assertEquals(3.0, counter.count(), 0.001, "Counter should have incremented 3 times");
     }
@@ -84,7 +85,7 @@ class SmtpMetricsTest {
         SmtpMetrics.incrementEmailReceiptLimit();
 
         // Assert
-        Counter counter = testRegistry.find("smtp.email.receipt.limit").counter();
+        Counter counter = testRegistry.find("robin.email.receipt.limit").counter();
         assertNotNull(counter, "Limit counter should be registered");
         assertEquals(2.0, counter.count(), 0.001, "Counter should have incremented 2 times");
     }
@@ -96,9 +97,9 @@ class SmtpMetricsTest {
         SmtpMetrics.resetCounters();
 
         // Act - Should not throw exception
-        assertDoesNotThrow(() -> SmtpMetrics.incrementEmailReceiptSuccess());
+        assertDoesNotThrow(SmtpMetrics::incrementEmailReceiptSuccess);
         assertDoesNotThrow(() -> SmtpMetrics.incrementEmailReceiptException("TestException"));
-        assertDoesNotThrow(() -> SmtpMetrics.incrementEmailReceiptLimit());
+        assertDoesNotThrow(SmtpMetrics::incrementEmailReceiptLimit);
     }
 
     @Test
@@ -109,7 +110,7 @@ class SmtpMetricsTest {
         }
 
         // Assert
-        Counter counter = testRegistry.find("smtp.email.receipt.success").counter();
+        Counter counter = testRegistry.find("robin.email.receipt.success").counter();
         assertNotNull(counter);
         assertEquals(10.0, counter.count(), 0.001);
     }
@@ -123,16 +124,83 @@ class SmtpMetricsTest {
         SmtpMetrics.incrementEmailReceiptException("IOException");
 
         // Assert
-        assertEquals(2.0, testRegistry.find("smtp.email.receipt.exceptions")
+        Counter ioCounter = testRegistry.find("robin.email.receipt.exception")
                 .tag("exception_type", "IOException")
-                .counter().count(), 0.001);
+                .counter();
+        assertNotNull(ioCounter);
+        assertEquals(2.0, ioCounter.count(), 0.001);
 
-        assertEquals(1.0, testRegistry.find("smtp.email.receipt.exceptions")
+        Counter socketCounter = testRegistry.find("robin.email.receipt.exception")
                 .tag("exception_type", "SocketException")
-                .counter().count(), 0.001);
+                .counter();
+        assertNotNull(socketCounter);
+        assertEquals(1.0, socketCounter.count(), 0.001);
 
-        assertEquals(1.0, testRegistry.find("smtp.email.receipt.exceptions")
+        Counter timeoutCounter = testRegistry.find("robin.email.receipt.exception")
                 .tag("exception_type", "TimeoutException")
-                .counter().count(), 0.001);
+                .counter();
+        assertNotNull(timeoutCounter);
+        assertEquals(1.0, timeoutCounter.count(), 0.001);
+    }
+
+    @Test
+    void testIncrementEmailRblRejection() {
+        // Act
+        SmtpMetrics.incrementEmailRblRejection();
+        SmtpMetrics.incrementEmailRblRejection();
+
+        // Assert
+        Counter counter = testRegistry.find("robin.email.rbl.rejection").counter();
+        assertNotNull(counter, "RBL rejection counter should be registered");
+        assertEquals(2.0, counter.count(), 0.001, "Counter should have incremented 2 times");
+    }
+
+    @Test
+    void testIncrementEmailVirusRejection() {
+        // Act
+        SmtpMetrics.incrementEmailVirusRejection();
+        SmtpMetrics.incrementEmailVirusRejection();
+        SmtpMetrics.incrementEmailVirusRejection();
+
+        // Assert
+        Counter counter = testRegistry.find("robin.email.virus.rejection").counter();
+        assertNotNull(counter, "Virus rejection counter should be registered");
+        assertEquals(3.0, counter.count(), 0.001, "Counter should have incremented 3 times");
+    }
+
+    @Test
+    void testIncrementEmailSpamRejection() {
+        // Act
+        SmtpMetrics.incrementEmailSpamRejection();
+        SmtpMetrics.incrementEmailSpamRejection();
+
+        // Assert
+        Counter counter = testRegistry.find("robin.email.spam.rejection").counter();
+        assertNotNull(counter, "Spam rejection counter should be registered");
+        assertEquals(2.0, counter.count(), 0.001, "Counter should have incremented 2 times");
+    }
+
+    @Test
+    void testAllSecurityCounters() {
+        // Act
+        SmtpMetrics.incrementEmailRblRejection();
+        SmtpMetrics.incrementEmailVirusRejection();
+        SmtpMetrics.incrementEmailVirusRejection();
+        SmtpMetrics.incrementEmailSpamRejection();
+        SmtpMetrics.incrementEmailSpamRejection();
+        SmtpMetrics.incrementEmailSpamRejection();
+
+        // Assert
+        Counter rblCounter = testRegistry.find("robin.email.rbl.rejection").counter();
+        assertNotNull(rblCounter);
+        assertEquals(1.0, rblCounter.count(), 0.001);
+
+        Counter virusCounter = testRegistry.find("robin.email.virus.rejection").counter();
+        assertNotNull(virusCounter);
+        assertEquals(2.0, virusCounter.count(), 0.001);
+
+        Counter spamCounter = testRegistry.find("robin.email.spam.rejection").counter();
+        assertNotNull(spamCounter);
+        assertEquals(3.0, spamCounter.count(), 0.001);
     }
 }

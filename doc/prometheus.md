@@ -118,6 +118,25 @@ Notes on metrics mapping
 - Each Micrometer measurement (statistic) becomes a separate sample labeled with `stat` (e.g., `count`, `sum`, `value`).
 - Timestamps are recorded in milliseconds since epoch.
 
+Robin Custom Metrics
+--------------------
+Robin exposes the following custom SMTP and storage metrics:
+
+### Email Receipt Metrics
+- `robin_email_receipt_start` - Number of email receipt connections started
+- `robin_email_receipt_success` - Number of successful email receipt operations
+- `robin_email_receipt_limit` - Number of email receipt operations terminated due to limits
+
+### Email Security Metrics
+- `robin_email_rbl_rejection` - Number of connections rejected due to RBL (Realtime Blackhole List) listings
+- `robin_email_virus_rejection` - Number of emails rejected due to virus detection (ClamAV)
+- `robin_email_spam_rejection` - Number of emails rejected due to spam or phishing detection (Rspamd)
+
+### Exception Metrics
+- `robin_email_receipt_exception` - Tagged by `exception_type`, tracks exceptions during email receipt processing
+
+These metrics help monitor email security filtering effectiveness and system stability.
+
 Troubleshooting
 ---------------
 - Nothing is pushed
@@ -125,7 +144,7 @@ Troubleshooting
   - Check include/exclude filters. Filters are applied to normalized names (underscores, not dots).
 
 - 415 Unsupported Media Type or compression errors
-  - If your backend doesn’t support `Content-Encoding: snappy`, set `compress: false`.
+  - If your backend doesn't support `Content-Encoding: snappy`, set `compress: false`.
   - If it requires snappy, keep `compress: true` (default).
 
 - 401/403, 404

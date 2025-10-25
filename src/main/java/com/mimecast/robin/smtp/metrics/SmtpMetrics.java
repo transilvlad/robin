@@ -5,6 +5,8 @@ import io.micrometer.core.instrument.Counter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.function.Supplier;
+
 /**
  * SMTP-related Micrometer metrics.
  *
@@ -17,6 +19,8 @@ public final class SmtpMetrics {
     private static volatile Counter emailReceiptSuccessCounter;
     private static volatile Counter emailReceiptLimitCounter;
     private static volatile Counter emailRblRejectionCounter;
+    private static volatile Counter emailVirusRejectionCounter;
+    private static volatile Counter emailSpamRejectionCounter;
 
     /**
      * Private constructor for utility class.
@@ -31,11 +35,9 @@ public final class SmtpMetrics {
      */
     public static void initialize() {
         try {
-            if (MetricsRegistry.getPrometheusRegistry() != null) {
+            if (emailReceiptStartCounter == null) {
                 initializeCounters();
                 log.info("SMTP metrics initialized");
-            } else {
-                log.warn("Cannot initialize SMTP metrics - Prometheus registry is null");
             }
         } catch (Exception e) {
             log.error("Failed to initialize SMTP metrics: {}", e.getMessage(), e);
@@ -47,20 +49,7 @@ public final class SmtpMetrics {
      * <p>Called when an email receipt connection is established and processing begins.
      */
     public static void incrementEmailReceiptStart() {
-        try {
-            if (emailReceiptStartCounter == null) {
-                synchronized (SmtpMetrics.class) {
-                    if (emailReceiptStartCounter == null) {
-                        initializeCounters();
-                    }
-                }
-            }
-            if (emailReceiptStartCounter != null) {
-                emailReceiptStartCounter.increment();
-            }
-        } catch (Exception e) {
-            log.warn("Failed to increment email receipt start counter: {}", e.getMessage());
-        }
+        incrementCounter(() -> emailReceiptStartCounter, "email receipt start counter");
     }
 
     /**
@@ -68,22 +57,40 @@ public final class SmtpMetrics {
      * <p>Called when an email receipt completes successfully.
      */
     public static void incrementEmailReceiptSuccess() {
-        try {
-            if (emailReceiptSuccessCounter == null) {
-                synchronized (SmtpMetrics.class) {
-                    if (emailReceiptSuccessCounter == null) {
-                        initializeCounters();
-                    }
-                }
-            }
-            if (emailReceiptSuccessCounter != null) {
-                emailReceiptSuccessCounter.increment();
-            }
-        } catch (Exception e) {
-            log.warn("Failed to increment email receipt success counter: {}", e.getMessage());
-        }
+        incrementCounter(() -> emailReceiptSuccessCounter, "email receipt success counter");
     }
 
+    /**
+     * Increment the email receipt limit counter.
+     * <p>Called when an email receipt is terminated due to reaching error or transaction limits.
+     */
+    public static void incrementEmailReceiptLimit() {
+        incrementCounter(() -> emailReceiptLimitCounter, "email receipt limit counter");
+    }
+
+    /**
+     * Increment the email RBL rejection counter.
+     * <p>Called when an email connection is rejected due to RBL listing.
+     */
+    public static void incrementEmailRblRejection() {
+        incrementCounter(() -> emailRblRejectionCounter, "email RBL rejection counter");
+    }
+
+    /**
+     * Increment the email virus rejection counter.
+     * <p>Called when an email is rejected due to virus detection.
+     */
+    public static void incrementEmailVirusRejection() {
+        incrementCounter(() -> emailVirusRejectionCounter, "email virus rejection counter");
+    }
+
+    /**
+     * Increment the email spam rejection counter.
+     * <p>Called when an email is rejected due to spam or phishing detection.
+     */
+    public static void incrementEmailSpamRejection() {
+        incrementCounter(() -> emailSpamRejectionCounter, "email spam rejection counter");
+    }
 
     /**
      * Increment the email receipt exception counter.
@@ -94,19 +101,41 @@ public final class SmtpMetrics {
     public static void incrementEmailReceiptException(String exceptionType) {
         try {
             if (MetricsRegistry.getPrometheusRegistry() != null) {
-                Counter.builder("smtp.email.receipt.exceptions")
-                        .description("Number of exceptions during email receipt processing")
-                        .tag("exception_type", exceptionType)
-                        .register(MetricsRegistry.getPrometheusRegistry())
-                        .increment();
+                try {
+                    Counter.builder("robin.email.receipt.exception")
+                            .description("Number of exceptions during email receipt processing")
+                            .tag("exception_type", exceptionType)
+                            .register(MetricsRegistry.getPrometheusRegistry())
+                            .increment();
+                } catch (IllegalArgumentException e) {
+                    // Counter with this tag already exists, find and increment it.
+                    Counter counter = MetricsRegistry.getPrometheusRegistry()
+                            .find("robin.email.receipt.exception")
+                            .tag("exception_type", exceptionType)
+                            .counter();
+                    if (counter != null) {
+                        counter.increment();
+                    }
+                }
             }
 
             if (MetricsRegistry.getGraphiteRegistry() != null) {
-                Counter.builder("smtp.email.receipt.exceptions")
-                        .description("Number of exceptions during email receipt processing")
-                        .tag("exception_type", exceptionType)
-                        .register(MetricsRegistry.getGraphiteRegistry())
-                        .increment();
+                try {
+                    Counter.builder("robin.email.receipt.exception")
+                            .description("Number of exceptions during email receipt processing")
+                            .tag("exception_type", exceptionType)
+                            .register(MetricsRegistry.getGraphiteRegistry())
+                            .increment();
+                } catch (IllegalArgumentException e) {
+                    // Counter with this tag already exists, find and increment it.
+                    Counter counter = MetricsRegistry.getGraphiteRegistry()
+                            .find("robin.email.receipt.exception")
+                            .tag("exception_type", exceptionType)
+                            .counter();
+                    if (counter != null) {
+                        counter.increment();
+                    }
+                }
             }
         } catch (Exception e) {
             log.warn("Failed to increment email receipt exception counter: {}", e.getMessage());
@@ -114,44 +143,29 @@ public final class SmtpMetrics {
     }
 
     /**
-     * Increment the email receipt limit counter.
-     * <p>Called when an email receipt is terminated due to reaching error or transaction limits.
+     * Generic helper to increment a counter with lazy initialization.
+     * <p>Handles double-checked locking for thread-safe lazy initialization and exception handling.
+     *
+     * @param counterSupplier Supplier that returns the counter field
+     * @param counterName     Name of the counter for logging purposes
      */
-    public static void incrementEmailReceiptLimit() {
+    private static void incrementCounter(Supplier<Counter> counterSupplier, String counterName) {
         try {
-            if (emailReceiptLimitCounter == null) {
+            Counter counter = counterSupplier.get();
+            if (counter == null) {
                 synchronized (SmtpMetrics.class) {
-                    if (emailReceiptLimitCounter == null) {
+                    counter = counterSupplier.get();
+                    if (counter == null) {
                         initializeCounters();
+                        counter = counterSupplier.get();
                     }
                 }
             }
-            if (emailReceiptLimitCounter != null) {
-                emailReceiptLimitCounter.increment();
+            if (counter != null) {
+                counter.increment();
             }
         } catch (Exception e) {
-            log.warn("Failed to increment email receipt limit counter: {}", e.getMessage());
-        }
-    }
-
-    /**
-     * Increment the email RBL rejection counter.
-     * <p>Called when an email connection is rejected due to RBL listing.
-     */
-    public static void incrementEmailRblRejection() {
-        try {
-            if (emailRblRejectionCounter == null) {
-                synchronized (SmtpMetrics.class) {
-                    if (emailRblRejectionCounter == null) {
-                        initializeCounters();
-                    }
-                }
-            }
-            if (emailRblRejectionCounter != null) {
-                emailRblRejectionCounter.increment();
-            }
-        } catch (Exception e) {
-            log.warn("Failed to increment email RBL rejection counter: {}", e.getMessage());
+            log.warn("Failed to increment {}: {}", counterName, e.getMessage());
         }
     }
 
@@ -161,60 +175,67 @@ public final class SmtpMetrics {
      */
     private static void initializeCounters() {
         if (MetricsRegistry.getPrometheusRegistry() != null) {
-            emailReceiptStartCounter = Counter.builder("smtp.email.receipt.start")
+            emailReceiptStartCounter = Counter.builder("robin.email.receipt.start")
                     .description("Number of email receipt connections started")
                     .register(MetricsRegistry.getPrometheusRegistry());
 
-            emailReceiptSuccessCounter = Counter.builder("smtp.email.receipt.success")
+            emailReceiptSuccessCounter = Counter.builder("robin.email.receipt.success")
                     .description("Number of successful email receipt operations")
                     .register(MetricsRegistry.getPrometheusRegistry());
 
-            emailReceiptLimitCounter = Counter.builder("smtp.email.receipt.limit")
-                    .description("Number of email receipt operations terminated due to error or transaction limits")
+            emailReceiptLimitCounter = Counter.builder("robin.email.receipt.limit")
+                    .description("Number of email receipt operations terminated due to limits")
                     .register(MetricsRegistry.getPrometheusRegistry());
 
-            emailRblRejectionCounter = Counter.builder("smtp.email.rbl.rejection")
+            emailRblRejectionCounter = Counter.builder("robin.email.rbl.rejection")
                     .description("Number of connections rejected due to RBL listings")
                     .register(MetricsRegistry.getPrometheusRegistry());
 
-            // Initialize exception counter with common exception types so it appears in metrics from the start
-            Counter.builder("smtp.email.receipt.exceptions")
-                    .description("Number of exceptions during email receipt processing")
-                    .tag("exception_type", "IOException")
+            emailVirusRejectionCounter = Counter.builder("robin.email.virus.rejection")
+                    .description("Number of emails rejected due to virus detection")
                     .register(MetricsRegistry.getPrometheusRegistry());
 
-            Counter.builder("smtp.email.receipt.exceptions")
+            emailSpamRejectionCounter = Counter.builder("robin.email.spam.rejection")
+                    .description("Number of emails rejected due to spam or phishing detection")
+                    .register(MetricsRegistry.getPrometheusRegistry());
+            Counter.builder("robin.email.receipt.exception")
                     .description("Number of exceptions during email receipt processing")
-                    .tag("exception_type", "SocketException")
+                    .tag("exception_type", "Exception")
                     .register(MetricsRegistry.getPrometheusRegistry());
 
-            log.debug("Initialized SMTP metrics counters");
+            log.debug("Initialized SMTP metrics counters for Prometheus");
         }
 
-        // Also register with Graphite if available
         if (MetricsRegistry.getGraphiteRegistry() != null) {
-            Counter.builder("smtp.email.receipt.start")
+            emailReceiptStartCounter = Counter.builder("robin.email.receipt.start")
                     .description("Number of email receipt connections started")
                     .register(MetricsRegistry.getGraphiteRegistry());
 
-            Counter.builder("smtp.email.receipt.success")
+            emailReceiptSuccessCounter = Counter.builder("robin.email.receipt.success")
                     .description("Number of successful email receipt operations")
                     .register(MetricsRegistry.getGraphiteRegistry());
 
-            Counter.builder("smtp.email.receipt.limit")
-                    .description("Number of email receipt operations terminated due to error or transaction limits")
+            emailReceiptLimitCounter = Counter.builder("robin.email.receipt.limit")
+                    .description("Number of email receipt operations terminated due to limits")
                     .register(MetricsRegistry.getGraphiteRegistry());
 
-            // Initialize exception counters for Graphite too
-            Counter.builder("smtp.email.receipt.exceptions")
-                    .description("Number of exceptions during email receipt processing")
-                    .tag("exception_type", "IOException")
+            emailRblRejectionCounter = Counter.builder("robin.email.rbl.rejection")
+                    .description("Number of connections rejected due to RBL listings")
                     .register(MetricsRegistry.getGraphiteRegistry());
 
-            Counter.builder("smtp.email.receipt.exceptions")
-                    .description("Number of exceptions during email receipt processing")
-                    .tag("exception_type", "SocketException")
+            emailVirusRejectionCounter = Counter.builder("robin.email.virus.rejection")
+                    .description("Number of emails rejected due to virus detection")
                     .register(MetricsRegistry.getGraphiteRegistry());
+
+            emailSpamRejectionCounter = Counter.builder("robin.email.spam.rejection")
+                    .description("Number of emails rejected due to spam or phishing detection")
+                    .register(MetricsRegistry.getGraphiteRegistry());
+            Counter.builder("robin.email.receipt.exception")
+                    .description("Number of exceptions during email receipt processing")
+                    .tag("exception_type", "Exception")
+                    .register(MetricsRegistry.getGraphiteRegistry());
+
+            log.debug("Initialized SMTP metrics counters for Graphite");
         }
     }
 
@@ -225,5 +246,8 @@ public final class SmtpMetrics {
         emailReceiptStartCounter = null;
         emailReceiptSuccessCounter = null;
         emailReceiptLimitCounter = null;
+        emailRblRejectionCounter = null;
+        emailVirusRejectionCounter = null;
+        emailSpamRejectionCounter = null;
     }
 }

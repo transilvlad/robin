@@ -7,14 +7,14 @@
   remoteWriteUrl: "",
 
   // Push interval and HTTP timeout (seconds).
-  intervalSeconds: 15,
+  intervalSeconds: 5,
   timeoutSeconds: 10,
 
   // Compress payload with Snappy framed (recommended by most receivers). Set to false to disable.
   compress: true,
 
   // Include/exclude filters (regex); metric names use '_' instead of '.'.
-  include: ["^jvm_.*", "^process_.*", "^system_.*"],
+  include: ["^jvm_.*", "^process_.*", "^system_.*", "^robin_.*"],
   exclude: [],
 
   // Tip: Variables below are supported via Magic replacement.

@@ -20,6 +20,7 @@ import com.mimecast.robin.scanners.RspamdClient;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
+import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
 import com.mimecast.robin.util.PathUtils;
 import org.apache.commons.io.output.NullOutputStream;
@@ -243,15 +244,15 @@ public class LocalStorageClient implements StorageClient {
             if (clamAVClient.isInfected(bytes)) {
                 log.warn("Virus found in {}: {}", part, clamAVClient.getViruses());
                 String onVirus = clamAVConfig.getStringProperty("onVirus", "reject");
+                SmtpMetrics.incrementEmailVirusRejection();
 
                 if ("reject".equalsIgnoreCase(onVirus)) {
                     connection.write(String.format(SmtpResponses.VIRUS_FOUND_550, connection.getSession().getUID()));
-                    return false;
-
                 } else if ("discard".equalsIgnoreCase(onVirus)) {
                     log.warn("Virus found, discarding.");
-                    return false;
                 }
+
+                return false;
             } else {
                 log.info("AV scan clean for {}", part.replaceAll("\\s+", " "));
             }
@@ -279,15 +280,15 @@ public class LocalStorageClient implements StorageClient {
                 double score = rspamdClient.getScore();
                 log.warn("Spam/phishing detected in {} with score {}: {}", getFile(), score, rspamdClient.getSymbols());
                 String onSpam = rspamdConfig.getStringProperty("onSpam", "reject");
+                SmtpMetrics.incrementEmailSpamRejection();
 
                 if ("reject".equalsIgnoreCase(onSpam)) {
                     connection.write(String.format(SmtpResponses.SPAM_FOUND_550, connection.getSession().getUID()));
-                    return false;
-
                 } else if ("discard".equalsIgnoreCase(onSpam)) {
                     log.warn("Spam/phishing detected, discarding.");
-                    return false;
                 }
+
+                return false;
             } else {
                 log.info("Spam scan clean with score {}", rspamdClient.getScore());
             }
