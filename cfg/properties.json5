@@ -5,8 +5,22 @@
   // Pattern to match UID out of SMT responses.
   uidPattern: "\\s\\[([a-z0-9\\-_]+)]",
 
-  // Send RSET command before additional envelopes.
+  // Client RSET command before additional envelopes..
   rsetBetweenEnvelopes: false,
+
+  // Auto reload properties file config.
+  propertiesAutoReload: {
+    enabled: true,
+    delaySeconds: 300,
+    intervalSeconds: 300
+  },
+
+  // Auto reload server config.
+  serverAutoReload: {
+    enabled: true,
+    delaySeconds: 300,
+    intervalSeconds: 300
+  },
 
   // Logging config.
   logging: {

@@ -98,4 +98,22 @@ public class Properties extends ConfigFoundation {
     public Locale getLocale() {
         return LocaleUtils.toLocale(getStringProperty("locale", Locale.getDefault().toString()));
     }
+
+    /**
+     * Gets properties auto reload config.
+     *
+     * @return BasicConfig instance.
+     */
+    public BasicConfig getPropertiesAutoReload() {
+        return new BasicConfig(getMapProperty("propertiesAutoReload"));
+    }
+
+    /**
+     * Gets server auto reload config.
+     *
+     * @return BasicConfig instance.
+     */
+    public BasicConfig getServerAutoReload() {
+        return new BasicConfig(getMapProperty("serverAutoReload"));
+    }
 }
