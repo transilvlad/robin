@@ -157,6 +157,9 @@ public class EmailReceipt implements Runnable {
             SmtpMetrics.incrementEmailReceiptException(e.getClass().getSimpleName());
             log.info("Error reading/writing: {}", e.getMessage());
         } finally {
+            if (Config.getServer().getStorage().getBooleanProperty("autodelete", true)) {
+                connection.getSession().close();
+            }
             connection.close();
         }
     }

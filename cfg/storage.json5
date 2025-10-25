@@ -1,6 +1,10 @@
 {
   // Enable email storage.
+  // If disabled, emails are not stored on disk or scanned or delivered to Dovecot.
   enabled: true,
+
+  // Autodelete files at connection/session end.
+  autodelete: true,
 
   // Disable rename by magic header feature.
   disableRenameHeader: true,

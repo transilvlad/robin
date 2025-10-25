@@ -8,10 +8,15 @@ import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.SmtpFoundation;
 import com.mimecast.robin.smtp.transaction.SessionTransactionList;
 import com.mimecast.robin.util.Magic;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 
+import java.io.IOException;
 import java.io.Serial;
 import java.io.Serializable;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -22,6 +27,8 @@ import java.util.*;
  */
 @SuppressWarnings({"UnusedReturnValue", "rawtypes"})
 public class Session implements Serializable, Cloneable {
+    private static final Logger log = LogManager.getLogger(Session.class);
+
     @Serial
     private static final long serialVersionUID = 1L;
 
@@ -1264,6 +1271,22 @@ public class Session implements Serializable, Cloneable {
             return clone;
         } catch (CloneNotSupportedException e) {
             throw new AssertionError("Clone should be supported", e);
+        }
+    }
+
+    /**
+     * Cleans up temporary files created for message envelopes.
+     */
+    public void close() {
+        for (MessageEnvelope envelope : envelopes) {
+            try {
+                if (envelope.getFile() != null) {
+                    Files.deleteIfExists(Path.of(envelope.getFile()));
+                }
+                log.debug("Deleted temporary file: {}", envelope.getFile());
+            } catch (IOException e) {
+                log.error("Error deleting temporary file: {}", envelope.getFile());
+            }
         }
     }
 }
