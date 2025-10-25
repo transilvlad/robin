@@ -158,9 +158,11 @@ public class LocalStorageClient implements StorageClient {
      */
     @Override
     public void save() {
-        if (config.getStorage().getBooleanProperty("enabled")) {
-            try {
+        try {
+            if (config.getStorage().getBooleanProperty("enabled")) {
+                stream.flush();
                 stream.close();
+                log.info("Storage file saved to: {}", getFile());
 
                 // Save email path to current envelope if any.
                 if (!connection.getSession().getEnvelopes().isEmpty()) {
@@ -209,19 +211,9 @@ public class LocalStorageClient implements StorageClient {
 
                 // Relay email if X-Robin-Relay or relay configuration or direction outbound enabled.
                 relay();
-
-            } catch (IOException e) {
-                log.error("Storage unable to store the email: {}", e.getMessage());
             }
-
-            try {
-                stream.flush();
-                stream.close();
-                log.info("Storage file saved to: {}", getFile());
-
-            } catch (IOException e) {
-                log.error("Storage file not flushed/closed: {}", e.getMessage());
-            }
+        } catch (IOException e) {
+            log.error("Storage unable to store the email: {}", e.getMessage());
         }
     }
 
