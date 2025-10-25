@@ -11,6 +11,15 @@
   // Connection timeout in seconds.
   timeout: 30,
 
+  // Enable SPF scanning.
+  setSpfScanEnabled: true,
+
+  // Enable DKIM scanning.
+  setDkimScanEnabled: true,
+
+  // Enable DMARC scanning.
+  setDmARCScanEnabled: true,
+
   // Required spam score threshold for rejection.
   requiredScore: 7.0,
 

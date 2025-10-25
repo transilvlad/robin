@@ -2,6 +2,7 @@ package com.mimecast.robin.scanners;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import com.mimecast.robin.smtp.session.EmailDirection;
 import okhttp3.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,6 +37,15 @@ public class RspamdClient {
     private final String baseUrl;
     private final OkHttpClient httpClient;
     private final Gson gson;
+
+    private EmailDirection emailDirection;
+    private boolean spfScanEnabled;
+    private boolean dkimScanEnabled;
+    private boolean dmarcScanEnabled;
+    private boolean dkimSigningEnabled;
+    private String dkimSigningDomain;
+    private String dkimSigningSelector;
+
     private Map<String, Object> lastScanResult;
 
     /**
@@ -61,6 +71,14 @@ public class RspamdClient {
                 .writeTimeout(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .build();
         this.gson = new Gson();
+        // Initialize default values for email scanning options
+        this.emailDirection = EmailDirection.INBOUND;
+        this.spfScanEnabled = true;
+        this.dkimScanEnabled = true;
+        this.dmarcScanEnabled = true;
+        this.dkimSigningEnabled = false;
+        this.dkimSigningDomain = null;
+        this.dkimSigningSelector = null;
         log.debug("Rspamd client initialized with {}:{}", host, port);
     }
 
@@ -155,10 +173,29 @@ public class RspamdClient {
             log.debug("Scanning input stream with {} bytes", content.length);
 
             RequestBody body = RequestBody.create(content, APPLICATION_OCTET_STREAM);
-            Request request = new Request.Builder()
+            Request.Builder requestBuilder = new Request.Builder()
                     .url(baseUrl + SCAN_ENDPOINT)
-                    .post(body)
-                    .build();
+                    .post(body);
+
+            // Add email direction header
+            requestBuilder.addHeader("X-Email-Direction", emailDirection.toString());
+
+            // Add authentication scan options as headers
+            requestBuilder.addHeader("X-SPF-Scan", String.valueOf(spfScanEnabled));
+            requestBuilder.addHeader("X-DKIM-Scan", String.valueOf(dkimScanEnabled));
+            requestBuilder.addHeader("X-DMARC-Scan", String.valueOf(dmarcScanEnabled));
+
+            // Add DKIM signing options if enabled
+            if (dkimSigningEnabled) {
+                if (dkimSigningDomain != null) {
+                    requestBuilder.addHeader("X-DKIM-Sign-Domain", dkimSigningDomain);
+                }
+                if (dkimSigningSelector != null) {
+                    requestBuilder.addHeader("X-DKIM-Sign-Selector", dkimSigningSelector);
+                }
+            }
+
+            Request request = requestBuilder.build();
 
             try (Response response = httpClient.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
@@ -286,5 +323,78 @@ public class RspamdClient {
      */
     public Map<String, Object> getLastScanResult() {
         return lastScanResult != null ? lastScanResult : Collections.emptyMap();
+    }
+
+    /**
+     * Set the email direction (inbound or outbound).
+     *
+     * @param direction The email direction.
+     * @return Self.
+     */
+    public RspamdClient setEmailDirection(EmailDirection direction) {
+        this.emailDirection = direction;
+        log.debug("Email direction set to: {}", direction.toString());
+        return this;
+    }
+
+    /**
+     * Set whether SPF scanning is enabled.
+     *
+     * @param enabled True to enable SPF scanning.
+     * @return Self.
+     */
+    public RspamdClient setSpfScanEnabled(boolean enabled) {
+        this.spfScanEnabled = enabled;
+        log.debug("SPF scan enabled: {}", enabled);
+        return this;
+    }
+
+    /**
+     * Set whether DKIM scanning is enabled.
+     *
+     * @param enabled True to enable DKIM scanning.
+     * @return Self.
+     */
+    public RspamdClient setDkimScanEnabled(boolean enabled) {
+        this.dkimScanEnabled = enabled;
+        log.debug("DKIM scan enabled: {}", enabled);
+        return this;
+    }
+
+    /**
+     * Set whether DMARC scanning is enabled.
+     *
+     * @param enabled True to enable DMARC scanning.
+     * @return Self.
+     */
+    public RspamdClient setDmarcScanEnabled(boolean enabled) {
+        this.dmarcScanEnabled = enabled;
+        log.debug("DMARC scan enabled: {}", enabled);
+        return this;
+    }
+
+    /**
+     * Set whether DKIM signing is enabled and configure signing options.
+     * <p>
+     * IMPORTANT: This method configures which domain and selector to use for DKIM signing.
+     * The actual private key must be pre-configured in Rspamd's DKIM keystore.
+     * Rspamd looks up the private key using the domain/selector combination provided here.
+     * <p>
+     * Rspamd DKIM key configuration:
+     * - Keys are typically stored in /etc/rspamd/dkim/ directory
+     * - Private keys should be in PEM format: /etc/rspamd/dkim/{domain}.{selector}.key
+     * - Public keys are published in DNS at: {selector}._domainkey.{domain}
+     * - Configure key paths in Rspamd's dkim_signing module configuration
+     *
+     * @param domain   The domain to sign for (e.g., "example.com"). Must match a configured domain in Rspamd.
+     * @param selector The DKIM selector (e.g., "default"). Must match a configured selector in Rspamd.
+     * @return Self.
+     */
+    public RspamdClient setDkimSigningOptions(String domain, String selector) {
+        this.dkimSigningEnabled = true;
+        this.dkimSigningDomain = domain;
+        this.dkimSigningSelector = selector;
+        log.debug("DKIM signing enabled for domain: {}, selector: {}", domain, selector);
+        return this;
     }
 }

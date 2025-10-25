@@ -273,8 +273,11 @@ public class LocalStorageClient implements StorageClient {
         if (rspamdConfig.getBooleanProperty("enabled")) {
             RspamdClient rspamdClient = new RspamdClient(
                     rspamdConfig.getStringProperty("host", "localhost"),
-                    rspamdConfig.getLongProperty("port", 11333L).intValue()
-            );
+                    rspamdConfig.getLongProperty("port", 11333L).intValue())
+                    .setEmailDirection(connection.getSession().getDirection())
+                    .setSpfScanEnabled(rspamdConfig.getBooleanProperty("spfScanEnabled"))
+                    .setDkimScanEnabled(rspamdConfig.getBooleanProperty("dkimScanEnabled"))
+                    .setDmarcScanEnabled(rspamdConfig.getBooleanProperty("dmarcScanEnabled"));
 
             if (rspamdClient.isSpam(bytes, rspamdConfig.getDoubleProperty("requiredScore", 7.0))) {
                 double score = rspamdClient.getScore();

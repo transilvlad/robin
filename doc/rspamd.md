@@ -175,3 +175,160 @@ Common symbols include:
 Map<String, Object> lastResult = rspamdClient.getLastScanResult();
 System.out.println("Full scan result: " + lastResult);
 ```
+
+### Email Authentication Options
+
+The `RspamdClient` supports configuring email direction and authentication scanning options.
+
+#### Setting Email Direction
+
+```java
+RspamdClient client = new RspamdClient();
+
+// Set direction to INBOUND (default)
+client.setEmailDirection(EmailDirection.INBOUND);
+
+// Or set to OUTBOUND
+client.setEmailDirection(EmailDirection.OUTBOUND);
+```
+
+#### Configuring Authentication Scanning
+
+```java
+// Enable/disable individual authentication checks
+client.setSpfScanEnabled(true);    // Enable SPF checking
+client.setDkimScanEnabled(true);   // Enable DKIM checking
+client.setDmarcScanEnabled(true);  // Enable DMARC checking
+```
+
+### DKIM Signing
+
+Robin can be configured to sign outbound emails with DKIM signatures using Rspamd. DKIM signing requires:
+
+1. **Private keys configured in Rspamd** - Pre-generated and stored on the Rspamd server
+2. **Public keys published in DNS** - Must be available for recipients to verify
+3. **Robin configuration** - Specify which domain and selector to use for signing
+
+#### How DKIM Signing Works
+
+When DKIM signing is enabled, Robin sends the configured domain and selector to Rspamd. Rspamd then:
+
+1. Looks up the private key using the domain/selector combination
+2. Generates a DKIM signature over the email headers and body
+3. Adds the DKIM-Signature header to the email
+4. Returns the signed email
+
+**Important**: The private keys must already exist in Rspamd's keystore before Robin can use them. Robin only tells Rspamd which key to use; it does not provide the key itself.
+
+#### Configuring DKIM Keys in Rspamd
+
+DKIM keys are configured at the Rspamd server level, not in Robin. Here's how to set them up:
+
+**1. Generate DKIM Key Pair (on Rspamd server)**
+
+```bash
+# Generate a 2048-bit RSA key pair
+openssl genrsa -out example.com.default.key 2048
+
+# Extract the public key
+openssl rsa -in example.com.default.key -pubout -out example.com.default.pub
+```
+
+**2. Store Private Key in Rspamd**
+
+Private keys are typically stored in `/etc/rspamd/dkim/` or as configured in Rspamd:
+
+```bash
+# Copy private key to Rspamd dkim directory
+sudo cp example.com.default.key /etc/rspamd/dkim/
+
+# Ensure proper permissions
+sudo chmod 600 /etc/rspamd/dkim/example.com.default.key
+sudo chown rspamd:rspamd /etc/rspamd/dkim/example.com.default.key
+```
+
+**3. Configure Rspamd DKIM Module**
+
+In `/etc/rspamd/local.d/dkim_signing.conf`:
+
+```conf
+# Enable DKIM signing
+enabled = true;
+
+# Configure signing domains
+sign_domains {
+  "example.com" {
+    # Path to private keys for this domain
+    path = "/etc/rspamd/dkim/example.com";
+    # Selector to use
+    selector = "default";
+  };
+};
+
+# Sign all outbound mail (optional)
+sign_all = true;
+
+# Use RELAXED/RELAXED canonicalization (recommended)
+relaxed_sign = true;
+```
+
+**4. Publish Public Key in DNS**
+
+Extract the public key value and publish it in DNS:
+
+```bash
+# Extract public key in DNS format
+openssl rsa -in example.com.default.key -pubout -outform PEM
+```
+
+Publish as a TXT record at `default._domainkey.example.com`:
+
+```dns
+default._domainkey.example.com. 300 IN TXT "v=DKIM1; k=rsa; p=MIGfMA0GCSq..."
+```
+
+#### Using DKIM Signing in Robin
+
+Once DKIM keys are configured in Rspamd, enable DKIM signing in Robin:
+
+```java
+RspamdClient client = new RspamdClient();
+
+// Set outbound direction
+client.setEmailDirection(EmailDirection.OUTBOUND);
+
+// Enable DKIM signing
+client.setDkimSigningOptions(
+    "example.com",     // domain (must match Rspamd configuration)
+    "default"          // selector (must match Rspamd configuration)
+);
+
+// Now when scanning, Rspamd will sign with DKIM
+Map<String, Object> result = client.scanBytes(emailData);
+```
+
+#### Complete Example
+
+```java
+RspamdClient client = new RspamdClient("rspamd.example.com", 11333);
+
+// Configure for outbound scanning and signing
+client.setEmailDirection(EmailDirection.OUTBOUND);
+client.setDkimSigningOptions(true, "example.com", "default");
+
+// Scan and sign the email
+Map<String, Object> result = client.scanBytes(emailData);
+
+if ((Boolean) result.get("spam")) {
+    System.out.println("Email was detected as spam");
+} else {
+    System.out.println("Email passed all checks and was signed");
+}
+```
+
+#### Troubleshooting DKIM Signing
+
+- **Signing not happening**: Check that the domain and selector match exactly with Rspamd configuration
+- **"No private key found"**: Verify the key file exists at the path configured in Rspamd
+- **Permission denied**: Check that the Rspamd process has read permission on the private key file
+- **DNS verification fails**: Ensure the public key is correctly published in DNS and formatted properly

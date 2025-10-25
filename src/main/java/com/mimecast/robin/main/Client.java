@@ -5,6 +5,7 @@ import com.mimecast.robin.assertion.AssertException;
 import com.mimecast.robin.config.client.CaseConfig;
 import com.mimecast.robin.smtp.EmailDelivery;
 import com.mimecast.robin.smtp.connection.Connection;
+import com.mimecast.robin.smtp.session.EmailDirection;
 import com.mimecast.robin.smtp.session.Session;
 
 import javax.naming.ConfigurationException;
@@ -88,7 +89,7 @@ public class Client extends Foundation {
         // Delivery Session.
         session = Factories.getSession();
         session.map(caseConfig);
-        session.setDirection(Session.Direction.OUTBOUND);
+        session.setDirection(EmailDirection.OUTBOUND);
 
         // Send.
         deliver();

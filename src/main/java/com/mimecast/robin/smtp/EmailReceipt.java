@@ -13,7 +13,7 @@ import com.mimecast.robin.smtp.extension.server.ServerMail;
 import com.mimecast.robin.smtp.extension.server.ServerProcessor;
 import com.mimecast.robin.smtp.extension.server.ServerRcpt;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
-import com.mimecast.robin.smtp.session.Session;
+import com.mimecast.robin.smtp.session.EmailDirection;
 import com.mimecast.robin.smtp.verb.Verb;
 import com.mimecast.robin.smtp.webhook.WebhookCaller;
 import org.apache.logging.log4j.LogManager;
@@ -85,7 +85,7 @@ public class EmailReceipt implements Runnable {
             }
 
             // Set session direction depending on if submission port or not.
-            connection.getSession().setDirection(submission ? Session.Direction.OUTBOUND : Session.Direction.INBOUND);
+            connection.getSession().setDirection(submission ? EmailDirection.OUTBOUND : EmailDirection.INBOUND);
         } catch (IOException e) {
             log.info("Error initializing streams: {}", e.getMessage());
         }

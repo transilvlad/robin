@@ -3,7 +3,7 @@ package com.mimecast.robin.smtp.extension.server;
 import com.mimecast.robin.main.Foundation;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.ConnectionMock;
-import com.mimecast.robin.smtp.session.Session;
+import com.mimecast.robin.smtp.session.EmailDirection;
 import com.mimecast.robin.smtp.verb.Verb;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -156,7 +156,7 @@ class ServerAuthTest {
         StringBuilder stringBuilder = new StringBuilder();
         stringBuilder.append("Z2l2ZUhlclRoZVJpbmc=\r\n");
         ConnectionMock connection = new ConnectionMock(stringBuilder);
-        connection.getSession().setDirection(Session.Direction.OUTBOUND);
+        connection.getSession().setDirection(EmailDirection.OUTBOUND);
         connection.getSession().setStartTls(true);
 
         Verb verb = new Verb("AUTH LOGIN dG9ueUBleGFtcGxlLmNvbQ==");
@@ -183,7 +183,7 @@ class ServerAuthTest {
         stringBuilder.append("dG9ueUBleGFtcGxlLmNvbQ==\r\n");
         stringBuilder.append("Z2l2ZUhlclRoZVJpbmc=\r\n");
         ConnectionMock connection = new ConnectionMock(stringBuilder);
-        connection.getSession().setDirection(Session.Direction.OUTBOUND);
+        connection.getSession().setDirection(EmailDirection.OUTBOUND);
         connection.getSession().setStartTls(true);
 
         Verb verb = new Verb("AUTH LOGIN");
@@ -211,7 +211,7 @@ class ServerAuthTest {
         stringBuilder.append("TUFJTA==\r\n");
         stringBuilder.append("UkNQVA==\r\n");
         ConnectionMock connection = new ConnectionMock(stringBuilder);
-        connection.getSession().setDirection(Session.Direction.OUTBOUND);
+        connection.getSession().setDirection(EmailDirection.OUTBOUND);
         connection.getSession().setStartTls(true);
 
         Verb verb = new Verb("AUTH LOGIN");

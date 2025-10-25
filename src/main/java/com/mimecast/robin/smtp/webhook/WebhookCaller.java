@@ -4,6 +4,7 @@ import com.google.gson.*;
 import com.mimecast.robin.config.server.WebhookConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.smtp.connection.Connection;
+import com.mimecast.robin.smtp.session.EmailDirection;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.smtp.verb.Verb;
 import com.mimecast.robin.util.GsonExclusionStrategy;
@@ -83,10 +84,10 @@ public class WebhookCaller {
      * Checks if webhook direction filter matches the session direction.
      *
      * @param config  Webhook configuration.
-     * @param direction Session.Direction instance.
+     * @param direction EmailDirection instance.
      * @return true if direction matches or is set to both, false otherwise.
      */
-    private static boolean isDirectionMatched(WebhookConfig config, Session.Direction direction) {
+    private static boolean isDirectionMatched(WebhookConfig config, EmailDirection direction) {
         String configDirection = config.getDirection().toLowerCase();
 
         // "both" matches all directions.

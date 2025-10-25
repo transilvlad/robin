@@ -26,18 +26,10 @@ public class Session implements Serializable, Cloneable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * Direction enum.
-     */
-    public enum Direction {
-        INBOUND,
-        OUTBOUND
-    }
-
-    /**
      * Session direction.
      * <p>Default: INBOUND.
      */
-    private Direction direction = Direction.INBOUND;
+    private EmailDirection direction = EmailDirection.INBOUND;
 
     /**
      * UID.
@@ -286,7 +278,7 @@ public class Session implements Serializable, Cloneable {
      * @param direction Enum.
      * @return Self.
      */
-    public Session setDirection(Direction direction) {
+    public Session setDirection(EmailDirection direction) {
         this.direction = direction;
         return this;
     }
@@ -296,7 +288,7 @@ public class Session implements Serializable, Cloneable {
      *
      * @return Enum.
      */
-    public Direction getDirection() {
+    public EmailDirection getDirection() {
         return direction;
     }
 
@@ -306,7 +298,7 @@ public class Session implements Serializable, Cloneable {
      * @return Boolean.
      */
     public boolean isInbound() {
-        return direction == Direction.INBOUND;
+        return direction == EmailDirection.INBOUND;
     }
 
     /**
@@ -315,7 +307,7 @@ public class Session implements Serializable, Cloneable {
      * @return Boolean.
      */
     public boolean isOutbound() {
-        return direction == Direction.OUTBOUND;
+        return direction == EmailDirection.OUTBOUND;
     }
 
     /**
