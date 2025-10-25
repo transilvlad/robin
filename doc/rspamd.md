@@ -12,22 +12,29 @@ Here is an example `rspamd.json5` file:
 
 ```json5
 {
-  rspamd: {
-    enabled: false,
-    host: "localhost",
-    port: 11333,
+  enabled: false,
+  host: "localhost",
+  port: 11333,
 
-    // Connection timeout in seconds
-    timeout: 30,
+  // Connection timeout in seconds
+  timeout: 30,
 
-    // Required spam score threshold for rejection
-    requiredScore: 7.0,
+  // Enable SPF scanning.
+  spfScanEnabled: true,
 
-    // Action to take when spam/phishing is detected
-    // "reject" - Reject the email with a 5xx error
-    // "discard" - Accept the email and discard it
-    onSpam: "reject"
-  }
+  // Enable DKIM scanning.
+  dkimScanEnabled: true,
+
+  // Enable DMARC scanning.
+  dmarcScanEnabled: true,
+
+  // Required spam score threshold for rejection
+  requiredScore: 7.0,
+
+  // Action to take when spam/phishing is detected
+  // "reject" - Reject the email with a 5xx error
+  // "discard" - Accept the email and discard it
+  onSpam: "reject"
 }
 ```
 
@@ -37,6 +44,9 @@ Here is an example `rspamd.json5` file:
 - **host**: The hostname or IP address of the Rspamd daemon. Defaults to `localhost`.
 - **port**: The port number of the Rspamd daemon. Defaults to `11333`.
 - **timeout**: The connection timeout in seconds. Defaults to `30`.
+- **spfScanEnabled**: Enable SPF scanning.
+- **dkimScanEnabled**: Enable DKIM scanning.
+- **dmarcScanEnabled**: Enable DMARC scanning.
 - **requiredScore**: The spam score threshold above which an email is considered spam. Defaults to `7.0`.
 - **onSpam**: The action to take when spam/phishing is detected.
   - `reject`: Reject the email with a `554 5.7.1 Spam detected` error. This is the default.
@@ -201,7 +211,7 @@ client.setDkimScanEnabled(true);   // Enable DKIM checking
 client.setDmarcScanEnabled(true);  // Enable DMARC checking
 ```
 
-### DKIM Signing
+### DKIM Signing (TODO)
 
 Robin can be configured to sign outbound emails with DKIM signatures using Rspamd. DKIM signing requires:
 
