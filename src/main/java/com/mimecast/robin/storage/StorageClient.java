@@ -8,7 +8,7 @@ import java.io.OutputStream;
 /**
  * Server file storage interface.
  *
- * <p>The instanciation of this will be done via Factories.
+ * <p>The instantiation of this will be done via Factories.
  * <p>Connection is required to allow customisation based on sender/recipient.
  */
 public interface StorageClient {
@@ -53,6 +53,8 @@ public interface StorageClient {
 
     /**
      * Saves file.
+     *
+     * @return Boolean.
      */
-    void save();
+    boolean save();
 }

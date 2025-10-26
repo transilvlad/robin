@@ -56,12 +56,17 @@ public class ServerData extends ServerProcessor {
         super.process(connection, verb);
 
         if (verb.getKey().equals("bdat")) {
-            binary();
+            if (!binary()) {
+                log.debug("Received: {} bytes", bytesReceived);
+                return false;
+            }
             log.debug("Received: {} bytes", bytesReceived);
 
         } else if (verb.getKey().equals("data")) {
-            ascii();
-            log.debug("Received: {} bytes", bytesReceived);
+            if (!ascii()) {
+                log.debug("Received: {} bytes", bytesReceived);
+                return false;
+            }
         }
 
         // Track successful email receipt.
@@ -73,17 +78,20 @@ public class ServerData extends ServerProcessor {
     /**
      * ASCII receipt with extended timeout.
      *
+     * @return Boolean.
      * @throws IOException Unable to communicate.
      */
-    private void ascii() throws IOException {
+    private boolean ascii() throws IOException {
         if (connection.getSession().getEnvelopes().isEmpty() || connection.getSession().getEnvelopes().getLast().getRcpts().isEmpty()) {
             connection.write(String.format(SmtpResponses.NO_VALID_RECIPIENTS_554, connection.getSession().getUID()));
-            return;
+            return false;
         }
 
         // Read email lines and store to disk.
         try {
-            StorageClient storageClient = asciiRead("eml");
+            if (!asciiRead("eml")) {
+                return false;
+            }
         } catch (LimitExceededException e) {
             connection.write(String.format(SmtpResponses.MESSAGE_SIZE_LIMIT_EXCEEDED_552, connection.getSession().getUID()));
         }
@@ -97,17 +105,19 @@ public class ServerData extends ServerProcessor {
         } else {
             connection.write(String.format(SmtpResponses.RECEIVED_OK_250, connection.getSession().getUID()));
         }
+
+        return true;
     }
 
     /**
      * ASCII read.
      *
      * @param extension File extension.
-     * @return StorageClient StorageClient instance.
-     * @throws IOException Unable to communicate.
+     * @return Boolean.
+     * @throws IOException            Unable to communicate.
      * @throws LimitExceededException Limit exceeded.
      */
-    protected StorageClient asciiRead(String extension) throws IOException, LimitExceededException {
+    protected boolean asciiRead(String extension) throws IOException, LimitExceededException {
         connection.write(SmtpResponses.READY_WILLING_354);
 
         StorageClient storageClient = Factories.getStorageClient(connection, extension);
@@ -120,18 +130,17 @@ public class ServerData extends ServerProcessor {
             connection.setTimeout(connection.getSession().getTimeout());
         }
 
-        storageClient.save();
-
-        return storageClient;
+        return storageClient.save();
     }
 
     /**
      * Binary receipt.
      * TODO: Support multiple BDAT chunks.
      *
+     * @return Boolean.
      * @throws IOException Unable to communicate.
      */
-    private void binary() throws IOException {
+    private boolean binary() throws IOException {
         BdatVerb bdatVerb = new BdatVerb(verb);
 
         if (verb.getCount() == 1) {
@@ -157,6 +166,8 @@ public class ServerData extends ServerProcessor {
             // Scenario response or accept.
             scenarioResponse(connection.getSession().getUID());
         }
+
+        return true;
     }
 
     /**

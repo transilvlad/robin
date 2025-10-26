@@ -14,8 +14,7 @@ import com.mimecast.robin.smtp.security.DefaultTLSSocket;
 import com.mimecast.robin.smtp.security.PermissiveTrustManager;
 import com.mimecast.robin.smtp.security.TLSSocket;
 import com.mimecast.robin.smtp.session.Session;
-import com.mimecast.robin.storage.LocalStorageClient;
-import com.mimecast.robin.storage.StorageClient;
+import com.mimecast.robin.storage.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -72,6 +71,16 @@ public class Factories {
      * <p>Used to store MTA emails received.
      */
     private static Callable<StorageClient> storageClient;
+
+    /**
+     * MTA storage processors.
+     * <p>Used to do post receipt processing like virus and spam scanning or dovecot LDA delivery.
+     */
+    private static final List<Callable<StorageProcessor>> storageProcessors = List.of(
+            SpamStorageProcessor::new,
+            AVStorageProcessor::new,
+            DovecotStorageProcessor::new
+    );
 
     /**
      * External clients.
@@ -245,6 +254,24 @@ public class Factories {
         }
 
         return new LocalStorageClient().setConnection(connection).setExtension(extension);
+    }
+
+    /**
+     * Gets StorageProcessors.
+     *
+     * @return list of Callable<StorageProcessor>.
+     */
+    public static List<Callable<StorageProcessor>> getStorageProcessors() {
+        return storageProcessors;
+    }
+
+    /**
+     * Adds StorageProcessor.
+     *
+     * @param storageProcessor StorageProcessor callable.
+     */
+    public static void addStorageProcessor(Callable<StorageProcessor> storageProcessor) {
+        Factories.storageProcessors.add(storageProcessor);
     }
 
     /**

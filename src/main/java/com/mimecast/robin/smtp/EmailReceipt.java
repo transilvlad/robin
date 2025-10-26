@@ -255,7 +255,10 @@ public class EmailReceipt implements Runnable {
                     ((ServerData) server).setEmailSizeLimit(config.getEmailSizeLimit());
                 }
 
-                server.process(connection, verb);
+                if (!server.process(connection, verb)) {
+                    log.debug("Processing of {} command returned false, stopping.", verb.getVerb());
+                    connection.write(SmtpResponses.INTERNAL_ERROR_451);
+                }
             }
         } else {
             errorLimit--;
