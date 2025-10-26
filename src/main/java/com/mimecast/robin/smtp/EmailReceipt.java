@@ -255,10 +255,7 @@ public class EmailReceipt implements Runnable {
                     ((ServerData) server).setEmailSizeLimit(config.getEmailSizeLimit());
                 }
 
-                if (!server.process(connection, verb)) {
-                    log.debug("Processing of {} command returned false, stopping.", verb.getVerb());
-                    connection.write(SmtpResponses.INTERNAL_ERROR_451);
-                }
+                server.process(connection, verb);
             }
         } else {
             errorLimit--;
@@ -307,7 +304,7 @@ public class EmailReceipt implements Runnable {
                         return true; // Continue processing despite error.
                     } else {
                         // Send 451 temporary error.
-                        connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, "Webhook error"));
+                        connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
                         return false; // Stop processing.
                     }
                 }
@@ -317,7 +314,7 @@ public class EmailReceipt implements Runnable {
             }
         } catch (Exception e) {
             log.error("Error processing webhook: {}", e.getMessage(), e);
-            connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, "Webhook processing error"));
+            connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
             return false;
         }
 
