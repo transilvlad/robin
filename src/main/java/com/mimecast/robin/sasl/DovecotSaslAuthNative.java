@@ -124,9 +124,24 @@ public class DovecotSaslAuthNative implements AutoCloseable {
             log.debug("Getting streams");
             outputStream = Channels.newOutputStream(channel);
             inputStream = Channels.newInputStream(channel);
-            log.debug("Streams ready");
+            readWelcomeOnce();
+            log.debug("Socket ready");
         } catch (Throwable e) {
-            log.error("Failed to initialize unix socket at {}: {}", socketPath, e);
+            log.error("Failed to initialize unix socket at {}: {}", socketPath, e.toString());
+        }
+    }
+
+    /**
+     * Reads and logs the welcome banner only once per connection.
+     */
+    private void readWelcomeOnce() throws IOException {
+        byte[] buffer = new byte[2048];
+        int read = inputStream.read(buffer);
+        if (read > 0) {
+            String welcome = new String(buffer, 0, read, StandardCharsets.UTF_8).trim();
+            logDebug(welcome, "welcome");
+        } else {
+            log.warn("No welcome banner received");
         }
     }
 
@@ -152,7 +167,7 @@ public class DovecotSaslAuthNative implements AutoCloseable {
      * @param username The username to validate (e.g., "user@example.com")
      * @param service  The service name indicating the protocol context (e.g., "smtp")
      * @return true if the user exists and Dovecot confirms via response starting with "USER\t{id}",
-     *         false if validation fails, user doesn't exist, or socket is uninitialized
+     * false if validation fails, user doesn't exist, or socket is uninitialized
      * @throws IOException If an error occurs during socket communication (socket I/O errors, etc.)
      * @see #authenticate(String, boolean, String, String, String, String, String)
      */
@@ -167,11 +182,11 @@ public class DovecotSaslAuthNative implements AutoCloseable {
         String request = buildUserRequest(username, service, requestId);
 
         // A successful response starts with "USER" and should match the request ID.
-        boolean validation = socketExchange(request)
+        boolean validation = exchange(request)
                 // Check if validation succeeded.
                 .startsWith("USER\t" + requestId);
 
-        log.debug("Validation {} for user: {}", validation ? "succeeded" : "failed", username);
+        log.debug("Validation {} for user {}", validation ? "succeeded" : "failed", username);
         return validation;
     }
 
@@ -200,11 +215,12 @@ public class DovecotSaslAuthNative implements AutoCloseable {
      * @param remoteIp  The original client's IP address that initiated the connection to the server
      *                  (e.g., "203.0.113.50")
      * @return true if authentication succeeds (response starts with "OK\t{id}"),
-     *         false if credentials are invalid, user doesn't exist, or socket is uninitialized
+     * false if credentials are invalid, user doesn't exist, or socket is uninitialized
      * @throws IOException If an error occurs during socket communication
      * @see #authenticate(String, boolean, String, String, String, String, String, long, long)
      */
-    public boolean authenticate(String mechanism, boolean secured, String username, String password, String service, String localIp, String remoteIp) throws IOException {
+    public boolean authenticate(String mechanism, boolean secured, String username, String password,
+                                String service, String localIp, String remoteIp) throws IOException {
         long pid = ProcessHandle.current().pid();
         long requestId = requestIdCounter.getAndIncrement();
 
@@ -253,26 +269,28 @@ public class DovecotSaslAuthNative implements AutoCloseable {
      *                  Used for matching responses from Dovecot. Should be unique within this instance.
      *                  The requestIdCounter in this class ensures uniqueness automatically.
      * @return true if authentication succeeds and Dovecot returns "OK\t{requestId}",
-     *         false if credentials are invalid, user doesn't exist, or socket is uninitialized
+     * false if credentials are invalid, user doesn't exist, or socket is uninitialized
      * @throws IOException If an error occurs while communicating with the Dovecot socket
      *                     (socket I/O errors, connection lost, etc.)
      * @see #authenticate(String, boolean, String, String, String, String, String)
      */
-    public boolean authenticate(String protocol, boolean secured, String username, String password, String service, String localIp, String remoteIp, long processId, long requestId) throws IOException {
+    public boolean authenticate(String protocol, boolean secured, String username, String password,
+                                String service, String localIp, String remoteIp, long processId, long requestId) throws IOException {
         if (outputStream == null || inputStream == null) {
             log.error("Socket is not initialized. Cannot perform authentication.");
             return false;
         }
 
         // Build the authentication request.
-        String request = buildAuthRequest(protocol, secured, username, password, service, localIp, remoteIp, processId, requestId);
+        String request = buildAuthRequest(protocol, secured, username, password, service,
+                localIp, remoteIp, processId, requestId);
 
         // A successful response starts with "OK" and should match the request ID.
-        boolean authentication = socketExchange(request)
+        boolean authentication = exchange(request)
                 // Check if authentication succeeded.
                 .startsWith("OK\t" + requestId);
 
-        log.debug("Authentication {} for user: {}", authentication ? "succeeded" : "failed", username);
+        log.debug("Authentication {} for user {}", authentication ? "succeeded" : "failed", username);
         return authentication;
     }
 
@@ -281,52 +299,51 @@ public class DovecotSaslAuthNative implements AutoCloseable {
      */
     private String buildUserRequest(String username, String service, long requestId) {
         return "VERSION\t1\t1\n" +
-                "USER\t1" + requestId + "\t" + username + "\tservice=" + service + "\n";
+                "USER\t" + requestId + "\t" + username + "\tservice=" + service + "\n";
     }
 
     /**
      * Constructs a PLAIN SASL authentication request in Dovecot protocol format.
      * Encodes credentials as Base64("\0username\0password").
      */
-    private String buildAuthRequest(String protocol, boolean secured, String username, String password, String service, String localIp, String remoteIp, long processId, long requestId) {
-        String base64 = Base64.getEncoder().encodeToString(("\0" + username + "\0" + password).getBytes(StandardCharsets.UTF_8));
+    private String buildAuthRequest(String mechanism, boolean secured, String username, String password,
+                                    String service, String localIp, String remoteIp,
+                                    long processId, long requestId) {
+        String base64 = Base64.getEncoder()
+                .encodeToString(("\0" + username + "\0" + password).getBytes(StandardCharsets.UTF_8));
 
-        return "VERSION\t1\t2\n" +
-                "CPID=" + processId + "\n" +
-                "AUTH\t" + requestId + "\t" +
-                protocol + "\t" +
-                "service=" + service + "\t" +
-                "lip=" + localIp + "\t" +
-                "rip=" + remoteIp + "\t" +
-                (secured ? "secured\t" : "") +
-                "resp=" + base64 + "\n";
+        StringBuilder sb = new StringBuilder()
+                .append("VERSION\t1\t2\n")
+                .append("CPID\t").append(processId).append("\n")
+                .append("AUTH\t").append(requestId).append("\t")
+                .append(mechanism).append("\t")
+                .append("service=").append(service).append("\t")
+                .append("lip=").append(localIp).append("\t")
+                .append("rip=").append(remoteIp).append("\t");
+        if (secured) sb.append("secured\t");
+
+        return sb.append("resp=").append(base64).append("\n").toString();
     }
 
     /**
      * Performs socket communication: read welcome, send request, read response.
      * All communication uses UTF-8 encoding. Responses are trimmed and logged at DEBUG level.
      */
-    private String socketExchange(String request) throws IOException {
-        String response = "";
-
-        // Reading welcome.
-        byte[] buffer = new byte[1024];
-        if (inputStream.read(buffer) > 0) {
-            response = new String(buffer, StandardCharsets.UTF_8).trim();
-            logDebug(response, "welcome");
-        }
-
-        // Sending request.
+    private String exchange(String request) throws IOException {
         logDebug(request, "request");
         outputStream.write(request.getBytes(StandardCharsets.UTF_8));
         outputStream.flush();
 
         // Reading response.
-        buffer = new byte[1024];
-        if (inputStream.read(buffer) > 0) {
-            response = new String(buffer, StandardCharsets.UTF_8).trim();
-            logDebug(response, "response");
+        byte[] buffer = new byte[4096];
+        int read = inputStream.read(buffer);
+        if (read <= 0) {
+            log.error("No response received");
+            return "";
         }
+
+        String response = new String(buffer, 0, read, StandardCharsets.UTF_8).trim();
+        logDebug(response, "response");
 
         return response;
     }
@@ -334,12 +351,12 @@ public class DovecotSaslAuthNative implements AutoCloseable {
     /**
      * Logs multi-line protocol messages, splitting by newlines for clarity.
      */
-    private void logDebug(String message, String action) {
-        log.debug("Socket {}:", action);
-
-        String[] splits = message.trim().split("\n");
-        for (String s : splits) {
-            log.debug("<< {}", s);
+    private void logDebug(String message, String phase) {
+        log.debug("Socket {}:", phase);
+        for (String line : message.split("\r?\n")) {
+            if (!line.isEmpty()) {
+                log.debug("<< {}", line);
+            }
         }
     }
 
@@ -349,13 +366,10 @@ public class DovecotSaslAuthNative implements AutoCloseable {
      */
     @Override
     public void close() {
-        if (channel == null) {
-            return;
-        }
         try {
-            channel.close();
-            inputStream.close();
-            outputStream.close();
+            if (channel != null) channel.close();
+            if (inputStream != null) inputStream.close();
+            if (outputStream != null) outputStream.close();
         } catch (Exception e) {
             log.error("Error closing socket: {}", e.getMessage());
         }

@@ -1,8 +1,11 @@
 package com.mimecast.robin.http;
 
+import kotlin.jvm.functions.Function0;
+import kotlin.reflect.KClass;
 import okhttp3.*;
 import okio.Timeout;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public class MockOkHttpClient extends OkHttpClient {
     Response response;
@@ -67,6 +70,30 @@ class MockCall implements Call {
     @NotNull
     @Override
     public Call clone() {
+        return null;
+    }
+
+    @Nullable
+    @Override
+    public <T> T tag(@NotNull KClass<T> kClass) {
+        return null;
+    }
+
+    @Nullable
+    @Override
+    public <T> T tag(@NotNull Class<? extends T> aClass) {
+        return null;
+    }
+
+    @NotNull
+    @Override
+    public <T> T tag(@NotNull KClass<T> kClass, @NotNull Function0<? extends T> function0) {
+        return null;
+    }
+
+    @NotNull
+    @Override
+    public <T> T tag(@NotNull Class<T> aClass, @NotNull Function0<? extends T> function0) {
         return null;
     }
 }
