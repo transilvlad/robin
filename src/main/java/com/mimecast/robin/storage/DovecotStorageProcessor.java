@@ -19,6 +19,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Dovecot storage processor for mailbox storage.
@@ -37,49 +38,110 @@ public class DovecotStorageProcessor implements StorageProcessor {
     @Override
     public boolean process(Connection connection, EmailParser emailParser) throws IOException {
         ServerConfig config = Config.getServer();
-        if (config.getDovecot().getBooleanProperty("saveToDovecotLda")) {
-            getDovecotLdaDeliveryInstance(connection, config.getDovecot()).send();
 
-            // If there are multiple recipients and one fails bounce recipient instead of throwing an exception.
-            EnvelopeTransactionList envelopeTransactionList = connection.getSession().getSessionTransactionList().getEnvelopes().getLast();
-            if (!envelopeTransactionList.getErrors().isEmpty()) {
-                if (envelopeTransactionList.getRecipients() != envelopeTransactionList.getFailedRecipients()) {
-                    connection.getSession().getEnvelopes().getLast().setRcpts(connection.getSession().getSessionTransactionList().getEnvelopes().getLast().getFailedRecipients());
-
-                    for (String recipient : connection.getSession().getEnvelopes().getLast().getRcpts()) {
-                        // Generate bounce email.
-                        BounceMessageGenerator bounce = new BounceMessageGenerator(new RelaySession(connection.getSession()), recipient);
-
-                        // Build the session.
-                        RelaySession relaySessionBounce = new RelaySession(Factories.getSession())
-                                .setProtocol("esmtp");
-
-                        // Create the envelope.
-                        MessageEnvelope envelope = new MessageEnvelope()
-                                .setMail("mailer-daemon@" + config.getHostname())
-                                .setRcpt(recipient)
-                                .setBytes(bounce.getStream().toByteArray());
-                        relaySessionBounce.getSession().addEnvelope(envelope);
-
-                        // Queue bounce for delivery using runtime-configured queue file (fallback to default).
-                        File queueFile = new File(config.getQueue().getStringProperty(
-                                "queueFile",
-                                RelayQueueCron.QUEUE_FILE.getAbsolutePath()
-                        ));
-
-                        // Persist any envelope files (no-op for bytes-only envelopes) before enqueue.
-                        QueueFiles.persistEnvelopeFiles(relaySessionBounce);
-
-                        PersistentQueue.getInstance(queueFile)
-                                .enqueue(relaySessionBounce);
-                    }
-                } else {
-                    throw new IOException("Storage unable to save to Dovecot LDA");
-                }
-            }
+        if (connection.getSession().getEnvelopes().isEmpty()) {
+            log.warn("No envelopes present for Dovecot storage processing (session UID: {}). Skipping.", connection.getSession().getUID());
+            return true; // Nothing to do, not an error.
         }
 
+        saveToDovecotLda(connection, config);
+
+        log.debug("Completed Dovecot storage processing for uid={}", connection.getSession().getUID());
         return true;
+    }
+
+    /**
+     * Process rejected recipient.
+     *
+     * @param connection Connection instance.
+     * @param config     Server configuration.
+     * @throws IOException If an I/O error occurs during processing.
+     */
+    protected void saveToDovecotLda(Connection connection, ServerConfig config) throws IOException {
+        if (!config.getDovecot().getBooleanProperty("saveToDovecotLda")) {
+            log.debug("Dovecot LDA storage disabled by configuration (saveToDovecotLda=false). Skipping mailbox delivery.");
+            return;
+        }
+
+        MessageEnvelope envelope = connection.getSession().getEnvelopes().getLast();
+        List<String> originalRecipients = envelope.getRcpts();
+        log.info("Invoking Dovecot LDA for uid={} recipients={} outbound={} mailboxHint={}",
+                connection.getSession().getUID(),
+                String.join(",", originalRecipients),
+                connection.getSession().isOutbound(),
+                config.getDovecot().getStringProperty("outboundMailbox", "Sent"));
+
+        getDovecotLdaDeliveryInstance(connection, config.getDovecot()).send();
+
+        EnvelopeTransactionList envelopeTransactionList = connection.getSession().getSessionTransactionList().getEnvelopes().getLast();
+        if (envelopeTransactionList == null) {
+            log.error("EnvelopeTransactionList missing after Dovecot LDA send (uid={}). Treating as failure.", connection.getSession().getUID());
+            throw new IOException("Storage unable to save to Dovecot LDA: no transaction list");
+        }
+
+        int failed = envelopeTransactionList.getFailedRecipients().size();
+        int requested = envelopeTransactionList.getRecipients().size();
+        if (failed == 0) {
+            log.info("Dovecot LDA delivery successful for all {} recipient(s) uid={}", requested, connection.getSession().getUID());
+            return;
+        }
+
+        // There are failures.
+        if (requested != failed) {
+            log.warn("Partial Dovecot LDA delivery failure uid={} successCount={} failedCount={} failedRecipients={}",
+                    connection.getSession().getUID(),
+                    (requested - failed),
+                    failed,
+                    String.join(",", envelopeTransactionList.getFailedRecipients()));
+
+            // Replace rcpt list with failed recipients for bounce handling.
+            connection.getSession().getEnvelopes().getLast().setRcpts(envelopeTransactionList.getFailedRecipients());
+            for (String recipient : connection.getSession().getEnvelopes().getLast().getRcpts()) {
+                processRejectedRecipient(connection, config, recipient);
+            }
+        } else {
+            log.error("All {} recipient(s) failed Dovecot LDA delivery uid={} recipients={}", failed, connection.getSession().getUID(), String.join(",", originalRecipients));
+            throw new IOException("Storage unable to save to Dovecot LDA");
+        }
+    }
+
+    /**
+     * Process rejected recipient.
+     *
+     * @param connection Connection instance.
+     * @param config     Server configuration.
+     * @param recipient  The email address of the rejected recipient.
+     */
+    protected void processRejectedRecipient(Connection connection, ServerConfig config, String recipient) {
+        String sender = connection.getSession().getEnvelopes().getLast().getMail();
+        log.info("Bouncing rejected recipient='{}' sender='{}' uid={}", recipient, sender, connection.getSession().getUID());
+
+        // Generate bounce email.
+        BounceMessageGenerator bounce = new BounceMessageGenerator(new RelaySession(connection.getSession()), recipient);
+
+        // Build the session.
+        RelaySession relaySessionBounce = new RelaySession(Factories.getSession())
+                .setProtocol("esmtp");
+
+        // Create the envelope.
+        MessageEnvelope envelope = new MessageEnvelope()
+                .setMail("mailer-daemon@" + config.getHostname())
+                .setRcpt(recipient)
+                .setBytes(bounce.getStream().toByteArray());
+        relaySessionBounce.getSession().addEnvelope(envelope);
+
+        // Queue bounce for delivery using runtime-configured queue file (fallback to default).
+        File queueFile = new File(config.getQueue().getStringProperty(
+                "queueFile",
+                RelayQueueCron.QUEUE_FILE.getAbsolutePath()
+        ));
+
+        // Persist any envelope files (no-op for bytes-only envelopes) before enqueue.
+        QueueFiles.persistEnvelopeFiles(relaySessionBounce);
+
+        log.debug("Enqueuing bounce message for rejected recipient='{}' queueFile={} size={}B", recipient, queueFile.getAbsolutePath(), bounce.getStream().size());
+        PersistentQueue.getInstance(queueFile)
+                .enqueue(relaySessionBounce);
     }
 
     /**
