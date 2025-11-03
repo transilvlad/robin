@@ -29,6 +29,7 @@ public class RelayMessage {
 
     private final Connection connection;
     private final EmailParser parser;
+    protected BasicConfig relayConfig = Config.getServer().getRelay();
 
     /**
      * Constructs a RelayMessage with the given connection and optional parser.
@@ -51,13 +52,22 @@ public class RelayMessage {
     }
 
     /**
+     * Sets the relay configuration.
+     *
+     * @param relayConfig Relay configuration.
+     * @return RelayMessage instance.
+     */
+    public RelayMessage setRelayConfig(BasicConfig relayConfig) {
+        this.relayConfig = relayConfig;
+        return this;
+    }
+
+    /**
      * Relay the message based on the connection and parser.
      *
      * @return List of Session instances created for relay.
      */
     public List<Session> relay() {
-        BasicConfig relayConfig = Config.getServer().getRelay();
-
         // Sessions for relay.
         final List<Session> sessions = new ArrayList<>();
 
