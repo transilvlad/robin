@@ -96,7 +96,12 @@ public class LocalStorageClient implements StorageClient {
 
         // Append first recipient domain/address to path
         if (connection != null && !connection.getSession().getEnvelopes().isEmpty() && !connection.getSession().getEnvelopes().getLast().getRcpts().isEmpty()) {
-            String[] splits = connection.getSession().getEnvelopes().getLast().getRcpts().getFirst().split("@");
+            String[] splits;
+            if (connection.getSession().isInbound()) {
+                splits = connection.getSession().getEnvelopes().getLast().getRcpts().getFirst().split("@");
+            } else {
+                splits = connection.getSession().getEnvelopes().getLast().getMail().split("@");
+            }
             if (splits.length == 2) {
                 path = Paths.get(
                         path,
