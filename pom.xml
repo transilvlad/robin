@@ -17,7 +17,7 @@
         <okhttp.version>5.3.0</okhttp.version>
         <micrometer.version>1.15.5</micrometer.version>
         <log4j.version>2.25.2</log4j.version>
-        <junit.version>6.0.0</junit.version>
+        <junit.version>6.0.1</junit.version>
         <jmh.version>1.37</jmh.version>
     </properties>
 
