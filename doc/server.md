@@ -346,8 +346,11 @@ Below are concise examples for each auxiliary config file.
       // Enablement.
       auth: false,
 
-      // Path to Dovecot authentication socket.
-      authSocket: "/run/dovecot/auth-userdb",
+      // Path to Dovecot authentication client SASL socket.
+      authClientSocket: "/run/dovecot/auth-client",
+
+      // Path to Dovecot user database lookup socket.
+      authUserdbSocket: "/run/dovecot/auth-userdb",
 
       // Save a copy of each email to Dovecot LDA.
       saveToDovecotLda: true,

@@ -38,6 +38,7 @@ public class MXResolver {
         // Fallback to simple MX via DNS client.
         var optionalDnsRecords = new XBillDnsRecordClient().getMxRecords(domain);
         if (optionalDnsRecords.isPresent() && !optionalDnsRecords.get().isEmpty()) {
+            log.debug("Found {} MX records for domain: {}", optionalDnsRecords.get().size(), domain);
             return optionalDnsRecords.get();
         }
 

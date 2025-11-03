@@ -1,168 +1,129 @@
-Dovecot SASL Authentication Library
-====================================
+Dovecot SASL & User Lookup Integration
+=====================================
 
 Overview
 --------
-The `DovecotSaslAuthNative` class is a reusable Java library for authenticating against Dovecot SASL authentication sockets using native Java UNIX Domain Socket support (JDK 16+).
+Robin integrates with Dovecot using two separate UNIX domain sockets:
+- Authentication (SASL): `DovecotSaslAuthNative` -> `/run/dovecot/auth-client`
+- User existence lookup: `DovecotUserLookupNative` -> `/run/dovecot/auth-userdb`
 
-This library can be integrated into any Java application that needs to authenticate users against a Dovecot authentication service, making it ideal for MTA implementations, email services, or any application requiring SASL authentication.
+The separation allows lightweight recipient validation (RCPT) without exposing passwords while keeping full SASL AUTH logic independent.
 
 Requirements
 ------------
-- Java 16 or higher (for native UNIX Domain Socket support)
-- Access to a Dovecot authentication socket (typically at `/var/run/dovecot/auth-userdb`)
+- Java 16+ (UNIX domain sockets)
+- Running Dovecot with `auth-client` and `auth-userdb` listeners
+- Proper filesystem permissions on the sockets
 
-Usage
------
+Configuration (`dovecot.json5`)
+-------------------------------
+```
+{
+  auth: true,
+  authClientSocket: "/run/dovecot/auth-client",
+  authUserdbSocket: "/run/dovecot/auth-userdb",
+  saveToDovecotLda: true,
+  ldaBinary: "/usr/libexec/dovecot/dovecot-lda",
+  outboundMailbox: "Sent"
+}
+```
 
-### Basic Setup
-
+User Lookup Example
+-------------------
 ```java
-import com.mimecast.robin.sasl.DovecotSaslAuthNative;
+import com.mimecast.robin.sasl.DovecotUserLookupNative;
 import java.nio.file.Paths;
-
-// Initialize with the path to your Dovecot auth socket.
-try (DovecotSaslAuthNative auth = new DovecotSaslAuthNative(
-        Paths.get("/var/run/dovecot/auth-userdb"))) {
-    // Use for authentication.
-} catch (Exception e) {
-    // Handle initialization errors.
-}
-```
-
-### User Validation
-
-To validate if a user exists in the Dovecot database:
-
-```java
-boolean exists = auth.validate("username", "smtp");
-if (exists) {
-    System.out.println("User exists");
-}
-```
-
-**Parameters:**
-- `username` - The username to validate
-- `service` - The service name (e.g., "smtp", "imap", "pop3")
-
-**Returns:** `true` if the user exists, `false` otherwise
-
-### User Authentication
-
-To authenticate a user with their password:
-
-```java
-boolean authenticated = auth.authenticate(
-    "PLAIN",              // Authentication mechanism.
-    true,                 // Connection secured (TLS/SSL).
-    "username",           // Username.
-    "password",           // Password.
-    "smtp",               // Service name.
-    "192.168.1.100",      // Local IP (server address).
-    "203.0.113.50"        // Remote IP (client address).
-);
-
-if (authenticated) {
-    System.out.println("Authentication successful");
-}
-```
-
-**Parameters:**
-- `mechanism` - Authentication mechanism (e.g., "PLAIN", "LOGIN", "CRAM-MD5")
-- `secured` - Boolean indicating if the connection is secured
-- `username` - The username to authenticate
-- `password` - The password for the user
-- `service` - The service name (e.g., "smtp", "imap")
-- `localIp` - IP address of the server
-- `remoteIp` - IP address of the connecting client
-- `processId` - Process ID of the client application
-- `requestId` - Unique request ID for this authentication
-
-**Returns:** `true` if authentication succeeds, `false` otherwise
-
-### Advanced Authentication
-
-For more control over process and request IDs:
-
-```java
-long processId = ProcessHandle.current().pid();
-long requestId = 12345;
-
-boolean authenticated = auth.authenticate(
-    "PLAIN",
-    true,
-    "username",
-    "password",
-    "smtp",
-    "192.168.1.100",
-    "203.0.113.50",
-    processId,
-    requestId
-);
-```
-
-Complete Example
-----------------
-
-```java
-import com.mimecast.robin.sasl.DovecotSaslAuthNative;
-import java.nio.file.Paths;
-
-public class DovecotAuthExample {
-    public static void main(String[] args) {
-        try (DovecotSaslAuthNative auth = new DovecotSaslAuthNative(
-                Paths.get("/var/run/dovecot/auth-userdb"))) {
-            
-            // Validate user exists
-            if (auth.validate("user@example.com", "smtp")) {
-                System.out.println("User exists, attempting authentication...");
-                
-                // Authenticate user
-                if (auth.authenticate(
-                        "PLAIN",
-                        true,
-                        "user@example.com",
-                        "userPassword",
-                        "smtp",
-                        "192.168.1.10",
-                        "203.0.113.50")) {
-                    System.out.println("Authentication successful!");
-                } else {
-                    System.out.println("Authentication failed");
-                }
-            } else {
-                System.out.println("User does not exist");
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+try (DovecotUserLookupNative lookup = new DovecotUserLookupNative(Paths.get("/run/dovecot/auth-userdb"))) {
+    if (lookup.validate("user@example.com", "smtp")) {
+        System.out.println("User exists");
+    } else {
+        System.out.println("Unknown user");
     }
 }
 ```
 
+Authentication Examples
+-----------------------
+PLAIN (single step):
+```java
+import com.mimecast.robin.sasl.DovecotSaslAuthNative;
+import java.nio.file.Paths;
+try (DovecotSaslAuthNative auth = new DovecotSaslAuthNative(Paths.get("/run/dovecot/auth-client"))) {
+    boolean ok = auth.authenticate("PLAIN", true, "user@example.com", "secret", "smtp", "127.0.0.1", "203.0.113.5");
+    System.out.println(ok ? "Auth success" : "Auth failed");
+}
+```
+
+LOGIN (multi-step handled internally):
+```java
+try (DovecotSaslAuthNative auth = new DovecotSaslAuthNative(Paths.get("/run/dovecot/auth-client"))) {
+    boolean ok = auth.authenticate("LOGIN", true, "user@example.com", "secret", "smtp", "127.0.0.1", "203.0.113.5");
+    System.out.println(ok ? "Login success" : "Login failed");
+}
+```
+
+Advanced (explicit IDs):
+```java
+long pid = ProcessHandle.current().pid();
+long req = 42;
+try (DovecotSaslAuthNative auth = new DovecotSaslAuthNative(Paths.get("/run/dovecot/auth-client"))) {
+    auth.authenticate("PLAIN", true, "user@example.com", "secret", "smtp", "127.0.0.1", "203.0.113.5", pid, req);
+}
+```
+
+Complete Flow
+-------------
+```java
+import com.mimecast.robin.sasl.*;
+import java.nio.file.Paths;
+
+// 1. Validate recipient/user exists (RCPT stage)
+try (DovecotUserLookupNative lookup = new DovecotUserLookupNative(Paths.get("/run/dovecot/auth-userdb"))) {
+    if (!lookup.validate("user@example.com", "smtp")) {
+        System.out.println("Unknown user");
+        return;
+    }
+}
+// 2. Authenticate (AUTH stage)
+try (DovecotSaslAuthNative auth = new DovecotSaslAuthNative(Paths.get("/run/dovecot/auth-client"))) {
+    if (auth.authenticate("PLAIN", true, "user@example.com", "userPassword", "smtp", "192.168.1.10", "203.0.113.50")) {
+        System.out.println("Authentication successful");
+    } else {
+        System.out.println("Authentication failed");
+    }
+}
+```
+
+Mechanisms
+----------
+- PLAIN: Base64 of `\0username\0password` sent in initial AUTH line.
+- LOGIN: Sends AUTH without `resp`. Dovecot replies with two `CONT` prompts; library handles each and sends username/password automatically.
+
 Error Handling
 --------------
-
-The library will return `false` for authentication/validation failures and log detailed error messages. Common issues include:
-
-- **Socket not initialized**: The Dovecot auth socket path is inaccessible or incorrect.
-- **Connection refused**: Dovecot authentication service is not running.
-- **Invalid credentials**: The username or password is incorrect.
-- **Service not available**: The specified service is not configured in Dovecot.
-
-Check the application logs for detailed error messages and socket communication logs when debugging authentication issues.
+Both classes return `false` on failure.
+Common causes:
+- Missing or incorrect socket path / permissions
+- Dovecot service not running
+- Invalid credentials (AUTH)
+- Unknown user (lookup)
+- Unsecured channel when policy requires TLS
 
 Implementation Notes
 --------------------
+- Use try-with-resources (both implement `AutoCloseable`).
+- Request IDs auto-increment per instance.
+- UTF-8 protocol lines; log output at DEBUG shows traffic.
+- LOGIN flow encapsulated in a single `authenticate()` call.
 
-- The class implements `AutoCloseable` and should be used with try-with-resources for proper resource cleanup.
-- Request IDs are managed internally using an `AtomicLong` counter to ensure uniqueness.
-- Socket communication uses UTF-8 encoding.
-- Passwords are Base64-encoded for PLAIN mechanism authentication.
-- The class is thread-safe for multiple authentication attempts within the same session.
+Integration in Robin
+--------------------
+- RCPT uses `DovecotUserLookupNative` for mailbox validation.
+- AUTH uses `DovecotSaslAuthNative` for SASL mechanisms.
+- Config differentiates sockets: `authClientSocket` and `authUserdbSocket`.
 
-Integration with Robin
-----------------------
-
-This library is used internally by Robin MTA Server for authenticating SMTP clients against Dovecot mailbox stores.
-The same class can be used as a standalone library in other applications requiring Dovecot SASL authentication.
+Migration From Previous Version
+-------------------------------
+- Old single `authSocket` property replaced by two distinct sockets.
+- User validation removed from `DovecotSaslAuthNative`; now in `DovecotUserLookupNative`.
+- Update configuration and any custom code accordingly.

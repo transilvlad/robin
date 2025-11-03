@@ -6,6 +6,7 @@ import com.mimecast.robin.main.Extensions;
 import com.mimecast.robin.sasl.DovecotSaslAuthNative;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
+import com.mimecast.robin.smtp.session.EmailDirection;
 import com.mimecast.robin.smtp.verb.AuthVerb;
 import com.mimecast.robin.smtp.verb.Verb;
 import org.apache.commons.codec.binary.Base64;
@@ -74,7 +75,7 @@ public class ServerAuth extends ServerProcessor {
             if (!connection.getSession().getUsername().isEmpty()) {
                 // Check if users are enabled in configuration and try and authenticate if so.
                 if (Config.getServer().getDovecot().getBooleanProperty("auth")) {
-                    try (DovecotSaslAuthNative dovecotSaslAuthNative = new DovecotSaslAuthNative(Path.of(Config.getServer().getDovecot().getStringProperty("authSocket")))) {
+                    try (DovecotSaslAuthNative dovecotSaslAuthNative = new DovecotSaslAuthNative(Path.of(Config.getServer().getDovecot().getStringProperty("authClientSocket")))) {
                         // Attempt to authenticate against Dovecot.
                         if (dovecotSaslAuthNative.authenticate(
                                 authVerb.getType(),
@@ -86,6 +87,7 @@ public class ServerAuth extends ServerProcessor {
                                 connection.getSession().getFriendAddr()
                         )) {
                             connection.getSession().setAuth(true);
+                            connection.getSession().setDirection(EmailDirection.OUTBOUND);
                             connection.write(SmtpResponses.AUTH_SUCCESS_235);
                             return true;
                         } else {
@@ -100,6 +102,7 @@ public class ServerAuth extends ServerProcessor {
                     Optional<UserConfig> opt = connection.getUser(connection.getSession().getUsername());
                     if (opt.isPresent() && opt.get().getPass().equals(connection.getSession().getPassword())) {
                         connection.getSession().setAuth(true);
+                        connection.getSession().setDirection(EmailDirection.OUTBOUND);
                         connection.write(SmtpResponses.AUTH_SUCCESS_235);
                         return true;
                     } else {
@@ -149,24 +152,19 @@ public class ServerAuth extends ServerProcessor {
         String pass;
 
         if (verb.getCount() > 2) {
-            user = verb.getPart(2);
-            user = new String(Base64.decodeBase64(user));
-            if (Extensions.isExtension(user)) return; // Failsafe to catch unexpected commands.
+            user = new String(Base64.decodeBase64(verb.getPart(2))); if (Extensions.isExtension(user)) return; // Failsafe to catch unexpected commands.
             connection.write(SmtpResponses.AUTH_PASSWORD_334); // Password:
 
             pass = connection.read();
-            pass = new String(Base64.decodeBase64(pass));
-            if (Extensions.isExtension(pass)) return; // Failsafe to catch unexpected commands.
+            pass = new String(Base64.decodeBase64(pass)); if (Extensions.isExtension(pass)) return; // Failsafe to catch unexpected commands.
         } else {
             connection.write(SmtpResponses.AUTH_USERNAME_334); // Username:
             user = connection.read();
-            user = new String(Base64.decodeBase64(user));
-            if (Extensions.isExtension(user)) return; // Failsafe to catch unexpected commands.
+            user = new String(Base64.decodeBase64(user)); if (Extensions.isExtension(user)) return; // Failsafe to catch unexpected commands.
 
             connection.write(SmtpResponses.AUTH_PASSWORD_334); // Password:
             pass = connection.read();
-            pass = new String(Base64.decodeBase64(pass));
-            if (Extensions.isExtension(pass)) return; // Failsafe to catch unexpected commands.
+            pass = new String(Base64.decodeBase64(pass)); if (Extensions.isExtension(pass)) return; // Failsafe to catch unexpected commands.
         }
 
         connection.getSession().setUsername(user);

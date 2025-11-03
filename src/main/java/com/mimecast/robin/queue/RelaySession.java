@@ -32,11 +32,6 @@ public class RelaySession implements Serializable {
     private String mailbox;
 
     /**
-     * File path.
-     */
-    private String filePath;
-
-    /**
      * Retry count.
      */
     private int retryCount = 0;

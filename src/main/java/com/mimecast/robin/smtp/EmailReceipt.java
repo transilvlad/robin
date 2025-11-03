@@ -86,6 +86,12 @@ public class EmailReceipt implements Runnable {
 
             // Set session direction depending on if submission port or not.
             connection.getSession().setDirection(submission ? EmailDirection.OUTBOUND : EmailDirection.INBOUND);
+            log.debug("Created EmailReceipt for {}:{} (secure={}, submission={}) {}",
+                    socket.getInetAddress().getHostAddress(),
+                    socket.getPort(),
+                    secure,
+                    submission,
+                    connection.getSession().getDirection().toString());
         } catch (IOException e) {
             log.info("Error initializing streams: {}", e.getMessage());
         }

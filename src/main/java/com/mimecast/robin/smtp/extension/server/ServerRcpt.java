@@ -2,7 +2,7 @@ package com.mimecast.robin.smtp.extension.server;
 
 import com.mimecast.robin.config.server.ScenarioConfig;
 import com.mimecast.robin.main.Config;
-import com.mimecast.robin.sasl.DovecotSaslAuthNative;
+import com.mimecast.robin.sasl.DovecotUserLookupNative;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.verb.MailVerb;
@@ -37,30 +37,33 @@ public class ServerRcpt extends ServerMail {
     public boolean process(Connection connection, Verb verb) throws IOException {
         super.process(connection, verb);
 
-        // Check if users are enabled in configuration and try and authenticate if so.
-        if (Config.getServer().getDovecot().getBooleanProperty("auth")) {
-            try (DovecotSaslAuthNative dovecotSaslAuthNative = new DovecotSaslAuthNative(Path.of(Config.getServer().getDovecot().getStringProperty("authSocket")))) {
-                if (!dovecotSaslAuthNative.validate(new MailVerb(verb).getAddress().getAddress(), "smtp")) {
-                    connection.write(String.format(SmtpResponses.UNKNOWN_MAILBOX_550, connection.getSession().getUID()));
+        // When receiving inbound email.
+        if (connection.getSession().isInbound()) {
+            // Check if users are enabled in configuration and try and authenticate if so.
+            if (Config.getServer().getDovecot().getBooleanProperty("auth")) {
+                try (DovecotUserLookupNative dovecotUserLookupNative = new DovecotUserLookupNative(Path.of(Config.getServer().getDovecot().getStringProperty("authUserdbSocket")))) {
+                    if (!dovecotUserLookupNative.validate(new MailVerb(verb).getAddress().getAddress(), "smtp")) {
+                        connection.write(String.format(SmtpResponses.UNKNOWN_MAILBOX_550, connection.getSession().getUID()));
+                        return false;
+                    }
+                } catch (Exception e) {
+                    log.error("Dovecot user lookup error: {}", e.getMessage());
+                    connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
                     return false;
                 }
-            } catch (Exception e) {
-                log.error("Dovecot authentication error: {}", e.getMessage());
-                connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
-                return false;
-            }
-        } else if (Config.getServer().isUsersEnabled()) {
-            // Scenario response.
-            Optional<ScenarioConfig> opt = connection.getScenario();
-            if (opt.isPresent() && opt.get().getRcpt() != null) {
-                for (Map<String, String> entry : opt.get().getRcpt()) {
-                    if (getAddress() != null && getAddress().getAddress().matches(entry.get("value"))) {
-                        String response = entry.get("response");
-                        if (response.startsWith("2") && !connection.getSession().getEnvelopes().isEmpty()) {
-                            connection.getSession().getEnvelopes().getLast().addRcpt(getAddress().getAddress());
+            } else if (Config.getServer().isUsersEnabled()) {
+                // Scenario response.
+                Optional<ScenarioConfig> opt = connection.getScenario();
+                if (opt.isPresent() && opt.get().getRcpt() != null) {
+                    for (Map<String, String> entry : opt.get().getRcpt()) {
+                        if (getAddress() != null && getAddress().getAddress().matches(entry.get("value"))) {
+                            String response = entry.get("response");
+                            if (response.startsWith("2") && !connection.getSession().getEnvelopes().isEmpty()) {
+                                connection.getSession().getEnvelopes().getLast().addRcpt(getAddress().getAddress());
+                            }
+                            connection.write(response);
+                            return response.startsWith("2");
                         }
-                        connection.write(response);
-                        return response.startsWith("2");
                     }
                 }
             }

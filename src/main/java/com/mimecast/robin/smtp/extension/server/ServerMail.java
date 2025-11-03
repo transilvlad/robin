@@ -4,7 +4,6 @@ import com.mimecast.robin.config.server.ScenarioConfig;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
-import com.mimecast.robin.smtp.session.EmailDirection;
 import com.mimecast.robin.smtp.verb.Verb;
 import org.apache.commons.lang3.StringUtils;
 
@@ -87,16 +86,15 @@ public class ServerMail extends ServerProcessor {
 
         // Bypass for RCPT extension which extends this one.
         if (verb.getKey().equals("mail")) {
-            if (connection.getSession().isAuth() && connection.getSession().getDirection() == EmailDirection.OUTBOUND) {
+            if (!connection.getSession().isAuth() && connection.getSession().isOutbound()) {
                 connection.write(String.format(SmtpResponses.AUTH_REQUIRED_530, connection.getSession().getUID()));
-                return true;
+                return false;
             }
 
             // Check envelope limit before adding new envelope.
             if (connection.getSession().getEnvelopes().size() >= envelopeLimit) {
                 connection.write(String.format(SmtpResponses.ENVELOPE_LIMIT_EXCEEDED_452, connection.getSession().getUID()));
-                return true;
-
+                return false;
             }
 
             // Make envelope.

@@ -2,11 +2,14 @@
   // Enablement.
   auth: false,
 
-  // Path to Dovecot authentication socket.
-  authSocket: "/run/dovecot/auth-userdb",
+  // Path to Dovecot authentication client socket (auth-client for SASL mechanisms).
+  authClientSocket: "/run/dovecot/auth-client",
+
+  // Path to Dovecot userdb lookup socket (auth-userdb for mailbox existence).
+  authUserdbSocket: "/run/dovecot/auth-userdb",
 
   // Save a copy of each email to Dovecot LDA.
-  saveToDovecotLda: true,
+  saveToDovecotLda: false,
 
   // Path to Dovecot LDA binary.
   ldaBinary: "/usr/libexec/dovecot/dovecot-lda",

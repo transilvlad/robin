@@ -124,7 +124,7 @@ public class RelayDequeue {
         long nextAllowedTime = lastRetryTime + nextRetrySeconds;
 
         if (currentEpochSeconds < nextAllowedTime) {
-            log.info("Session not ready for retry: sessionUID={}, retryCount={}, lastRetryTime={}, now={}, nextAllowed={}, backoffSec={}",
+            log.debug("Session not ready for retry: sessionUID={}, retryCount={}, lastRetryTime={}, now={}, nextAllowed={}, backoffSec={}",
                     relaySession.getSession().getUID(), relaySession.getRetryCount(), 
                     lastRetryTime, currentEpochSeconds, nextAllowedTime, nextRetrySeconds);
             return false;
