@@ -126,7 +126,7 @@ public class DovecotStorageProcessor implements StorageProcessor {
         // Create the envelope.
         MessageEnvelope envelope = new MessageEnvelope()
                 .setMail("mailer-daemon@" + config.getHostname())
-                .setRcpt(recipient)
+                .setRcpt(sender)
                 .setBytes(bounce.getStream().toByteArray());
         relaySessionBounce.getSession().addEnvelope(envelope);
 

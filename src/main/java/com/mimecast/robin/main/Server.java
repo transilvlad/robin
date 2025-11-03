@@ -86,7 +86,7 @@ public class Server extends Foundation {
                     serverConfig.getBind(),
                     serverConfig.getSecureConfig(),
                     true,
-                    false
+                    true
             ));
         }
 

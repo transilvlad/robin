@@ -104,7 +104,7 @@ public class RelayMessage {
                 // Wrap into a relay session.
                 RelaySession relaySession = new RelaySession(session)
                         .setMailbox(mailbox)
-                        .setProtocol("ESMTP");
+                        .setProtocol("esmtp");
 
                 // Persist any envelope files to storage/queue before enqueueing.
                 QueueFiles.persistEnvelopeFiles(relaySession);
