@@ -74,6 +74,7 @@ public class HeaderWrangler {
      */
     public byte[] process(byte[] emailBytes) throws IOException {
         String email = new String(emailBytes, StandardCharsets.UTF_8);
+        boolean emailEndsWithNewline = email.endsWith("\r\n") || email.endsWith("\n");
         String[] lines = email.split("\r?\n", -1);
 
         ByteArrayOutputStream output = new ByteArrayOutputStream();
@@ -84,15 +85,16 @@ public class HeaderWrangler {
             String line = lines[lineIndex];
 
             // Check if we've reached the end of headers.
-            if (line.isEmpty() || line.startsWith("--")) {
+            // Headers end at the first blank line.
+            if (line.isEmpty()) {
                 inHeaders = false;
 
-                // Append new headers before the blank line or boundary.
+                // Append new headers before the blank line.
                 for (MimeHeader header : headersToAppend) {
                     output.write(header.toString().getBytes(StandardCharsets.UTF_8));
                 }
 
-                // Write the current line (blank line or boundary).
+                // Write the current line (blank line).
                 output.write(line.getBytes(StandardCharsets.UTF_8));
                 output.write("\r\n".getBytes(StandardCharsets.UTF_8));
                 lineIndex++;
@@ -155,7 +157,8 @@ public class HeaderWrangler {
         // Write remaining lines (body content).
         while (lineIndex < lines.length) {
             output.write(lines[lineIndex].getBytes(StandardCharsets.UTF_8));
-            if (lineIndex < lines.length - 1 || email.endsWith("\n")) {
+            // Add line ending for all lines except the last one if original didn't end with newline.
+            if (lineIndex < lines.length - 1 || emailEndsWithNewline) {
                 output.write("\r\n".getBytes(StandardCharsets.UTF_8));
             }
             lineIndex++;

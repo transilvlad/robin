@@ -158,7 +158,7 @@ class HeaderWranglerTest {
     }
 
     @Test
-    @DisplayName("Handle email with MIME boundary")
+    @DisplayName("Handle email with MIME boundary in body")
     void handleMimeBoundary() throws IOException {
         String email = "From: sender@example.com\r\n" +
                 "To: recipient@example.com\r\n" +
