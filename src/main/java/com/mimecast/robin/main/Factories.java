@@ -5,6 +5,9 @@ import com.mimecast.robin.assertion.client.ExternalClient;
 import com.mimecast.robin.assertion.client.imap.ImapExternalClient;
 import com.mimecast.robin.assertion.client.logs.LogsExternalClient;
 import com.mimecast.robin.config.BasicConfig;
+import com.mimecast.robin.queue.MapDBQueueDatabase;
+import com.mimecast.robin.queue.QueueDatabase;
+import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.smtp.auth.DigestCache;
 import com.mimecast.robin.smtp.auth.StaticDigestCache;
 import com.mimecast.robin.smtp.connection.Connection;
@@ -19,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import javax.net.ssl.X509TrustManager;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -65,6 +69,12 @@ public class Factories {
      * <p>Only used for subsequent authentication.
      */
     private static Callable<DigestCache> database;
+
+    /**
+     * Queue database implementation.
+     * <p>Used for persistent queue storage.
+     */
+    private static Callable<QueueDatabase<RelaySession>> queueDatabase;
 
     /**
      * MTA storage client.
@@ -312,5 +322,35 @@ public class Factories {
      */
     public static List<String> getExternalKeys() {
         return new ArrayList<>(externalClients.keySet());
+    }
+
+    /**
+     * Sets QueueDatabase.
+     *
+     * @param callable QueueDatabase callable.
+     */
+    public static void setQueueDatabase(Callable<QueueDatabase<RelaySession>> callable) {
+        queueDatabase = callable;
+    }
+
+    /**
+     * Gets QueueDatabase.
+     *
+     * @param file The file to store the database.
+     * @return QueueDatabase instance.
+     */
+    public static QueueDatabase<RelaySession> getQueueDatabase(File file) {
+        if (queueDatabase != null) {
+            try {
+                return queueDatabase.call();
+            } catch (Exception e) {
+                log.error("Error calling queue database: {}", e.getMessage());
+            }
+        }
+
+        // Default to MapDB implementation
+        MapDBQueueDatabase<RelaySession> db = new MapDBQueueDatabase<>(file);
+        db.initialize();
+        return db;
     }
 }

@@ -43,29 +43,44 @@ public class DovecotLdaDelivery {
         relaySession.getSession().getSessionTransactionList().addEnvelope(new EnvelopeTransactionList());
 
         if (!relaySession.getSession().getEnvelopes().isEmpty()) {
-            for (String recipient : relaySession.getSession().getEnvelopes().getLast().getRcpts()) {
-                Pair<Integer, String> result = null;
-                try {
-                    result = callDovecotLda(recipient);
+            Pair<Integer, String> result = null;
+            if (relaySession.getSession().isInbound()) {
+                for (String recipient : relaySession.getSession().getEnvelopes().getLast().getRcpts()) {
+                    try {
+                        result = callDovecotLda(recipient);
 
-                    // Log result.
-                    if (result.getKey() == 0) {
-                        log.info("Dovecot-LDA delivery successful for recipient: {}", recipient);
-                    } else {
-                        log.error("Dovecot-LDA delivery failed for recipient: {} with exit code: {}, error: {}", recipient, result.getKey(), result.getValue());
+                        // Log result.
+                        if (result.getKey() == 0) {
+                            log.info("Dovecot-LDA delivery successful for recipient: {}", recipient);
+                        } else {
+                            log.error("Dovecot-LDA delivery failed for recipient: {} with exit code: {}, error: {}", recipient, result.getKey(), result.getValue());
+                        }
+                    } catch (Exception e) {
+                        log.error("Dovecot-LDA delivery failed for recipient: {} with exception: {}", recipient, e.getMessage());
                     }
-                } catch (Exception e) {
-                    log.error("Dovecot-LDA delivery failed for recipient: {} with exception: {}", recipient, e.getMessage());
-                }
 
-                if (result == null || result.getKey() != 0) {
-                    relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().addTransaction("RCPT", "RCPT TO:<" + recipient + ">", SmtpResponses.DOVECOT_LDA_FAILED_550, true);
-                } else {
-                    relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().addTransaction("RCPT", "RCPT TO:<" + recipient + ">", SmtpResponses.DOVECOT_LDA_SUCCESS_250, false);
+                    if (result == null || result.getKey() != 0) {
+                        relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().addTransaction("RCPT", "RCPT TO:<" + recipient + ">", SmtpResponses.DOVECOT_LDA_FAILED_550, true);
+                    } else {
+                        relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().addTransaction("RCPT", "RCPT TO:<" + recipient + ">", SmtpResponses.DOVECOT_LDA_SUCCESS_250, false);
+                    }
+                }
+            } else {
+                try {
+                    String sender = relaySession.getSession().getEnvelopes().getLast().getMail();
+                    result = callDovecotLda(sender);
+
+                    if (result == null || result.getKey() != 0) {
+                        relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().addTransaction("MAIL", "MAIL FROM:<" + sender + ">", SmtpResponses.DOVECOT_LDA_FAILED_550, true);
+                    } else {
+                        relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().addTransaction("MAIL", "MAIL FROM:<" + sender + ">", SmtpResponses.DOVECOT_LDA_SUCCESS_250, false);
+                    }
+                } catch (IOException | InterruptedException e) {
+                    log.error("Dovecot-LDA delivery failed for sender: {} with exception: {}", relaySession.getSession().getEnvelopes().getLast().getMail(), e.getMessage());
                 }
             }
         } else {
-            log.warn("No recipients found in the last envelope for Dovecot-LDA delivery.");
+            log.warn("No envelopes found in the last session for Dovecot-LDA delivery.");
         }
 
         return this;

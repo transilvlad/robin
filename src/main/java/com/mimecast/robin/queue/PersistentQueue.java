@@ -1,26 +1,26 @@
 package com.mimecast.robin.queue;
 
-import com.mimecast.robin.main.Config;
-import org.mapdb.*;
-import org.mapdb.serializer.SerializerJava;
+import com.mimecast.robin.main.Factories;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.Closeable;
 import java.io.File;
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * A persistent FIFO queue backed by MapDB v3.
+ * A persistent FIFO queue that delegates to a QueueDatabase implementation.
+ * <p>Uses the Factory pattern to allow different database backends.
  */
 public class PersistentQueue<T extends Serializable> implements Closeable {
 
+    private static final Logger log = LogManager.getLogger(PersistentQueue.class);
+
     private final File file;
-    private final DB db;
-    private final BTreeMap<Long, T> queue;
-    private final Atomic.Long seq;
+    private final QueueDatabase<T> database;
 
     // Singleton instances map.
     private static final Map<String, PersistentQueue<RelaySession>> instances = new HashMap<>();
@@ -31,6 +31,7 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
      * @param file The file to store the database.
      * @return The PersistentQueue instance.
      */
+    @SuppressWarnings("unchecked")
     public static PersistentQueue<RelaySession> getInstance(File file) {
         String instanceKey = file.getAbsolutePath();
 
@@ -46,19 +47,10 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
      *
      * @param file The file to store the database.
      */
+    @SuppressWarnings("unchecked")
     PersistentQueue(File file) {
         this.file = file;
-
-        this.db = DBMaker
-                .fileDB(file)
-                .fileMmapEnableIfSupported()
-                .concurrencyScale(Math.toIntExact(Config.getServer().getQueue().getLongProperty("concurrencyScale", 32L)))
-                .transactionEnable()
-                .closeOnJvmShutdown()
-                .make();
-
-        this.seq = db.atomicLong("queue_seq").createOrOpen();
-        this.queue = db.treeMap("queue_map", Serializer.LONG, new SerializerJava()).createOrOpen();
+        this.database = (QueueDatabase<T>) Factories.getQueueDatabase(file);
     }
 
     /**
@@ -67,9 +59,7 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
      * @return Self.
      */
     public PersistentQueue<T> enqueue(T item) {
-        long id = seq.incrementAndGet();
-        queue.put(id, item);
-        db.commit();
+        database.enqueue(item);
         return this;
     }
 
@@ -77,39 +67,35 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
      * Remove and return the head of the queue, or null if empty.
      */
     public T dequeue() {
-        Map.Entry<Long, T> first = queue.pollFirstEntry();
-        if (first == null) return null;
-        db.commit();
-        return first.getValue();
+        return database.dequeue();
     }
 
     /**
      * Peek at the head without removing.
      */
     public T peek() {
-        Map.Entry<Long, T> first = queue.firstEntry();
-        return first != null ? first.getValue() : null;
+        return database.peek();
     }
 
     /**
      * Check if the queue is empty.
      */
     public boolean isEmpty() {
-        return queue.isEmpty();
+        return database.isEmpty();
     }
 
     /**
      * Get the size of the queue.
      */
     public long size() {
-        return queue.sizeLong();
+        return database.size();
     }
 
     /**
      * Take a snapshot copy of current values for read-only inspection (e.g., metrics/health).
      */
     public List<T> snapshot() {
-        return new ArrayList<>(queue.values());
+        return database.snapshot();
     }
 
     /**
@@ -118,6 +104,12 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
     @Override
     public void close() {
         instances.remove(file.getAbsolutePath());
-        db.close();
+        try {
+            database.close();
+        } catch (Exception e) {
+            // Log the error but don't propagate it to maintain close() contract.
+            // This is especially important for MapDB WAL files on Windows.
+            log.error("Error closing queue database for file {}: {}", file.getAbsolutePath(), e.getMessage(), e);
+        }
     }
 }

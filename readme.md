@@ -68,9 +68,9 @@ Documentation
 - [HashiCorp Vault](doc/vault.md)
 - [SMTP webhooks](doc/webhooks.md)
 - [Endpoints](doc/endpoints.md) - JVM metrics implementation.
-- [Prometheus Remote Write](doc/prometheus.md) - Prometheus Remote Write implementation and library.
-- [ClamAV Integration](doc/clamav.md) - ClamAV virus scanning integration and library.
-- [Rspamd Integration](doc/rspamd.md) - Rspamd spam/phishing detection integration and library.
+- [Prometheus Remote Write](doc/prometheus.md) - Prometheus Remote Write implementation.
+- [ClamAV Integration](doc/clamav.md) - ClamAV virus scanning integration.
+- [Rspamd Integration](doc/rspamd.md) - Rspamd spam/phishing detection integration.
 
 ### Secrets
 - [Secrets, magic and Local Secrets File](doc/secrets.md)
@@ -96,4 +96,4 @@ Documentation
 - [Contributing](contributing.md)
 - [Code of conduct](code_of_conduct.md)
 
-_Robin is designed with single responsibility principle in mind and thus provides reusable components for various tasks._
+_Robin is designed with single responsibility principle in mind and thus can provide reusable components for various tasks._

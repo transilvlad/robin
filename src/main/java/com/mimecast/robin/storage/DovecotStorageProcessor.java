@@ -65,8 +65,9 @@ public class DovecotStorageProcessor implements StorageProcessor {
 
         MessageEnvelope envelope = connection.getSession().getEnvelopes().getLast();
         List<String> originalRecipients = envelope.getRcpts();
-        log.info("Invoking Dovecot LDA for uid={} recipients={} outbound={} mailboxHint={}",
+        log.info("Invoking Dovecot LDA for uid={} sender={} recipients={} outbound={} mailboxHint={}",
                 connection.getSession().getUID(),
+                envelope.getMail(),
                 String.join(",", originalRecipients),
                 connection.getSession().isOutbound(),
                 config.getDovecot().getStringProperty("outboundMailbox", "Sent"));
