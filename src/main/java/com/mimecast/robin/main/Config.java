@@ -8,9 +8,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.Map;
+import java.util.concurrent.*;
 
 /**
  * Master configuration initializer and container.
@@ -61,7 +60,15 @@ public class Config {
         return properties;
     }
 
+    /**
+     * Scheduled executor service for config reloading.
+     */
     private final static ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+
+    /**
+     * Map to track scheduled futures by task type.
+     */
+    private static final Map<String, ScheduledFuture<?>> scheduledFutures = new ConcurrentHashMap<>();
 
     /**
      * Init properties.
@@ -72,23 +79,26 @@ public class Config {
      */
     public static void initProperties(String path) throws IOException {
         properties = new Properties(path);
-        BasicConfig propertiesAutoReload = properties.getPropertiesAutoReload();
-        if (propertiesAutoReload.getBooleanProperty("enabled")) {
-            scheduler.scheduleAtFixedRate(() -> {
-                        try {
-                            properties = new Properties(path);
-                            log.debug("Reloaded properties file: {}", path);
-                        } catch (IOException e) {
-                            log.error("Failed to reload properties file: {}, error {}", path, e.getMessage());
-                        }
-                    },
-                    propertiesAutoReload.getLongProperty("delaySeconds", 300L),
-                    properties.getLongProperty("intervalSeconds", 300L),
-                    TimeUnit.SECONDS
-            );
-            log.info("Scheduled properties file reload: {}, delay: {} seconds, interval: {} seconds", path,
-                    propertiesAutoReload.getLongProperty("delaySeconds", 300L),
-                    properties.getLongProperty("intervalSeconds", 300L));
+        if (!scheduledFutures.containsKey("properties")) {
+            BasicConfig propertiesAutoReload = properties.getPropertiesAutoReload();
+            if (propertiesAutoReload.getBooleanProperty("enabled")) {
+                ScheduledFuture<?> future = scheduler.scheduleAtFixedRate(() -> {
+                            try {
+                                properties = new Properties(path);
+                                log.debug("Reloaded properties file: {}", path);
+                            } catch (IOException e) {
+                                log.error("Failed to reload properties file: {}, error {}", path, e.getMessage());
+                            }
+                        },
+                        propertiesAutoReload.getLongProperty("delaySeconds", 300L),
+                        properties.getLongProperty("intervalSeconds", 300L),
+                        TimeUnit.SECONDS
+                );
+                scheduledFutures.put("properties", future);
+                log.info("Scheduled properties file reload: {}, delay: {} seconds, interval: {} seconds", path,
+                        propertiesAutoReload.getLongProperty("delaySeconds", 300L),
+                        properties.getLongProperty("intervalSeconds", 300L));
+            }
         }
     }
 
@@ -109,23 +119,26 @@ public class Config {
      */
     public static void initServer(String path) throws IOException {
         server = new ServerConfig(path);
-        BasicConfig serverAutoReload = properties.getServerAutoReload();
-        if (serverAutoReload.getBooleanProperty("enabled")) {
-            scheduler.scheduleAtFixedRate(() -> {
-                        try {
-                            server = new ServerConfig(path);
-                            log.debug("Reloaded server file: {}", path);
-                        } catch (IOException e) {
-                           log.error("Failed to reload server file: {}, error {}", path, e.getMessage());
-                        }
-                    },
-                    serverAutoReload.getLongProperty("delaySeconds", 300L),
-                    properties.getLongProperty("intervalSeconds", 300L),
-                    TimeUnit.SECONDS
-            );
-            log.info("Scheduled server file reload: {}, delay: {} seconds, interval: {} seconds", path,
-                    serverAutoReload.getLongProperty("delaySeconds", 300L),
-                    properties.getLongProperty("intervalSeconds", 300L));
+        if (!scheduledFutures.containsKey("server")) {
+            BasicConfig serverAutoReload = properties.getServerAutoReload();
+            if (serverAutoReload.getBooleanProperty("enabled")) {
+                ScheduledFuture<?> future = scheduler.scheduleAtFixedRate(() -> {
+                            try {
+                                server = new ServerConfig(path);
+                                log.debug("Reloaded server file: {}", path);
+                            } catch (IOException e) {
+                                log.error("Failed to reload server file: {}, error {}", path, e.getMessage());
+                            }
+                        },
+                        serverAutoReload.getLongProperty("delaySeconds", 300L),
+                        properties.getLongProperty("intervalSeconds", 300L),
+                        TimeUnit.SECONDS
+                );
+                scheduledFutures.put("server", future);
+                log.info("Scheduled server file reload: {}, delay: {} seconds, interval: {} seconds", path,
+                        serverAutoReload.getLongProperty("delaySeconds", 300L),
+                        properties.getLongProperty("intervalSeconds", 300L));
+            }
         }
     }
 
