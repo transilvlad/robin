@@ -90,6 +90,7 @@ Documentation
 - [Dovecot SASL](doc/lib/dovecot-sasl.md) - Dovecot SASL authentication implementation.
 - [IMAP helper](doc/lib/imap.md) - Lightweight Jakarta Mail IMAP client.
 - [MIME Parsing and Building](doc/lib/mime.md) - Lightweight RFC 2822 email parsing and composition.
+- [MIME Header Wrangler](doc/lib/header-wrangler.md) - MIME header content injector for tagging and adding headers.
 - [HTTP Request Client](doc/lib/request.md) - Lightweight HTTP request client.
 
 ### Miscellaneous
