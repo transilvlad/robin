@@ -1,9 +1,11 @@
 package com.mimecast.robin.mime.headers;
 
+import com.mimecast.robin.smtp.io.LineInputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import javax.mail.internet.MimeUtility;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -73,20 +75,18 @@ public class HeaderWrangler {
      * @throws IOException If processing fails.
      */
     public byte[] process(byte[] emailBytes) throws IOException {
-        String email = new String(emailBytes, StandardCharsets.UTF_8);
-        boolean emailEndsWithNewline = email.endsWith("\r\n") || email.endsWith("\n");
-        String[] lines = email.split("\r?\n", -1);
-
+        LineInputStream stream = new LineInputStream(new ByteArrayInputStream(emailBytes), 1024);
         ByteArrayOutputStream output = new ByteArrayOutputStream();
-        int lineIndex = 0;
         boolean inHeaders = true;
 
-        while (lineIndex < lines.length && inHeaders) {
-            String line = lines[lineIndex];
+        byte[] lineBytes;
+        while ((lineBytes = stream.readLine()) != null) {
+            String line = new String(lineBytes, StandardCharsets.UTF_8);
+            String lineTrimmed = line.trim();
 
             // Check if we've reached the end of headers.
             // Headers end at the first blank line.
-            if (line.isEmpty()) {
+            if (inHeaders && lineTrimmed.isEmpty()) {
                 inHeaders = false;
 
                 // Append new headers before the blank line.
@@ -94,74 +94,51 @@ public class HeaderWrangler {
                     output.write(header.toString().getBytes(StandardCharsets.UTF_8));
                 }
 
-                // Write the current line (blank line).
-                output.write(line.getBytes(StandardCharsets.UTF_8));
-                output.write("\r\n".getBytes(StandardCharsets.UTF_8));
-                lineIndex++;
+                // Write the current line (blank line with line ending).
+                output.write(lineBytes);
                 continue;
             }
 
-            // Check if this line is a continuation of the previous header (starts with whitespace).
-            if (line.startsWith(" ") || line.startsWith("\t")) {
-                output.write(line.getBytes(StandardCharsets.UTF_8));
-                output.write("\r\n".getBytes(StandardCharsets.UTF_8));
-                lineIndex++;
-                continue;
-            }
-
-            // Parse header name and value.
-            int colonIndex = line.indexOf(':');
-            if (colonIndex > 0) {
-                String headerName = line.substring(0, colonIndex).trim();
-                String headerValue = line.substring(colonIndex + 1).trim();
-
-                // Collect continuation lines.
-                StringBuilder fullValue = new StringBuilder(headerValue);
-                int nextIndex = lineIndex + 1;
-                while (nextIndex < lines.length) {
-                    String nextLine = lines[nextIndex];
-                    if (nextLine.startsWith(" ") || nextLine.startsWith("\t")) {
-                        fullValue.append(nextLine);
-                        nextIndex++;
-                    } else {
-                        break;
-                    }
+            if (inHeaders) {
+                // Check if this line is a continuation of the previous header (starts with space or tab).
+                if (lineBytes.length > 0 && (lineBytes[0] == ' ' || lineBytes[0] == '\t')) {
+                    output.write(lineBytes);
+                    continue;
                 }
 
-                // Check if we need to tag this header.
-                String taggedValue = getTaggedValue(headerName, fullValue.toString());
+                // Parse header name and value.
+                int colonIndex = line.indexOf(':');
+                if (colonIndex > 0) {
+                    String headerName = line.substring(0, colonIndex).trim();
+                    String headerValue = line.substring(colonIndex + 1).trim();
 
-                if (!taggedValue.equals(fullValue.toString())) {
-                    // Write tagged header.
-                    output.write((headerName + ": " + taggedValue).getBytes(StandardCharsets.UTF_8));
-                    output.write("\r\n".getBytes(StandardCharsets.UTF_8));
+                    // Collect continuation lines.
+                    StringBuilder fullValue = new StringBuilder(headerValue);
+                    byte[] nextLineBytes;
+                    while ((nextLineBytes = stream.readLine()) != null) {
+                        String nextLine = new String(nextLineBytes, StandardCharsets.UTF_8);
+                        if (nextLineBytes.length > 0 && (nextLineBytes[0] == ' ' || nextLineBytes[0] == '\t')) {
+                            fullValue.append(nextLine);
+                        } else {
+                            // Put the line back for next iteration.
+                            stream.unread(nextLineBytes);
+                            break;
+                        }
+                    }
+
+                    // Check if we need to tag this header.
+                    String taggedValue = getTaggedValue(headerName, fullValue.toString());
+
+                    // Write tagged or original header (add line ending).
+                    output.write((headerName + ": " + taggedValue + "\r\n").getBytes(StandardCharsets.UTF_8));
                 } else {
-                    // Write original header lines.
-                    output.write(line.getBytes(StandardCharsets.UTF_8));
-                    output.write("\r\n".getBytes(StandardCharsets.UTF_8));
-                    for (int i = lineIndex + 1; i < nextIndex; i++) {
-                        output.write(lines[i].getBytes(StandardCharsets.UTF_8));
-                        output.write("\r\n".getBytes(StandardCharsets.UTF_8));
-                    }
+                    // Not a valid header line, write as-is.
+                    output.write(lineBytes);
                 }
-
-                lineIndex = nextIndex;
             } else {
-                // Not a valid header line, write as-is.
-                output.write(line.getBytes(StandardCharsets.UTF_8));
-                output.write("\r\n".getBytes(StandardCharsets.UTF_8));
-                lineIndex++;
+                // Body content - write as-is (includes line ending).
+                output.write(lineBytes);
             }
-        }
-
-        // Write remaining lines (body content).
-        while (lineIndex < lines.length) {
-            output.write(lines[lineIndex].getBytes(StandardCharsets.UTF_8));
-            // Add line ending for all lines except the last one if original didn't end with newline.
-            if (lineIndex < lines.length - 1 || emailEndsWithNewline) {
-                output.write("\r\n".getBytes(StandardCharsets.UTF_8));
-            }
-            lineIndex++;
         }
 
         return output.toByteArray();
