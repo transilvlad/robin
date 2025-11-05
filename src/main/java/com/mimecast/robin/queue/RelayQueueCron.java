@@ -66,7 +66,7 @@ public class RelayQueueCron {
                 dequeue.processBatch(MAX_DEQUEUE_PER_TICK, now);
 
             } catch (Exception e) {
-                log.error("RelayQueueCron task error: {}", e.getMessage(), e);
+                log.error("RelayQueueCron task error: {}", e.getMessage());
             }
         };
 

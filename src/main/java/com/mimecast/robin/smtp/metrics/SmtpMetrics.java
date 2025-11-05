@@ -40,7 +40,7 @@ public final class SmtpMetrics {
                 log.info("SMTP metrics initialized");
             }
         } catch (Exception e) {
-            log.error("Failed to initialize SMTP metrics: {}", e.getMessage(), e);
+            log.error("Failed to initialize SMTP metrics: {}", e.getMessage());
         }
     }
 

@@ -52,20 +52,20 @@ public class RelayDequeue {
      * <p>This method will attempt to dequeue and process up to {@code maxDequeuePerTick} sessions.
      * Sessions that are not yet ready for retry will be re-enqueued.
      *
-     * @param maxDequeuePerTick the maximum number of sessions to process in this execution
+     * @param maxDequeuePerTick   the maximum number of sessions to process in this execution
      * @param currentEpochSeconds the current time in epoch seconds
      */
     public void processBatch(int maxDequeuePerTick, long currentEpochSeconds) {
         long queueSize = queue.size();
         int budget = (int) Math.min(maxDequeuePerTick, queueSize);
-        
-        log.debug("Processing batch: currentEpoch={}, queueSize={}, budget={}", 
-                currentEpochSeconds, queueSize, budget);
 
         if (budget <= 0) {
             log.trace("Queue empty, nothing to process");
             return;
         }
+
+        log.debug("Processing batch: currentEpoch={}, queueSize={}, budget={}",
+                currentEpochSeconds, queueSize, budget);
 
         for (int processed = 0; processed < budget; processed++) {
             RelaySession relaySession = queue.dequeue();
@@ -83,7 +83,7 @@ public class RelayDequeue {
      * <p>Checks if the session is ready for retry based on timing, attempts delivery,
      * handles results, and manages re-enqueueing or bounce generation.
      *
-     * @param relaySession the relay session to process
+     * @param relaySession        the relay session to process
      * @param currentEpochSeconds the current time in epoch seconds
      */
     void processSession(RelaySession relaySession, long currentEpochSeconds) {
@@ -114,7 +114,7 @@ public class RelayDequeue {
     /**
      * Checks if a relay session is ready for retry based on its retry count and last retry time.
      *
-     * @param relaySession the relay session to check
+     * @param relaySession        the relay session to check
      * @param currentEpochSeconds the current time in epoch seconds
      * @return true if the session is ready for retry, false otherwise
      */
@@ -125,7 +125,7 @@ public class RelayDequeue {
 
         if (currentEpochSeconds < nextAllowedTime) {
             log.debug("Session not ready for retry: sessionUID={}, retryCount={}, lastRetryTime={}, now={}, nextAllowed={}, backoffSec={}",
-                    relaySession.getSession().getUID(), relaySession.getRetryCount(), 
+                    relaySession.getSession().getUID(), relaySession.getRetryCount(),
                     lastRetryTime, currentEpochSeconds, nextAllowedTime, nextRetrySeconds);
             return false;
         }
@@ -139,12 +139,12 @@ public class RelayDequeue {
      * @param relaySession the relay session
      */
     private void logSessionInfo(RelaySession relaySession) {
-        int envelopesCount = relaySession.getSession().getEnvelopes() != null 
+        int envelopesCount = relaySession.getSession().getEnvelopes() != null
                 ? relaySession.getSession().getEnvelopes().size() : 0;
         int recipientsCount = countRecipients(relaySession);
 
         log.info("Processing session: uid={}, protocol={}, retryCount={}, envelopes={}, recipients={}",
-                relaySession.getSession().getUID(), relaySession.getProtocol(), 
+                relaySession.getSession().getUID(), relaySession.getProtocol(),
                 relaySession.getRetryCount(), envelopesCount, recipientsCount);
     }
 
@@ -179,8 +179,8 @@ public class RelayDequeue {
                 new EmailDelivery(relaySession.getSession()).send();
             }
         } catch (Exception e) {
-            log.error("Delivery failed for session uid={}: {}", 
-                    relaySession.getSession().getUID(), e.getMessage(), e);
+            log.error("Delivery failed for session uid={}: {}",
+                    relaySession.getSession().getUID(), e.getMessage());
         }
     }
 
@@ -235,7 +235,7 @@ public class RelayDequeue {
                         Files.delete(path);
                         log.debug("Deleted envelope file: {}", envelope.getFile());
                     } catch (IOException e) {
-                        log.error("Failed to delete envelope file: {}, error={}", 
+                        log.error("Failed to delete envelope file: {}, error={}",
                                 envelope.getFile(), e.getMessage());
                     }
                 }
@@ -248,7 +248,7 @@ public class RelayDequeue {
      * <p>If under max retries, re-enqueues the session. Otherwise, generates bounce messages.
      *
      * @param relaySession the relay session
-     * @param result the delivery result
+     * @param result       the delivery result
      */
     void handleRemainingEnvelopes(RelaySession relaySession, RelayDeliveryResult result) {
         if (relaySession.getSession().getEnvelopes().isEmpty()) {
@@ -270,7 +270,7 @@ public class RelayDequeue {
      */
     void retrySession(RelaySession relaySession) {
         relaySession.bumpRetryCount();
-        log.info("Re-enqueueing for retry: uid={}, newRetryCount={}", 
+        log.info("Re-enqueueing for retry: uid={}, newRetryCount={}",
                 relaySession.getSession().getUID(), relaySession.getRetryCount());
         reEnqueueSession(relaySession, "retry");
     }
@@ -279,12 +279,12 @@ public class RelayDequeue {
      * Re-enqueues a session back to the queue after persisting its files.
      *
      * @param relaySession the relay session to re-enqueue
-     * @param reason the reason for re-enqueueing (for logging)
+     * @param reason       the reason for re-enqueueing (for logging)
      */
     void reEnqueueSession(RelaySession relaySession, String reason) {
         QueueFiles.persistEnvelopeFiles(relaySession);
         queue.enqueue(relaySession);
-        log.debug("Session re-enqueued: uid={}, reason={}", 
+        log.debug("Session re-enqueued: uid={}, reason={}",
                 relaySession.getSession().getUID(), reason);
     }
 
@@ -299,8 +299,8 @@ public class RelayDequeue {
         List<MessageEnvelope> remainingEnvelopes = relaySession.getSession().getEnvelopes();
 
         // Process recipients from the last envelope (this matches original logic).
-        List<String> recipients = remainingEnvelopes.isEmpty() 
-                ? List.of() 
+        List<String> recipients = remainingEnvelopes.isEmpty()
+                ? List.of()
                 : remainingEnvelopes.getLast().getRcpts();
 
         for (String recipient : recipients) {
@@ -308,12 +308,12 @@ public class RelayDequeue {
                 createAndEnqueueBounce(relaySession, recipient);
                 bounceCount++;
             } catch (Exception e) {
-                log.error("Failed to generate bounce for recipient {}: {}", 
-                        recipient, e.getMessage(), e);
+                log.error("Failed to generate bounce for recipient {}: {}",
+                        recipient, e.getMessage());
             }
         }
 
-        log.warn("Max retries reached: uid={}, generatedBounces={}", 
+        log.warn("Max retries reached: uid={}, generatedBounces={}",
                 relaySession.getSession().getUID(), bounceCount);
     }
 
@@ -321,7 +321,7 @@ public class RelayDequeue {
      * Creates a bounce message for a failed recipient and enqueues it for delivery.
      *
      * @param originalSession the original relay session that failed
-     * @param recipient the recipient to generate a bounce for
+     * @param recipient       the recipient to generate a bounce for
      */
     void createAndEnqueueBounce(RelaySession originalSession, String recipient) {
         // Generate bounce message.
@@ -336,7 +336,7 @@ public class RelayDequeue {
                 .setMail("mailer-daemon@" + Config.getServer().getHostname())
                 .setRcpt(recipient)
                 .setBytes(bounce.getStream().toByteArray());
-        
+
         bounceSession.getSession().addEnvelope(envelope);
 
         // Persist and enqueue bounce.

@@ -109,7 +109,7 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
         } catch (Exception e) {
             // Log the error but don't propagate it to maintain close() contract.
             // This is especially important for MapDB WAL files on Windows.
-            log.error("Error closing queue database for file {}: {}", file.getAbsolutePath(), e.getMessage(), e);
+            log.error("Error closing queue database for file {}: {}", file.getAbsolutePath(), e.getMessage());
         }
     }
 }

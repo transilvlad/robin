@@ -140,7 +140,7 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
             } catch (Exception e) {
                 // Log but don't throw - close should be idempotent and not fail.
                 // This is especially important for MapDB WAL file cleanup on Windows.
-                log.warn("Error closing MapDB database for file {}: {}", file.getAbsolutePath(), e.getMessage(), e);
+                log.warn("Error closing MapDB database for file {}: {}", file.getAbsolutePath(), e.getMessage());
             } finally {
                 db = null;
             }

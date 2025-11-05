@@ -100,7 +100,7 @@ public class MetricsCron {
                 nextExecutionEpochSeconds = lastExecutionEpochSeconds + intervalSeconds;
                 pushOnce();
             } catch (Exception e) {
-                log.error("MetricsCron push error: {}", e.getMessage(), e.getMessage());
+                log.error("MetricsCron push error: {}", e.getMessage());
             }
         };
 

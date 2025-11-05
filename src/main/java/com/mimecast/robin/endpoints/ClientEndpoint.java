@@ -233,7 +233,7 @@ public class ClientEndpoint {
             log.debug("/client/send responded 200, bytes={}", response.getBytes(StandardCharsets.UTF_8).length);
         } catch (Exception e) {
             // Any unexpected exception is reported as a 500 with a brief message.
-            log.error("Error processing /client/send: {}", e.getMessage(), e);
+            log.error("Error processing /client/send: {}", e.getMessage());
             sendText(exchange, 500, "Internal Server Error: " + e.getMessage());
         }
     }
@@ -314,7 +314,7 @@ public class ClientEndpoint {
             sendJson(exchange, 202, json);
             log.debug("/client/queue responded 202, bytes={}", json.getBytes(StandardCharsets.UTF_8).length);
         } catch (Exception e) {
-            log.error("Error processing /client/queue: {}", e.getMessage(), e);
+            log.error("Error processing /client/queue: {}", e.getMessage());
             sendText(exchange, 500, "Internal Server Error: " + e.getMessage());
         }
     }
@@ -408,7 +408,7 @@ public class ClientEndpoint {
 
             sendHtml(exchange, 200, html);
         } catch (Exception e) {
-            log.error("Error processing /client/queue-list: {}", e.getMessage(), e);
+            log.error("Error processing /client/queue-list: {}", e.getMessage());
             sendText(exchange, 500, "Internal Server Error: " + e.getMessage());
         }
     }

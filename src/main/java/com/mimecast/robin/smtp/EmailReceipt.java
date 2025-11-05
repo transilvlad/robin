@@ -320,7 +320,7 @@ public class EmailReceipt implements Runnable {
                 return true;
             }
         } catch (Exception e) {
-            log.error("Error processing webhook: {}", e.getMessage(), e);
+            log.error("Error processing webhook: {}", e.getMessage());
             connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
             return false;
         }

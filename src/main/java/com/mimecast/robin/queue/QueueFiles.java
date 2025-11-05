@@ -54,7 +54,7 @@ public final class QueueFiles {
 
             try {
                 if (filePath.contains("qeml-")) {
-                    log.debug("Envelope file already in queue, skipping move: {}", filePath);
+                    log.trace("Envelope file already in queue, skipping move: {}", filePath);
                     continue;
                 }
 

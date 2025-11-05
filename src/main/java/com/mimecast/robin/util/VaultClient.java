@@ -179,7 +179,7 @@ public class VaultClient {
                 return null;
             }
         } catch (IOException e) {
-            throw new VaultException("Failed to fetch secret from Vault: " + e.getMessage(), e);
+            throw new VaultException("Failed to fetch secret from Vault: " + e.getMessage());
         }
     }
 
@@ -243,7 +243,7 @@ public class VaultClient {
                 return secrets;
             }
         } catch (IOException e) {
-            throw new VaultException("Failed to fetch secrets from Vault: " + e.getMessage(), e);
+            throw new VaultException("Failed to fetch secrets from Vault: " + e.getMessage());
         }
     }
 
@@ -293,7 +293,7 @@ public class VaultClient {
                 log.debug("Successfully wrote secret to path: {}", path);
             }
         } catch (IOException e) {
-            throw new VaultException("Failed to write secret to Vault: " + e.getMessage(), e);
+            throw new VaultException("Failed to write secret to Vault: " + e.getMessage());
         }
     }
 
