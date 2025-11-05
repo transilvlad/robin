@@ -109,7 +109,13 @@ public class ServerAuth extends ServerProcessor {
                         connection.write(SmtpResponses.AUTH_FAILED_535);
                         return false;
                     }
+                } else {
+                    connection.write(String.format(SmtpResponses.UNKNOWN_MAILBOX_550, connection.getSession().getUID()));
+                    return false;
                 }
+            } else {
+                connection.write(String.format(SmtpResponses.UNKNOWN_MAILBOX_550, connection.getSession().getUID()));
+                return false;
             }
         }
 
