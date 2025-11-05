@@ -283,38 +283,6 @@ Run tests with:
 mvn test -Dtest=HeaderWranglerTest
 ```
 
-Integration with Robin
-----------------------
-
-The HeaderWrangler can be integrated into Robin's email processing pipeline for:
-
-- Spam filtering integration with Rspamd.
-- Virus scanning results from ClamAV.
-- Custom email routing rules.
-- Email forensics and debugging.
-
-Example integration with Robin's SMTP server:
-
-```java
-import java.io.*;
-
-// In email processing pipeline
-HeaderWrangler wrangler = new HeaderWrangler();
-
-if (isSpam(email)) {
-    wrangler.addHeaderTag(new HeaderTag("Subject", "[SPAM]"))
-            .addHeader(new MimeHeader("X-Spam-Flag", "YES"));
-}
-
-// Process email using streams
-try (InputStream input = new ByteArrayInputStream(originalEmail);
-     ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-    wrangler.process(input, output);
-    byte[] processedEmail = output.toByteArray();
-    // Use processedEmail...
-}
-```
-
 See Also
 --------
 
