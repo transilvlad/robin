@@ -51,7 +51,7 @@ public class DovecotStorageProcessor implements StorageProcessor {
     }
 
     /**
-     * Process rejected recipient.
+     * Save email to Dovecot LDA.
      *
      * @param connection Connection instance.
      * @param config     Server configuration.
@@ -63,86 +63,110 @@ public class DovecotStorageProcessor implements StorageProcessor {
             return;
         }
 
+        // Get current envelope and log info.
         MessageEnvelope envelope = connection.getSession().getEnvelopes().getLast();
         List<String> originalRecipients = envelope.getRcpts();
-        log.info("Invoking Dovecot LDA for uid={} sender={} recipients={} outbound={} mailboxHint={}",
-                connection.getSession().getUID(),
+        log.info("Invoking Dovecot LDA for sender={} recipients={} outbound={} mailbox={}",
                 envelope.getMail(),
                 String.join(",", originalRecipients),
                 connection.getSession().isOutbound(),
                 config.getDovecot().getStringProperty("outboundMailbox", "Sent"));
 
-        getDovecotLdaDeliveryInstance(connection, config.getDovecot()).send();
+        // Invoke Dovecot LDA delivery.
+        getDovecotLdaDeliveryInstance(connection, config.getDovecot())
+                .send();
 
+        // Retrieve transaction results.
         EnvelopeTransactionList envelopeTransactionList = connection.getSession().getSessionTransactionList().getEnvelopes().getLast();
         if (envelopeTransactionList == null) {
-            log.error("EnvelopeTransactionList missing after Dovecot LDA send (uid={}). Treating as failure.", connection.getSession().getUID());
+            log.error("EnvelopeTransactionList missing after Dovecot LDA send. Treating as failure.");
             throw new IOException("Storage unable to save to Dovecot LDA: no transaction list");
         }
 
-        int failed = envelopeTransactionList.getFailedRecipients().size();
-        int requested = envelopeTransactionList.getRecipients().size();
+        // Analyze results.
+        int failed;
+        int requested = 1;
+        if (connection.getSession().isOutbound()) {
+            failed = envelopeTransactionList.getMail().isError() ? 1 : 0;
+        } else {
+            failed = envelopeTransactionList.getFailedRecipients().size();
+            requested = envelopeTransactionList.getRecipients().size();
+        }
+
         if (failed == 0) {
-            log.info("Dovecot LDA delivery successful for all {} recipient(s) uid={}", requested, connection.getSession().getUID());
+            log.info("Dovecot LDA delivery successful for mailboxes={}", requested);
             return;
         }
 
-        // There are failures.
+        // There are failures. This only applies to inbound messages.
         if (requested != failed) {
-            log.warn("Partial Dovecot LDA delivery failure uid={} successCount={} failedCount={} failedRecipients={}",
-                    connection.getSession().getUID(),
-                    (requested - failed),
-                    failed,
-                    String.join(",", envelopeTransactionList.getFailedRecipients()));
+            if (connection.getSession().isInbound()) {
+                log.warn("Partial Dovecot LDA delivery failure successCount={} failedCount={} failedRecipients={}",
+                        (requested - failed),
+                        failed,
+                        String.join(",", envelopeTransactionList.getFailedRecipients()));
 
-            // Replace rcpt list with failed recipients for bounce handling.
-            connection.getSession().getEnvelopes().getLast().setRcpts(envelopeTransactionList.getFailedRecipients());
-            for (String recipient : connection.getSession().getEnvelopes().getLast().getRcpts()) {
-                processRejectedRecipient(connection, config, recipient);
+                // Replace rcpt list with failed recipients for bounce/retry.
+                connection.getSession().getEnvelopes().getLast().setRcpts(envelopeTransactionList.getFailedRecipients());
+                for (String recipient : connection.getSession().getEnvelopes().getLast().getRcpts()) {
+                    processFailure(connection, config, recipient);
+                }
+            } else {
+                log.error("Dovecot LDA delivery failure for outbound message uid={}", connection.getSession().getUID());
+                processFailure(connection, config, envelope.getMail());
             }
         } else {
-            log.error("All {} recipient(s) failed Dovecot LDA delivery uid={} recipients={}", failed, connection.getSession().getUID(), String.join(",", originalRecipients));
+            log.error("Dovecot LDA complete delivery failure");
             throw new IOException("Storage unable to save to Dovecot LDA");
         }
     }
 
     /**
-     * Process rejected recipient.
+     * Process delivery failure.
      *
      * @param connection Connection instance.
      * @param config     Server configuration.
-     * @param recipient  The email address of the rejected recipient.
+     * @param mailbox    The email address of the rejected mailbox.
      */
-    protected void processRejectedRecipient(Connection connection, ServerConfig config, String recipient) {
+    protected void processFailure(Connection connection, ServerConfig config, String mailbox) {
         String sender = connection.getSession().getEnvelopes().getLast().getMail();
-        log.info("Bouncing rejected recipient='{}' sender='{}' uid={}", recipient, sender, connection.getSession().getUID());
-
-        // Generate bounce email.
-        BounceMessageGenerator bounce = new BounceMessageGenerator(new RelaySession(connection.getSession()), recipient);
 
         // Build the session.
-        RelaySession relaySessionBounce = new RelaySession(Factories.getSession())
+        RelaySession relaySession = new RelaySession(Factories.getSession())
                 .setProtocol("esmtp");
 
         // Create the envelope.
-        MessageEnvelope envelope = new MessageEnvelope()
-                .setMail("mailer-daemon@" + config.getHostname())
-                .setRcpt(sender)
-                .setBytes(bounce.getStream().toByteArray());
-        relaySessionBounce.getSession().addEnvelope(envelope);
+        MessageEnvelope envelope = new MessageEnvelope();
+        relaySession.getSession().addEnvelope(envelope);
 
-        // Queue bounce for delivery using runtime-configured queue file (fallback to default).
-        File queueFile = new File(config.getQueue().getStringProperty(
-                "queueFile",
-                RelayQueueCron.QUEUE_FILE.getAbsolutePath()
-        ));
+        BasicConfig dovecotConfig = config.getDovecot();
 
-        // Persist any envelope files (no-op for bytes-only envelopes) before enqueue.
-        QueueFiles.persistEnvelopeFiles(relaySessionBounce);
+        // Queue bounce email.
+        if (dovecotConfig.hasProperty("failureBehaviour") &&
+                dovecotConfig.getStringProperty("failureBehaviour").equalsIgnoreCase("bounce")) {
 
-        log.debug("Enqueuing bounce message for rejected recipient='{}' queueFile={} size={}B", recipient, queueFile.getAbsolutePath(), bounce.getStream().size());
-        PersistentQueue.getInstance(queueFile)
-                .enqueue(relaySessionBounce);
+            BounceMessageGenerator bounce = new BounceMessageGenerator(new RelaySession(connection.getSession()), mailbox);
+            envelope.setMail("mailer-daemon@" + config.getHostname())
+                    .setRcpt(sender)
+                    .setBytes(bounce.getStream().toByteArray());
+
+            log.info("Bouncing rejected mailbox='{}' sender='{}' uid={}", mailbox, sender, connection.getSession().getUID());
+        }
+        // Queue retry delivery.
+        else {
+            envelope.setFile(connection.getSession().getEnvelopes().getLast().getFile());
+            relaySession.setProtocol("dovecot-lda");
+            relaySession.setMailbox(Config.getServer().getRelay().getStringProperty(connection.getSession().isInbound() ? "mailbox" : "outbox"));
+
+            // Persist any envelope files (no-op for bytes-only envelopes) before enqueue.
+            QueueFiles.persistEnvelopeFiles(relaySession);
+        }
+
+        log.debug("Enqueuing for action={}", dovecotConfig.getStringProperty("failureBehaviour"));
+
+        // Queue for retry.
+        PersistentQueue.getInstance(new File(config.getQueue().getStringProperty("queueFile", RelayQueueCron.QUEUE_FILE.getAbsolutePath())))
+                .enqueue(relaySession);
     }
 
     /**
