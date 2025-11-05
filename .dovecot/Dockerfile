@@ -4,7 +4,7 @@ FROM maven:3.9.9-amazoncorretto-21-debian AS build
 # Set the working directory inside the container.
 WORKDIR /usr/src/robin
 
-# Copy the project files to the working directory.
+# Copy the POM to the working directory.
 COPY ../pom.xml .
 COPY ../src ./src
 

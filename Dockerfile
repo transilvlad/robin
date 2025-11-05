@@ -4,12 +4,21 @@ FROM maven:3.9.9-amazoncorretto-21-debian AS build
 # Set the working directory inside the container.
 WORKDIR /usr/src/robin
 
-# Copy the project files to the working directory.
-COPY pom.xml .
-COPY src ./src
+# Copy the POM to the working directory.
+COPY ../pom.xml .
 
-# Build the project.
-RUN mvn clean package -Dmaven.test.skip=true
+# Resolve and download all dependencies (including plugins) using BuildKit cache mounts.
+RUN --mount=type=cache,target=/root/.m2,id=robin-m2 \
+    --mount=type=cache,target=/root/.cache,id=robin-cache \
+    mvn -B -q -e dependency:go-offline
+
+# Now copy the source; changes here won't bust the dependency cache.
+COPY ../src ./src
+
+# Build the project using the same cached Maven repo.
+RUN --mount=type=cache,target=/root/.m2,id=robin-m2 \
+    --mount=type=cache,target=/root/.cache,id=robin-cache \
+    mvn -B -q clean package -Dmaven.test.skip=true
 
 # Production stage
 FROM alpine/java:21-jdk AS production
