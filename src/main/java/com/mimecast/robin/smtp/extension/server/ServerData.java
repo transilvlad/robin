@@ -10,6 +10,7 @@ import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.mimecast.robin.smtp.verb.BdatVerb;
 import com.mimecast.robin.smtp.verb.Verb;
 import com.mimecast.robin.smtp.webhook.WebhookCaller;
+import com.mimecast.robin.smtp.webhook.WebhookResponse;
 import com.mimecast.robin.storage.StorageClient;
 import org.apache.commons.io.output.CountingOutputStream;
 
@@ -97,7 +98,9 @@ public class ServerData extends ServerProcessor {
         }
 
         // Call RAW webhook after successful storage.
-        callRawWebhook();
+        if (!callRawWebhook()) {
+            return false;
+        }
 
         Optional<ScenarioConfig> opt = connection.getScenario();
         if (opt.isPresent() && opt.get().getData() != null) {
@@ -161,7 +164,9 @@ public class ServerData extends ServerProcessor {
             }
 
             // Call RAW webhook after successful storage.
-            callRawWebhook();
+            if (!callRawWebhook()) {
+                return false;
+            }
 
             // Scenario response or accept.
             scenarioResponse(connection.getSession().getUID());
@@ -219,27 +224,51 @@ public class ServerData extends ServerProcessor {
 
     /**
      * Calls RAW webhook if configured.
+     *
+     * @return Boolean indicating whether to continue processing.
+     * @throws IOException Unable to communicate.
      */
-    private void callRawWebhook() {
+    private boolean callRawWebhook() throws IOException {
         try {
             Map<String, WebhookConfig> webhooks = Config.getServer().getWebhooks();
 
             String filePath = connection.getSession().getEnvelopes().isEmpty() ? null :
                     connection.getSession().getEnvelopes().getLast().getFile();
             if (filePath == null || filePath.isEmpty()) {
-                return;
+                return true;
             }
 
             if (webhooks.containsKey("raw")) {
                 WebhookConfig rawCfg = webhooks.get("raw");
                 if (rawCfg.isEnabled()) {
                     log.debug("Calling RAW webhook with file: {}", filePath);
-                    WebhookCaller.callRaw(rawCfg, filePath, connection);
+                    WebhookResponse response = WebhookCaller.callRaw(rawCfg, filePath, connection);
+                    String smtpResponse = WebhookCaller.extractSmtpResponse(response.getBody());
+                    if (smtpResponse != null) {
+                        connection.write(String.format(smtpResponse, connection.getSession().getUID()));
+                        return !smtpResponse.startsWith("4") && !smtpResponse.startsWith("5"); // Stop processing, webhook provided response.
+                    }
+
+                    if (!response.isSuccess()) {
+                        WebhookConfig config = webhooks.get("raw");
+                        if (config.isIgnoreErrors()) {
+                            log.warn("RAW webhook failed but ignoring errors: {}", response.getStatusCode());
+                            return true; // Continue processing despite error.
+                        } else {
+                            // Send 451 temporary error.
+                            connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+                            return false; // Stop processing.
+                        }
+                    }
                 }
             }
         } catch (Exception e) {
-            log.error("Error calling RAW webhook: {}", e.getMessage(), e);
+            log.error("Error calling RAW webhook: {}", e.getMessage());
+            connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+            return false;
         }
+
+        return true;
     }
 
     /**

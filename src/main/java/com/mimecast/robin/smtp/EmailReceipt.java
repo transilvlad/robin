@@ -16,6 +16,7 @@ import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.mimecast.robin.smtp.session.EmailDirection;
 import com.mimecast.robin.smtp.verb.Verb;
 import com.mimecast.robin.smtp.webhook.WebhookCaller;
+import com.mimecast.robin.smtp.webhook.WebhookResponse;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -294,13 +295,13 @@ public class EmailReceipt implements Runnable {
                 }
 
                 log.debug("Calling webhook for extension: {}", extensionKey);
-                WebhookCaller.WebhookResponse response = WebhookCaller.call(config, connection, verb);
+                WebhookResponse response = WebhookCaller.call(config, connection, verb);
 
                 // Check if webhook returned a custom SMTP response.
                 String smtpResponse = WebhookCaller.extractSmtpResponse(response.getBody());
                 if (smtpResponse != null && !smtpResponse.isEmpty()) {
-                    connection.write(smtpResponse);
-                    return false; // Stop processing, webhook provided response.
+                    connection.write(String.format(smtpResponse, connection.getSession().getUID()));
+                    return !smtpResponse.startsWith("4") && !smtpResponse.startsWith("5"); // Stop processing, webhook provided response.
                 }
 
                 // Check response status.

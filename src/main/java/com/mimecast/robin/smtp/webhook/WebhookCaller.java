@@ -1,21 +1,26 @@
 package com.mimecast.robin.smtp.webhook;
 
 import com.google.gson.*;
+import com.google.gson.stream.JsonReader;
 import com.mimecast.robin.config.server.WebhookConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.session.EmailDirection;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.smtp.verb.Verb;
+import com.mimecast.robin.trust.PermissiveTrustManager;
 import com.mimecast.robin.util.GsonExclusionStrategy;
 import com.mimecast.robin.util.Magic;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -28,29 +33,33 @@ public class WebhookCaller {
     private static final Logger log = LogManager.getLogger(WebhookCaller.class);
 
     /**
-     * Webhook response container.
+     * Configures SSL context to use PermissiveTrustManager for webhook calls.
+     * This bypasses all certificate validation including OCSP checking.
+     *
+     * @param connection The HttpURLConnection to configure
      */
-    public static class WebhookResponse {
-        private final int statusCode;
-        private final String body;
-        private final boolean success;
+    private static void configureSSLContext(HttpURLConnection connection) {
+        if (connection instanceof HttpsURLConnection) {
+            HttpsURLConnection httpsConnection = (HttpsURLConnection) connection;
 
-        public WebhookResponse(int statusCode, String body, boolean success) {
-            this.statusCode = statusCode;
-            this.body = body;
-            this.success = success;
-        }
+            try {
+                // Use permissive SSL configuration for webhook calls.
+                SSLContext sslContext = SSLContext.getInstance("TLS");
 
-        public int getStatusCode() {
-            return statusCode;
-        }
+                // Use the existing PermissiveTrustManager that trusts all certificates.
+                javax.net.ssl.TrustManager[] trustManagers = {new PermissiveTrustManager()};
 
-        public String getBody() {
-            return body;
-        }
+                sslContext.init(null, trustManagers, new SecureRandom());
+                httpsConnection.setSSLSocketFactory(sslContext.getSocketFactory());
 
-        public boolean isSuccess() {
-            return success;
+                // Also disable hostname verification for webhooks.
+                httpsConnection.setHostnameVerifier((hostname, session) -> true);
+
+                log.debug("SSL context configured with PermissiveTrustManager for webhook URL: {}", connection.getURL());
+
+            } catch (Exception e) {
+                log.error("Failed to configure SSL context with PermissiveTrustManager: {}", e.getMessage());
+            }
         }
     }
 
@@ -83,7 +92,7 @@ public class WebhookCaller {
     /**
      * Checks if webhook direction filter matches the session direction.
      *
-     * @param config  Webhook configuration.
+     * @param config    Webhook configuration.
      * @param direction EmailDirection instance.
      * @return true if direction matches or is set to both, false otherwise.
      */
@@ -111,7 +120,7 @@ public class WebhookCaller {
         try {
             return executeHttpRequest(config, connection, verb);
         } catch (Exception e) {
-            log.error("Webhook call failed: {}", e.getMessage(), e);
+            log.error("Webhook call failed: {}", e.getMessage());
             if (config.isIgnoreErrors()) {
                 return new WebhookResponse(200, "", true);
             }
@@ -132,7 +141,7 @@ public class WebhookCaller {
                 executeHttpRequest(config, connection, verb);
             } catch (Exception e) {
                 if (!config.isIgnoreErrors()) {
-                    log.error("Async webhook call failed: {}", e.getMessage(), e);
+                    log.error("Async webhook call failed: {}", e.getMessage());
                 }
             }
         });
@@ -151,6 +160,9 @@ public class WebhookCaller {
         URI uri = URI.create(config.getUrl());
         HttpURLConnection conn = (HttpURLConnection) uri.toURL().openConnection();
         try {
+            // Configure SSL context to disable OCSP checking for HTTPS connections.
+            configureSSLContext(conn);
+
             // Set method and timeout.
             conn.setRequestMethod(config.getMethod());
             conn.setConnectTimeout(config.getTimeout());
@@ -321,18 +333,44 @@ public class WebhookCaller {
      * @param body Response body.
      * @return SMTP response string or null.
      */
+    @SuppressWarnings("deprecation")
     public static String extractSmtpResponse(String body) {
-        if (body == null || body.trim().isEmpty()) {
+        if (body == null) {
+            return null;
+        }
+        String trimmed = body.trim();
+        if (trimmed.isEmpty()) {
             return null;
         }
 
+        // Quick heuristic: Must look like a JSON object or array.
+        boolean looksLikeJson = (trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"));
+        if (!looksLikeJson) {
+            return null; // Avoid parsing obvious non-JSON (e.g., HTML/text responses)
+        }
+
         try {
-            JsonObject json = JsonParser.parseString(body).getAsJsonObject();
-            if (json.has("smtpResponse")) {
-                return json.get("smtpResponse").getAsString();
+            JsonReader reader = new JsonReader(new StringReader(trimmed));
+            // Use new Strictness API when available; fallback to legacy setLenient.
+            try {
+                reader.setStrictness(Strictness.LENIENT);
+            } catch (Throwable t) {
+                try {
+                    reader.setLenient(true);
+                } catch (Throwable ignore) { /* ignore */ }
+            }
+
+            JsonElement element = JsonParser.parseReader(reader);
+            if (element != null && element.isJsonObject()) {
+                JsonObject json = element.getAsJsonObject();
+                if (json.has("smtpResponse") && !json.get("smtpResponse").isJsonNull()) {
+                    return json.get("smtpResponse").getAsString();
+                }
             }
         } catch (Exception e) {
-            log.debug("Failed to parse webhook response as JSON: {}", e.getMessage());
+            // Downgrade to debug; trace original body for diagnostics.
+            log.debug("Webhook response is not valid JSON or missing smtpResponse: {}", e.getMessage());
+            log.trace("Response was: {}", body);
         }
 
         return null;
@@ -376,7 +414,7 @@ public class WebhookCaller {
             }
             return response;
         } catch (Exception e) {
-            log.error("RAW webhook call failed: {}", e.getMessage(), e);
+            log.error("RAW webhook call failed: {}", e.getMessage());
             if (config.isIgnoreErrors()) {
                 return new WebhookResponse(200, "", true);
             }
@@ -397,7 +435,7 @@ public class WebhookCaller {
                 executeRawHttpRequest(config, filePath, connection);
             } catch (Exception e) {
                 if (!config.isIgnoreErrors()) {
-                    log.error("Async RAW webhook call failed: {}", e.getMessage(), e);
+                    log.error("Async RAW webhook call failed: {}", e.getMessage());
                 }
             }
         });
@@ -417,6 +455,9 @@ public class WebhookCaller {
         HttpURLConnection conn = (HttpURLConnection) uri.toURL().openConnection();
 
         try {
+            // Configure SSL context to disable OCSP checking for HTTPS connections.
+            configureSSLContext(conn);
+
             // Set method and timeout.
             conn.setRequestMethod(config.getMethod());
             conn.setConnectTimeout(config.getTimeout());

@@ -119,7 +119,7 @@ class WebhookCallerTest {
         configMap.put("enabled", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.call(config, connection, verb);
+        WebhookResponse response = WebhookCaller.call(config, connection, verb);
 
         assertTrue(response.isSuccess());
         assertEquals(200, response.getStatusCode());
@@ -145,7 +145,7 @@ class WebhookCallerTest {
         String url = "http://localhost:" + mockServerPort + "/webhook";
         WebhookConfig config = createBasicConfig(url, "POST");
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.call(config, connection, verb);
+        WebhookResponse response = WebhookCaller.call(config, connection, verb);
 
         assertTrue(response.isSuccess());
         assertEquals(200, response.getStatusCode());
@@ -177,7 +177,7 @@ class WebhookCallerTest {
         configMap.put("waitForResponse", true);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.call(config, connection, verb);
+        WebhookResponse response = WebhookCaller.call(config, connection, verb);
 
         assertTrue(response.isSuccess());
         assertEquals(200, response.getStatusCode());
@@ -198,7 +198,7 @@ class WebhookCallerTest {
         String url = "http://localhost:" + mockServerPort + "/webhook";
         WebhookConfig config = createBasicConfig(url, "POST");
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.call(config, connection, verb);
+        WebhookResponse response = WebhookCaller.call(config, connection, verb);
 
         assertFalse(response.isSuccess());
         assertEquals(500, response.getStatusCode());
@@ -223,7 +223,7 @@ class WebhookCallerTest {
         configMap.put("ignoreErrors", true);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.call(config, connection, verb);
+        WebhookResponse response = WebhookCaller.call(config, connection, verb);
 
         // With ignoreErrors, even a 500 should be treated as failure but caught.
         assertFalse(response.isSuccess());
@@ -256,7 +256,7 @@ class WebhookCallerTest {
         configMap.put("waitForResponse", false); // Async mode.
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.call(config, connection, verb);
+        WebhookResponse response = WebhookCaller.call(config, connection, verb);
 
         // Async returns immediately with success.
         assertTrue(response.isSuccess());
@@ -293,7 +293,7 @@ class WebhookCallerTest {
         configMap.put("authValue", "username:password");
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.call(config, connection, verb);
+        WebhookResponse response = WebhookCaller.call(config, connection, verb);
 
         assertTrue(response.isSuccess());
         assertNotNull(authHeader.get());
@@ -326,7 +326,7 @@ class WebhookCallerTest {
         configMap.put("authValue", "mytoken123");
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.call(config, connection, verb);
+        WebhookResponse response = WebhookCaller.call(config, connection, verb);
 
         assertTrue(response.isSuccess());
         assertNotNull(authHeader.get());
@@ -362,7 +362,7 @@ class WebhookCallerTest {
 
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.call(config, connection, verb);
+        WebhookResponse response = WebhookCaller.call(config, connection, verb);
 
         assertTrue(response.isSuccess());
         assertEquals("CustomValue", customHeader.get());
@@ -407,7 +407,7 @@ class WebhookCallerTest {
         configMap.put("enabled", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
+        WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
 
         assertTrue(response.isSuccess());
         assertEquals(200, response.getStatusCode());
@@ -442,7 +442,7 @@ class WebhookCallerTest {
         configMap.put("base64", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
+        WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
 
         assertTrue(response.isSuccess());
         assertEquals(200, response.getStatusCode());
@@ -479,7 +479,7 @@ class WebhookCallerTest {
         configMap.put("base64", true);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
+        WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
 
         assertTrue(response.isSuccess());
         assertEquals(200, response.getStatusCode());
@@ -525,7 +525,7 @@ class WebhookCallerTest {
         configMap.put("base64", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
+        WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
 
         // Async returns immediately with success.
         assertTrue(response.isSuccess());
@@ -566,7 +566,7 @@ class WebhookCallerTest {
         configMap.put("base64", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
+        WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
 
         assertTrue(response.isSuccess());
         assertNotNull(authHeader.get());
@@ -606,7 +606,7 @@ class WebhookCallerTest {
 
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
+        WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
 
         assertTrue(response.isSuccess());
         assertEquals("RawValue", customHeader.get());
@@ -637,7 +637,7 @@ class WebhookCallerTest {
         configMap.put("base64", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
+        WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
 
         assertFalse(response.isSuccess());
         assertEquals(500, response.getStatusCode());
@@ -663,7 +663,7 @@ class WebhookCallerTest {
         configMap.put("base64", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
+        WebhookResponse response = WebhookCaller.callRaw(config, tempEmailFile.toString(), new ConnectionMock());
 
         // With ignoreErrors, the call is considered successful at this level.
         assertTrue(response.isSuccess());
@@ -707,7 +707,7 @@ class WebhookCallerTest {
         configMap.put("waitForResponse", true);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.call(config, connection, verb);
+        WebhookResponse response = WebhookCaller.call(config, connection, verb);
 
         assertTrue(response.isSuccess());
         assertEquals(1, requestCount.get());
@@ -716,7 +716,7 @@ class WebhookCallerTest {
 
     @Test
     void testWebhookResponseContainer() {
-        WebhookCaller.WebhookResponse response = new WebhookCaller.WebhookResponse(200, "test body", true);
+        WebhookResponse response = new WebhookResponse(200, "test body", true);
 
         assertEquals(200, response.getStatusCode());
         assertEquals("test body", response.getBody());
@@ -735,7 +735,7 @@ class WebhookCallerTest {
         configMap.put("ignoreErrors", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.call(config, connection, verb);
+        WebhookResponse response = WebhookCaller.call(config, connection, verb);
 
         assertFalse(response.isSuccess());
         assertEquals(500, response.getStatusCode());
@@ -759,9 +759,45 @@ class WebhookCallerTest {
         configMap.put("ignoreErrors", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookCaller.WebhookResponse response = WebhookCaller.callRaw(config, "/nonexistent/file.eml", new ConnectionMock());
+        WebhookResponse response = WebhookCaller.callRaw(config, "/nonexistent/file.eml", new ConnectionMock());
 
         assertFalse(response.isSuccess());
         assertEquals(500, response.getStatusCode());
+    }
+
+    @Test
+    void testExtractSmtpResponseValidJson() {
+        String body = "{\"smtpResponse\":\"250 OK\", \"other\":123}";
+        String result = WebhookCaller.extractSmtpResponse(body);
+        assertEquals("250 OK", result, "Should extract smtpResponse from valid JSON");
+    }
+
+    @Test
+    void testExtractSmtpResponseHtmlIgnored() {
+        String body = "<html><body>Error 500</body></html>";
+        String result = WebhookCaller.extractSmtpResponse(body);
+        assertNull(result, "HTML should not be parsed as JSON");
+    }
+
+    @Test
+    void testExtractSmtpResponsePlainTextIgnored() {
+        String body = "Some plain text error message";
+        String result = WebhookCaller.extractSmtpResponse(body);
+        assertNull(result, "Plain text should not be parsed as JSON");
+    }
+
+    @Test
+    void testExtractSmtpResponseMalformedJsonLenient() {
+        // Missing closing brace but still starts/ends with braces after trimming added char; heuristic will try parse and fail.
+        String body = "{\"smtpResponse\":\"250 OK\""; // malformed
+        String result = WebhookCaller.extractSmtpResponse(body);
+        assertNull(result, "Malformed JSON should return null");
+    }
+
+    @Test
+    void testExtractSmtpResponseJsonWithoutField() {
+        String body = "{\"message\":\"Hello\"}";
+        String result = WebhookCaller.extractSmtpResponse(body);
+        assertNull(result, "JSON without smtpResponse should return null");
     }
 }
