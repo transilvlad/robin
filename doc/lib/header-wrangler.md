@@ -4,7 +4,7 @@ MIME Header Wrangler Library
 Overview
 --------
 The HeaderWrangler class provides a powerful and flexible way to manipulate MIME email headers by injecting tags into header values and appending new headers.
-This library is designed to process raw email bytes and can be used for spam filtering, email classification, or any scenario requiring header modification.
+This library is designed to process email streams and can be used for spam filtering, email classification, or any scenario requiring header modification.
 
 Features
 --------
@@ -13,7 +13,8 @@ Features
 - **Encoding-Aware** - Automatically handles RFC 2047 encoded headers, preserving encoding integrity.
 - **Multi-line Support** - Properly processes folded headers that span multiple lines.
 - **RFC 5322 Compliant** - Ensures proper header folding for long values.
-- **Byte-Level Processing** - Works directly with email byte arrays for maximum compatibility.
+- **Stream-Based Processing** - Works with input and output streams for efficient processing.
+- **Fluent API** - Method chaining support for convenient configuration.
 
 Use Cases
 ---------
@@ -31,14 +32,14 @@ Basic Usage
 ```java
 import com.mimecast.robin.mime.headers.HeaderWrangler;
 import com.mimecast.robin.mime.headers.HeaderTag;
-import java.nio.charset.StandardCharsets;
+import java.io.*;
 
-byte[] emailBytes = ...; // Your email content as bytes.
+InputStream emailInput = ...; // Your email input stream.
+OutputStream emailOutput = ...; // Your output stream.
 
 HeaderWrangler wrangler = new HeaderWrangler();
-wrangler.addHeaderTag(new HeaderTag("Subject", "[SPAM]"));
-
-byte[] result = wrangler.process(emailBytes);
+wrangler.addHeaderTag(new HeaderTag("Subject", "[SPAM]"))
+        .process(emailInput, emailOutput);
 ```
 
 ### Add Custom Headers
@@ -47,10 +48,9 @@ byte[] result = wrangler.process(emailBytes);
 import com.mimecast.robin.mime.headers.MimeHeader;
 
 HeaderWrangler wrangler = new HeaderWrangler();
-wrangler.addHeader(new MimeHeader("X-Spam-Score", "5.0"));
-wrangler.addHeader(new MimeHeader("X-Spam-Status", "Yes"));
-
-byte[] result = wrangler.process(emailBytes);
+wrangler.addHeader(new MimeHeader("X-Spam-Score", "5.0"))
+        .addHeader(new MimeHeader("X-Spam-Status", "Yes"))
+        .process(emailInput, emailOutput);
 ```
 
 ### Combine Tagging and Header Addition
@@ -58,14 +58,11 @@ byte[] result = wrangler.process(emailBytes);
 ```java
 HeaderWrangler wrangler = new HeaderWrangler();
 
-// Tag the subject.
-wrangler.addHeaderTag(new HeaderTag("Subject", "[SPAM]"));
-
-// Add custom headers.
-wrangler.addHeader(new MimeHeader("X-Spam-Score", "8.5"));
-wrangler.addHeader(new MimeHeader("X-Spam-Flag", "YES"));
-
-byte[] result = wrangler.process(emailBytes);
+// Tag the subject and add custom headers.
+wrangler.addHeaderTag(new HeaderTag("Subject", "[SPAM]"))
+        .addHeader(new MimeHeader("X-Spam-Score", "8.5"))
+        .addHeader(new MimeHeader("X-Spam-Flag", "YES"))
+        .process(emailInput, emailOutput);
 ```
 
 Header Tagging
@@ -151,31 +148,26 @@ Complete Examples
 import com.mimecast.robin.mime.headers.HeaderWrangler;
 import com.mimecast.robin.mime.headers.HeaderTag;
 import com.mimecast.robin.mime.headers.MimeHeader;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
 public class SpamDetectionExample {
     public static void main(String[] args) throws IOException {
-        // Read email from file.
-        byte[] emailBytes = Files.readAllBytes(Paths.get("email.eml"));
-        
         // Configure wrangler.
         HeaderWrangler wrangler = new HeaderWrangler();
         
-        // Tag subject as spam.
-        wrangler.addHeaderTag(new HeaderTag("Subject", "[SPAM]"));
+        // Tag subject as spam and add spam detection headers.
+        wrangler.addHeaderTag(new HeaderTag("Subject", "[SPAM]"))
+                .addHeader(new MimeHeader("X-Spam-Score", "8.5"))
+                .addHeader(new MimeHeader("X-Spam-Flag", "YES"))
+                .addHeader(new MimeHeader("X-Spam-Level", "********"));
         
-        // Add spam detection headers.
-        wrangler.addHeader(new MimeHeader("X-Spam-Score", "8.5"));
-        wrangler.addHeader(new MimeHeader("X-Spam-Flag", "YES"));
-        wrangler.addHeader(new MimeHeader("X-Spam-Level", "********"));
-        
-        // Process email.
-        byte[] result = wrangler.process(emailBytes);
-        
-        // Save modified email.
-        Files.write(Paths.get("email-tagged.eml"), result);
+        // Process email using streams.
+        try (FileInputStream input = new FileInputStream("email.eml");
+             FileOutputStream output = new FileOutputStream("email-tagged.eml")) {
+            wrangler.process(input, output);
+        }
     }
 }
 ```
@@ -183,20 +175,19 @@ public class SpamDetectionExample {
 ### Email Classification Example
 
 ```java
+import java.io.*;
+
 public class EmailClassificationExample {
-    public static byte[] classifyEmail(byte[] emailBytes, String category, double confidence) 
-            throws IOException {
+    public static void classifyEmail(InputStream emailInput, OutputStream emailOutput,
+                                     String category, double confidence) throws IOException {
         HeaderWrangler wrangler = new HeaderWrangler();
         
-        // Tag subject with category.
-        wrangler.addHeaderTag(new HeaderTag("Subject", "[" + category.toUpperCase() + "]"));
-        
-        // Add classification metadata.
-        wrangler.addHeader(new MimeHeader("X-Classification", category));
-        wrangler.addHeader(new MimeHeader("X-Confidence", String.valueOf(confidence)));
-        wrangler.addHeader(new MimeHeader("X-Classifier", "ML-v2.0"));
-        
-        return wrangler.process(emailBytes);
+        // Tag subject with category and add classification metadata.
+        wrangler.addHeaderTag(new HeaderTag("Subject", "[" + category.toUpperCase() + "]"))
+                .addHeader(new MimeHeader("X-Classification", category))
+                .addHeader(new MimeHeader("X-Confidence", String.valueOf(confidence)))
+                .addHeader(new MimeHeader("X-Classifier", "ML-v2.0"))
+                .process(emailInput, emailOutput);
     }
 }
 ```
@@ -234,9 +225,9 @@ New headers are inserted before this boundary.
 
 ### Performance Considerations
 
-- **Memory Usage** - The entire email is loaded into memory for processing.
+- **Stream-Based** - Uses streams for efficient processing without loading entire email into memory.
 - **Encoding Overhead** - Encoded headers may require additional processing.
-- **Large Emails** - Suitable for typical email sizes; for very large emails, consider streaming approaches.
+- **Suitable for all sizes** - Stream-based approach works well for emails of any size.
 
 Troubleshooting
 ---------------
@@ -251,7 +242,7 @@ Troubleshooting
 
 **Problem**: Special characters in tags appear incorrectly.
 
-**Solution**: Ensure your email bytes are properly encoded as UTF-8. The HeaderWrangler uses UTF-8 for processing.
+**Solution**: Ensure your email input stream is properly encoded as UTF-8. The HeaderWrangler uses UTF-8 for processing.
 
 ### Headers Not Added
 
@@ -305,15 +296,23 @@ The HeaderWrangler can be integrated into Robin's email processing pipeline for:
 Example integration with Robin's SMTP server:
 
 ```java
+import java.io.*;
+
 // In email processing pipeline
 HeaderWrangler wrangler = new HeaderWrangler();
 
 if (isSpam(email)) {
-    wrangler.addHeaderTag(new HeaderTag("Subject", "[SPAM]"));
-    wrangler.addHeader(new MimeHeader("X-Spam-Flag", "YES"));
+    wrangler.addHeaderTag(new HeaderTag("Subject", "[SPAM]"))
+            .addHeader(new MimeHeader("X-Spam-Flag", "YES"));
 }
 
-byte[] processedEmail = wrangler.process(originalEmail);
+// Process email using streams
+try (InputStream input = new ByteArrayInputStream(originalEmail);
+     ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+    wrangler.process(input, output);
+    byte[] processedEmail = output.toByteArray();
+    // Use processedEmail...
+}
 ```
 
 See Also

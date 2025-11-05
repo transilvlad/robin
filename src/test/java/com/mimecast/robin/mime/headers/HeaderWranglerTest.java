@@ -3,6 +3,8 @@ package com.mimecast.robin.mime.headers;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -29,8 +31,10 @@ class HeaderWranglerTest {
         HeaderWrangler wrangler = new HeaderWrangler();
         wrangler.addHeaderTag(new HeaderTag("Subject", "[SPAM]"));
 
-        byte[] result = wrangler.process(email.getBytes(StandardCharsets.UTF_8));
-        String resultStr = new String(result, StandardCharsets.UTF_8);
+        ByteArrayInputStream input = new ByteArrayInputStream(email.getBytes(StandardCharsets.UTF_8));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        wrangler.process(input, output);
+        String resultStr = new String(output.toByteArray(), StandardCharsets.UTF_8);
 
         assertTrue(resultStr.contains("Subject: [SPAM] Test Email"), "Subject should be tagged");
         assertTrue(resultStr.contains("From: sender@example.com"), "From header should be preserved");
@@ -49,8 +53,10 @@ class HeaderWranglerTest {
         HeaderWrangler wrangler = new HeaderWrangler();
         wrangler.addHeaderTag(new HeaderTag("Subject", "[SPAM]"));
 
-        byte[] result = wrangler.process(email.getBytes(StandardCharsets.UTF_8));
-        String resultStr = new String(result, StandardCharsets.UTF_8);
+        ByteArrayInputStream input = new ByteArrayInputStream(email.getBytes(StandardCharsets.UTF_8));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        wrangler.process(input, output);
+        String resultStr = new String(output.toByteArray(), StandardCharsets.UTF_8);
 
         assertTrue(resultStr.contains("[SPAM] =?"), "Subject should contain tag before encoded word");
         assertTrue(resultStr.contains("[SPAM]"), "Tag should be present");
@@ -69,8 +75,10 @@ class HeaderWranglerTest {
         HeaderWrangler wrangler = new HeaderWrangler();
         wrangler.addHeader(new MimeHeader("X-Spam-Score", "5.0"));
 
-        byte[] result = wrangler.process(email.getBytes(StandardCharsets.UTF_8));
-        String resultStr = new String(result, StandardCharsets.UTF_8);
+        ByteArrayInputStream input = new ByteArrayInputStream(email.getBytes(StandardCharsets.UTF_8));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        wrangler.process(input, output);
+        String resultStr = new String(output.toByteArray(), StandardCharsets.UTF_8);
 
         assertTrue(resultStr.contains("X-Spam-Score: 5.0"), "Custom header should be added");
         assertTrue(resultStr.contains("Subject: Test Email"), "Subject should be preserved");
@@ -95,8 +103,10 @@ class HeaderWranglerTest {
         wrangler.addHeaderTag(new HeaderTag("Subject", "[SPAM]"));
         wrangler.addHeader(new MimeHeader("X-Spam-Score", "5.0"));
 
-        byte[] result = wrangler.process(email.getBytes(StandardCharsets.UTF_8));
-        String resultStr = new String(result, StandardCharsets.UTF_8);
+        ByteArrayInputStream input = new ByteArrayInputStream(email.getBytes(StandardCharsets.UTF_8));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        wrangler.process(input, output);
+        String resultStr = new String(output.toByteArray(), StandardCharsets.UTF_8);
 
         assertTrue(resultStr.contains("Subject: [SPAM] Test Email"), "Subject should be tagged");
         assertTrue(resultStr.contains("X-Spam-Score: 5.0"), "Custom header should be added");
@@ -111,8 +121,10 @@ class HeaderWranglerTest {
         HeaderWrangler wrangler = new HeaderWrangler();
         wrangler.addHeaderTag(new HeaderTag("Subject", "[SUSPICIOUS]"));
 
-        byte[] result = wrangler.process(emailBytes);
-        String resultStr = new String(result, StandardCharsets.UTF_8);
+        ByteArrayInputStream input = new ByteArrayInputStream(emailBytes);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        wrangler.process(input, output);
+        String resultStr = new String(output.toByteArray(), StandardCharsets.UTF_8);
 
         assertTrue(resultStr.contains("Subject: [SUSPICIOUS] Lipsum"), "Subject should be tagged with [SUSPICIOUS]");
         assertTrue(resultStr.contains("From: <{$MAILFROM}>"), "From header should be preserved");
@@ -128,8 +140,10 @@ class HeaderWranglerTest {
         wrangler.addHeaderTag(new HeaderTag("Subject", "[TEST]"));
         wrangler.addHeader(new MimeHeader("X-Spam-Score", "0.5"));
 
-        byte[] result = wrangler.process(emailBytes);
-        String resultStr = new String(result, StandardCharsets.UTF_8);
+        ByteArrayInputStream input = new ByteArrayInputStream(emailBytes);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        wrangler.process(input, output);
+        String resultStr = new String(output.toByteArray(), StandardCharsets.UTF_8);
 
         assertTrue(resultStr.contains("[TEST]"), "Subject should contain [TEST] tag");
         assertTrue(resultStr.contains("pangram"), "Original subject text should be preserved");
@@ -150,8 +164,10 @@ class HeaderWranglerTest {
         HeaderWrangler wrangler = new HeaderWrangler();
         wrangler.addHeaderTag(new HeaderTag("Subject", "[LONG]"));
 
-        byte[] result = wrangler.process(email.getBytes(StandardCharsets.UTF_8));
-        String resultStr = new String(result, StandardCharsets.UTF_8);
+        ByteArrayInputStream input = new ByteArrayInputStream(email.getBytes(StandardCharsets.UTF_8));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        wrangler.process(input, output);
+        String resultStr = new String(output.toByteArray(), StandardCharsets.UTF_8);
 
         assertTrue(resultStr.contains("[LONG]"), "Tag should be present");
         assertTrue(resultStr.contains("Body content"), "Body should be preserved");
@@ -174,8 +190,10 @@ class HeaderWranglerTest {
         HeaderWrangler wrangler = new HeaderWrangler();
         wrangler.addHeader(new MimeHeader("X-Custom", "value"));
 
-        byte[] result = wrangler.process(email.getBytes(StandardCharsets.UTF_8));
-        String resultStr = new String(result, StandardCharsets.UTF_8);
+        ByteArrayInputStream input = new ByteArrayInputStream(email.getBytes(StandardCharsets.UTF_8));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        wrangler.process(input, output);
+        String resultStr = new String(output.toByteArray(), StandardCharsets.UTF_8);
 
         assertTrue(resultStr.contains("X-Custom: value"), "Custom header should be added");
         assertTrue(resultStr.contains("--boundary123"), "Boundary should be preserved");
@@ -194,8 +212,10 @@ class HeaderWranglerTest {
         HeaderWrangler wrangler = new HeaderWrangler();
         wrangler.addHeaderTag(new HeaderTag("subject", "[TAG]"));
 
-        byte[] result = wrangler.process(email.getBytes(StandardCharsets.UTF_8));
-        String resultStr = new String(result, StandardCharsets.UTF_8);
+        ByteArrayInputStream input = new ByteArrayInputStream(email.getBytes(StandardCharsets.UTF_8));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        wrangler.process(input, output);
+        String resultStr = new String(output.toByteArray(), StandardCharsets.UTF_8);
 
         assertTrue(resultStr.contains("[TAG]"), "Tag should be applied despite case difference");
         assertTrue(resultStr.contains("Test Email"), "Original subject should be preserved");
@@ -215,8 +235,10 @@ class HeaderWranglerTest {
         wrangler.addHeader(new MimeHeader("X-Spam-Status", "Yes"));
         wrangler.addHeader(new MimeHeader("X-Custom-Flag", "true"));
 
-        byte[] result = wrangler.process(email.getBytes(StandardCharsets.UTF_8));
-        String resultStr = new String(result, StandardCharsets.UTF_8);
+        ByteArrayInputStream input = new ByteArrayInputStream(email.getBytes(StandardCharsets.UTF_8));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        wrangler.process(input, output);
+        String resultStr = new String(output.toByteArray(), StandardCharsets.UTF_8);
 
         assertTrue(resultStr.contains("X-Spam-Score: 5.0"), "First header should be added");
         assertTrue(resultStr.contains("X-Spam-Status: Yes"), "Second header should be added");
@@ -237,8 +259,10 @@ class HeaderWranglerTest {
         wrangler.addHeaderTag(new HeaderTag("Subject", "[TAG1]"));
         wrangler.addHeaderTag(new HeaderTag("X-Original-Sender", "[TAG2]"));
 
-        byte[] result = wrangler.process(email.getBytes(StandardCharsets.UTF_8));
-        String resultStr = new String(result, StandardCharsets.UTF_8);
+        ByteArrayInputStream input = new ByteArrayInputStream(email.getBytes(StandardCharsets.UTF_8));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        wrangler.process(input, output);
+        String resultStr = new String(output.toByteArray(), StandardCharsets.UTF_8);
 
         assertTrue(resultStr.contains("Subject: [TAG1] Test"), "Subject should be tagged");
         assertTrue(resultStr.contains("X-Original-Sender: [TAG2] original@example.com"), 
@@ -257,8 +281,10 @@ class HeaderWranglerTest {
         wrangler.addHeaderTag(new HeaderTag("Subject", "[TAG]"));
         wrangler.addHeader(new MimeHeader("X-Custom", "value"));
 
-        byte[] result = wrangler.process(email.getBytes(StandardCharsets.UTF_8));
-        String resultStr = new String(result, StandardCharsets.UTF_8);
+        ByteArrayInputStream input = new ByteArrayInputStream(email.getBytes(StandardCharsets.UTF_8));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        wrangler.process(input, output);
+        String resultStr = new String(output.toByteArray(), StandardCharsets.UTF_8);
 
         assertTrue(resultStr.contains("[TAG]"), "Tag should be present");
         assertTrue(resultStr.contains("X-Custom: value"), "Custom header should be added");

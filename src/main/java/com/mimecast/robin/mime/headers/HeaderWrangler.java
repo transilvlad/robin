@@ -5,9 +5,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import javax.mail.internet.MimeUtility;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -68,15 +68,18 @@ public class HeaderWrangler {
     }
 
     /**
-     * Processes the email bytes and applies header tags and new headers.
+     * Processes the email from input stream and writes the modified email to output stream.
+     * Applies header tags and new headers as configured.
      *
-     * @param emailBytes Original email as bytes.
-     * @return Modified email as bytes.
+     * @param input  Input stream containing the original email.
+     * @param output Output stream to write the modified email.
+     * @return Self for chaining.
      * @throws IOException If processing fails.
      */
-    public byte[] process(byte[] emailBytes) throws IOException {
-        LineInputStream stream = new LineInputStream(new ByteArrayInputStream(emailBytes), 1024);
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
+    public HeaderWrangler process(InputStream input, OutputStream output) throws IOException {
+        LineInputStream stream = (input instanceof LineInputStream) 
+                ? (LineInputStream) input 
+                : new LineInputStream(input, 1024);
         boolean inHeaders = true;
 
         byte[] lineBytes;
@@ -141,7 +144,7 @@ public class HeaderWrangler {
             }
         }
 
-        return output.toByteArray();
+        return this;
     }
 
     /**
