@@ -21,7 +21,7 @@
   outboundFolder: ".Sent/new",
 
   // Auto clean storage on service start.
-  clean: true,
+  clean: false,
 
   // Auto clean delete matching filenames only.
   patterns: [
