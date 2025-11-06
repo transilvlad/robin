@@ -49,6 +49,13 @@ public class SpamStorageProcessor implements StorageProcessor {
             double discardThreshold = rspamdConfig.getDoubleProperty("discardThreshold", 15.0);
             double rejectThreshold = rspamdConfig.getDoubleProperty("rejectThreshold", 7.0);
             
+            // Validate thresholds - discardThreshold should be >= rejectThreshold
+            if (discardThreshold < rejectThreshold) {
+                log.warn("Invalid threshold configuration: discardThreshold ({}) is less than rejectThreshold ({}). Using rejectThreshold as discardThreshold.", 
+                         discardThreshold, rejectThreshold);
+                discardThreshold = rejectThreshold;
+            }
+            
             // Apply threshold-based logic
             if (score >= discardThreshold) {
                 log.warn("Spam/phishing detected in {} with score {} (>= discard threshold {}): {}", 
