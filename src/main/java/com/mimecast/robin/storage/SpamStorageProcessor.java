@@ -10,9 +10,8 @@ import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 
 /**
  * Storage processor for spam scanning using Rspamd.
@@ -32,7 +31,7 @@ public class SpamStorageProcessor implements StorageProcessor {
     public boolean process(Connection connection, EmailParser emailParser) throws IOException {
         BasicConfig rspamdConfig = Config.getServer().getRspamd();
         if (rspamdConfig.getBooleanProperty("enabled")) {
-            byte[] bytes = Files.readAllBytes(Paths.get(connection.getSession().getEnvelopes().getLast().getFile()));
+            File emailFile = new File(connection.getSession().getEnvelopes().getLast().getFile());
             RspamdClient rspamdClient = new RspamdClient(
                     rspamdConfig.getStringProperty("host", "localhost"),
                     rspamdConfig.getLongProperty("port", 11333L).intValue())
@@ -42,7 +41,7 @@ public class SpamStorageProcessor implements StorageProcessor {
                     .setDmarcScanEnabled(rspamdConfig.getBooleanProperty("dmarcScanEnabled"));
 
             // Scan the email and retrieve the score
-            rspamdClient.scanBytes(bytes);
+            rspamdClient.scanFile(emailFile);
             double score = rspamdClient.getScore();
             
             // Get thresholds with defaults
