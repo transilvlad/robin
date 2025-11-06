@@ -42,7 +42,6 @@ public class SpamStorageProcessor implements StorageProcessor {
                     .setDmarcScanEnabled(rspamdConfig.getBooleanProperty("dmarcScanEnabled"));
 
             // Scan the email and retrieve the score
-            // Note: scanBytes() populates lastScanResult, which is used by getScore()
             rspamdClient.scanBytes(bytes);
             double score = rspamdClient.getScore();
             
