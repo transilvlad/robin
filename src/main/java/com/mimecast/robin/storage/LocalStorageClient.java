@@ -189,6 +189,7 @@ public class LocalStorageClient implements StorageClient {
                         }
                     } catch (Exception e) {
                         log.error("Storage processor error: {}", e.getMessage());
+                        return false;
                     }
                 }
 
