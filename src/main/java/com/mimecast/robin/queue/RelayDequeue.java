@@ -258,8 +258,10 @@ public class RelayDequeue {
 
         if (relaySession.getRetryCount() < MAX_RETRY_COUNT) {
             retrySession(relaySession);
-        } else {
+        } else if (Config.getServer().getRelay().getBooleanProperty("bounce", true)) {
             generateBounces(relaySession);
+        } else {
+            log.warn("Max retries reached, but bounce disabled: uid={}", relaySession.getSession().getUID());
         }
     }
 
