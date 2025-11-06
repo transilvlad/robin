@@ -28,13 +28,13 @@ Here is an example `rspamd.json5` file:
   // Enable DMARC scanning.
   dmarcScanEnabled: true,
 
-  // Required spam score threshold for rejection
-  requiredScore: 7.0,
+  // Spam score threshold for rejecting emails
+  // Emails with score >= rejectThreshold will be rejected with a 5xx error
+  rejectThreshold: 7.0,
 
-  // Action to take when spam/phishing is detected
-  // "reject" - Reject the email with a 5xx error
-  // "discard" - Accept the email and discard it
-  onSpam: "reject"
+  // Spam score threshold for discarding emails
+  // Emails with score >= discardThreshold will be silently discarded
+  discardThreshold: 15.0
 }
 ```
 
@@ -47,10 +47,13 @@ Here is an example `rspamd.json5` file:
 - **spfScanEnabled**: Enable SPF scanning.
 - **dkimScanEnabled**: Enable DKIM scanning.
 - **dmarcScanEnabled**: Enable DMARC scanning.
-- **requiredScore**: The spam score threshold above which an email is considered spam. Defaults to `7.0`.
-- **onSpam**: The action to take when spam/phishing is detected.
-  - `reject`: Reject the email with a `554 5.7.1 Spam detected` error. This is the default.
-  - `discard`: Accept the email but silently discard it.
+- **rejectThreshold**: The spam score threshold at or above which an email is rejected with a `554 5.7.1 Spam detected` error. Defaults to `7.0`.
+- **discardThreshold**: The spam score threshold at or above which an email is silently discarded. Defaults to `15.0`.
+
+The threshold-based spam handling works as follows:
+- If spam score >= `discardThreshold`: Email is accepted but silently discarded (no error to sender)
+- If spam score >= `rejectThreshold` (but < `discardThreshold`): Email is rejected with SMTP error
+- If spam score < `rejectThreshold`: Email is accepted and processed normally
 
 How It Works
 ------------

@@ -41,21 +41,29 @@ public class SpamStorageProcessor implements StorageProcessor {
                     .setDkimScanEnabled(rspamdConfig.getBooleanProperty("dkimScanEnabled"))
                     .setDmarcScanEnabled(rspamdConfig.getBooleanProperty("dmarcScanEnabled"));
 
-            if (rspamdClient.isSpam(bytes, rspamdConfig.getDoubleProperty("requiredScore", 7.0))) {
-                double score = rspamdClient.getScore();
-                log.warn("Spam/phishing detected in {} with score {}: {}", connection.getSession().getEnvelopes().getLast().getFile(), score, rspamdClient.getSymbols());
-                String onSpam = rspamdConfig.getStringProperty("onSpam", "reject");
+            // Scan the email
+            rspamdClient.scanBytes(bytes);
+            double score = rspamdClient.getScore();
+            
+            // Get thresholds with defaults
+            double discardThreshold = rspamdConfig.getDoubleProperty("discardThreshold", 15.0);
+            double rejectThreshold = rspamdConfig.getDoubleProperty("rejectThreshold", 7.0);
+            
+            // Apply threshold-based logic
+            if (score >= discardThreshold) {
+                log.warn("Spam/phishing detected in {} with score {} (>= discard threshold {}): {}", 
+                         connection.getSession().getEnvelopes().getLast().getFile(), score, discardThreshold, rspamdClient.getSymbols());
+                log.warn("Spam/phishing detected, discarding.");
                 SmtpMetrics.incrementEmailSpamRejection();
-
-                if ("reject".equalsIgnoreCase(onSpam)) {
-                    connection.write(String.format(SmtpResponses.SPAM_FOUND_550, connection.getSession().getUID()));
-                    return false;
-                } else if ("discard".equalsIgnoreCase(onSpam)) {
-                    log.warn("Spam/phishing detected, discarding.");
-                    return true;
-                }
+                return true;  // Accept but discard
+            } else if (score >= rejectThreshold) {
+                log.warn("Spam/phishing detected in {} with score {} (>= reject threshold {}): {}", 
+                         connection.getSession().getEnvelopes().getLast().getFile(), score, rejectThreshold, rspamdClient.getSymbols());
+                SmtpMetrics.incrementEmailSpamRejection();
+                connection.write(String.format(SmtpResponses.SPAM_FOUND_550, connection.getSession().getUID()));
+                return false;  // Reject
             } else {
-                log.info("Spam scan clean with score {}", rspamdClient.getScore());
+                log.info("Spam scan clean with score {}", score);
             }
         }
 
