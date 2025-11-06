@@ -155,6 +155,7 @@ public class DovecotStorageProcessor implements StorageProcessor {
         // Queue retry delivery.
         else {
             envelope.setFile(connection.getSession().getEnvelopes().getLast().getFile());
+            relaySession.getSession().setDirection(connection.getSession().getDirection());
             relaySession.setProtocol("dovecot-lda");
             relaySession.setMailbox(Config.getServer().getRelay().getStringProperty(connection.getSession().isInbound() ? "mailbox" : "outbox"));
 

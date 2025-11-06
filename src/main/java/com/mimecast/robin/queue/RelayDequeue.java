@@ -93,7 +93,7 @@ public class RelayDequeue {
             return;
         }
 
-        // Clear previous transaction results.
+        log.trace("Clear previous transaction results");
         relaySession.getSession().getSessionTransactionList().clear();
 
         logSessionInfo(relaySession);
@@ -174,8 +174,10 @@ public class RelayDequeue {
     void attemptDelivery(RelaySession relaySession) {
         try {
             if ("dovecot-lda".equalsIgnoreCase(relaySession.getProtocol())) {
+                log.debug("Attempting Dovecot LDA delivery");
                 new DovecotLdaDelivery(relaySession).send();
             } else {
+                log.debug("Attempting email delivery");
                 new EmailDelivery(relaySession.getSession()).send();
             }
         } catch (Exception e) {
@@ -201,17 +203,17 @@ public class RelayDequeue {
             MessageEnvelope envelope = relaySession.getSession().getEnvelopes().get(i);
 
             if (txList.getErrors().isEmpty()) {
-                // All recipients succeeded.
+                log.debug("All recipients succeeded");
                 successfulEnvelopes.add(envelope);
             } else {
-                // Partial failure: update envelope to contain only failed recipients.
+                log.debug("Partial failure: update envelope to contain only failed recipients.");
                 if (txList.getRecipients() != txList.getFailedRecipients()) {
                     envelope.setRcpts(txList.getFailedRecipients());
                 }
             }
         }
 
-        // Clean up successful envelopes.
+        log.debug("Clean up successful envelopes");
         cleanupSuccessfulEnvelopes(successfulEnvelopes);
         relaySession.getSession().getEnvelopes().removeAll(successfulEnvelopes);
 
@@ -252,7 +254,7 @@ public class RelayDequeue {
      */
     void handleRemainingEnvelopes(RelaySession relaySession, RelayDeliveryResult result) {
         if (relaySession.getSession().getEnvelopes().isEmpty()) {
-            log.info("Session fully delivered: uid={}", relaySession.getSession().getUID());
+            log.debug("Session fully delivered: uid={}", relaySession.getSession().getUID());
             return;
         }
 
