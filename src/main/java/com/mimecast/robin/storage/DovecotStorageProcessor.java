@@ -145,7 +145,7 @@ public class DovecotStorageProcessor implements StorageProcessor {
         if (dovecotConfig.hasProperty("failureBehaviour") &&
                 dovecotConfig.getStringProperty("failureBehaviour").equalsIgnoreCase("bounce")) {
 
-            BounceMessageGenerator bounce = new BounceMessageGenerator(new RelaySession(connection.getSession()), mailbox);
+            BounceMessageGenerator bounce = new BounceMessageGenerator(new RelaySession(connection.getSession().clone()), mailbox);
             envelope.setMail("mailer-daemon@" + config.getHostname())
                     .setRcpt(sender)
                     .setBytes(bounce.getStream().toByteArray());

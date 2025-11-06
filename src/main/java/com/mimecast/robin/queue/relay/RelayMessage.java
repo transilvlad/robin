@@ -156,7 +156,7 @@ public class RelayMessage {
                 .setMx(Collections.singletonList(relayConfig.getStringProperty("host")))
                 .setPort(Math.toIntExact(relayConfig.getLongProperty("port")))
                 .setTls(relayConfig.getBooleanProperty("tls"))
-                .addEnvelope(envelope);
+                .addEnvelope(envelope.clone());
 
         if (relayConfig.getStringProperty("protocol").equalsIgnoreCase("smtp")) {
             session.setHelo(Config.getServer().getHostname());
