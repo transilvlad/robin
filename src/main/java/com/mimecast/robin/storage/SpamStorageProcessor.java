@@ -58,9 +58,8 @@ public class SpamStorageProcessor implements StorageProcessor {
             
             // Apply threshold-based logic
             if (score >= discardThreshold) {
-                log.warn("Spam/phishing detected in {} with score {} (>= discard threshold {}): {}", 
+                log.warn("Spam/phishing detected in {} with score {} (>= discard threshold {}), discarding: {}", 
                          connection.getSession().getEnvelopes().getLast().getFile(), score, discardThreshold, rspamdClient.getSymbols());
-                log.warn("Spam/phishing detected, discarding.");
                 SmtpMetrics.incrementEmailSpamRejection();
                 return true;  // Accept but discard
             } else if (score >= rejectThreshold) {
