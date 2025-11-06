@@ -110,6 +110,8 @@ public class DovecotLdaDelivery {
             command.add(relaySession.getMailbox());
         }
 
+        log.debug("Running command: {}", command);
+
         // Instantiate process builder and start running.
         ProcessBuilder pb = new ProcessBuilder(command);
         Process process = pb.start();

@@ -23,8 +23,7 @@ Configuration (`dovecot.json5`)
   authClientSocket: "/run/dovecot/auth-client",
   authUserdbSocket: "/run/dovecot/auth-userdb",
   saveToDovecotLda: true,
-  ldaBinary: "/usr/libexec/dovecot/dovecot-lda",
-  outboundMailbox: "Sent"
+  ldaBinary: "/usr/libexec/dovecot/dovecot-lda"
 }
 ```
 

@@ -66,14 +66,15 @@ public class DovecotStorageProcessor implements StorageProcessor {
         // Get current envelope and log info.
         MessageEnvelope envelope = connection.getSession().getEnvelopes().getLast();
         List<String> originalRecipients = envelope.getRcpts();
+        String mailbox = Config.getServer().getRelay().getStringProperty(connection.getSession().isInbound() ? "mailbox" : "outbox");
         log.info("Invoking Dovecot LDA for sender={} recipients={} outbound={} mailbox={}",
                 envelope.getMail(),
                 String.join(",", originalRecipients),
                 connection.getSession().isOutbound(),
-                config.getDovecot().getStringProperty("outboundMailbox", "Sent"));
+                mailbox);
 
         // Invoke Dovecot LDA delivery.
-        getDovecotLdaDeliveryInstance(connection, config.getDovecot())
+        getDovecotLdaDeliveryInstance(connection)
                 .send();
 
         // Retrieve transaction results.
@@ -174,15 +175,12 @@ public class DovecotStorageProcessor implements StorageProcessor {
      * Get DovecotLdaDelivery instance.
      * <p>Can be overridden for testing/mocking purposes.
      *
-     * @param connection    Connection instance.
-     * @param dovecotConfig Dovecot configuration.`
+     * @param connection Connection instance.
      * @return DovecotLdaDelivery instance.
      */
-    protected DovecotLdaDelivery getDovecotLdaDeliveryInstance(Connection connection, BasicConfig dovecotConfig) {
-        RelaySession relaySession = new RelaySession(connection.getSession());
-        if (connection.getSession().isOutbound()) {
-            relaySession.setMailbox(dovecotConfig.getStringProperty("outboundMailbox", "Sent"));
-        }
+    protected DovecotLdaDelivery getDovecotLdaDeliveryInstance(Connection connection) {
+        RelaySession relaySession = new RelaySession(connection.getSession())
+                .setMailbox(Config.getServer().getRelay().getStringProperty(connection.getSession().isInbound() ? "mailbox" : "outbox"));
 
         return new DovecotLdaDelivery(relaySession);
     }

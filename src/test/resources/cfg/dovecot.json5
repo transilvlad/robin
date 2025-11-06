@@ -14,9 +14,6 @@
   // Path to Dovecot LDA binary.
   ldaBinary: "/usr/libexec/dovecot/dovecot-lda",
 
-  // Default outbound mailbox.
-  outboundMailbox: "Sent",
-
   // Behaviour on email delivery failure: "retry" (default) or "bounce".
   // "retry" will attempt to redeliver later, "bounce" will send a bounce message to the sender.
   // If all retries fail it will still result in a bounce.

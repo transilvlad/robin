@@ -356,10 +356,7 @@ Below are concise examples for each auxiliary config file.
       saveToDovecotLda: true,
 
       // Path to Dovecot LDA binary.
-      ldaBinary: "/usr/libexec/dovecot/dovecot-lda",
-
-      // Default outbound mailbox.
-      outboundMailbox: "Sent"
+      ldaBinary: "/usr/libexec/dovecot/dovecot-lda"
     }
 
 `webhooks.json5` – Optional HTTP hooks per SMTP extension (showing one example only):
