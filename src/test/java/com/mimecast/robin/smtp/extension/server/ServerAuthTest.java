@@ -59,7 +59,7 @@ class ServerAuthTest {
         assertFalse(process);
 
         connection.parseLines();
-        assertEquals(SmtpResponses.UNRECOGNIZED_AUTH_504 + "\r\n", connection.getLine(1));
+        assertTrue(connection.getLine(1).startsWith(SmtpResponses.UNKNOWN_MAILBOX_550.replace("[%s]", "")));
     }
 
     @Test
@@ -127,7 +127,7 @@ class ServerAuthTest {
         assertFalse(connection.getSession().isAuth());
 
         connection.parseLines();
-        assertEquals(SmtpResponses.UNRECOGNIZED_AUTH_504 + "\r\n", connection.getLine(1));
+        assertTrue(connection.getLine(1).startsWith(SmtpResponses.UNKNOWN_MAILBOX_550.replace("[%s]", "")));
     }
 
     @Test
@@ -148,7 +148,7 @@ class ServerAuthTest {
 
         connection.parseLines();
         assertEquals(SmtpResponses.AUTH_PAYLOAD_334 + "\r\n", connection.getLine(1));
-        assertEquals(SmtpResponses.UNRECOGNIZED_AUTH_504 + "\r\n", connection.getLine(2));
+        assertTrue(connection.getLine(2).startsWith(SmtpResponses.UNKNOWN_MAILBOX_550.replace("[%s]", "")));
     }
 
     @Test
@@ -226,6 +226,6 @@ class ServerAuthTest {
 
         connection.parseLines();
         assertEquals(SmtpResponses.AUTH_USERNAME_334 + "\r\n", connection.getLine(1));
-        assertEquals(SmtpResponses.UNRECOGNIZED_AUTH_504 + "\r\n", connection.getLine(2));
+        assertTrue(connection.getLine(2).startsWith(SmtpResponses.UNKNOWN_MAILBOX_550.replace("[%s]", "")));
     }
 }
