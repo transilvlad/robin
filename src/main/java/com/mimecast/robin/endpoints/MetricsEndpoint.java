@@ -1,5 +1,6 @@
 package com.mimecast.robin.endpoints;
 
+import com.mimecast.robin.config.server.EndpointConfig;
 import com.mimecast.robin.metrics.MetricsRegistry;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -41,7 +42,7 @@ public class MetricsEndpoint {
     private GraphiteMeterRegistry graphiteRegistry;
     private JvmGcMetrics jvmGcMetrics;
     protected final long startTime = System.currentTimeMillis();
-    protected HttpBasicAuth auth;
+    protected HttpAuth auth;
 
     /**
      * Starts the embedded HTTP server for the metrics and management endpoint.
@@ -64,9 +65,35 @@ public class MetricsEndpoint {
      * @param username The username for HTTP Basic Authentication (null to disable authentication).
      * @param password The password for HTTP Basic Authentication.
      * @throws IOException If an I/O error occurs during server startup.
+     * @deprecated Use {@link #start(int, EndpointConfig)} instead for enhanced authentication support.
      */
+    @Deprecated
     public void start(int metricsPort, String username, String password) throws IOException {
-        this.auth = new HttpBasicAuth(username, password, "Metrics Endpoint");
+        // Create a legacy EndpointConfig for backwards compatibility
+        java.util.Map<String, Object> legacyConfig = new java.util.HashMap<>();
+        legacyConfig.put("port", metricsPort);
+        legacyConfig.put("authType", "basic");
+        if (username != null && !username.isEmpty() && password != null && !password.isEmpty()) {
+            legacyConfig.put("authValue", username + ":" + password);
+        } else {
+            legacyConfig.put("authValue", "");
+        }
+        legacyConfig.put("allowList", new java.util.ArrayList<String>());
+
+        start(metricsPort, new EndpointConfig(legacyConfig));
+    }
+
+    /**
+     * Starts the embedded HTTP server for the metrics and management endpoint with endpoint configuration.
+     * <p>This method initializes metric registries, binds JVM metrics, creates HTTP contexts for all endpoints,
+     * and sets up shutdown hooks for graceful termination.
+     *
+     * @param metricsPort The port on which the HTTP server will listen for incoming requests.
+     * @param config      EndpointConfig containing authentication settings (authType, authValue, allowList).
+     * @throws IOException If an I/O error occurs during server startup.
+     */
+    public void start(int metricsPort, EndpointConfig config) throws IOException {
+        this.auth = new HttpAuth(config, "Metrics Endpoint");
 
         prometheusRegistry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
         graphiteRegistry = getGraphiteMeterRegistry();

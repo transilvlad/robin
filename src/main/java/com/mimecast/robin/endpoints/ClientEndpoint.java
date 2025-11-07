@@ -3,6 +3,7 @@ package com.mimecast.robin.endpoints;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mimecast.robin.config.client.CaseConfig;
+import com.mimecast.robin.config.server.EndpointConfig;
 import com.mimecast.robin.main.Client;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
@@ -65,9 +66,9 @@ public class ClientEndpoint {
     private Gson gson;
 
     /**
-     * HTTP Basic Authentication handler for securing API endpoints.
+     * HTTP Authentication handler for securing API endpoints.
      */
-    private HttpBasicAuth auth;
+    private HttpAuth auth;
 
     /**
      * Starts the client submission endpoint on the configured API port.
@@ -87,39 +88,45 @@ public class ClientEndpoint {
      * @param username The username for HTTP Basic Authentication (null to disable authentication).
      * @param password The password for HTTP Basic Authentication.
      * @throws IOException If an I/O error occurs during server startup.
+     * @deprecated Use {@link #start(EndpointConfig)} instead for enhanced authentication support.
      */
+    @Deprecated
     public void start(String username, String password) throws IOException {
-        // Initialize authentication handler.
-        this.auth = new HttpBasicAuth(username, password, "Client API");
+        java.util.Map<String, Object> legacyConfig = new java.util.HashMap<>();
+        legacyConfig.put("authType", "basic");
+        if (username != null && !username.isEmpty() && password != null && !password.isEmpty()) {
+            legacyConfig.put("authValue", username + ":" + password);
+        } else {
+            legacyConfig.put("authValue", "");
+        }
+        legacyConfig.put("allowList", new java.util.ArrayList<String>());
 
-        // Build a Gson serializer that excludes fields we don't want to expose.
+        start(new EndpointConfig(legacyConfig));
+    }
+
+    /**
+     * Starts the client submission endpoint on the configured API port with endpoint configuration.
+     *
+     * @param config EndpointConfig containing authentication settings (authType, authValue, allowList).
+     * @throws IOException If an I/O error occurs during server startup.
+     */
+    public void start(EndpointConfig config) throws IOException {
+        this.auth = new HttpAuth(config, "Client API");
+
         gson = new GsonBuilder()
                 .addSerializationExclusionStrategy(new GsonExclusionStrategy())
                 .setPrettyPrinting()
                 .create();
 
-        // Bind the HTTP server to the configured API port.
         int apiPort = getApiPort();
         HttpServer server = HttpServer.create(new InetSocketAddress(apiPort), 10);
 
-        // Register endpoints.
-
-        // Landing page for client endpoint discovery.
         server.createContext("/", this::handleLandingPage);
-
-        // Main endpoint that triggers a Client.send(...) run for the supplied case.
         server.createContext("/client/send", this::handleClientSend);
-
-        // Queue endpoint that enqueues a RelaySession for later delivery.
         server.createContext("/client/queue", this::handleClientQueue);
-
-        // New: Queue listing endpoint.
         server.createContext("/client/queue-list", this::handleQueueList);
-
-        // Liveness endpoint for client API.
         server.createContext("/client/health", exchange -> sendJson(exchange, 200, "{\"status\":\"UP\"}"));
 
-        // Start the embedded server on a background thread.
         new Thread(server::start).start();
         log.info("Landing available at http://localhost:{}/", apiPort);
         log.info("Submission endpoint available at http://localhost:{}/client/send", apiPort);
@@ -127,7 +134,7 @@ public class ClientEndpoint {
         log.info("Queue list available at http://localhost:{}/client/queue-list", apiPort);
         log.info("Health available at http://localhost:{}/client/health", apiPort);
         if (auth.isAuthEnabled()) {
-            log.info("HTTP Basic Authentication is enabled for client API endpoint");
+            log.info("Authentication is enabled for client API endpoint");
         }
     }
 
