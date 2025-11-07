@@ -1,8 +1,8 @@
 /**
- * Server Storage.
+ * Manages the storage of incoming emails for the server.
  *
  * <p>Provides an interface and local disk implementation for server incoming email storage.
- * <p>The default LocalStorageClient can be replaced with another implementation via Factories.
+ * <br>The default LocalStorageClient can be replaced with another implementation via Factories.
  * <br>Ideally this would be done in a plugin.
  *
  * <p>Example setting new storage client:

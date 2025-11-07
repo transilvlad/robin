@@ -1,5 +1,5 @@
 /**
- * Assertion core.
+ * The core framework for asserting the results of test cases.
  *
  * <p>Client deliveries end with a call to Assert class.
  * <br>If any assertions are configured it will run them.
@@ -12,7 +12,7 @@
  *
  * <h2>Example configuration:</h2>
  * <pre>
- *     "assertions": {
+ *     "assert": {
  * </pre>
  *
  * <p>Simple SMTP assertions that check the responses got were expected.

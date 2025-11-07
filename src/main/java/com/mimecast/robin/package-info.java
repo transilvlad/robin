@@ -1,12 +1,13 @@
 /**
- * About Robin!
+ * The main package for Robin, a versatile MTA Server and Tester.
  *
- * <p>Robin MTA Tester is a development, debug and testing tool for MTA architects.
+ * <p>Robin MTA Server and Tester is a development, debug and testing tool for MTA architects.
+ * <br>However, as the name suggests it can also be used as a lightweight MTA server with Dovecot SASL AUTH and mailbox integration.
  * <br>It is powered by a highly customizable SMTP client designed to emulate the behaviour of popular email clients.
- * <br>A rudimentary server is also provided that is mainly used for testing the client.
  *
- * <p>The primary usage is done via JSON files called test cases.
- * <br>Cases are client configuration files ran as Junit tests.
+ * <p>The lightweight server is ideal for a simple configurable catch server for testing or a fully-fledged MTA using
+ * <br>Dovecot mailboxes or web hooks. It provides Prometheus and Graphite metrics with Prometheus remote write built in
+ * <br>plus a multitude or other handy endpoints.
  *
  * <p>This project can be compiled into a runnable JAR.
  * <br>A CLI interface is implemented with support for both client and server execution.
@@ -18,8 +19,8 @@
  *
  *      usage:   [--client] [--mtasts] [--server]
  *      --client   Run as client
- *      --mtasts   Run as MTA-STS client
  *      --server   Run as server
+ *      --mtasts   Run as MTA-STS client
  * </pre>
  *
  * <h2>CLI usage client:</h2>
@@ -27,7 +28,7 @@
  *      $ java -jar robin.jar --client
  *      Email delivery client
  *
- *      usage:   [-c <arg>] [-f <arg>] [-h] [-j <arg>] [-m <arg>] [-p <arg>] [-r <arg>] [-x <arg>]
+ *      usage:   [-c &lt;arg&gt;] [-f &lt;arg&gt;] [-h] [-j &lt;arg&gt;] [-m &lt;arg&gt;] [-p &lt;arg&gt;] [-r &lt;arg&gt;] [-x &lt;arg&gt;]
  *      -c,--conf &lt;arg&gt;    Path to configuration dir (Default: cfg/)
  *      -f,--file &lt;arg&gt;    EML file to send
  *      -h,--help         Show usage help
@@ -41,9 +42,9 @@
  * <h2>CLI usage MTA-STS:</h2>
  * <pre>
  *      $ java -jar robin.jar --mtasts
- *      MTA-STS client
+ *      Robin MTA-STS client tool
  *
- *      usage:   [-d <arg>] [-f <arg>] [-j] [-m <arg>]
+ *      usage:   [-d &lt;arg&gt;] [-f &lt;arg&gt;] [-j] [-m &lt;arg&gt;]
  *      -d,--domain &lt;arg&gt;   Domain
  *      -f,--file &lt;arg&gt;     Write policy details to JSON file
  *      -j,--json           Show policy details as JSON
@@ -55,11 +56,11 @@
  *      $ java -jar robin.jar --server
  *      MTA server
  *
- *      usage:   <arg>
+ *      usage:   [&lt;arg&gt;]
  *      Path to configuration directory
  *
  *      example:
- *      java -jar robin.jar --server config/
+ *      java -jar robin.jar --server cfg/
  * </pre>
  *
  * <p>Mimecast uses this to run smoke tests every time a new MTA snapshot is built.
