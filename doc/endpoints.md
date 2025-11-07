@@ -11,27 +11,105 @@ All endpoints are available under the port configured in `server.json5` - `metri
 Authentication
 --------------
 
-The metrics endpoints support HTTP Basic Authentication for securing access to sensitive metrics and diagnostic information.
+The metrics endpoints support HTTP authentication for securing access to sensitive metrics and diagnostic information.
 
-To enable authentication, configure the following parameters in `server.json5`:
+To enable authentication, configure the `metrics` object in `server.json5`.
 Make use of magic to load secrets, see [Secrets, magic and Local Secrets File](secrets.md).
 
 **Do NOT commit real secrets into the repository!!!**
 
+### Configuration Format
+
 ```json5
 {
-  metricsPort: 8080,
-  metricsUsername: "{$metricsUsername}",
-  metricsPassword: "{$metricsPassword}"
+  metrics: {
+    port: 8080,
+    
+    // Authentication type: none, basic, bearer
+    authType: "basic",
+    
+    // Authentication value
+    // For basic: "username:password"
+    // For bearer: "token"
+    authValue: "{$metricsUsername}:{$metricsPassword}",
+    
+    // IP addresses or CIDR blocks allowed without authentication
+    allowList: [
+      "127.0.0.1",
+      "::1",
+      "192.168.1.0/24"
+    ]
+  }
 }
 ```
 
-When both `metricsUsername` and `metricsPassword` are configured (non-empty strings), all endpoints except `/health` will require HTTP Basic Authentication.
+### Authentication Types
 
-- The `/health` endpoint remains accessible but limited to status and uptime without authentication to support monitoring systems and health checks without internal details.
-- All other endpoints (/, /metrics, /prometheus, /graphite, /env, /sysprops, /threads, /heapdump) require authentication when enabled.
+- **none**: No authentication required (default if `authValue` is empty).
+- **basic**: HTTP Basic Authentication using username:password format.
+- **bearer**: HTTP Bearer Token Authentication using a token string.
 
-If authentication is required but not provided, the server responds with `401 Unauthorized` and a `WWW-Authenticate` header.
+### IP Allow List
+
+The `allowList` parameter accepts IP addresses or CIDR blocks that can access endpoints without authentication:
+
+- IPv4 addresses: `"192.168.1.10"`
+- IPv6 addresses: `"::1"`
+- IPv4 CIDR blocks: `"192.168.1.0/24"`, `"10.0.0.0/8"`
+- IPv6 CIDR blocks: `"2001:db8::/32"`
+
+When both authentication and an allow list are configured:
+1. If the request comes from an IP in the allow list, access is granted without checking credentials.
+2. Otherwise, authentication is required.
+
+### Examples
+
+**Basic Authentication:**
+```json5
+{
+  metrics: {
+    port: 8080,
+    authType: "basic",
+    authValue: "admin:secretPassword123"
+  }
+}
+```
+
+**Bearer Token Authentication:**
+```json5
+{
+  metrics: {
+    port: 8080,
+    authType: "bearer",
+    authValue: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+}
+```
+
+**IP Allow List Only (Local Access):**
+```json5
+{
+  metrics: {
+    port: 8080,
+    authType: "none",
+    allowList: ["127.0.0.1", "::1"]
+  }
+}
+```
+
+**Combined Authentication and Allow List:**
+```json5
+{
+  metrics: {
+    port: 8080,
+    authType: "bearer",
+    authValue: "{$metricsToken}",
+    allowList: ["10.0.0.0/8"]
+  }
+}
+```
+
+When authentication is enabled, all endpoints except `/health` require valid credentials or an allowed IP address.
 
 Endpoints
 ---------
@@ -172,32 +250,65 @@ Client Submission Endpoint
 
 <img src="img/endpoint-client.jpg" alt="Metrics Endpoints Diagram" style="max-width: 1200px;"/>
 
-All client endpoints are available under the port configured in `server.json5` - `apiPort` parameter.
+All client endpoints are available under the port configured in `server.json5` - `api` object.
 
 Authentication
 --------------
 
-The client API endpoints support HTTP Basic Authentication for securing access to submission and queue management operations.
+The client API endpoints support HTTP authentication for securing access to submission and queue management operations.
 
-To enable authentication, configure the following parameters in `server.json5`:
+To enable authentication, configure the `api` object in `server.json5`.
 Make use of magic to load secrets, see [Secrets, magic and Local Secrets File](secrets.md).
 
 **Do NOT commit real secrets into the repository!!!**
 
+### Configuration Format
+
 ```json5
 {
-  apiPort: 8090,
-  apiUsername: "{$apiUsername}",
-  apiPassword: "{$apiPassword}"
+  api: {
+    port: 8090,
+    
+    // Authentication type: none, basic, bearer
+    authType: "basic",
+    
+    // Authentication value
+    // For basic: "username:password"
+    // For bearer: "token"
+    authValue: "{$apiUsername}:{$apiPassword}",
+    
+    // IP addresses or CIDR blocks allowed without authentication
+    allowList: [
+      "127.0.0.1",
+      "::1",
+      "192.168.1.0/24"
+    ]
+  }
 }
 ```
 
-When both `apiUsername` and `apiPassword` are configured (non-empty strings), all endpoints except `/client/health` will require HTTP Basic Authentication.
+### Authentication Types
 
-- The `/client/health` endpoint remains accessible without authentication to support monitoring systems and health checks.
-- All other endpoints (/, /client/send, /client/queue, /client/queue-list) require authentication when enabled.
+- **none**: No authentication required (default if `authValue` is empty).
+- **basic**: HTTP Basic Authentication using username:password format.
+- **bearer**: HTTP Bearer Token Authentication using a token string.
 
-**Example authenticated request:**
+### IP Allow List
+
+The `allowList` parameter accepts IP addresses or CIDR blocks that can access endpoints without authentication:
+
+- IPv4 addresses: `"192.168.1.10"`
+- IPv6 addresses: `"::1"`
+- IPv4 CIDR blocks: `"192.168.1.0/24"`, `"10.0.0.0/8"`
+- IPv6 CIDR blocks: `"2001:db8::/32"`
+
+When both authentication and an allow list are configured:
+1. If the request comes from an IP in the allow list, access is granted without checking credentials.
+2. Otherwise, authentication is required.
+
+### Examples
+
+**Basic Authentication Request:**
 
 ```bash
 curl -u admin:secretPassword -X POST \
@@ -206,7 +317,17 @@ curl -u admin:secretPassword -X POST \
   http://localhost:8090/client/send
 ```
 
-If authentication is required but not provided, the server responds with `401 Unauthorized` and a `WWW-Authenticate` header.
+**Bearer Token Authentication Request:**
+
+```bash
+curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -d @testcase.json5 \
+  http://localhost:8090/client/send
+```
+
+When authentication is enabled, all endpoints except `/client/health` require valid credentials or an allowed IP address.
 
 Endpoints
 ---------
