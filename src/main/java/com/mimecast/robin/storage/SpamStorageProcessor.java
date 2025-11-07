@@ -10,9 +10,8 @@ import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 
 /**
  * Storage processor for spam scanning using Rspamd.
@@ -32,7 +31,7 @@ public class SpamStorageProcessor implements StorageProcessor {
     public boolean process(Connection connection, EmailParser emailParser) throws IOException {
         BasicConfig rspamdConfig = Config.getServer().getRspamd();
         if (rspamdConfig.getBooleanProperty("enabled")) {
-            byte[] bytes = Files.readAllBytes(Paths.get(connection.getSession().getEnvelopes().getLast().getFile()));
+            File emailFile = new File(connection.getSession().getEnvelopes().getLast().getFile());
             RspamdClient rspamdClient = new RspamdClient(
                     rspamdConfig.getStringProperty("host", "localhost"),
                     rspamdConfig.getLongProperty("port", 11333L).intValue())
@@ -41,21 +40,35 @@ public class SpamStorageProcessor implements StorageProcessor {
                     .setDkimScanEnabled(rspamdConfig.getBooleanProperty("dkimScanEnabled"))
                     .setDmarcScanEnabled(rspamdConfig.getBooleanProperty("dmarcScanEnabled"));
 
-            if (rspamdClient.isSpam(bytes, rspamdConfig.getDoubleProperty("requiredScore", 7.0))) {
-                double score = rspamdClient.getScore();
-                log.warn("Spam/phishing detected in {} with score {}: {}", connection.getSession().getEnvelopes().getLast().getFile(), score, rspamdClient.getSymbols());
-                String onSpam = rspamdConfig.getStringProperty("onSpam", "reject");
+            // Scan the email and retrieve the score
+            rspamdClient.scanFile(emailFile);
+            double score = rspamdClient.getScore();
+            
+            // Get thresholds with defaults
+            double discardThreshold = rspamdConfig.getDoubleProperty("discardThreshold", 15.0);
+            double rejectThreshold = rspamdConfig.getDoubleProperty("rejectThreshold", 7.0);
+            
+            // Validate thresholds - discardThreshold should be >= rejectThreshold
+            if (discardThreshold < rejectThreshold) {
+                log.warn("Invalid threshold configuration: discardThreshold ({}) is less than rejectThreshold ({}). Using rejectThreshold as discardThreshold.", 
+                         discardThreshold, rejectThreshold);
+                discardThreshold = rejectThreshold;
+            }
+            
+            // Apply threshold-based logic
+            if (score >= discardThreshold) {
+                log.warn("Spam/phishing detected in {} with score {} (>= discard threshold {}), discarding: {}", 
+                         connection.getSession().getEnvelopes().getLast().getFile(), score, discardThreshold, rspamdClient.getSymbols());
                 SmtpMetrics.incrementEmailSpamRejection();
-
-                if ("reject".equalsIgnoreCase(onSpam)) {
-                    connection.write(String.format(SmtpResponses.SPAM_FOUND_550, connection.getSession().getUID()));
-                    return false;
-                } else if ("discard".equalsIgnoreCase(onSpam)) {
-                    log.warn("Spam/phishing detected, discarding.");
-                    return true;
-                }
+                return true;  // Accept but discard
+            } else if (score >= rejectThreshold) {
+                log.warn("Spam/phishing detected in {} with score {} (>= reject threshold {}): {}", 
+                         connection.getSession().getEnvelopes().getLast().getFile(), score, rejectThreshold, rspamdClient.getSymbols());
+                SmtpMetrics.incrementEmailSpamRejection();
+                connection.write(String.format(SmtpResponses.SPAM_FOUND_550, connection.getSession().getUID()));
+                return false;  // Reject
             } else {
-                log.info("Spam scan clean with score {}", rspamdClient.getScore());
+                log.info("Spam scan clean with score {}", score);
             }
         }
 
