@@ -1,13 +1,11 @@
 package com.mimecast.robin.smtp.security;
 
-import com.google.common.net.InetAddresses;
 import com.mimecast.robin.config.server.BlocklistConfig;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
