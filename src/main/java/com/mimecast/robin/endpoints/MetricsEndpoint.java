@@ -1,5 +1,6 @@
 package com.mimecast.robin.endpoints;
 
+import com.mimecast.robin.config.server.EndpointConfig;
 import com.mimecast.robin.metrics.MetricsRegistry;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -41,38 +42,25 @@ public class MetricsEndpoint {
     private GraphiteMeterRegistry graphiteRegistry;
     private JvmGcMetrics jvmGcMetrics;
     protected final long startTime = System.currentTimeMillis();
-    protected HttpBasicAuth auth;
+    protected HttpAuth auth;
 
     /**
-     * Starts the embedded HTTP server for the metrics and management endpoint.
+     * Starts the embedded HTTP server for the metrics and management endpoint with endpoint configuration.
      * <p>This method initializes metric registries, binds JVM metrics, creates HTTP contexts for all endpoints,
      * and sets up shutdown hooks for graceful termination.
      *
-     * @param metricsPort The port on which the HTTP server will listen for incoming requests.
+     * @param config EndpointConfig containing port and authentication settings (authType, authValue, allowList).
      * @throws IOException If an I/O error occurs during server startup.
      */
-    public void start(int metricsPort) throws IOException {
-        start(metricsPort, null, null);
-    }
-
-    /**
-     * Starts the embedded HTTP server for the metrics and management endpoint with authentication.
-     * <p>This method initializes metric registries, binds JVM metrics, creates HTTP contexts for all endpoints,
-     * and sets up shutdown hooks for graceful termination.
-     *
-     * @param metricsPort The port on which the HTTP server will listen for incoming requests.
-     * @param username The username for HTTP Basic Authentication (null to disable authentication).
-     * @param password The password for HTTP Basic Authentication.
-     * @throws IOException If an I/O error occurs during server startup.
-     */
-    public void start(int metricsPort, String username, String password) throws IOException {
-        this.auth = new HttpBasicAuth(username, password, "Metrics Endpoint");
+    public void start(EndpointConfig config) throws IOException {
+        this.auth = new HttpAuth(config, "Metrics Endpoint");
 
         prometheusRegistry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
         graphiteRegistry = getGraphiteMeterRegistry();
         MetricsRegistry.register(prometheusRegistry, graphiteRegistry);
         bindJvmMetrics();
 
+        int metricsPort = config.getPort(8080);
         server = HttpServer.create(new InetSocketAddress(metricsPort), 10);
         createContexts();
         shutdownHooks();

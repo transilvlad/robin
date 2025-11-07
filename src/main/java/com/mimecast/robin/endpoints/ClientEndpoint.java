@@ -3,6 +3,7 @@ package com.mimecast.robin.endpoints;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mimecast.robin.config.client.CaseConfig;
+import com.mimecast.robin.config.server.EndpointConfig;
 import com.mimecast.robin.main.Client;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
@@ -65,32 +66,19 @@ public class ClientEndpoint {
     private Gson gson;
 
     /**
-     * HTTP Basic Authentication handler for securing API endpoints.
+     * HTTP Authentication handler for securing API endpoints.
      */
-    private HttpBasicAuth auth;
+    private HttpAuth auth;
 
     /**
-     * Starts the client submission endpoint on the configured API port.
+     * Starts the client submission endpoint with endpoint configuration.
      *
-     * <p>Port is read from {@code server.json5} (property: {@code apiPort}).
-     * If not present, falls back to {@code 8090}.
-     *
+     * @param config EndpointConfig containing port and authentication settings (authType, authValue, allowList).
      * @throws IOException If an I/O error occurs during server startup.
      */
-    public void start() throws IOException {
-        start(null, null);
-    }
-
-    /**
-     * Starts the client submission endpoint on the configured API port with authentication.
-     *
-     * @param username The username for HTTP Basic Authentication (null to disable authentication).
-     * @param password The password for HTTP Basic Authentication.
-     * @throws IOException If an I/O error occurs during server startup.
-     */
-    public void start(String username, String password) throws IOException {
+    public void start(EndpointConfig config) throws IOException {
         // Initialize authentication handler.
-        this.auth = new HttpBasicAuth(username, password, "Client API");
+        this.auth = new HttpAuth(config, "Client API");
 
         // Build a Gson serializer that excludes fields we don't want to expose.
         gson = new GsonBuilder()
@@ -99,7 +87,7 @@ public class ClientEndpoint {
                 .create();
 
         // Bind the HTTP server to the configured API port.
-        int apiPort = getApiPort();
+        int apiPort = config.getPort(8090);
         HttpServer server = HttpServer.create(new InetSocketAddress(apiPort), 10);
 
         // Register endpoints.
@@ -113,7 +101,7 @@ public class ClientEndpoint {
         // Queue endpoint that enqueues a RelaySession for later delivery.
         server.createContext("/client/queue", this::handleClientQueue);
 
-        // New: Queue listing endpoint.
+        // Queue listing endpoint.
         server.createContext("/client/queue-list", this::handleQueueList);
 
         // Liveness endpoint for client API.
@@ -127,7 +115,7 @@ public class ClientEndpoint {
         log.info("Queue list available at http://localhost:{}/client/queue-list", apiPort);
         log.info("Health available at http://localhost:{}/client/health", apiPort);
         if (auth.isAuthEnabled()) {
-            log.info("HTTP Basic Authentication is enabled for client API endpoint");
+            log.info("Authentication is enabled for client API endpoint");
         }
     }
 
@@ -150,26 +138,6 @@ public class ClientEndpoint {
         } catch (IOException e) {
             log.error("Could not read client-endpoints-ui.html", e);
             sendText(exchange, 500, "Internal Server Error");
-        }
-    }
-
-    /**
-     * Resolves the API port from configuration (server.json5 -> apiPort) with a default fallback.
-     *
-     * @return Port number to bind for the client API.
-     */
-    private int getApiPort() {
-        try {
-            // Reflective access keeps compatibility if this method is absent on older configs.
-            return Config.getServer().getClass()
-                    .getMethod("getApiPort")
-                    .invoke(Config.getServer()) instanceof Integer
-                    ? (Integer) Config.getServer().getClass().getMethod("getApiPort").invoke(Config.getServer())
-                    : 8090;
-        } catch (Exception e) {
-            // Fallback if method not present (older configs)
-            log.warn("ServerConfig.getApiPort not found, using default 8090");
-            return 8090;
         }
     }
 

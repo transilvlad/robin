@@ -3,13 +3,18 @@ package com.mimecast.robin.config.server;
 import com.google.gson.Gson;
 import com.mimecast.robin.config.BasicConfig;
 import com.mimecast.robin.config.ConfigFoundation;
+import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.util.Magic;
 import com.mimecast.robin.util.PathUtils;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * Server configuration.
@@ -212,57 +217,37 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
-     * Gets metrics port.
+     * Gets metrics endpoint configuration.
      *
-     * @return Bind address number.
+     * @return EndpointConfig instance for metrics.
      */
-    public int getMetricsPort() {
-        return Math.toIntExact(getLongProperty("metricsPort", 8080L));
+    public EndpointConfig getMetrics() {
+        return getEndpointConfig("metrics", 8080);
     }
 
     /**
-     * Gets metrics authentication username.
+     * Gets API endpoint configuration.
      *
-     * @return Username for metrics endpoint authentication, or null if not configured.
+     * @return EndpointConfig instance for API.
      */
-    public String getMetricsUsername() {
-        return getStringProperty("metricsUsername", null);
+    public EndpointConfig getApi() {
+        return getEndpointConfig("api", 8090);
     }
 
     /**
-     * Gets metrics authentication password.
+     * Gets endpoint configuration with magic replacement applied.
      *
-     * @return Password for metrics endpoint authentication, or null if not configured.
+     * @param key         Configuration key (metrics or api).
+     * @param defaultPort Default port if not configured.
+     * @return EndpointConfig instance.
      */
-    public String getMetricsPassword() {
-        return getStringProperty("metricsPassword", null);
-    }
-
-    /**
-     * Gets API port for client submission endpoint.
-     *
-     * @return Port number.
-     */
-    public int getApiPort() {
-        return Math.toIntExact(getLongProperty("apiPort", 8090L));
-    }
-
-    /**
-     * Gets API authentication username.
-     *
-     * @return Username for API endpoint authentication, or null if not configured.
-     */
-    public String getApiUsername() {
-        return getStringProperty("apiUsername", null);
-    }
-
-    /**
-     * Gets API authentication password.
-     *
-     * @return Password for API endpoint authentication, or null if not configured.
-     */
-    public String getApiPassword() {
-        return getStringProperty("apiPassword", null);
+    private EndpointConfig getEndpointConfig(String key, int defaultPort) {
+        if (map.containsKey(key) && map.get(key) instanceof Map) {
+            Map<String, Object> endpointMap = getMapProperty(key);
+            Map<String, Object> processedMap = applyMagicToConfig(endpointMap);
+            return new EndpointConfig(processedMap);
+        }
+        throw new IllegalStateException("Missing required configuration: " + key);
     }
 
     /**
@@ -404,6 +389,38 @@ public class ServerConfig extends ConfigFoundation {
     public boolean isUsersEnabled() {
         return !getDovecot().getBooleanProperty("auth") &&
                 getBooleanProperty("usersEnabled", false);
+    }
+
+    /**
+     * Applies magic replacement to string values in a configuration map.
+     *
+     * @param config Configuration map to process.
+     * @return New map with magic replacements applied.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> applyMagicToConfig(Map<String, Object> config) {
+        Map<String, Object> processed = new HashMap<>();
+        Session session = new Session();
+        
+        for (Map.Entry<String, Object> entry : config.entrySet()) {
+            Object value = entry.getValue();
+            if (value instanceof String) {
+                processed.put(entry.getKey(), Magic.magicReplace((String) value, session));
+            } else if (value instanceof List) {
+                List<Object> list = new ArrayList<>();
+                for (Object item : (List<?>) value) {
+                    if (item instanceof String) {
+                        list.add(Magic.magicReplace((String) item, session));
+                    } else {
+                        list.add(item);
+                    }
+                }
+                processed.put(entry.getKey(), list);
+            } else {
+                processed.put(entry.getKey(), value);
+            }
+        }
+        return processed;
     }
 
     /**
