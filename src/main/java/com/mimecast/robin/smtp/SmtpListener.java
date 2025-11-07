@@ -1,8 +1,10 @@
 package com.mimecast.robin.smtp;
 
 import com.mimecast.robin.config.server.ListenerConfig;
+import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Server;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
+import com.mimecast.robin.smtp.security.BlocklistMatcher;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -108,12 +110,26 @@ public class SmtpListener {
     /**
      * Accepts incoming connections in a loop until a shutdown is initiated.
      * For each connection, it submits a new {@link EmailReceipt} task to the thread pool.
+     * Connections from blocked IP addresses are immediately rejected.
      */
     private void acceptConnection() {
         try {
             do {
                 Socket sock = listener.accept();
-                log.info("Accepted connection from {}:{} on port {}.", sock.getInetAddress().getHostAddress(), sock.getPort(), port);
+                String remoteIp = sock.getInetAddress().getHostAddress();
+
+                // Check if the IP is blocked.
+                if (BlocklistMatcher.isBlocked(remoteIp, Config.getServer().getBlocklistConfig())) {
+                    log.warn("Dropping connection from blocked IP: {}", remoteIp);
+                    try {
+                        sock.close();
+                    } catch (IOException e) {
+                        log.debug("Error closing blocked socket: {}", e.getMessage());
+                    }
+                    continue;
+                }
+
+                log.info("Accepted connection from {}:{} on port {}.", remoteIp, sock.getPort(), port);
 
                 executor.submit(() -> {
                     try {

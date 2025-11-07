@@ -67,4 +67,14 @@ class ServerConfigTest {
         // Tested in ScenarioConfigTest.
         assertFalse(Config.getServer().getScenarios().isEmpty());
     }
+
+    @Test
+    void getBlocklistConfig() {
+        BlocklistConfig blocklistConfig = Config.getServer().getBlocklistConfig();
+        assertNotNull(blocklistConfig, "Blocklist config should not be null");
+        assertTrue(blocklistConfig.isEnabled(), "Blocklist should be enabled in test config");
+        assertEquals(3, blocklistConfig.getEntries().size(), "Should have 3 blocklist entries");
+        assertTrue(blocklistConfig.getEntries().contains("192.168.100.100"), "Should contain test IP");
+        assertTrue(blocklistConfig.getEntries().contains("10.0.0.0/8"), "Should contain test CIDR");
+    }
 }
