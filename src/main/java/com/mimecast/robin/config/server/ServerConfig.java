@@ -216,30 +216,12 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
-     * Gets metrics port.
-     *
-     * @return Port number.
-     */
-    public int getMetricsPort() {
-        return getMetrics().getPort(8080);
-    }
-
-    /**
      * Gets metrics endpoint configuration.
      *
      * @return EndpointConfig instance for metrics.
      */
     public EndpointConfig getMetrics() {
         return getEndpointConfig("metrics", 8080);
-    }
-
-    /**
-     * Gets API port for client submission endpoint.
-     *
-     * @return Port number.
-     */
-    public int getApiPort() {
-        return getApi().getPort(8090);
     }
 
     /**
