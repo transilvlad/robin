@@ -327,7 +327,10 @@
                     <show>private</show>
                     <quiet>true</quiet>
                     <doclint>-missing</doclint>
-                    <detectJavaApiLink>false</detectJavaApiLink>
+                    <detectJavaApiLink>true</detectJavaApiLink>
+                    <use>true</use>
+                    <splitindex>true</splitindex>
+                    <version>true</version>
                 </configuration>
                 <executions>
                     <execution>
