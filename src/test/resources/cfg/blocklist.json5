@@ -1,0 +1,9 @@
+{
+  // Test blocklist configuration
+  enabled: true,
+  entries: [
+    "192.168.100.100",
+    "10.0.0.0/8",
+    "2001:db8::/32"
+  ]
+}
