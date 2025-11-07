@@ -106,9 +106,22 @@ public class BlocklistMatcher {
                 return false;
             }
 
+            // Validate prefix length for IPv4 (0-32) or IPv6 (0-128)
+            int maxPrefixLength = addressBytes.length * 8;
+            if (prefixLength < 0 || prefixLength > maxPrefixLength) {
+                log.warn("Invalid CIDR prefix length {} for address type (max {}): {}", 
+                    prefixLength, maxPrefixLength, cidr);
+                return false;
+            }
+
             // Calculate the number of full bytes and remaining bits to check
             int fullBytes = prefixLength / 8;
             int remainingBits = prefixLength % 8;
+
+            // Ensure fullBytes doesn't exceed address length
+            if (fullBytes > addressBytes.length) {
+                return false;
+            }
 
             // Check full bytes
             for (int i = 0; i < fullBytes; i++) {

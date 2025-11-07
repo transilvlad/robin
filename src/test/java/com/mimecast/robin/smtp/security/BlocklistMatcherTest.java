@@ -155,6 +155,26 @@ class BlocklistMatcherTest {
     }
 
     @Test
+    void testNegativeCIDRPrefix() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("enabled", true);
+        map.put("entries", Arrays.asList("192.168.1.0/-1"));  // Negative prefix
+        
+        BlocklistConfig config = new BlocklistConfig(map);
+        assertFalse(BlocklistMatcher.isBlocked("192.168.1.1", config), "Negative CIDR prefix should not block");
+    }
+
+    @Test
+    void testInvalidIPv6CIDRPrefix() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("enabled", true);
+        map.put("entries", Arrays.asList("2001:db8::/200"));  // Invalid IPv6 prefix (max 128)
+        
+        BlocklistConfig config = new BlocklistConfig(map);
+        assertFalse(BlocklistMatcher.isBlocked("2001:db8::1", config), "Invalid IPv6 CIDR should not block");
+    }
+
+    @Test
     void testEntryWithWhitespace() {
         Map<String, Object> map = new HashMap<>();
         map.put("enabled", true);
