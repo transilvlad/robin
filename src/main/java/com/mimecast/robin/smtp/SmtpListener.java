@@ -120,7 +120,7 @@ public class SmtpListener {
 
                 // Check if the IP is blocked.
                 if (BlocklistMatcher.isBlocked(remoteIp, Config.getServer().getBlocklistConfig())) {
-                    log.info("Dropping connection from blocked IP: {}", remoteIp);
+                    log.warn("Dropping connection from blocked IP: {}", remoteIp);
                     try {
                         sock.close();
                     } catch (IOException e) {
