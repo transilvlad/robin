@@ -117,10 +117,8 @@ public class SmtpListener {
             do {
                 Socket sock = listener.accept();
                 String remoteIp = sock.getInetAddress().getHostAddress();
-                log.info("Accepted connection from {}:{} on port {}.", remoteIp, sock.getPort(), port);
 
                 // Check if the IP is blocked.
-                // Note: Config is retrieved fresh on each connection to support auto-reload.
                 if (BlocklistMatcher.isBlocked(remoteIp, Config.getServer().getBlocklistConfig())) {
                     log.info("Dropping connection from blocked IP: {}", remoteIp);
                     try {
@@ -130,6 +128,8 @@ public class SmtpListener {
                     }
                     continue;
                 }
+
+                log.info("Accepted connection from {}:{} on port {}.", remoteIp, sock.getPort(), port);
 
                 executor.submit(() -> {
                     try {
