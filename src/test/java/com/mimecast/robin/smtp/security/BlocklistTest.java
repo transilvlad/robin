@@ -11,10 +11,10 @@ import javax.naming.ConfigurationException;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Integration test for blocklist configuration and matching.
+ * Test for blocklist configuration and matching.
  * Tests that the configuration loads correctly and the matcher works as expected.
  */
-class BlocklistIntegrationTest {
+class BlocklistTest {
 
     @BeforeAll
     static void before() throws ConfigurationException {
