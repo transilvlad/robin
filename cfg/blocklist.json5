@@ -1,0 +1,15 @@
+{
+  // Enable or disable connection blocking (default: false).
+  enabled: false,
+
+  // List of IP addresses and CIDR blocks to block.
+  // Examples:
+  //   - "192.168.1.1" - blocks a specific IP
+  //   - "192.168.1.0/24" - blocks an entire subnet
+  //   - "2001:db8::/32" - blocks an IPv6 subnet
+  entries: [
+    // "192.168.1.100",
+    // "10.0.0.0/8",
+    // "2001:db8::/32"
+  ]
+}

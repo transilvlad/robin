@@ -45,6 +45,7 @@ public class ServerConfig extends ConfigFoundation {
         CONFIG_FILENAMES.put("vault", "vault.json5");
         CONFIG_FILENAMES.put("clamav", "clamav.json5");
         CONFIG_FILENAMES.put("rspamd", "rspamd.json5");
+        CONFIG_FILENAMES.put("blocklist", "blocklist.json5");
     }
 
     /**
@@ -289,6 +290,21 @@ public class ServerConfig extends ConfigFoundation {
         }
         // Return default config if not defined.
         return new RblConfig(null);
+    }
+
+    /**
+     * Gets blocklist configuration.
+     *
+     * @return BlocklistConfig instance.
+     */
+    public BlocklistConfig getBlocklistConfig() {
+        loadExternalIfAbsent("blocklist", Map.class);
+
+        if (map.containsKey("blocklist")) {
+            return new BlocklistConfig(getMapProperty("blocklist"));
+        }
+        // Return default config if not defined.
+        return new BlocklistConfig(null);
     }
 
     /**
