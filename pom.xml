@@ -331,6 +331,7 @@
                     <use>true</use>
                     <splitindex>true</splitindex>
                     <version>true</version>
+                    <top><![CDATA[<a href="https://github.com/transilvlad/robin" target="_blank"><img src="https://github.com/transilvlad/robin/raw/master/doc/img/robin.svg" height="42" alt="Robin logo" style="float:left"><h1>Robin MTA Server and Tester</h1></a>]]></top>
                 </configuration>
                 <executions>
                     <execution>

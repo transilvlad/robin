@@ -176,13 +176,17 @@ button {
     header.flex-header {
         flex: 0 0 auto;
     }
+    header.flex-header a h1 {
+        padding: 5px;
+        margin: 10px 0 0 50px;
+    }
     div.flex-content {
         flex: 1 1 auto;
         overflow-y: auto;
     }
 }
 .top-nav {
-    background-color:#4caf50;
+    background-color:#44A83A;
     color:var(--navbar-text-color);
     float:left;
     width:100%;
