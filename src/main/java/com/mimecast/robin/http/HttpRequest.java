@@ -68,13 +68,13 @@ public class HttpRequest {
     private final Map<String, Pair<String, String>> files = new HashMap<>();
 
     /**
-     * Textual content container. Pair<contentString, mimeType>.
+     * Textual content container. Pair&lt;contentString, mimeType&gt;.
      * When set, transports commonly will not send {@link #params} or {@link #files}.
      */
     private Pair<String, String> content;
 
     /**
-     * Binary object container. Pair<bytes, mimeType>.
+     * Binary object container. Pair&lt;bytes, mimeType&gt;.
      * Acts similarly to {@link #content} but for raw binary payloads.
      */
     private Pair<byte[], String> object;
@@ -216,8 +216,8 @@ public class HttpRequest {
      * Adds HTTP/S POST object.
      * <p>If set POST will NOT send params and files if any.
      *
-     * @param bytes   Content bytes.
-     * @param type    Content MIME type.
+     * @param bytes Content bytes.
+     * @param type  Content MIME type.
      * @return Self.
      */
     public HttpRequest addObject(byte[] bytes, String type) {

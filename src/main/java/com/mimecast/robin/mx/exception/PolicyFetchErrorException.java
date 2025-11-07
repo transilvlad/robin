@@ -3,7 +3,7 @@ package com.mimecast.robin.mx.exception;
 /**
  * Policy fetch error exception.
  *
- * @author "Sumon Selim" <sselim@mimecast.com>
+ * @author "Sumon Selim" (sselim@mimecast.com)
  * @link <a href="http://mimecast.com">Mimecast</a>
  */
 public class PolicyFetchErrorException extends Exception {

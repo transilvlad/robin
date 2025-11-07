@@ -11,9 +11,9 @@ import java.util.Optional;
  * Dns Record Client.
  * <p>DNS TXT record lookup client interface specific for MTA-STS.
  *
- * @see XBillDnsRecordClient
- * @author "Vlad Marian" <vmarian@mimecast.com>
+ * @author "Vlad Marian" (vmarian@mimecast.com)
  * @link <a href="http://mimecast.com">Mimecast</a>
+ * @see XBillDnsRecordClient
  */
 public interface DnsRecordClient {
 

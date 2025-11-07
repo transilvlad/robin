@@ -13,9 +13,9 @@ import java.util.Optional;
  * <p>Caching policies is highly recommended to save resources on all sides.
  * <p>High load domains may implement rate limiting to protect their systems from abuse.
  *
- * @see StsPolicy
- * @author "Vlad Marian" <vmarian@mimecast.com>
+ * @author "Vlad Marian" (vmarian@mimecast.com)
  * @link <a href="http://mimecast.com">Mimecast</a>
+ * @see StsPolicy
  */
 public abstract class PolicyCache {
     private static final Logger log = LogManager.getLogger(PolicyCache.class);
@@ -53,8 +53,7 @@ public abstract class PolicyCache {
                 if (policy.getRecord().getId().equals(record.getId())) {
                     policy.setCached(true);
                     return Optional.of(policy);
-                }
-                else {
+                } else {
                     log.info("Record and policy ID mismatch, removing policy from cache");
                     remove(record.getDomain());
                 }

@@ -20,7 +20,7 @@ import java.util.Map;
  * OK HTTPS Response.
  * <p>Wrapper for HttpsPolicyClient response.
  *
- * @author "Vlad Marian" <vmarian@mimecast.com>
+ * @author "Vlad Marian" (vmarian@mimecast.com)
  * @link <a href="http://mimecast.com">Mimecast</a>
  */
 public class OkHttpsResponse implements HttpsResponse {
@@ -33,13 +33,13 @@ public class OkHttpsResponse implements HttpsResponse {
     private boolean handshake = false;
     private int maxPolicyBodySize;
     private List<Certificate> certificates = new ArrayList<>();
-    private Map<String, String> headers = new HashMap<>();
+    private final Map<String, String> headers = new HashMap<>();
 
     /**
      * Constructs a new HttpsResponse instance with given OK HTTP Response.
      * <p>Wrapper for OkHttpPolicyCLient response.
      *
-     * @param response Response instance.
+     * @param response          Response instance.
      * @param maxPolicyBodySize The maximum size of the policy body.
      */
     public OkHttpsResponse(Response response, int maxPolicyBodySize) {
@@ -142,7 +142,6 @@ public class OkHttpsResponse implements HttpsResponse {
      * which is settable with the <code>setPolicyMaxBodySize()</code> method in the
      * <code>Config</code> class. Any content over this limit will not be included in the result.
      *
-     * @author "Andrew Havis" <ahavis@mimecast.com>
      * @param response HTTP response.
      * @return Body string.
      */

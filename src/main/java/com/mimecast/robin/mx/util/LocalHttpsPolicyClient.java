@@ -10,7 +10,7 @@ import javax.net.ssl.X509TrustManager;
  * Local Https Policy Client.
  * <p>Extends HttpsPolicyClient to mock resources needed for testing via local server.
  *
- * @author "Vlad Marian" <vmarian@mimecast.com>
+ * @author "Vlad Marian" (vmarian@mimecast.com)
  * @link <a href="http://mimecast.com">Mimecast</a>
  */
 @SuppressWarnings("squid:S3510")

@@ -22,7 +22,7 @@ import java.util.Map;
  * <p>Provides a HTTPS server for use in testing.
  * <p>The server should be started after all path and responses have been put.
  *
- * @author "Vlad Marian" <vmarian@mimecast.com>
+ * @author "Vlad Marian" (vmarian@mimecast.com)
  * @link <a href="http://mimecast.com">Mimecast</a>
  */
 public class LocalHttpsServer {

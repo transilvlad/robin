@@ -9,7 +9,7 @@ import java.security.cert.X509Certificate;
  * <p>Do not use this in production.
  * <p>Please provide your own trust manager implementing a trust store.
  *
- * @author "Vlad Marian" <vmarian@mimecast.com>
+ * @author "Vlad Marian" (vmarian@mimecast.com)
  * @link <a href="http://mimecast.com">Mimecast</a>
  */
 @SuppressWarnings("all")
@@ -38,7 +38,7 @@ public class PermissiveTrustManager implements X509TrustManager {
     /**
      * Check if client is trusted.
      *
-     * @param chain Peer certificate chain.
+     * @param chain    Peer certificate chain.
      * @param authType Key exchange algorithm used.
      * @throws CertificateException If the certificate chain is not trusted.
      */
@@ -49,7 +49,7 @@ public class PermissiveTrustManager implements X509TrustManager {
     /**
      * Check if server is trusted.
      *
-     * @param chain Peer certificate chain.
+     * @param chain    Peer certificate chain.
      * @param authType Key exchange algorithm used.
      * @throws CertificateException If the certificate chain is not trusted.
      */

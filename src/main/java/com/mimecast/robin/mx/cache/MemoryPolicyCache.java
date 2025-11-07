@@ -11,10 +11,10 @@ import java.util.Map;
  * <p>For perfomance reasons this is limited to 100 entries.
  * <p>In production environments a cloud cache implementation should be used instead.
  *
+ * @author "Vlad Marian" (vmarian@mimecast.com)
+ * @link <a href="http://mimecast.com">Mimecast</a>
  * @see StsPolicy
  * @see PolicyCache
- * @author "Vlad Marian" <vmarian@mimecast.com>
- * @link <a href="http://mimecast.com">Mimecast</a>
  */
 public class MemoryPolicyCache extends PolicyCache {
 

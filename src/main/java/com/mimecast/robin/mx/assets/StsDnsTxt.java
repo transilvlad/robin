@@ -8,10 +8,10 @@ import java.util.StringTokenizer;
  * Strict Transport Security DNS TXT Abstract.
  * <p>Parser for DNS TXT record contents.
  *
+ * @author "Vlad Marian" (vmarian@mimecast.com)
+ * @link <a href="http://mimecast.com">Mimecast</a>
  * @see StsRecord
  * @see StsReport
- * @author "Vlad Marian" <vmarian@mimecast.com>
- * @link <a href="http://mimecast.com">Mimecast</a>
  */
 public abstract class StsDnsTxt {
 

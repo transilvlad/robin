@@ -15,15 +15,15 @@ import java.util.Properties;
  * <p>This class is intentionally small and focused: it connects to an IMAP server using
  * Jakarta Mail, opens a folder (defaults to INBOX), and exposes convenience methods to
  * fetch all messages or search for a message by its Message-ID header.
- *
+ * <p>
  * Usage example:
  * <pre>
  * try (ImapClient client = new ImapClient("imap.example.com", 993, "user", "pass")) {
  *     List<Message> messages = client.fetchEmails();
- *     Message m = client.fetchEmailByMessageId("<abc@example.com>");
+ * Message m = client.fetchEmailByMessageId("&lt;abc@example.com&gt;");
  * }
  * </pre>
- *
+ * <p>
  * Notes:
  * - Port 993 will enable SSL for Jakarta Mail by default.
  * - The client implements AutoCloseable so it can be used in try-with-resources blocks.
@@ -98,7 +98,7 @@ public class ImapClient implements AutoCloseable {
      * Header comparison is done using String.contains() to allow matching with or without
      * surrounding angle brackets.
      *
-     * @param messageId The Message-ID to search for (for example: "<abc@example.com>").
+     * @param messageId The Message-ID to search for (for example: "&lt;abc@example.com&gt;").
      * @return The Message if found, otherwise null.
      */
     public Message fetchEmailByMessageId(String messageId) {

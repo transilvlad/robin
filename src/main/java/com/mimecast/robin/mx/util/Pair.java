@@ -8,7 +8,7 @@ import org.apache.logging.log4j.Logger;
  * <p>Takes a single string input and splits by <i>=</i> (equals) character.
  * <p>Provides validation by checking both key and value and not empty.
  *
- * @author "Vlad Marian" <vmarian@mimecast.com>
+ * @author "Vlad Marian" (vmarian@mimecast.com)
  * @link <a href="http://mimecast.com">Mimecast</a>
  */
 public class Pair {
@@ -27,7 +27,7 @@ public class Pair {
     /**
      * Constructs a new Pair instance with given string.
      *
-     * @param key: value
+     * @param data The pair string in the format "key:value".
      */
     public Pair(String data) {
         String[] splits = data.trim().split(":");

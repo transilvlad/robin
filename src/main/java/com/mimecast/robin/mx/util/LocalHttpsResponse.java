@@ -1,12 +1,11 @@
 package com.mimecast.robin.mx.util;
 
-import java.net.HttpURLConnection;
 
 /**
  * Local HTTPS Response.
  * <p>Holds response payload and meta.
  *
- * @author "Vlad Marian" <vmarian@mimecast.com>
+ * @author "Vlad Marian" (vmarian@mimecast.com)
  * @link <a href="http://mimecast.com">Mimecast</a>
  */
 public class LocalHttpsResponse {
@@ -41,7 +40,7 @@ public class LocalHttpsResponse {
      * Response status code.
      * <p>Default: 200 (HTTP_OK)
      *
-     * @see HttpURLConnection.HTTP_OK
+     * @see java.net.HttpURLConnection#HTTP_OK
      */
     private int code = 200;
 

@@ -7,7 +7,7 @@ import java.util.List;
  * HTTPS Response Interface.
  * <p>Wrapper for HttpPolicyClient response.
  *
- * @author "Vlad Marian" <vmarian@mimecast.com>
+ * @author "Vlad Marian" (vmarian@mimecast.com)
  * @link <a href="http://mimecast.com">Mimecast</a>
  */
 public interface HttpsResponse {
