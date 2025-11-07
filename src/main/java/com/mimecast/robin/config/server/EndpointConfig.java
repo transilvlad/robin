@@ -29,6 +29,16 @@ public class EndpointConfig extends BasicConfig {
     }
 
     /**
+     * Gets the port number for this endpoint.
+     *
+     * @param defaultPort Default port to use if not configured.
+     * @return Port number.
+     */
+    public int getPort(int defaultPort) {
+        return Math.toIntExact(getLongProperty("port", (long) defaultPort));
+    }
+
+    /**
      * Gets authentication type (none, basic, bearer).
      *
      * @return Auth type string.

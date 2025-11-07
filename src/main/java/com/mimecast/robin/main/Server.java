@@ -131,10 +131,7 @@ public class Server extends Foundation {
 
         // Start the metrics endpoint for monitoring.
         try {
-            new RobinMetricsEndpoint().start(
-                    Config.getServer().getMetricsPort(),
-                    Config.getServer().getMetrics()
-            );
+            new RobinMetricsEndpoint().start(Config.getServer().getMetrics());
             SmtpMetrics.initialize();
         } catch (IOException e) {
             log.error("Unable to start monitoring endpoint: {}", e.getMessage());
@@ -147,6 +144,7 @@ public class Server extends Foundation {
             log.error("Unable to start metrics cron: {}", e.getMessage());
         }
 
+        // Start the client submission endpoint.
         try {
             new ClientEndpoint().start(Config.getServer().getApi());
         } catch (IOException e) {

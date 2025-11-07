@@ -71,62 +71,43 @@ public class ClientEndpoint {
     private HttpAuth auth;
 
     /**
-     * Starts the client submission endpoint on the configured API port.
+     * Starts the client submission endpoint with endpoint configuration.
      *
-     * <p>Port is read from {@code server.json5} (property: {@code apiPort}).
-     * If not present, falls back to {@code 8090}.
-     *
-     * @throws IOException If an I/O error occurs during server startup.
-     */
-    public void start() throws IOException {
-        start(null, null);
-    }
-
-    /**
-     * Starts the client submission endpoint on the configured API port with authentication.
-     *
-     * @param username The username for HTTP Basic Authentication (null to disable authentication).
-     * @param password The password for HTTP Basic Authentication.
-     * @throws IOException If an I/O error occurs during server startup.
-     * @deprecated Use {@link #start(EndpointConfig)} instead for enhanced authentication support.
-     */
-    @Deprecated
-    public void start(String username, String password) throws IOException {
-        java.util.Map<String, Object> legacyConfig = new java.util.HashMap<>();
-        legacyConfig.put("authType", "basic");
-        if (username != null && !username.isEmpty() && password != null && !password.isEmpty()) {
-            legacyConfig.put("authValue", username + ":" + password);
-        } else {
-            legacyConfig.put("authValue", "");
-        }
-        legacyConfig.put("allowList", new java.util.ArrayList<String>());
-
-        start(new EndpointConfig(legacyConfig));
-    }
-
-    /**
-     * Starts the client submission endpoint on the configured API port with endpoint configuration.
-     *
-     * @param config EndpointConfig containing authentication settings (authType, authValue, allowList).
+     * @param config EndpointConfig containing port and authentication settings (authType, authValue, allowList).
      * @throws IOException If an I/O error occurs during server startup.
      */
     public void start(EndpointConfig config) throws IOException {
+        // Initialize authentication handler.
         this.auth = new HttpAuth(config, "Client API");
 
+        // Build a Gson serializer that excludes fields we don't want to expose.
         gson = new GsonBuilder()
                 .addSerializationExclusionStrategy(new GsonExclusionStrategy())
                 .setPrettyPrinting()
                 .create();
 
-        int apiPort = getApiPort();
+        // Bind the HTTP server to the configured API port.
+        int apiPort = config.getPort(8090);
         HttpServer server = HttpServer.create(new InetSocketAddress(apiPort), 10);
 
+        // Register endpoints.
+
+        // Landing page for client endpoint discovery.
         server.createContext("/", this::handleLandingPage);
+
+        // Main endpoint that triggers a Client.send(...) run for the supplied case.
         server.createContext("/client/send", this::handleClientSend);
+
+        // Queue endpoint that enqueues a RelaySession for later delivery.
         server.createContext("/client/queue", this::handleClientQueue);
+
+        // Queue listing endpoint.
         server.createContext("/client/queue-list", this::handleQueueList);
+
+        // Liveness endpoint for client API.
         server.createContext("/client/health", exchange -> sendJson(exchange, 200, "{\"status\":\"UP\"}"));
 
+        // Start the embedded server on a background thread.
         new Thread(server::start).start();
         log.info("Landing available at http://localhost:{}/", apiPort);
         log.info("Submission endpoint available at http://localhost:{}/client/send", apiPort);
@@ -157,26 +138,6 @@ public class ClientEndpoint {
         } catch (IOException e) {
             log.error("Could not read client-endpoints-ui.html", e);
             sendText(exchange, 500, "Internal Server Error");
-        }
-    }
-
-    /**
-     * Resolves the API port from configuration (server.json5 -> apiPort) with a default fallback.
-     *
-     * @return Port number to bind for the client API.
-     */
-    private int getApiPort() {
-        try {
-            // Reflective access keeps compatibility if this method is absent on older configs.
-            return Config.getServer().getClass()
-                    .getMethod("getApiPort")
-                    .invoke(Config.getServer()) instanceof Integer
-                    ? (Integer) Config.getServer().getClass().getMethod("getApiPort").invoke(Config.getServer())
-                    : 8090;
-        } catch (Exception e) {
-            // Fallback if method not present (older configs)
-            log.warn("ServerConfig.getApiPort not found, using default 8090");
-            return 8090;
         }
     }
 

@@ -3,13 +3,18 @@ package com.mimecast.robin.config.server;
 import com.google.gson.Gson;
 import com.mimecast.robin.config.BasicConfig;
 import com.mimecast.robin.config.ConfigFoundation;
+import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.util.Magic;
 import com.mimecast.robin.util.PathUtils;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * Server configuration.
@@ -213,15 +218,10 @@ public class ServerConfig extends ConfigFoundation {
     /**
      * Gets metrics port.
      *
-     * @return Bind address number.
+     * @return Port number.
      */
     public int getMetricsPort() {
-        // Check if new metrics config object exists
-        if (map.containsKey("metrics") && map.get("metrics") instanceof Map) {
-            return Math.toIntExact(new EndpointConfig(getMapProperty("metrics")).getLongProperty("port", 8080L));
-        }
-        // Fallback to old config
-        return Math.toIntExact(getLongProperty("metricsPort", 8080L));
+        return getMetrics().getPort(8080);
     }
 
     /**
@@ -230,47 +230,7 @@ public class ServerConfig extends ConfigFoundation {
      * @return EndpointConfig instance for metrics.
      */
     public EndpointConfig getMetrics() {
-        if (map.containsKey("metrics") && map.get("metrics") instanceof Map) {
-            Map<String, Object> metricsMap = getMapProperty("metrics");
-            Map<String, Object> processedMap = applyMagicToConfig(metricsMap);
-            return new EndpointConfig(processedMap);
-        }
-        Map<String, Object> fallback = new java.util.HashMap<>();
-        fallback.put("port", getMetricsPort());
-        fallback.put("authType", "basic");
-        String username = getStringProperty("metricsUsername", null);
-        String password = getStringProperty("metricsPassword", null);
-        if (username != null && !username.isEmpty() && password != null && !password.isEmpty()) {
-            username = Magic.magicReplace(username, new com.mimecast.robin.smtp.session.Session());
-            password = Magic.magicReplace(password, new com.mimecast.robin.smtp.session.Session());
-            fallback.put("authValue", username + ":" + password);
-        } else {
-            fallback.put("authValue", "");
-        }
-        fallback.put("allowList", new java.util.ArrayList<String>());
-        return new EndpointConfig(fallback);
-    }
-
-    /**
-     * Gets metrics authentication username.
-     *
-     * @return Username for metrics endpoint authentication, or null if not configured.
-     * @deprecated Use getMetrics().getAuthValue() instead.
-     */
-    @Deprecated
-    public String getMetricsUsername() {
-        return getStringProperty("metricsUsername", null);
-    }
-
-    /**
-     * Gets metrics authentication password.
-     *
-     * @return Password for metrics endpoint authentication, or null if not configured.
-     * @deprecated Use getMetrics().getAuthValue() instead.
-     */
-    @Deprecated
-    public String getMetricsPassword() {
-        return getStringProperty("metricsPassword", null);
+        return getEndpointConfig("metrics", 8080);
     }
 
     /**
@@ -279,12 +239,7 @@ public class ServerConfig extends ConfigFoundation {
      * @return Port number.
      */
     public int getApiPort() {
-        // Check if new api config object exists
-        if (map.containsKey("api") && map.get("api") instanceof Map) {
-            return Math.toIntExact(new EndpointConfig(getMapProperty("api")).getLongProperty("port", 8090L));
-        }
-        // Fallback to old config
-        return Math.toIntExact(getLongProperty("apiPort", 8090L));
+        return getApi().getPort(8090);
     }
 
     /**
@@ -293,47 +248,23 @@ public class ServerConfig extends ConfigFoundation {
      * @return EndpointConfig instance for API.
      */
     public EndpointConfig getApi() {
-        if (map.containsKey("api") && map.get("api") instanceof Map) {
-            Map<String, Object> apiMap = getMapProperty("api");
-            Map<String, Object> processedMap = applyMagicToConfig(apiMap);
+        return getEndpointConfig("api", 8090);
+    }
+
+    /**
+     * Gets endpoint configuration with magic replacement applied.
+     *
+     * @param key         Configuration key (metrics or api).
+     * @param defaultPort Default port if not configured.
+     * @return EndpointConfig instance.
+     */
+    private EndpointConfig getEndpointConfig(String key, int defaultPort) {
+        if (map.containsKey(key) && map.get(key) instanceof Map) {
+            Map<String, Object> endpointMap = getMapProperty(key);
+            Map<String, Object> processedMap = applyMagicToConfig(endpointMap);
             return new EndpointConfig(processedMap);
         }
-        Map<String, Object> fallback = new java.util.HashMap<>();
-        fallback.put("port", getApiPort());
-        fallback.put("authType", "basic");
-        String username = getStringProperty("apiUsername", null);
-        String password = getStringProperty("apiPassword", null);
-        if (username != null && !username.isEmpty() && password != null && !password.isEmpty()) {
-            username = Magic.magicReplace(username, new com.mimecast.robin.smtp.session.Session());
-            password = Magic.magicReplace(password, new com.mimecast.robin.smtp.session.Session());
-            fallback.put("authValue", username + ":" + password);
-        } else {
-            fallback.put("authValue", "");
-        }
-        fallback.put("allowList", new java.util.ArrayList<String>());
-        return new EndpointConfig(fallback);
-    }
-
-    /**
-     * Gets API authentication username.
-     *
-     * @return Username for API endpoint authentication, or null if not configured.
-     * @deprecated Use getApi().getAuthValue() instead.
-     */
-    @Deprecated
-    public String getApiUsername() {
-        return getStringProperty("apiUsername", null);
-    }
-
-    /**
-     * Gets API authentication password.
-     *
-     * @return Password for API endpoint authentication, or null if not configured.
-     * @deprecated Use getApi().getAuthValue() instead.
-     */
-    @Deprecated
-    public String getApiPassword() {
-        return getStringProperty("apiPassword", null);
+        throw new IllegalStateException("Missing required configuration: " + key);
     }
 
     /**
@@ -471,17 +402,17 @@ public class ServerConfig extends ConfigFoundation {
     @SuppressWarnings("unchecked")
     private Map<String, Object> applyMagicToConfig(Map<String, Object> config) {
         Map<String, Object> processed = new HashMap<>();
-        com.mimecast.robin.smtp.session.Session dummySession = new com.mimecast.robin.smtp.session.Session();
+        Session session = new Session();
         
         for (Map.Entry<String, Object> entry : config.entrySet()) {
             Object value = entry.getValue();
             if (value instanceof String) {
-                processed.put(entry.getKey(), Magic.magicReplace((String) value, dummySession));
+                processed.put(entry.getKey(), Magic.magicReplace((String) value, session));
             } else if (value instanceof List) {
                 List<Object> list = new ArrayList<>();
                 for (Object item : (List<?>) value) {
                     if (item instanceof String) {
-                        list.add(Magic.magicReplace((String) item, dummySession));
+                        list.add(Magic.magicReplace((String) item, session));
                     } else {
                         list.add(item);
                     }
