@@ -1,13 +1,11 @@
 package com.mimecast.robin.imap;
 
+import com.mimecast.robin.main.Config;
 import jakarta.mail.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 
 /**
  * Lightweight IMAP helper used by tests and utilities to fetch messages from a mailbox.
@@ -53,6 +51,41 @@ public class ImapClient implements AutoCloseable {
     }
 
     /**
+     * Builds Jakarta Mail session properties for IMAP/IMAPS.
+     */
+    private Properties buildProperties() {
+        Properties props = new Properties();
+        boolean ssl = "993".equals(port);
+
+        // Choose protocol; JavaMail sometimes requires explicit "imaps" for implicit TLS.
+        props.put("mail.store.protocol", ssl ? "imaps" : "imap");
+        props.put("mail.imap.host", host);
+        props.put("mail.imap.port", port);
+        props.put("mail.imap.ssl.enable", String.valueOf(ssl));
+        props.put("mail.imap.ssl.trust", "*");
+
+        // Provide explicit imaps keys as some providers look these up separately.
+        if (ssl) {
+            props.put("mail.imaps.host", host);
+            props.put("mail.imaps.port", port);
+            props.put("mail.imaps.ssl.enable", "true");
+            props.put("mail.imaps.ssl.trust", "*");
+        }
+        props.put("mail.imap.connectiontimeout", "10000");
+        props.put("mail.imap.timeout", "20000");
+
+        // Ensure not disabled by defaults.
+        props.put("mail.imap.auth.login.disable", "false");
+        props.put("mail.imap.auth.plain.disable", "false");
+        props.put("mail.imap.auth.xoauth2.disable", "false");
+
+        // Debug toggle.
+        props.put("mail.debug", Config.getProperties().getStringProperty("imapClientDebug", "false"));
+
+        return props;
+    }
+
+    /**
      * Fetches all emails from the configured folder.
      *
      * <p>On error the method logs the exception and returns an empty list.
@@ -60,35 +93,66 @@ public class ImapClient implements AutoCloseable {
      * @return List of Messages (possibly empty). Never returns null.
      */
     public List<Message> fetchEmails() {
-        Properties props = new Properties();
-        // Configure Jakarta Mail for IMAP
-        props.put("mail.store.protocol", "imap");
-        props.put("mail.imap.host", host);
-        props.put("mail.imap.port", port);
-        // Enable SSL when standard IMAPs port is used (993)
-        props.put("mail.imap.ssl.enable", port.equals("993") ? "true" : "false");
-
+        Properties props = buildProperties();
         Session session = Session.getInstance(props);
+        List<Message> empty = Collections.emptyList();
         try {
-            store = session.getStore("imap");
-            // Connect using username/password (no special auth mechanisms are configured here)
+            // Use protocol from properties (imap or imaps).
+            String protocol = props.getProperty("mail.store.protocol", "imap");
+            store = session.getStore(protocol);
             store.connect(host, username, password);
 
             mailbox = store.getFolder(folder);
+            if (mailbox == null) {
+                log.error("Folder '{}' not found on host {}", folder, host);
+                return empty;
+            }
+            if (!mailbox.exists()) {
+                log.error("Folder '{}' does not exist", folder);
+                return empty;
+            }
             mailbox.open(Folder.READ_ONLY);
 
-            // mailbox.getMessages() returns Message[]; convert to a mutable List correctly.
             Message[] msgs = mailbox.getMessages();
             if (msgs == null || msgs.length == 0) {
                 return new ArrayList<>();
             }
+
             return Arrays.asList(msgs);
 
-        } catch (Exception e) {
-            log.error("Error fetching from IMAP: {}", e.getMessage());
-        }
+        } catch (AuthenticationFailedException afe) {
+            log.error("IMAP authentication failed for user '{}': {}", username, afe.getMessage());
 
-        return new ArrayList<>();
+        } catch (MessagingException me) {
+            if (me.getMessage() != null && me.getMessage().toLowerCase().contains("no login methods supported")) {
+                log.warn("Server reported no login methods; retrying with STARTTLS downgrade attempt if applicable.");
+
+                // Retry only if we were using implicit SSL incorrectly; try plain imap with STARTTLS if port not 993.
+                if (!"993".equals(port)) {
+                    try {
+                        Properties retryProps = buildProperties();
+                        retryProps.put("mail.imap.starttls.enable", "true");
+                        retryProps.put("mail.store.protocol", "imap");
+                        Session retrySession = Session.getInstance(retryProps);
+                        Store retryStore = retrySession.getStore("imap");
+                        retryStore.connect(host, username, password);
+                        Folder retryMailbox = retryStore.getFolder(folder);
+                        if (retryMailbox != null && retryMailbox.exists()) {
+                            retryMailbox.open(Folder.READ_ONLY);
+                            Message[] msgs = retryMailbox.getMessages();
+                            return msgs == null ? new ArrayList<>() : Arrays.asList(msgs);
+                        }
+                    } catch (Exception re) {
+                        log.error("Retry with STARTTLS failed: {}", re.getMessage());
+                    }
+                }
+            } else {
+                log.error("MessagingException fetching IMAP messages: {}", me.getMessage());
+            }
+        } catch (Exception e) {
+            log.error("Unexpected error fetching from IMAP: {}", e.getMessage());
+        }
+        return empty;
     }
 
     /**

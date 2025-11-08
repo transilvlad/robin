@@ -42,5 +42,8 @@
     connectTimeout: 20,
     writeTimeout: 20,
     readTimeout: 90
-  }
+  },
+
+  // Enable debug mode for Robin IMAP client.
+  imapClientDebug: "true"
 }
