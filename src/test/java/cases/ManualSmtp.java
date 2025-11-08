@@ -4,6 +4,7 @@ import com.mimecast.robin.assertion.AssertException;
 import com.mimecast.robin.main.Client;
 import com.mimecast.robin.main.Foundation;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import javax.naming.ConfigurationException;
@@ -12,6 +13,7 @@ import java.io.IOException;
 /**
  * Manual SMTP test cases.
  */
+@Disabled
 public class ManualSmtp {
 
     @BeforeAll
@@ -27,5 +29,17 @@ public class ManualSmtp {
     void inboundDovecot() throws AssertException, IOException {
         new Client()
                 .send("src/test/resources/cases/config/manual/inbound.json5");
+    }
+
+    /**
+     * Manual test case for Dovecot submission testing.
+     * Authentication/validation and saving to Dovecot need to be enabled.
+     * Outbound relay should be disabled for this but if it's not
+     * it's an interesting case for testing queue expiration and bounce expiration.
+     */
+    @Test
+    void outboundDovecot() throws AssertException, IOException {
+        new Client()
+                .send("src/test/resources/cases/config/manual/outbound.json5");
     }
 }

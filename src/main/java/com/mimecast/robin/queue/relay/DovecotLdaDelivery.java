@@ -95,13 +95,9 @@ public class DovecotLdaDelivery {
      * @throws InterruptedException On process interruption.
      */
     protected Pair<Integer, String> callDovecotLda(String recipient) throws IOException, InterruptedException {
-        // Configure command.
         List<String> command = new ArrayList<>(Arrays.asList(
                 Config.getServer().getDovecot().getStringProperty("ldaBinary"),
                 "-d", recipient,
-                "-f", relaySession.getSession().getEnvelopes().getLast().getMail(),
-                "-a", recipient,
-                // "There can only be one" envelope when relaying. See: RelayMessage.class
                 "-p", relaySession.getSession().getEnvelopes().getFirst().getFile()
         ));
 

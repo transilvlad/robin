@@ -11,10 +11,15 @@
   mx: [
     "127.0.0.1"
   ],
-  port: 25,
+  port: 587,
 
   // Enable TLS.
   tls: true,
+
+  // Enable authentication.
+  auth: true,
+  user: "tony@example.com",
+  pass: "stark",
 
   // Email envelopes.
   envelopes: [
@@ -57,14 +62,14 @@
 
             // IMAP server to connect to.
             server: "localhost",
-            port: 143,
+            port: 993,
 
             // User credentials.
-            user: "pepper@example.com",
-            pass: "potts",
+            user: "tony@example.com",
+            pass: "stark",
 
             // Folder to check for the email.
-            folder: "INBOX",
+            folder: "Sent",
 
             // What to check in the email.
             matches: {

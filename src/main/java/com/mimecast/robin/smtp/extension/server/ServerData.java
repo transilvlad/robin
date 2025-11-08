@@ -133,7 +133,12 @@ public class ServerData extends ServerProcessor {
             connection.setTimeout(connection.getSession().getTimeout());
         }
 
-        return storageClient.save();
+        if (!storageClient.save()) {
+            connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -148,8 +153,12 @@ public class ServerData extends ServerProcessor {
 
         if (verb.getCount() == 1) {
             connection.write(SmtpResponses.INVALID_ARGS_501);
+            return false;
+
         } else if (bdatVerb.getSize() > emailSizeLimit) {
             connection.write(String.format(SmtpResponses.MESSAGE_SIZE_LIMIT_EXCEEDED_552, connection.getSession().getUID()));
+            return false;
+
         } else {
             // Read bytes.
             StorageClient storageClient = Factories.getStorageClient(connection, "eml");
@@ -160,7 +169,10 @@ public class ServerData extends ServerProcessor {
 
             if (bdatVerb.isLast()) {
                 log.debug("Last chunk received.");
-                storageClient.save();
+                if (!storageClient.save()) {
+                    connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+                    return false;
+                }
             }
 
             // Call RAW webhook after successful storage.

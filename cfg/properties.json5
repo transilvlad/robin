@@ -45,5 +45,5 @@
   },
 
   // Enable debug mode for Robin IMAP client.
-  imapClientDebug: "true"
+  imapClientDebug: "false"
 }
