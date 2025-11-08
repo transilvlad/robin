@@ -168,33 +168,35 @@ public class LocalStorageClient implements StorageClient {
                 stream.close();
 
                 // Parse email for further processing.
-                parser = new EmailParser(getFile()).parse();
+                try (EmailParser emailParser = new EmailParser(getFile()).parse()) {
+                    parser = emailParser;
 
-                // Rename file if X-Robin-Filename header exists and feature enabled.
-                if (!config.getStorage().getBooleanProperty("disableRenameHeader")) {
-                    rename();
-                }
+                    // Rename file if X-Robin-Filename header exists and feature enabled.
+                    if (!config.getStorage().getBooleanProperty("disableRenameHeader")) {
+                        rename();
+                    }
 
-                // Set email path to current envelope if any.
-                if (!connection.getSession().getEnvelopes().isEmpty()) {
-                    connection.getSession().getEnvelopes().getLast().setFile(getFile());
-                }
-                log.info("Storage file saved to: {}", getFile());
+                    // Set email path to current envelope if any.
+                    if (!connection.getSession().getEnvelopes().isEmpty()) {
+                        connection.getSession().getEnvelopes().getLast().setFile(getFile());
+                    }
+                    log.info("Storage file saved to: {}", getFile());
 
-                // Run storage processors.
-                for (Callable<StorageProcessor> storageProcessor : Factories.getStorageProcessors()) {
-                    try {
-                        if (!storageProcessor.call().process(connection, parser)) {
+                    // Run storage processors.
+                    for (Callable<StorageProcessor> storageProcessor : Factories.getStorageProcessors()) {
+                        try {
+                            if (!storageProcessor.call().process(connection, parser)) {
+                                return false;
+                            }
+                        } catch (Exception e) {
+                            log.error("Storage processor error: {}", e.getMessage());
                             return false;
                         }
-                    } catch (Exception e) {
-                        log.error("Storage processor error: {}", e.getMessage());
-                        return false;
                     }
-                }
 
-                // Relay email if X-Robin-Relay or relay configuration or direction outbound enabled.
-                relay();
+                    // Relay email if X-Robin-Relay or relay configuration or direction outbound enabled.
+                    relay();
+                }
             }
         } catch (IOException e) {
             log.error("Storage unable to store the email: {}", e.getMessage());

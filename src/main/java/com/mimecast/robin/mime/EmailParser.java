@@ -39,19 +39,24 @@ import java.util.Optional;
  * email messages programmatically. It can be integrated into MTA implementations, email
  * processing pipelines, forensic tools, or testing frameworks.
  * <p>
+ * This class implements AutoCloseable to ensure proper cleanup of temporary files created
+ * for non-text MIME parts. The close() method deletes temporary part files but not the main
+ * email file.
+ * <p>
  * Example usage:
  * <pre>
- * EmailParser parser = new EmailParser("/path/to/email.eml");
- * parser.parse();
- * MimeHeaders headers = parser.getHeaders();
- * List&lt;MimePart&gt; parts = parser.getParts();
+ * try (EmailParser parser = new EmailParser("/path/to/email.eml")) {
+ *     parser.parse();
+ *     MimeHeaders headers = parser.getHeaders();
+ *     List&lt;MimePart&gt; parts = parser.getParts();
+ * }
  * </pre>
  *
  * @see MimeHeaders
  * @see MimePart
  * @see LineInputStream
  */
-public class EmailParser {
+public class EmailParser implements AutoCloseable {
     private static final Logger log = LogManager.getLogger(EmailParser.class);
 
     /**
@@ -528,6 +533,30 @@ public class EmailParser {
 
         } catch (NoSuchAlgorithmException nsae) {
             throw new IOException("No such algorithm", nsae);
+        }
+    }
+
+    /**
+     * Closes the EmailParser and cleans up temporary files created for MIME parts.
+     * <p>
+     * This method deletes temporary files associated with FileMimePart instances
+     * that were created during parsing. The main email file is not deleted.
+     * <p>
+     * This method is called automatically when using try-with-resources.
+     */
+    @Override
+    public void close() {
+        for (MimePart part : parts) {
+            if (part instanceof FileMimePart) {
+                File file = ((FileMimePart) part).getFile();
+                if (file != null && file.exists()) {
+                    if (file.delete()) {
+                        log.trace("Deleted temporary part file: {}", file.getAbsolutePath());
+                    } else {
+                        log.warn("Failed to delete temporary part file: {}", file.getAbsolutePath());
+                    }
+                }
+            }
         }
     }
 }

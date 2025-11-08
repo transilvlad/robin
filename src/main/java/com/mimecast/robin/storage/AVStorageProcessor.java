@@ -47,9 +47,7 @@ public class AVStorageProcessor implements StorageProcessor {
                     if (part instanceof FileMimePart) {
                         String partInfo = part.getHeader("content-type") != null ? part.getHeader("content-type").getValue() : "attachment";
                         File partFile = ((FileMimePart) part).getFile();
-                        boolean isClean = isClean(partFile, partInfo, clamAVConfig, connection);
-                        partFile.delete();
-                        if (!isClean) {
+                        if (!isClean(partFile, partInfo, clamAVConfig, connection)) {
                             return false;
                         }
                     }
