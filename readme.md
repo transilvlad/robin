@@ -49,7 +49,7 @@ This project makes use of sample password as needed for testing and demonstratio
 
 - notMyPassword - It's not my password. It can't be as password length and complexity not met.
 - 1234 - Sample used in some unit tests.
-- giveHerTheRing - Another sample used in unit tests and documentation. (Tony Stark / Pepper Pots Easter egg)
+- giveHerTheRing - Another sample used in unit tests and documentation. (Tony Stark / Pepper Potts Easter egg)
 - avengers - Test keystore password that contains a single entry issued to Tony Stark. (Another Easter egg)
 
 **These passwords are not in use within production environments.**
