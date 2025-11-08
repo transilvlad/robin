@@ -1,6 +1,7 @@
 *.iml
 .idea/
 .dovecot/etc/dh.pem
+.dovecot/etc/certs/
 log/
 store/
 target/
