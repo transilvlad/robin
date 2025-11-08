@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 import javax.naming.ConfigurationException;
 import java.io.IOException;
 
-public class ExampleSend {
+public class ExampleSmtp {
 
     @BeforeAll
     static void before() throws ConfigurationException {
