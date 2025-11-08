@@ -33,9 +33,10 @@ public class AVStorageProcessor implements StorageProcessor {
     @Override
     public boolean process(Connection connection, EmailParser emailParser) throws IOException {
         BasicConfig clamAVConfig = Config.getServer().getClamAV();
-        byte[] bytes = Files.readAllBytes(Paths.get(connection.getSession().getEnvelopes().getLast().getFile()));
 
         if (clamAVConfig.getBooleanProperty("enabled")) {
+            byte[] bytes = Files.readAllBytes(Paths.get(connection.getSession().getEnvelopes().getLast().getFile()));
+
             // Scan the entire email with ClamAV.
             if (!isClean(bytes, "email", clamAVConfig, connection)) {
                 return false;

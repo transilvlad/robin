@@ -1,9 +1,6 @@
 package com.mimecast.robin.storage;
 
 import com.mimecast.robin.config.server.ServerConfig;
-import com.mimecast.robin.queue.RelaySession;
-import com.mimecast.robin.queue.relay.DovecotLdaDelivery;
-import com.mimecast.robin.queue.relay.DovecotLdaDeliveryMock;
 import org.apache.commons.lang3.tuple.Pair;
 
 /**
@@ -13,12 +10,8 @@ class LocalStorageClientMock extends LocalStorageClient {
 
     private final Pair<Integer, String> result;
 
-    public LocalStorageClientMock(ServerConfig config, Pair<Integer, String> ldaResult) {
+    public LocalStorageClientMock(ServerConfig config, Pair<Integer, String> result) {
         this.config = config;
-        this.result = ldaResult;
-    }
-
-    protected DovecotLdaDelivery getDovecotLdaDeliveryInstance() {
-        return new DovecotLdaDeliveryMock(new RelaySession(connection.getSession()), result);
+        this.result = result;
     }
 }

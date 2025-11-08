@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class DovecotLdaDeliveryTest {
+class DovecotLdaClientTest {
 
     @Test
     void success() {
@@ -16,7 +16,7 @@ class DovecotLdaDeliveryTest {
         relaySession.getSession().addEnvelope(new MessageEnvelope());
         relaySession.getSession().getEnvelopes().getLast().addRcpt("tony@example.com");
 
-        new DovecotLdaDeliveryMock(relaySession, Pair.of(0, "")).send();
+        new DovecotLdaClientMock(relaySession, Pair.of(0, "")).send();
 
         assertEquals(1, relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().getRecipients().size());
         assertEquals(0, relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().getFailedRecipients().size());
@@ -28,7 +28,7 @@ class DovecotLdaDeliveryTest {
         relaySession.getSession().addEnvelope(new MessageEnvelope());
         relaySession.getSession().getEnvelopes().getLast().addRcpt("tony@example.com");
 
-        new DovecotLdaDeliveryMock(relaySession, Pair.of(75, "")).send();
+        new DovecotLdaClientMock(relaySession, Pair.of(75, "")).send();
 
         assertEquals(1, relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().getRecipients().size());
         assertEquals(1, relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().getFailedRecipients().size());

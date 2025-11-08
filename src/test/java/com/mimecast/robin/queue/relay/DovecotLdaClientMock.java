@@ -8,11 +8,11 @@ import java.io.IOException;
 /**
  * Dovecot LDA delivery mock for testing.
  */
-public class DovecotLdaDeliveryMock extends DovecotLdaDelivery {
+public class DovecotLdaClientMock extends DovecotLdaClient {
 
     private final Pair<Integer, String> result;
 
-    public DovecotLdaDeliveryMock(RelaySession relaySession, Pair<Integer, String> result) {
+    public DovecotLdaClientMock(RelaySession relaySession, Pair<Integer, String> result) {
         super(relaySession);
         this.result = result;
     }

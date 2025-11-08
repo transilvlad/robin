@@ -11,6 +11,12 @@
   // Save a copy of each email to Dovecot LDA.
   saveToDovecotLda: false,
 
+  // How many times to attempt to save an email to Dovecot LDA before giving up.
+  inlineSaveMaxAttempts: 2,
+
+  // Delay in seconds between attempts to save an email to Dovecot LDA.
+  inlineSaveRetryDelay: 3,
+
   // Path to Dovecot LDA binary.
   ldaBinary: "/usr/libexec/dovecot/dovecot-lda",
 

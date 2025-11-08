@@ -3,7 +3,7 @@ package com.mimecast.robin.queue;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.queue.bounce.BounceMessageGenerator;
-import com.mimecast.robin.queue.relay.DovecotLdaDelivery;
+import com.mimecast.robin.queue.relay.DovecotLdaClient;
 import com.mimecast.robin.smtp.EmailDelivery;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
@@ -175,7 +175,7 @@ public class RelayDequeue {
         try {
             if ("dovecot-lda".equalsIgnoreCase(relaySession.getProtocol())) {
                 log.debug("Attempting Dovecot LDA delivery");
-                new DovecotLdaDelivery(relaySession).send();
+                new DovecotLdaClient(relaySession).send();
             } else {
                 log.debug("Attempting email delivery");
                 new EmailDelivery(relaySession.getSession()).send();

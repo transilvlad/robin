@@ -10,7 +10,7 @@ import com.mimecast.robin.queue.QueueFiles;
 import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.queue.bounce.BounceMessageGenerator;
-import com.mimecast.robin.queue.relay.DovecotLdaDelivery;
+import com.mimecast.robin.queue.relay.DovecotLdaClient;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
@@ -74,7 +74,7 @@ public class DovecotStorageProcessor implements StorageProcessor {
                 mailbox);
 
         // Invoke Dovecot LDA delivery.
-        getDovecotLdaDeliveryInstance(connection)
+        getDovecotLdaClientInstance(connection)
                 .send();
 
         // Retrieve transaction results.
@@ -172,16 +172,16 @@ public class DovecotStorageProcessor implements StorageProcessor {
     }
 
     /**
-     * Get DovecotLdaDelivery instance.
+     * Get DovecotLdaClient instance.
      * <p>Can be overridden for testing/mocking purposes.
      *
      * @param connection Connection instance.
-     * @return DovecotLdaDelivery instance.
+     * @return DovecotLdaClient instance.
      */
-    protected DovecotLdaDelivery getDovecotLdaDeliveryInstance(Connection connection) {
+    protected DovecotLdaClient getDovecotLdaClientInstance(Connection connection) {
         RelaySession relaySession = new RelaySession(connection.getSession())
                 .setMailbox(Config.getServer().getRelay().getStringProperty(connection.getSession().isInbound() ? "mailbox" : "outbox"));
 
-        return new DovecotLdaDelivery(relaySession);
+        return new DovecotLdaClient(relaySession);
     }
 }
