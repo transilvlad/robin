@@ -56,12 +56,12 @@ public class ImapExternalClient extends MatchExternalClient {
 
                 verified = verifyMessage(imapClient.fetchEmailByMessageId(connection.getSession().getEnvelopes().get(transactionId).getMessageId()));
                 if (verified) {
-                    log.info("AssertExternal logs fetch verify success");
+                    log.info("AssertExternal IMAP fetch verify success");
                     return;
                 }
 
                 delay = config.getDelay() * 1000L; // Retry delay.
-                log.info("AssertExternal logs fetch verify {}", (count < config.getRetry() - 1 ? "failure" : "attempts spent"));
+                log.info("AssertExternal IMAP fetch verify {}", (count < config.getRetry() - 1 ? "failure" : "attempts spent"));
 
                 if (!assertVerifyFails) {
                     skip = true;
