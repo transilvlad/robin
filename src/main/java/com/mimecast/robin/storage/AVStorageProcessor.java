@@ -12,9 +12,8 @@ import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 
 /**
  * Storage processor for antivirus scanning using ClamAV.
@@ -35,10 +34,10 @@ public class AVStorageProcessor implements StorageProcessor {
         BasicConfig clamAVConfig = Config.getServer().getClamAV();
 
         if (clamAVConfig.getBooleanProperty("enabled")) {
-            byte[] bytes = Files.readAllBytes(Paths.get(connection.getSession().getEnvelopes().getLast().getFile()));
+            File emailFile = new File(connection.getSession().getEnvelopes().getLast().getFile());
 
             // Scan the entire email with ClamAV.
-            if (!isClean(bytes, "email", clamAVConfig, connection)) {
+            if (!isClean(emailFile, "email", clamAVConfig, connection)) {
                 return false;
             }
 
@@ -47,8 +46,9 @@ public class AVStorageProcessor implements StorageProcessor {
                 for (MimePart part : emailParser.getParts()) {
                     if (part instanceof FileMimePart) {
                         String partInfo = part.getHeader("content-type") != null ? part.getHeader("content-type").getValue() : "attachment";
-                        boolean isClean = isClean(part.getBytes(), partInfo, clamAVConfig, connection);
-                        ((FileMimePart) part).getFile().delete();
+                        File partFile = ((FileMimePart) part).getFile();
+                        boolean isClean = isClean(partFile, partInfo, clamAVConfig, connection);
+                        partFile.delete();
                         if (!isClean) {
                             return false;
                         }
@@ -61,22 +61,22 @@ public class AVStorageProcessor implements StorageProcessor {
     }
 
     /**
-     * Checks if the given byte array is clean of viruses using ClamAV.
+     * Checks if the given file is clean of viruses using ClamAV.
      *
-     * @param bytes        The byte array to check.
+     * @param file         The file to check.
      * @param part         The part of the email being checked.
      * @param clamAVConfig The ClamAV configuration.
      * @param connection   The SMTP connection.
-     * @return True if the byte array is clean, false otherwise.
+     * @return True if the file is clean, false otherwise.
      * @throws IOException If an error occurs while checking for viruses.
      */
-    private boolean isClean(byte[] bytes, String part, BasicConfig clamAVConfig, Connection connection) throws IOException {
+    private boolean isClean(File file, String part, BasicConfig clamAVConfig, Connection connection) throws IOException {
         ClamAVClient clamAVClient = new ClamAVClient(
                 clamAVConfig.getStringProperty("host", "localhost"),
                 clamAVConfig.getLongProperty("port", 3310L).intValue()
         );
 
-        if (clamAVClient.isInfected(bytes)) {
+        if (clamAVClient.isInfected(file)) {
             log.warn("Virus found in {}: {}", part, clamAVClient.getViruses());
             String onVirus = clamAVConfig.getStringProperty("onVirus", "reject");
             SmtpMetrics.incrementEmailVirusRejection();
