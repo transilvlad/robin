@@ -198,6 +198,7 @@ public class LocalStorageClient implements StorageClient {
             }
         } catch (IOException e) {
             log.error("Storage unable to store the email: {}", e.getMessage());
+            return false;
         }
 
         return true;
