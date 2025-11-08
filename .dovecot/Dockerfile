@@ -29,26 +29,36 @@ COPY .dovecot/docker-init.sh /usr/local/bin/docker-init.sh
 
 # Dovecot application setup.
 
-# Update the package index and then install Dovecot.
+# Update the package index and then install Dovecot, plugins and utils.
 RUN apk update && apk add --no-cache \
     supervisor \
     dovecot \
     dovecot-lmtpd \
     dovecot-pigeonhole-plugin \
+    dovecot-fts-lucene \
+    dovecot-pop3d \
     bash \
-    socat
+    socat \
+    openssl
 
 # Create vmail user and group with fixed UID/GID
-RUN addgroup -g 5000 -S vmail && \
-    adduser  -u 5000 -S -D -h /var/mail -G vmail vmail
+RUN addgroup -g 5000 -S vmail \
+    && mkdir -p /var/mail/vhosts/example.com/_shared \
+    && adduser  -u 5000 -S -D -h /var/mail -G vmail vmail
 
-# Create the run directory and set the correct ownership for the dovecot user.
+# Copy quota warning script.
+COPY .dovecot/quota-warning.sh /usr/local/bin/quota-warning.sh
+
+# Prepare mail storage (including attachment de-dup directory) and Dovecot runtime dirs.
 RUN mkdir -p /run/dovecot \
     && chown vmail:vmail /run/dovecot \
+    && mkdir -p /var/mail/attachments \
     && mkdir -p /var/mail/vhosts \
-    && chown -R vmail:vmail /var/mail/vhosts \
+    && chown -R vmail:vmail /var/mail \
     && mkdir -p /etc/dovecot/conf.d \
-    && chown -R vmail:vmail /etc/dovecot
+    && chown -R vmail:vmail /etc/dovecot \
+    && chmod +x /usr/local/bin/docker-init.sh \
+    && chmod +x /usr/local/bin/quota-warning.sh
 
 # Robin application setup.
 
@@ -64,8 +74,8 @@ COPY src/test/resources/keystore.jks /usr/local/robin/keystore.jks
 
 # --
 
-# Expose standard SMTP & IMAP ports and Robin endpoint ports.
-EXPOSE 25 465 587 143 993 8080 8090
+# Expose standard SMTP & IMAP/POP3 & ManageSieve ports and Robin endpoint ports.
+EXPOSE 25 465 587 110 143 993 4190 8080 8090
 
 # Run supervisor in foreground.
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf", "-n"]

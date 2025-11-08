@@ -1,5 +1,7 @@
 *.iml
 .idea/
+.dovecot/etc/dh.pem
 log/
+store/
 target/
 store/
