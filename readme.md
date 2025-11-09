@@ -60,7 +60,7 @@ Documentation
 - [Introduction](doc/introduction.md)
 - [CLI usage](doc/cli.md)
 
-### Java SMTP/E/SMTP/LMTP Client
+### Java SMTP/ESMTP/LMTP Client
 - [Client usage](doc/client.md)
 
 ### Server
