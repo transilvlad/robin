@@ -7,7 +7,9 @@ import java.util.Map;
 /**
  * Rspamd configuration.
  *
- * <p>This class provides type safe access to Rspamd configuration.
+ * <p>This class provides type safe access to Rspamd spam filtering configuration.
+ *
+ * @see com.mimecast.robin.scanners.RspamdClient
  */
 public class RspamdConfig extends ConfigFoundation {
 
