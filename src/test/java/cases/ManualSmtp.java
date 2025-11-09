@@ -22,6 +22,16 @@ public class ManualSmtp {
     }
 
     /**
+     * Manual test case for AV scanning testing.
+     * ClamAV needs to be enabled.
+     */
+    @Test
+    void inboundVirus() throws AssertException, IOException {
+        new Client()
+                .send("src/test/resources/cases/config/manual/inbound.virus.json5");
+    }
+
+    /**
      * Manual test case for Dovecot delivery testing.
      * Authentication/validation and saving to Dovecot need to be enabled.
      */

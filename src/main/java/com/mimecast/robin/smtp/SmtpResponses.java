@@ -172,7 +172,7 @@ public final class SmtpResponses {
     public static final String CONNECTION_NOT_SECURED_538 = "538 5.7.1 Connection not secured";
 
     /**
-     * 554 Virus detected.
+     * 541 Spam detected.
      */
     public static final String SPAM_FOUND_550 = "541 5.7.1 Spam detected [%s]";
 

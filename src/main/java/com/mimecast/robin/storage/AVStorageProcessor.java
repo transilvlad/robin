@@ -34,10 +34,8 @@ public class AVStorageProcessor implements StorageProcessor {
         BasicConfig clamAVConfig = Config.getServer().getClamAV();
 
         if (clamAVConfig.getBooleanProperty("enabled")) {
-            File emailFile = new File(connection.getSession().getEnvelopes().getLast().getFile());
-
             // Scan the entire email with ClamAV.
-            if (!isClean(emailFile, "email", clamAVConfig, connection)) {
+            if (!isClean(new File(connection.getSession().getEnvelopes().getLast().getFile()), "RAW", clamAVConfig, connection)) {
                 return false;
             }
 
@@ -45,9 +43,11 @@ public class AVStorageProcessor implements StorageProcessor {
             if (clamAVConfig.getBooleanProperty("scanAttachments")) {
                 for (MimePart part : emailParser.getParts()) {
                     if (part instanceof FileMimePart) {
-                        String partInfo = part.getHeader("content-type") != null ? part.getHeader("content-type").getValue() : "attachment";
-                        File partFile = ((FileMimePart) part).getFile();
-                        if (!isClean(partFile, partInfo, clamAVConfig, connection)) {
+                        String partInfo = part.getHeader("content-type") != null ?
+                                part.getHeader("content-type").getValue().replaceAll("\\s+", " ") :
+                                "unknown attachment";
+
+                        if (!isClean(((FileMimePart) part).getFile(), partInfo, clamAVConfig, connection)) {
                             return false;
                         }
                     }
@@ -62,20 +62,20 @@ public class AVStorageProcessor implements StorageProcessor {
      * Checks if the given file is clean of viruses using ClamAV.
      *
      * @param file         The file to check.
-     * @param part         The part of the email being checked.
+     * @param partInfo     The partInfo of the email being checked.
      * @param clamAVConfig The ClamAV configuration.
      * @param connection   The SMTP connection.
      * @return True if the file is clean, false otherwise.
      * @throws IOException If an error occurs while checking for viruses.
      */
-    private boolean isClean(File file, String part, BasicConfig clamAVConfig, Connection connection) throws IOException {
+    private boolean isClean(File file, String partInfo, BasicConfig clamAVConfig, Connection connection) throws IOException {
         ClamAVClient clamAVClient = new ClamAVClient(
                 clamAVConfig.getStringProperty("host", "localhost"),
                 clamAVConfig.getLongProperty("port", 3310L).intValue()
         );
 
         if (clamAVClient.isInfected(file)) {
-            log.warn("Virus found in {}: {}", part, clamAVClient.getViruses());
+            log.warn("Virus found in {}: {}", partInfo, clamAVClient.getViruses());
             String onVirus = clamAVConfig.getStringProperty("onVirus", "reject");
             SmtpMetrics.incrementEmailVirusRejection();
 
@@ -88,7 +88,7 @@ public class AVStorageProcessor implements StorageProcessor {
             }
 
         } else {
-            log.info("AV scan clean for {}", part.replaceAll("\\s+", " "));
+            log.info("AV scan clean for {}", partInfo);
         }
 
         return true;
