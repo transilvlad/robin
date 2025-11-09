@@ -26,6 +26,9 @@ EmailParser - Parsing Email Messages
 The EmailParser class parses RFC 2822 formatted email messages and extracts all headers, body content,
 and attachments with automatic decoding and integrity verification.
 
+**Resource Management**: EmailParser implements `AutoCloseable` and automatically cleans up temporary files 
+created for MIME parts. Always use try-with-resources or manually call `close()` after processing.
+
 ### Supported Features
 
 - **Multi-line Header Folding** - Properly unfolds RFC 2822 folded headers.
@@ -35,10 +38,14 @@ and attachments with automatic decoding and integrity verification.
 - **Embedded Messages** - Supports message/rfc822 embedded email messages.
 - **Content Hashing** - Calculates SHA-1, SHA-256, and MD5 hashes for integrity verification.
 - **Attachment Detection** - Classifies and identifies attachments by MIME type.
+- **Automatic Cleanup** - Temporary part files are automatically deleted when parser is closed.
 
 ### Basic Usage
 
 #### Parse Email from File
+
+EmailParser implements `AutoCloseable` to ensure proper cleanup of temporary files created for MIME parts.
+When parsing completes, temporary attachment files are automatically deleted via the `close()` method.
 
 ```java
 import com.mimecast.robin.mime.EmailParser;
@@ -47,10 +54,7 @@ import com.mimecast.robin.mime.parts.MimePart;
 import java.io.IOException;
 import java.util.List;
 
-try {
-    // Create parser from file path.
-    EmailParser parser = new EmailParser("/path/to/email.eml");
-    
+try (EmailParser parser = new EmailParser("/path/to/email.eml")) {
     // Parse the complete email (headers and body).
     parser.parse();
     
@@ -58,20 +62,26 @@ try {
     MimeHeaders headers = parser.getHeaders();
     List<MimePart> parts = parser.getParts();
     
+    // Process parts here - temporary files are available until close()
+    
 } catch (IOException e) {
     e.printStackTrace();
 }
+// Temporary part files are automatically cleaned up here
 ```
+
+**Note**: If you don't use try-with-resources, you must manually call `parser.close()` to clean up temporary files.
 
 #### Parse Headers Only
 
 For quick header extraction without reading the entire message body:
 
 ```java
-EmailParser parser = new EmailParser("/path/to/email.eml");
-parser.parse(true);  // true = headers only.
-
-MimeHeaders headers = parser.getHeaders();
+try (EmailParser parser = new EmailParser("/path/to/email.eml")) {
+    parser.parse(true);  // true = headers only.
+    
+    MimeHeaders headers = parser.getHeaders();
+}
 ```
 
 #### Custom Buffer Size
@@ -80,8 +90,9 @@ For very complex multipart messages with large boundaries, use a larger buffer:
 
 ```java
 // Default buffer size is 1024 bytes.
-EmailParser parser = new EmailParser("/path/to/email.eml", 4096);
-parser.parse();
+try (EmailParser parser = new EmailParser("/path/to/email.eml", 4096)) {
+    parser.parse();
+}
 ```
 
 #### Parse from Stream
@@ -97,8 +108,9 @@ LineInputStream stream = new LineInputStream(
     new ByteArrayInputStream(emailContent), 
     1024
 );
-EmailParser parser = new EmailParser(stream);
-parser.parse();
+try (EmailParser parser = new EmailParser(stream)) {
+    parser.parse();
+}
 ```
 
 ### Working with Parsed Headers
@@ -183,8 +195,7 @@ import java.util.Optional;
 
 public class EmailParsingExample {
     public static void main(String[] args) {
-        try {
-            EmailParser parser = new EmailParser("email.eml");
+        try (EmailParser parser = new EmailParser("email.eml")) {
             parser.parse();
             
             // Display headers.
@@ -399,9 +410,9 @@ Error Handling
 ### Parsing Errors
 
 ```java
-try {
-    EmailParser parser = new EmailParser("/path/to/email.eml");
+try (EmailParser parser = new EmailParser("/path/to/email.eml")) {
     parser.parse();
+    // Process parsed data here
 } catch (FileNotFoundException e) {
     System.err.println("Email file not found: " + e.getMessage());
 } catch (IOException e) {
@@ -435,6 +446,7 @@ The EmailBuilder handles encoding issues gracefully:
 
 - **Large Files** - EmailParser reads files line-by-line, suitable for large messages.
 - **Memory** - Parts are loaded entirely into memory; for very large attachments, consider streaming implementations.
+- **Temporary Files** - FileMimePart instances create temporary files on disk that are automatically deleted when the parser is closed.
 - **Buffer Size** - Adjust pushback buffer size for optimal performance with your message types.
 - **Hashing** - Cryptographic hashing adds slight overhead but provides integrity verification.
 
