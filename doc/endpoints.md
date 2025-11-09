@@ -374,7 +374,8 @@ Endpoints
   - Query parameters:
     - `query` or `q` - Search term to find in log files (required)
   - Response: `text/plain; charset=utf-8`
-  - Searches the current and previous log4j2 log files (`/var/log/robin-YYYYMMDD.log`)
+  - Searches the current and previous log4j2 log files
+  - The log file location is automatically determined from the log4j2 configuration
   - Returns matching lines as plain text
   - If no query parameter is provided, returns usage information
   - Example:

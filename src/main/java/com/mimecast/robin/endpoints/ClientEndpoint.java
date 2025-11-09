@@ -20,6 +20,10 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.Appender;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.appender.RollingFileAppender;
+import org.apache.logging.log4j.core.config.Configuration;
 
 import java.io.*;
 import java.net.InetSocketAddress;
@@ -431,17 +435,29 @@ public class ClientEndpoint {
             StringBuilder results = new StringBuilder();
             int matchCount = 0;
 
+            // Get log file pattern from log4j2 configuration
+            String logFilePattern = getLogFilePatternFromLog4j2();
+            if (logFilePattern == null) {
+                log.error("Could not determine log file pattern from log4j2 configuration");
+                sendText(exchange, 500, "Could not determine log file location from log4j2 configuration\n");
+                return;
+            }
+
             // Get current date and yesterday's date for log file names
             LocalDate today = LocalDate.now();
             LocalDate yesterday = today.minusDays(1);
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
 
+            // Build log file paths using the pattern from log4j2
+            String todayLogFile = logFilePattern.replace("%d{yyyyMMdd}", today.format(formatter));
+            String yesterdayLogFile = logFilePattern.replace("%d{yyyyMMdd}", yesterday.format(formatter));
+
+            log.debug("Searching log files: today={}, yesterday={}", todayLogFile, yesterdayLogFile);
+
             // Search today's log file
-            String todayLogFile = "/var/log/robin-" + today.format(formatter) + ".log";
             matchCount += searchLogFile(todayLogFile, query, results);
 
             // Search yesterday's log file if it exists
-            String yesterdayLogFile = "/var/log/robin-" + yesterday.format(formatter) + ".log";
             matchCount += searchLogFile(yesterdayLogFile, query, results);
 
             if (matchCount == 0) {
@@ -455,6 +471,35 @@ public class ClientEndpoint {
             log.error("Error processing /logs: {}", e.getMessage());
             sendText(exchange, 500, "Internal Server Error: " + e.getMessage());
         }
+    }
+
+    /**
+     * Gets the log file pattern from log4j2 configuration by examining appenders.
+     *
+     * @return The log file pattern (e.g., "/var/log/robin-%d{yyyyMMdd}.log") or null if not found.
+     */
+    private String getLogFilePatternFromLog4j2() {
+        try {
+            LoggerContext context = (LoggerContext) LogManager.getContext(false);
+            Configuration config = context.getConfiguration();
+            
+            // Iterate through all appenders to find a RollingFileAppender
+            for (Map.Entry<String, Appender> entry : config.getAppenders().entrySet()) {
+                Appender appender = entry.getValue();
+                if (appender instanceof RollingFileAppender) {
+                    RollingFileAppender rollingFileAppender = (RollingFileAppender) appender;
+                    String filePattern = rollingFileAppender.getFilePattern();
+                    if (filePattern != null && !filePattern.isBlank()) {
+                        log.debug("Found log file pattern from appender '{}': {}", entry.getKey(), filePattern);
+                        return filePattern;
+                    }
+                }
+            }
+            log.warn("No RollingFileAppender found in log4j2 configuration");
+        } catch (Exception e) {
+            log.error("Error reading log4j2 configuration: {}", e.getMessage(), e);
+        }
+        return null;
     }
 
     /**

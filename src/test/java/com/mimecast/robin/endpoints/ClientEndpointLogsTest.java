@@ -313,6 +313,40 @@ class ClientEndpointLogsTest {
     }
 
     /**
+     * Tests that we can extract log file pattern from log4j2 configuration.
+     */
+    @Test
+    void testGetLogFilePatternFromLog4j2() {
+        Map<String, Object> config = new HashMap<>();
+        config.put("authType", "none");
+
+        ClientEndpoint endpoint = new ClientEndpoint();
+
+        // Use reflection to access private getLogFilePatternFromLog4j2 method
+        try {
+            java.lang.reflect.Method method = ClientEndpoint.class.getDeclaredMethod("getLogFilePatternFromLog4j2");
+            method.setAccessible(true);
+            
+            // Set auth field
+            java.lang.reflect.Field authField = ClientEndpoint.class.getDeclaredField("auth");
+            authField.setAccessible(true);
+            authField.set(endpoint, new HttpAuth(new EndpointConfig(config), "Test"));
+            
+            String pattern = (String) method.invoke(endpoint);
+
+            // The pattern should be from log4j2.xml configuration
+            assertNotNull(pattern, "Log file pattern should not be null");
+            assertTrue(pattern.contains("robin"), "Pattern should contain 'robin'");
+            assertTrue(pattern.contains("%d{yyyyMMdd}"), "Pattern should contain date format");
+            assertTrue(pattern.endsWith(".log"), "Pattern should end with .log");
+            
+            System.out.println("Found log file pattern: " + pattern);
+        } catch (Exception e) {
+            fail("Failed to invoke getLogFilePatternFromLog4j2 method: " + e.getMessage());
+        }
+    }
+
+    /**
      * Tests that logs endpoint rejects non-GET requests.
      */
     @Test
