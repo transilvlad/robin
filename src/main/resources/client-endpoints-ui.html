@@ -48,7 +48,7 @@
     </li>
     <li>
         <a href="/client/queue"><code>/client/queue</code></a>
-        <span class="description">- Same inputs as <code>/client/send</code>, but enqueues the built session for relay instead of sending immediately. Optional overrides: <code>?protocol=</code>, <code>?mailbox=</code> (overrides storage.json5 folders).</span>
+        <span class="description">- Same inputs as <code>/client/send</code>, but enqueues the built session for relay instead of sending immediately. Optional overrides: <code>?protocol=</code>, <code>?mailbox=</code> (overrides dovecot.json5 folders).</span>
     </li>
     <li>
         <a href="/client/queue-list"><code>/client/queue-list</code></a>
@@ -112,7 +112,7 @@ Invoke-RestMethod -Method Post -Uri 'http://localhost:8090/client/send' -Content
         <b>Optional URL parameters:</b>
         <ul>
             <li><b>protocol</b> <i>Default: ESMTP</i> — Options: SMTP, LMTP, ESMTP, DOVECOT-LDA</li>
-            <li><b>mailbox</b> <i>Default: from storage.json5</i> — Override folder for DOVECOT-LDA protocol delivery. Uses inboundFolder/outboundFolder from storage config if not specified. Options: INBOX, Sent, Trash, Archive, Junk, etc.</li>
+            <li><b>mailbox</b> <i>Default: from dovecot.json5</i> — Override folder for DOVECOT-LDA protocol delivery. Uses inboxFolder/sentFolder from dovecot config if not specified. Options: INBOX, Sent, Trash, Archive, Junk, etc.</li>
         </ul>
     </li>
     <li>

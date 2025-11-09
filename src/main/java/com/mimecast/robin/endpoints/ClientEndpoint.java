@@ -237,8 +237,10 @@ public class ClientEndpoint {
 
             // Optional overrides via query params.
             String protocolOverride = query.getOrDefault("protocol", Config.getServer().getRelay().getStringProperty("protocol", "ESMTP"));
-            // mailbox parameter is an override for both inboundFolder and outboundFolder
-            String mailboxOverride = query.getOrDefault("mailbox", null);
+            // mailbox parameter is an override for dovecot folder delivery
+            // Default to inboxFolder as most queued items are inbound
+            String mailboxOverride = query.getOrDefault("mailbox", 
+                    Config.getServer().getDovecot().getStringProperty("inboxFolder", "INBOX"));
             log.debug("/client/queue overrides: protocol={}, mailbox={}", protocolOverride, mailboxOverride);
 
             String body = readBody(exchange.getRequestBody());

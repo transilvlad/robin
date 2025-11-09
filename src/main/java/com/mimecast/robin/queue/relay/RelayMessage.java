@@ -79,10 +79,10 @@ public class RelayMessage {
             }
         }
 
-        // Get folder from storage config based on direction.
+        // Get folder from dovecot config based on direction.
         String folder = connection.getSession().isInbound()
-                ? Config.getServer().getStorage().getStringProperty("inboundFolder", "new")
-                : Config.getServer().getStorage().getStringProperty("outboundFolder", ".Sent/new");
+                ? Config.getServer().getDovecot().getStringProperty("inboxFolder", "INBOX")
+                : Config.getServer().getDovecot().getStringProperty("sentFolder", "Sent");
 
         // Inbound relay if enabled.
         if (connection.getSession().isInbound() && relayConfig.getBooleanProperty("enabled")) {
