@@ -3,10 +3,14 @@
   // If disabled, emails are not stored on disk or scanned or delivered to Dovecot.
   enabled: true,
 
-  // Autodelete files at connection/session end.
+  // AutoDelete files at connection/session end.
   // If enabled, files are deleted when the SMTP/IMAP session ends,
   // however queued items are copied and deleted after successful delivery or bounce.
-  autodelete: true,
+  autoDelete: true,
+
+  // Enable local mailbox storage.
+  // If enabled, emails are copied to recipient-specific mailbox folders.
+  localMailbox: false,
 
   // Disable rename by magic header feature.
   disableRenameHeader: false,

@@ -89,6 +89,7 @@ public class Factories {
     private static final List<Callable<StorageProcessor>> storageProcessors = List.of(
             SpamStorageProcessor::new,
             AVStorageProcessor::new,
+            LocalStorageProcessor::new,
             DovecotStorageProcessor::new
     );
 

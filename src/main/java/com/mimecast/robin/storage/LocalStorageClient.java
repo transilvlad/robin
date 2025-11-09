@@ -92,24 +92,7 @@ public class LocalStorageClient implements StorageClient {
     @Override
     public LocalStorageClient setConnection(Connection connection) {
         this.connection = connection;
-        path = config.getStorage().getStringProperty("path", "/tmp/store");
-
-        // Append first recipient domain/address to path
-        if (connection != null && !connection.getSession().getEnvelopes().isEmpty() && !connection.getSession().getEnvelopes().getLast().getRcpts().isEmpty()) {
-            String[] splits;
-            if (connection.getSession().isInbound()) {
-                splits = connection.getSession().getEnvelopes().getLast().getRcpts().getFirst().split("@");
-            } else {
-                splits = connection.getSession().getEnvelopes().getLast().getMail().split("@");
-            }
-            if (splits.length == 2) {
-                path = Paths.get(
-                        path,
-                        PathUtils.normalize(splits[1]),
-                        PathUtils.normalize(splits[0])
-                ).toString();
-            }
-        }
+        path = Paths.get(config.getStorage().getStringProperty("path", "/tmp/store"), "tmp").toString();
 
         return this;
     }
