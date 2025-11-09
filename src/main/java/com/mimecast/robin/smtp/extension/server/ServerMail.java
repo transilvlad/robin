@@ -6,6 +6,7 @@ import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.verb.Verb;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.ThreadContext;
 
 import javax.mail.internet.AddressException;
 import javax.mail.internet.InternetAddress;
@@ -115,6 +116,7 @@ public class ServerMail extends ServerProcessor {
                 envelope.setMail(getAddress().getAddress());
                 connection.write(String.format(SmtpResponses.SENDER_OK_250, connection.getSession().getUID()));
             }
+            ThreadContext.put("cCode", envelope.getMail());
 
             return true;
         }

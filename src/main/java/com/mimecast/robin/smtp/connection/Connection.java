@@ -14,6 +14,7 @@ import com.mimecast.robin.util.Sleep;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
 
 import javax.net.ssl.SSLSocket;
 import java.io.DataOutputStream;
@@ -144,6 +145,7 @@ public class Connection extends SmtpFoundation {
      * @throws IOException Unable to communicate.
      */
     public void buildStreams() throws IOException {
+        ThreadContext.put("bCode", socket.getRemoteSocketAddress().toString());
         inc = new LineInputStream(socket.getInputStream());
         out = new DataOutputStream(socket.getOutputStream());
     }

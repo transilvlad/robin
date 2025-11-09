@@ -7,6 +7,7 @@ import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.extension.Extension;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -97,6 +98,7 @@ public class DefaultBehaviour implements Behaviour {
     void data() throws IOException {
         for (int i = 0; i < connection.getSession().getEnvelopes().size(); i++) {
             MessageEnvelope envelope = connection.getSession().getEnvelopes().get(i);
+            ThreadContext.put("cCode", envelope.getMail());
 
             if (Config.getProperties().getBooleanProperty("rsetBetweenEnvelopes", false)) {
                 if (i > 0 && !process("rset", connection)) return;
