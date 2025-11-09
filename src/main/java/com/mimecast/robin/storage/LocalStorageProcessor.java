@@ -80,7 +80,7 @@ public class LocalStorageProcessor implements StorageProcessor {
     private void saveToOutbox(Connection connection, EmailParser emailParser, String sourceFile, String sender) throws IOException {
         ServerConfig config = Config.getServer();
         String basePath = config.getStorage().getStringProperty("path", "/tmp/store");
-        String mailbox = Config.getServer().getRelay().getStringProperty("outbox", "Sent");
+        String outboundFolder = config.getStorage().getStringProperty("outboundFolder", ".Sent/new");
 
         // Parse sender email to get domain and username.
         String[] splits = sender.split("@");
@@ -92,8 +92,8 @@ public class LocalStorageProcessor implements StorageProcessor {
         String domain = PathUtils.normalize(splits[1]);
         String username = PathUtils.normalize(splits[0]);
 
-        // Build destination path: basePath/domain/username/mailbox/.
-        String destPath = Paths.get(basePath, domain, username, mailbox).toString();
+        // Build destination path: basePath/domain/username/outboundFolder/.
+        String destPath = Paths.get(basePath, domain, username, outboundFolder).toString();
 
         // Create directory if needed.
         if (!PathUtils.makePath(destPath)) {
@@ -124,7 +124,7 @@ public class LocalStorageProcessor implements StorageProcessor {
     private void saveToRecipientMailboxes(Connection connection, EmailParser emailParser, String sourceFile, List<String> recipients) throws IOException {
         ServerConfig config = Config.getServer();
         String basePath = config.getStorage().getStringProperty("path", "/tmp/store");
-        String mailbox = Config.getServer().getRelay().getStringProperty("mailbox", "INBOX");
+        String inboundFolder = config.getStorage().getStringProperty("inboundFolder", "new");
 
         for (String recipient : recipients) {
             // Parse recipient email to get domain and username.
@@ -137,8 +137,8 @@ public class LocalStorageProcessor implements StorageProcessor {
             String domain = PathUtils.normalize(splits[1]);
             String username = PathUtils.normalize(splits[0]);
 
-            // Build destination path: basePath/domain/username/mailbox/.
-            String destPath = Paths.get(basePath, domain, username, mailbox).toString();
+            // Build destination path: basePath/domain/username/inboundFolder/.
+            String destPath = Paths.get(basePath, domain, username, inboundFolder).toString();
 
             // Create directory if needed.
             if (!PathUtils.makePath(destPath)) {

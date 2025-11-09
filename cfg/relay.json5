@@ -24,11 +24,6 @@
   // Use secure TLS connection to forward mail.
   tls: false,
 
-  // Mailbox to use when relaying mail via dovecot-lda depending on direction.
-  // Leave blank to bypass parameters.
-  mailbox: "INBOX", // Inbound
-  outbox: "Sent",   // Outbound
-
   // Bounce email if relay fails.
   bounce: true
 }

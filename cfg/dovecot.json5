@@ -20,6 +20,14 @@
   // Path to Dovecot LDA binary.
   ldaBinary: "/usr/libexec/dovecot/dovecot-lda",
 
+  // Folder for inbound email delivery via Dovecot LDA.
+  // Dovecot handles folder structure internally (e.g., adds "." prefix and "/new" suffix).
+  inboxFolder: "INBOX",
+
+  // Folder for outbound email delivery via Dovecot LDA.
+  // Dovecot handles folder structure internally (e.g., adds "." prefix and "/new" suffix).
+  sentFolder: "Sent",
+
   // Behaviour on email delivery failure: "retry" (default) or "bounce".
   // "retry" will attempt to redeliver later, "bounce" will send a bounce message to the sender.
   // If all retries fail it will still result in a bounce.

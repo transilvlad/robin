@@ -354,7 +354,7 @@ Endpoints
   - Accepts the same inputs as `/client/send`
   - Optional query parameters:
     - `protocol` - Override relay protocol (default: ESMTP)
-    - `mailbox` - Override target mailbox (default: from relay config)
+    - `mailbox` - Override target folder for Dovecot LDA delivery (default: from dovecot config inboxFolder/sentFolder)
   - Response: `application/json; charset=utf-8`
   - Returns a confirmation with queue size and the filtered Session object
   - HTTP status: `202 Accepted`
