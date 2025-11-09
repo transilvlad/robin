@@ -1,34 +1,44 @@
 {
   // Enable or disable blackhole functionality (default: false).
+  // When enabled, emails matching the configured rules will be accepted
+  // but not saved to disk or processed by webhooks.
   enabled: false,
 
   // List of blackhole rules.
-  // Emails matching any rule will be accepted but not saved.
-  // All regex patterns are optional - if not specified, they match everything.
-  // Examples:
+  // Each rule can contain one or more conditions (ip, ehlo, mail, rcpt).
+  // All conditions within a single rule must match for the rule to apply (AND logic).
+  // If any rule matches, the email will be blackholed (OR logic between rules).
+  // All patterns are regular expressions.
+  // If a pattern is not specified, it matches anything for that field.
   rules: [
-    // Example: Blackhole all emails from specific IP address
+    // Example 1: Blackhole all emails from a specific IP address
     // {
     //   ip: "192\\.168\\.1\\.100"
     // },
 
-    // Example: Blackhole emails from IP range to specific recipient
+    // Example 2: Blackhole emails from IP range to specific recipient
     // {
     //   ip: "10\\.0\\..*",
-    //   rcpt: ".*@spam\\.example\\.com"
+    //   rcpt: ".*@honeypot\\.example\\.com"
     // },
 
-    // Example: Blackhole based on EHLO domain
+    // Example 3: Blackhole based on EHLO domain pattern
     // {
-    //   ehlo: ".*\\.malicious\\.com"
+    //   ehlo: ".*\\.suspicious\\.com"
     // },
 
-    // Example: Blackhole based on sender address
+    // Example 4: Blackhole based on sender email address
     // {
     //   mail: "spammer@.*"
     // },
 
-    // Example: Blackhole complex rule with multiple conditions
+    // Example 5: Blackhole emails to test/spam trap addresses
+    // {
+    //   rcpt: ".*@(spam-trap|test-inbox)\\.example\\.com"
+    // },
+
+    // Example 6: Complex rule with multiple conditions
+    // All conditions must match for this rule to apply
     // {
     //   ip: "192\\.168\\..*",
     //   ehlo: ".*\\.test\\.com",
@@ -36,4 +46,14 @@
     //   rcpt: ".*@recipient\\.example\\.com"
     // }
   ]
+
+  // Notes:
+  // - When only one recipient is blackholed, others will still receive the email
+  // - Recipients are not added to the envelope for RCPT matches
+  // - INFO level log entries are created when emails are blackholed
+  // - The blackhole check happens at different SMTP stages:
+  //   * EHLO: checks IP + EHLO domain
+  //   * MAIL: checks IP + EHLO + MAIL FROM
+  //   * RCPT: checks IP + EHLO + MAIL FROM + RCPT TO
+  //   * DATA: skips storage and webhooks if blackholed
 }
