@@ -54,7 +54,7 @@ class LocalStorageClientTest {
                 .setConnection(connection)
                 .setExtension("dat");
 
-        assertTrue(localStorageClient.getFile().contains("/tmp/store/example.com/tony/") || localStorageClient.getFile().contains("\\tmp\\store\\example.com\\tony\\"));
+        assertTrue(localStorageClient.getFile().contains("/tmp/store/tmp/") || localStorageClient.getFile().contains("\\tmp\\store\\tmp\\"));
         assertTrue(localStorageClient.getFile().contains(new SimpleDateFormat("yyyyMMdd", Config.getProperties().getLocale()).format(new Date()) + "."));
         assertTrue(localStorageClient.getFile().contains(".dat"));
     }
