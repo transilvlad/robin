@@ -69,8 +69,20 @@ COPY --from=build /usr/src/robin/target/robin.jar /usr/local/robin/robin.jar
 # Copy the keystore file to the appropriate location.
 COPY src/test/resources/keystore.jks /usr/local/robin/keystore.jks
 
-# Copy configuration files to the cfg directory.
-# COPY cfg /usr/local/robin/cfg # Uncomment if not using Docker Compose.
+# Build argument to control whether to include cfg files in the image
+# Default is true for published standalone images
+# Set to false when building with docker-compose: --build-arg INCLUDE_CFG=false
+ARG INCLUDE_CFG=true
+
+# Copy configuration files conditionally
+# When INCLUDE_CFG=true (default), cfg files are copied into the image
+# When INCLUDE_CFG=false (docker-compose), only the directory structure is created for volume mounting
+COPY cfg /tmp/cfg/
+RUN if [ "$INCLUDE_CFG" = "true" ]; then \
+      mv /tmp/cfg /usr/local/robin/cfg; \
+    else \
+      rm -rf /tmp/cfg && mkdir -p /usr/local/robin/cfg; \
+    fi
 
 # --
 

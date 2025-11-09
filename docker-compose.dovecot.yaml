@@ -4,6 +4,8 @@ services:
     build:
       context: ./
       dockerfile: ./.dovecot/Dockerfile
+      args:
+        INCLUDE_CFG: "false"
     volumes:
       # Robin specific volumes
       - ./cfg:/usr/local/robin/cfg
