@@ -327,7 +327,7 @@ curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
   http://localhost:8090/client/send
 ```
 
-When authentication is enabled, all endpoints except `/client/health` require valid credentials or an allowed IP address.
+When authentication is enabled, all endpoints except `/health` require valid credentials or an allowed IP address.
 
 Endpoints
 ---------
@@ -370,7 +370,21 @@ Endpoints
     - Recipients (first 5 shown)
     - Files (first 5 shown)
 
-- **`GET /client/health`** — Simple health check endpoint.
+- **`GET /logs`** — Searches log files for lines matching a query string.
+  - Query parameters:
+    - `query` or `q` - Search term to find in log files (required)
+  - Response: `text/plain; charset=utf-8`
+  - Searches the current and previous log4j2 log files
+  - The log file location is automatically determined from the log4j2 configuration
+  - Returns matching lines as plain text
+  - If no query parameter is provided, returns usage information
+  - Example:
+    ```bash
+    curl "http://localhost:8090/logs?query=ERROR"
+    curl "http://localhost:8090/logs?q=session"
+    ```
+
+- **`GET /health`** — Simple health check endpoint.
   - Response: `application/json; charset=utf-8`
   - Returns: `{"status":"UP"}`
   - This endpoint is always accessible without authentication

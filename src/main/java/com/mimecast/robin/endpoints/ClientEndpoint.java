@@ -46,7 +46,9 @@ import java.util.Map;
  *   <li><b>POST /client/queue</b> — Same inputs as <code>/client/send</code>, but instead of sending immediately, it
  *       enqueues the built {@link Session} as a {@link RelaySession} into the persistent relay queue.</li>
  *   <li><b>GET /client/queue-list</b> — Lists the current relay queue contents in a simple HTML table.</li>
- *   <li><b>GET /client/health</b> — Simple liveness endpoint returning HTTP 200 with <code>{"status":"UP"}</code>.</li>
+ *   <li><b>GET /logs</b> — Searches log files for lines matching a query string. Supports text/plain GET requests only.
+ *       Returns usage message if no query parameter is set. Searches current and previous log4j2 log files.</li>
+ *   <li><b>GET /health</b> — Simple liveness endpoint returning HTTP 200 with <code>{"status":"UP"}</code>.</li>
  * </ul>
  *
  * <p>Response serialization excludes heavy or sensitive fields to keep payloads compact and safe:
@@ -104,8 +106,11 @@ public class ClientEndpoint {
         // Queue listing endpoint.
         server.createContext("/client/queue-list", this::handleQueueList);
 
+        // Logs search endpoint.
+        server.createContext("/logs", this::handleLogs);
+
         // Liveness endpoint for client API.
-        server.createContext("/client/health", exchange -> sendJson(exchange, 200, "{\"status\":\"UP\"}"));
+        server.createContext("/health", exchange -> sendJson(exchange, 200, "{\"status\":\"UP\"}"));
 
         // Start the embedded server on a background thread.
         new Thread(server::start).start();
@@ -113,7 +118,8 @@ public class ClientEndpoint {
         log.info("Submission endpoint available at http://localhost:{}/client/send", apiPort);
         log.info("Queue endpoint available at http://localhost:{}/client/queue", apiPort);
         log.info("Queue list available at http://localhost:{}/client/queue-list", apiPort);
-        log.info("Health available at http://localhost:{}/client/health", apiPort);
+        log.info("Logs available at http://localhost:{}/logs", apiPort);
+        log.info("Health available at http://localhost:{}/health", apiPort);
         if (auth.isAuthEnabled()) {
             log.info("Authentication is enabled for client API endpoint");
         }
@@ -377,6 +383,55 @@ public class ClientEndpoint {
             sendHtml(exchange, 200, html);
         } catch (Exception e) {
             log.error("Error processing /client/queue-list: {}", e.getMessage());
+            sendText(exchange, 500, "Internal Server Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Handles <b>GET /logs</b> requests.
+     * <p>Searches current and previous log4j2 log files for lines matching a query string.
+     * <p>Supports only GET requests with query parameter "query" or "q".
+     * <p>Returns usage message if no query parameter is provided.
+     */
+    private void handleLogs(HttpExchange exchange) throws IOException {
+        // Only GET is supported, reject anything else.
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            log.debug("Rejecting non-GET request to /logs: method={}", exchange.getRequestMethod());
+            sendText(exchange, 405, "Method Not Allowed");
+            return;
+        }
+
+        if (!auth.isAuthenticated(exchange)) {
+            auth.sendAuthRequired(exchange);
+            return;
+        }
+
+        log.debug("GET /logs from {}", exchange.getRemoteAddress());
+        try {
+            Map<String, String> queryParams = parseQuery(exchange.getRequestURI());
+            String query = queryParams.get("query");
+            if (query == null || query.isBlank()) {
+                query = queryParams.get("q");
+            }
+
+            if (query == null || query.isBlank()) {
+                String usage = "Usage: /logs?query=<search-term>\n" +
+                        "       /logs?q=<search-term>\n\n" +
+                        "Searches the current and previous log4j2 log files for lines matching the query string.\n" +
+                        "Returns matching lines as plain text.\n";
+                sendText(exchange, 200, usage);
+                return;
+            }
+
+            // Use LogsHandler to search logs
+            LogsHandler logsHandler = new LogsHandler();
+            String results = logsHandler.searchLogs(query);
+            sendText(exchange, 200, results);
+        } catch (LogsHandler.LogsSearchException e) {
+            log.error("Error searching logs: {}", e.getMessage());
+            sendText(exchange, 500, "Internal Server Error: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("Error processing /logs: {}", e.getMessage());
             sendText(exchange, 500, "Internal Server Error: " + e.getMessage());
         }
     }
