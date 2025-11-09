@@ -1,7 +1,7 @@
 package com.mimecast.robin.main;
 
 import com.mimecast.robin.config.server.ServerConfig;
-import com.mimecast.robin.endpoints.ClientEndpoint;
+import com.mimecast.robin.endpoints.ApiEndpoint;
 import com.mimecast.robin.endpoints.RobinMetricsEndpoint;
 import com.mimecast.robin.metrics.MetricsCron;
 import com.mimecast.robin.queue.RelayQueueCron;
@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>This class is responsible for initializing and managing the server's lifecycle.
  * <p>It loads configurations, sets up SMTP listeners, and starts various background services
- * such as metrics, client endpoints, and queue processing.
+ * such as metrics, API endpoints, and queue processing.
  *
  * <p>The server is started by calling the static {@link #run(String)} method with the path
  * to the configuration directory.
@@ -115,7 +115,7 @@ public class Server extends Foundation {
 
     /**
      * Starts up the prerequisite services for the server.
-     * This includes storage cleaning, queue management, metrics, and client endpoints.
+     * This includes storage cleaning, queue management, metrics, and API endpoints.
      */
     private static void startup() {
         // Initialize Vault integration for secrets management.
@@ -142,11 +142,11 @@ public class Server extends Foundation {
             log.error("Unable to start metrics cron: {}", e.getMessage());
         }
 
-        // Start the client utils endpoint.
+        // Start the API endpoint.
         try {
-            new ClientEndpoint().start(Config.getServer().getApi());
+            new ApiEndpoint().start(Config.getServer().getApi());
         } catch (IOException e) {
-            log.error("Unable to start client utils endpoint: {}", e.getMessage());
+            log.error("Unable to start API endpoint: {}", e.getMessage());
         }
     }
 

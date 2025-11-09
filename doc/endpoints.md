@@ -245,17 +245,17 @@ The following endpoints are available:
         }
         ```
 
-Client Utils Endpoint
----------------------
+API Endpoint
+-------------
 
-<img src="img/endpoint-client.jpg" alt="Metrics Endpoints Diagram" style="max-width: 1200px;"/>
+<img src="img/endpoint-client.jpg" alt="API Endpoints Diagram" style="max-width: 1200px;"/>
 
-All client endpoints are available under the port configured in `server.json5` - `api` object.
+All API endpoints are available under the port configured in `server.json5` - `api` object.
 
 Authentication
 --------------
 
-The client API endpoints support HTTP authentication for securing access to submission and queue management operations.
+The API endpoints support HTTP authentication for securing access to submission and queue management operations.
 
 To enable authentication, configure the `api` object in `server.json5`.
 Make use of magic to load secrets, see [Secrets, magic and Local Secrets File](secrets.md).
@@ -332,7 +332,7 @@ When authentication is enabled, all endpoints except `/health` require valid cre
 Endpoints
 ---------
 
-- **/** - Provides a simple discovery mechanism by listing all available client endpoints.
+- **/** - Provides a simple discovery mechanism by listing all available API endpoints.
     - **Content-Type**: `text/html; charset=utf-8`
 
 - **`POST /client/send`** — Executes a client case and returns the final SMTP session as JSON.

@@ -160,7 +160,7 @@ Example `server.json5` (core listeners & feature flags):
 When both values are non-empty, all endpoints except `/health` will require authentication.
 Leave empty to disable authentication.
 
-**API Authentication**: Configure `apiUsername` and `apiPassword` to enable HTTP Basic Authentication for the client API endpoint.
+**API Authentication**: Configure `apiUsername` and `apiPassword` to enable HTTP Basic Authentication for the API endpoint.
 When both values are non-empty, all endpoints except `/health` will require authentication.
 Leave empty to disable authentication.
 
