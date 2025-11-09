@@ -18,9 +18,10 @@ import java.util.regex.Pattern;
 /**
  * MIME email header content injector.
  * <p>
- * Processes email bytes to inject tags into header values and append new headers.
+ * Processes email bytes to inject tags into header values, append new headers, and remove specified headers.
  * Tags can be prepended to any header value (e.g., [SPAM] for Subject header).
  * New headers can be added after the existing headers, right before the content.
+ * Headers can be removed by specifying their names (case-insensitive).
  * <p>
  * If a header value is encoded (RFC 2047), the tag is encoded the same way and
  * the value is properly folded onto the next line with appropriate whitespace.
@@ -46,6 +47,11 @@ public class HeaderWrangler {
     private final List<MimeHeader> headersToAppend = new ArrayList<>();
 
     /**
+     * List of header names to remove (case-insensitive).
+     */
+    private final List<String> headersToRemove = new ArrayList<>();
+
+    /**
      * Adds a header tag to be injected.
      *
      * @param headerTag Header tag instance.
@@ -64,6 +70,19 @@ public class HeaderWrangler {
      */
     public HeaderWrangler addHeader(MimeHeader header) {
         this.headersToAppend.add(header);
+        return this;
+    }
+
+    /**
+     * Configures headers to be removed during processing.
+     * Header names are matched case-insensitively, and both the header
+     * and its continuation lines are removed.
+     *
+     * @param headerNames List of header names to remove (case-insensitive).
+     * @return Self for chaining.
+     */
+    public HeaderWrangler removeHeaders(List<String> headerNames) {
+        this.headersToRemove.addAll(headerNames);
         return this;
     }
 
@@ -114,6 +133,23 @@ public class HeaderWrangler {
                 if (colonIndex > 0) {
                     String headerName = line.substring(0, colonIndex).trim();
                     String headerValue = line.substring(colonIndex + 1).trim();
+
+                    // Check if this header should be removed.
+                    if (shouldRemoveHeader(headerName)) {
+                        // Skip this header and its continuation lines.
+                        byte[] nextLineBytes;
+                        while ((nextLineBytes = stream.readLine()) != null) {
+                            if (nextLineBytes.length > 0 && (nextLineBytes[0] == ' ' || nextLineBytes[0] == '\t')) {
+                                // This is a continuation line, skip it as well.
+                                continue;
+                            } else {
+                                // Not a continuation line, put it back for next iteration.
+                                stream.unread(nextLineBytes);
+                                break;
+                            }
+                        }
+                        continue;
+                    }
 
                     // Collect continuation lines.
                     StringBuilder fullValue = new StringBuilder(headerValue);
@@ -254,5 +290,20 @@ public class HeaderWrangler {
         }
 
         return folded.toString();
+    }
+
+    /**
+     * Checks if a header should be removed based on the removal list.
+     *
+     * @param headerName Header name to check.
+     * @return True if the header should be removed, false otherwise.
+     */
+    private boolean shouldRemoveHeader(String headerName) {
+        for (String removeHeaderName : headersToRemove) {
+            if (removeHeaderName.equalsIgnoreCase(headerName)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
