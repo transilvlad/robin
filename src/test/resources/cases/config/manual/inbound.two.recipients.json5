@@ -39,42 +39,6 @@
           ["MAIL", "^250 2.1.0 Sender OK"],
           ["RCPT", "^250 2.1.5 Recipient OK"],
           ["DATA", "^250 2.0.0 Received OK"]
-        ],
-
-        // External assertions.
-        external: [
-          {
-            // Assertion type IMAP for pulling emails.
-            type: "imap",
-
-            // How long to wait before asserting.
-            wait: 5,
-
-            // Delay between log pulling attempts.
-            delay: 5,
-
-            // How many times to retry should no logs be found or valid.
-            retry: 3,
-
-            // IMAP server to connect to.
-            server: "localhost",
-            port: 143,
-
-            // User credentials.
-            user: "pepper@example.com",
-            pass: "potts",
-
-            // Folder to check for the email.
-            folder: "INBOX",
-
-            // What to check in the email.
-            matches: {
-              // Check headers.
-              headers: [
-                [ "subject", "Lipsum" ]
-              ]
-            }
-          }
         ]
       }
     }

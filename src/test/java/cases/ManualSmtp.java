@@ -22,6 +22,16 @@ public class ManualSmtp {
     }
 
     /**
+     * Manual test case for testing multiple recipients.
+     * Local mailbox and or Dovecot storage need to be enabled.
+     */
+    @Test
+    void inboundTwoRecipients() throws AssertException, IOException {
+        new Client()
+                .send("src/test/resources/cases/config/manual/inbound.two.recipients.json5");
+    }
+
+    /**
      * Manual test case for AV scanning testing.
      * ClamAV needs to be enabled.
      */
