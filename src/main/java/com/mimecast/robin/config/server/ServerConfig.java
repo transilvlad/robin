@@ -360,11 +360,15 @@ public class ServerConfig extends ConfigFoundation {
     /**
      * Gets Rspamd config.
      *
-     * @return BasicConfig instance.
+     * @return RspamdConfig instance.
      */
-    public BasicConfig getRspamd() {
+    public RspamdConfig getRspamd() {
         loadExternalIfAbsent("rspamd", Map.class);
-        return new BasicConfig(getMapProperty("rspamd"));
+        
+        if (map.containsKey("rspamd")) {
+            return new RspamdConfig(getMapProperty("rspamd"));
+        }
+        return new RspamdConfig(new HashMap<>());
     }
 
     /**

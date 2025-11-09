@@ -44,9 +44,9 @@ Here is an example `rspamd.json5` file:
 - **host**: The hostname or IP address of the Rspamd daemon. Defaults to `localhost`.
 - **port**: The port number of the Rspamd daemon. Defaults to `11333`.
 - **timeout**: The connection timeout in seconds. Defaults to `30`.
-- **spfScanEnabled**: Enable SPF scanning.
-- **dkimScanEnabled**: Enable DKIM scanning.
-- **dmarcScanEnabled**: Enable DMARC scanning.
+- **spfScanEnabled**: Enable SPF scanning. Defaults to `true`.
+- **dkimScanEnabled**: Enable DKIM scanning. Defaults to `true`.
+- **dmarcScanEnabled**: Enable DMARC scanning. Defaults to `true`.
 - **rejectThreshold**: The spam score threshold at or above which an email is rejected with a `554 5.7.1 Spam detected` error. Defaults to `7.0`.
 - **discardThreshold**: The spam score threshold at or above which an email is silently discarded. Defaults to `15.0`.
 
@@ -76,6 +76,67 @@ When an email is received and stored, Robin performs the following steps:
 
 Programmatic Usage
 ------------------
+
+### Using RspamdConfig
+
+Robin provides a type-safe `RspamdConfig` class for accessing Rspamd configuration programmatically.
+
+#### Accessing Configuration
+
+```java
+import com.mimecast.robin.config.server.RspamdConfig;
+import com.mimecast.robin.main.Config;
+
+// Get the Rspamd configuration
+RspamdConfig rspamdConfig = Config.getServer().getRspamd();
+
+// Check if Rspamd is enabled
+if (rspamdConfig.isEnabled()) {
+    System.out.println("Rspamd is enabled");
+}
+
+// Get connection details
+String host = rspamdConfig.getHost();
+int port = rspamdConfig.getPort();
+int timeout = rspamdConfig.getTimeout();
+
+// Check email authentication scanning options
+boolean spfEnabled = rspamdConfig.isSpfScanEnabled();
+boolean dkimEnabled = rspamdConfig.isDkimScanEnabled();
+boolean dmarcEnabled = rspamdConfig.isDmarcScanEnabled();
+
+// Get spam thresholds
+double rejectThreshold = rspamdConfig.getRejectThreshold();
+double discardThreshold = rspamdConfig.getDiscardThreshold();
+```
+
+#### Using Configuration with RspamdClient
+
+```java
+import com.mimecast.robin.config.server.RspamdConfig;
+import com.mimecast.robin.main.Config;
+import com.mimecast.robin.scanners.RspamdClient;
+
+// Get configuration
+RspamdConfig rspamdConfig = Config.getServer().getRspamd();
+
+// Create client using configuration
+RspamdClient rspamdClient = new RspamdClient(
+    rspamdConfig.getHost(),
+    rspamdConfig.getPort()
+);
+
+// Configure scanning options from config
+rspamdClient
+    .setSpfScanEnabled(rspamdConfig.isSpfScanEnabled())
+    .setDkimScanEnabled(rspamdConfig.isDkimScanEnabled())
+    .setDmarcScanEnabled(rspamdConfig.isDmarcScanEnabled());
+
+// Scan an email
+Map<String, Object> result = rspamdClient.scanBytes(emailData);
+```
+
+### Using RspamdClient
 
 The `RspamdClient` class provides a simple way to interact with the Rspamd daemon.
 
