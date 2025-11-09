@@ -172,11 +172,26 @@ Below are concise examples for each auxiliary config file.
       // Enable email storage.
       enabled: true,
 
+      // AutoDelete files at connection/session end.
+      // If enabled, files are deleted when the SMTP/IMAP session ends,
+      // however queued items are copied and deleted after successful delivery or bounce.
+      autoDelete: true,
+
+      // Enable local mailbox storage.
+      // If enabled, emails are copied to recipient-specific mailbox folders.
+      localMailbox: false,
+
       // Disable rename by magic header feature.
       disableRenameHeader: true,
 
       // Path to storage folder.
       path: "/usr/local/robin/store",
+
+      // Folder for inbound emails. Leave empty to disable. Default: new
+      inboundFolder: "new",
+
+      // Folder for outbound emails. Leave empty to disable. Default: .Sent/new
+      outboundFolder: ".Sent/new",
 
       // Auto clean storage on service start.
       clean: false,
@@ -269,11 +284,6 @@ Below are concise examples for each auxiliary config file.
 
       // Use secure TLS connection to forward mail.
       tls: false,
-
-      // Mailbox to use when relaying mail via dovecot-lda depending on direction.
-      // Leave blank to bypass parameters.
-      mailbox: "INBOX", // Inbound
-      outbox: "Sent",   // Outbound
 
       // Bounce email if relay fails.
       bounce: true

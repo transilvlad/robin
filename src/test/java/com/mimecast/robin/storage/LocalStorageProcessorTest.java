@@ -96,7 +96,7 @@ class LocalStorageProcessorTest {
         String basePath = Files.createTempDirectory("robin-test-").toString();
         dirsToCleanup.add(Paths.get(basePath));
         Config.getServer().getStorage().getMap().put("path", basePath);
-        Config.getServer().getRelay().getMap().put("mailbox", "INBOX");
+        Config.getServer().getStorage().getMap().put("inboundFolder", "new");
 
         LocalStorageProcessor processor = new LocalStorageProcessor();
         
@@ -123,9 +123,9 @@ class LocalStorageProcessorTest {
             boolean result = processor.process(connection, parser);
             assertTrue(result);
             
-            // Verify files were created for each recipient
-            Path user1File = Paths.get(basePath, "example.com", "user1", "INBOX", "test-email.eml");
-            Path user2File = Paths.get(basePath, "example.com", "user2", "INBOX", "test-email.eml");
+            // Verify files were created for each recipient in inboundFolder
+            Path user1File = Paths.get(basePath, "example.com", "user1", "new", "test-email.eml");
+            Path user2File = Paths.get(basePath, "example.com", "user2", "new", "test-email.eml");
             
             assertTrue(Files.exists(user1File), "File should exist for user1");
             assertTrue(Files.exists(user2File), "File should exist for user2");
@@ -157,7 +157,7 @@ class LocalStorageProcessorTest {
         String basePath = Files.createTempDirectory("robin-test-").toString();
         dirsToCleanup.add(Paths.get(basePath));
         Config.getServer().getStorage().getMap().put("path", basePath);
-        Config.getServer().getRelay().getMap().put("outbox", "Sent");
+        Config.getServer().getStorage().getMap().put("outboundFolder", ".Sent/new");
 
         LocalStorageProcessor processor = new LocalStorageProcessor();
         
@@ -186,13 +186,13 @@ class LocalStorageProcessorTest {
             boolean result = processor.process(connection, parser);
             assertTrue(result);
             
-            // Verify file was created only once for sender in outbox
-            Path senderFile = Paths.get(basePath, "example.com", "sender", "Sent", "test-email.eml");
+            // Verify file was created only once for sender in outboundFolder
+            Path senderFile = Paths.get(basePath, "example.com", "sender", ".Sent", "new", "test-email.eml");
             
-            assertTrue(Files.exists(senderFile), "File should exist in sender's outbox");
+            assertTrue(Files.exists(senderFile), "File should exist in sender's outbound folder");
             
             // Verify no files for recipients (they are remote)
-            Path recipient1File = Paths.get(basePath, "remote.com", "recipient1", "Sent", "test-email.eml");
+            Path recipient1File = Paths.get(basePath, "remote.com", "recipient1", ".Sent", "new", "test-email.eml");
             assertFalse(Files.exists(recipient1File), "Should not create file for remote recipient");
             
             // Verify content includes Received header without "for" clause
@@ -206,6 +206,7 @@ class LocalStorageProcessorTest {
             dirsToCleanup.add(senderFile.getParent());
             dirsToCleanup.add(senderFile.getParent().getParent());
             dirsToCleanup.add(senderFile.getParent().getParent().getParent());
+            dirsToCleanup.add(senderFile.getParent().getParent().getParent().getParent());
         }
     }
 

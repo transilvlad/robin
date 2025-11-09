@@ -66,12 +66,14 @@ public class DovecotStorageProcessor implements StorageProcessor {
         // Get current envelope and log info.
         MessageEnvelope envelope = connection.getSession().getEnvelopes().getLast();
         List<String> originalRecipients = envelope.getRcpts();
-        String mailbox = Config.getServer().getRelay().getStringProperty(connection.getSession().isInbound() ? "mailbox" : "outbox");
-        log.info("Invoking Dovecot LDA for sender={} recipients={} outbound={} mailbox={}",
+        String folder = connection.getSession().isInbound() 
+                ? config.getStorage().getStringProperty("inboundFolder", "new")
+                : config.getStorage().getStringProperty("outboundFolder", ".Sent/new");
+        log.info("Invoking Dovecot LDA for sender={} recipients={} outbound={} folder={}",
                 envelope.getMail(),
                 String.join(",", originalRecipients),
                 connection.getSession().isOutbound(),
-                mailbox);
+                folder);
 
         // Invoke Dovecot LDA delivery.
         getDovecotLdaClientInstance(connection)
@@ -158,7 +160,9 @@ public class DovecotStorageProcessor implements StorageProcessor {
             envelope.setFile(connection.getSession().getEnvelopes().getLast().getFile());
             relaySession.getSession().setDirection(connection.getSession().getDirection());
             relaySession.setProtocol("dovecot-lda");
-            relaySession.setMailbox(Config.getServer().getRelay().getStringProperty(connection.getSession().isInbound() ? "mailbox" : "outbox"));
+            relaySession.setMailbox(connection.getSession().isInbound() 
+                    ? config.getStorage().getStringProperty("inboundFolder", "new")
+                    : config.getStorage().getStringProperty("outboundFolder", ".Sent/new"));
 
             // Persist any envelope files (no-op for bytes-only envelopes) before enqueue.
             QueueFiles.persistEnvelopeFiles(relaySession);
@@ -179,8 +183,13 @@ public class DovecotStorageProcessor implements StorageProcessor {
      * @return DovecotLdaClient instance.
      */
     protected DovecotLdaClient getDovecotLdaClientInstance(Connection connection) {
+        ServerConfig config = Config.getServer();
+        String folder = connection.getSession().isInbound() 
+                ? config.getStorage().getStringProperty("inboundFolder", "new")
+                : config.getStorage().getStringProperty("outboundFolder", ".Sent/new");
+        
         RelaySession relaySession = new RelaySession(connection.getSession())
-                .setMailbox(Config.getServer().getRelay().getStringProperty(connection.getSession().isInbound() ? "mailbox" : "outbox"));
+                .setMailbox(folder);
 
         return new DovecotLdaClient(relaySession);
     }

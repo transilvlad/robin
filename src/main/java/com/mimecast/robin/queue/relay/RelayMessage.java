@@ -79,7 +79,10 @@ public class RelayMessage {
             }
         }
 
-        String mailbox = relayConfig.getStringProperty("mailbox");
+        // Get folder from storage config based on direction.
+        String folder = connection.getSession().isInbound()
+                ? Config.getServer().getStorage().getStringProperty("inboundFolder", "new")
+                : Config.getServer().getStorage().getStringProperty("outboundFolder", ".Sent/new");
 
         // Inbound relay if enabled.
         if (connection.getSession().isInbound() && relayConfig.getBooleanProperty("enabled")) {
@@ -88,8 +91,6 @@ public class RelayMessage {
 
         // Outbound relay if enabled.
         if (connection.getSession().isOutbound() && relayConfig.getBooleanProperty("outboundEnabled")) {
-            mailbox = relayConfig.getStringProperty("outbox");
-
             // Outbound MX relay if enabled.
             if (relayConfig.getBooleanProperty("outboundMxEnabled")) {
                 // Resolve MX and create sessions.
@@ -103,7 +104,7 @@ public class RelayMessage {
             for (Session session : sessions) {
                 // Wrap into a relay session.
                 RelaySession relaySession = new RelaySession(session)
-                        .setMailbox(mailbox)
+                        .setMailbox(folder)
                         .setProtocol("esmtp");
 
                 // Persist any envelope files to storage/queue before enqueueing.
