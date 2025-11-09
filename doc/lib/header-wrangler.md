@@ -287,6 +287,7 @@ See Also
 --------
 
 - [MIME Email Parsing and Building](mime.md) - Complete MIME library documentation.
+- [Received Header Builder](received-header.md) - RFC-compliant Received header builder for email tracing.
 - [RFC 5322](https://www.rfc-editor.org/rfc/rfc5322) - Internet Message Format.
 - [RFC 2047](https://www.rfc-editor.org/rfc/rfc2047) - MIME Part Three: Message Header Extensions.
 - [RFC 2046](https://www.rfc-editor.org/rfc/rfc2046) - MIME Part Two: Media Types.
