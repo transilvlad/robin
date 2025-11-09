@@ -16,7 +16,7 @@
   disableRenameHeader: false,
 
   // Path to storage folder.
-    path: "/tmp/store",
+  path: "/tmp/store",
 
   // Folder for inbound emails. Leave empty to disable. Default: new
   inboundFolder: "new",
