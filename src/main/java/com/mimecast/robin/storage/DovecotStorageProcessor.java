@@ -67,8 +67,8 @@ public class DovecotStorageProcessor implements StorageProcessor {
         MessageEnvelope envelope = connection.getSession().getEnvelopes().getLast();
         List<String> originalRecipients = envelope.getRcpts();
         String folder = connection.getSession().isInbound() 
-                ? config.getStorage().getStringProperty("inboundFolder", "new")
-                : config.getStorage().getStringProperty("outboundFolder", ".Sent/new");
+                ? config.getDovecot().getStringProperty("inboxFolder", "INBOX")
+                : config.getDovecot().getStringProperty("sentFolder", "Sent");
         log.info("Invoking Dovecot LDA for sender={} recipients={} outbound={} folder={}",
                 envelope.getMail(),
                 String.join(",", originalRecipients),
@@ -161,8 +161,8 @@ public class DovecotStorageProcessor implements StorageProcessor {
             relaySession.getSession().setDirection(connection.getSession().getDirection());
             relaySession.setProtocol("dovecot-lda");
             relaySession.setMailbox(connection.getSession().isInbound() 
-                    ? config.getStorage().getStringProperty("inboundFolder", "new")
-                    : config.getStorage().getStringProperty("outboundFolder", ".Sent/new"));
+                    ? config.getDovecot().getStringProperty("inboxFolder", "INBOX")
+                    : config.getDovecot().getStringProperty("sentFolder", "Sent"));
 
             // Persist any envelope files (no-op for bytes-only envelopes) before enqueue.
             QueueFiles.persistEnvelopeFiles(relaySession);
@@ -185,8 +185,8 @@ public class DovecotStorageProcessor implements StorageProcessor {
     protected DovecotLdaClient getDovecotLdaClientInstance(Connection connection) {
         ServerConfig config = Config.getServer();
         String folder = connection.getSession().isInbound() 
-                ? config.getStorage().getStringProperty("inboundFolder", "new")
-                : config.getStorage().getStringProperty("outboundFolder", ".Sent/new");
+                ? config.getDovecot().getStringProperty("inboxFolder", "INBOX")
+                : config.getDovecot().getStringProperty("sentFolder", "Sent");
         
         RelaySession relaySession = new RelaySession(connection.getSession())
                 .setMailbox(folder);

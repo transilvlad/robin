@@ -366,7 +366,15 @@ Below are concise examples for each auxiliary config file.
       saveToDovecotLda: true,
 
       // Path to Dovecot LDA binary.
-      ldaBinary: "/usr/libexec/dovecot/dovecot-lda"
+      ldaBinary: "/usr/libexec/dovecot/dovecot-lda",
+
+      // Folder for inbound email delivery via Dovecot LDA.
+      // Dovecot handles folder structure internally (e.g., adds "." prefix and "/new" suffix).
+      inboxFolder: "INBOX",
+
+      // Folder for outbound email delivery via Dovecot LDA.
+      // Dovecot handles folder structure internally (e.g., adds "." prefix and "/new" suffix).
+      sentFolder: "Sent"
     }
 
 `webhooks.json5` – Optional HTTP hooks per SMTP extension (showing one example only):
