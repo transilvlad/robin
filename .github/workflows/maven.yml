@@ -10,7 +10,7 @@ jobs:
   build:
 
     permissions:
-      contents: read
+      contents: write
       pages: write
     runs-on: ubuntu-latest
 
