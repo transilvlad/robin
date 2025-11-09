@@ -443,14 +443,23 @@ public class ClientEndpoint {
                 return;
             }
 
+            // Extract date format from the log file pattern
+            String dateFormat = extractDateFormatFromPattern(logFilePattern);
+            if (dateFormat == null) {
+                log.error("Could not extract date format from log file pattern: {}", logFilePattern);
+                sendText(exchange, 500, "Could not extract date format from log file pattern\n");
+                return;
+            }
+
             // Get current date and yesterday's date for log file names
             LocalDate today = LocalDate.now();
             LocalDate yesterday = today.minusDays(1);
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern(dateFormat);
 
             // Build log file paths using the pattern from log4j2
-            String todayLogFile = logFilePattern.replace("%d{yyyyMMdd}", today.format(formatter));
-            String yesterdayLogFile = logFilePattern.replace("%d{yyyyMMdd}", yesterday.format(formatter));
+            String datePatternPlaceholder = "%d{" + dateFormat + "}";
+            String todayLogFile = logFilePattern.replace(datePatternPlaceholder, today.format(formatter));
+            String yesterdayLogFile = logFilePattern.replace(datePatternPlaceholder, yesterday.format(formatter));
 
             log.debug("Searching log files: today={}, yesterday={}", todayLogFile, yesterdayLogFile);
 
@@ -500,6 +509,36 @@ public class ClientEndpoint {
             log.error("Error reading log4j2 configuration: {}", e.getMessage(), e);
         }
         return null;
+    }
+
+    /**
+     * Extracts the date format from a log4j2 file pattern.
+     * <p>For example, extracts "yyyyMMdd" from "/var/log/robin-%d{yyyyMMdd}.log"
+     *
+     * @param filePattern The log file pattern from log4j2 configuration.
+     * @return The date format string (e.g., "yyyyMMdd") or null if not found.
+     */
+    private String extractDateFormatFromPattern(String filePattern) {
+        if (filePattern == null || filePattern.isBlank()) {
+            return null;
+        }
+        
+        // Look for %d{...} pattern
+        int startIndex = filePattern.indexOf("%d{");
+        if (startIndex == -1) {
+            log.debug("No date pattern found in file pattern: {}", filePattern);
+            return null;
+        }
+        
+        int endIndex = filePattern.indexOf("}", startIndex);
+        if (endIndex == -1) {
+            log.debug("Malformed date pattern in file pattern: {}", filePattern);
+            return null;
+        }
+        
+        String dateFormat = filePattern.substring(startIndex + 3, endIndex);
+        log.debug("Extracted date format '{}' from pattern '{}'", dateFormat, filePattern);
+        return dateFormat;
     }
 
     /**

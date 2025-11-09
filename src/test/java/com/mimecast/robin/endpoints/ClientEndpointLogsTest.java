@@ -347,6 +347,51 @@ class ClientEndpointLogsTest {
     }
 
     /**
+     * Tests that we can extract date format from log file pattern.
+     */
+    @Test
+    void testExtractDateFormatFromPattern() {
+        Map<String, Object> config = new HashMap<>();
+        config.put("authType", "none");
+
+        ClientEndpoint endpoint = new ClientEndpoint();
+
+        // Use reflection to access private extractDateFormatFromPattern method
+        try {
+            java.lang.reflect.Method method = ClientEndpoint.class.getDeclaredMethod("extractDateFormatFromPattern", String.class);
+            method.setAccessible(true);
+            
+            // Set auth field
+            java.lang.reflect.Field authField = ClientEndpoint.class.getDeclaredField("auth");
+            authField.setAccessible(true);
+            authField.set(endpoint, new HttpAuth(new EndpointConfig(config), "Test"));
+            
+            // Test various patterns
+            String dateFormat1 = (String) method.invoke(endpoint, "/var/log/robin-%d{yyyyMMdd}.log");
+            assertEquals("yyyyMMdd", dateFormat1);
+            
+            String dateFormat2 = (String) method.invoke(endpoint, "./log/robin-build-%d{yyyyMMdd}.log");
+            assertEquals("yyyyMMdd", dateFormat2);
+            
+            String dateFormat3 = (String) method.invoke(endpoint, "/var/log/app-%d{yyyy-MM-dd}.log");
+            assertEquals("yyyy-MM-dd", dateFormat3);
+            
+            // Test pattern without date
+            String dateFormat4 = (String) method.invoke(endpoint, "/var/log/app.log");
+            assertNull(dateFormat4);
+            
+            // Test null/empty patterns
+            String dateFormat5 = (String) method.invoke(endpoint, (String) null);
+            assertNull(dateFormat5);
+            
+            String dateFormat6 = (String) method.invoke(endpoint, "");
+            assertNull(dateFormat6);
+        } catch (Exception e) {
+            fail("Failed to invoke extractDateFormatFromPattern method: " + e.getMessage());
+        }
+    }
+
+    /**
      * Tests that logs endpoint rejects non-GET requests.
      */
     @Test
