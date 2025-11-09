@@ -248,7 +248,7 @@ The following endpoints are available:
 API Endpoint
 -------------
 
-<img src="img/endpoint-client.jpg" alt="Metrics Endpoints Diagram" style="max-width: 1200px;"/>
+<img src="img/endpoint-client.jpg" alt="API Endpoints Diagram" style="max-width: 1200px;"/>
 
 All API endpoints are available under the port configured in `server.json5` - `api` object.
 
