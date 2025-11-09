@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -243,6 +244,195 @@ class HeaderWranglerTest {
         assertTrue(resultStr.contains("X-Spam-Score: 5.0"), "First header should be added");
         assertTrue(resultStr.contains("X-Spam-Status: Yes"), "Second header should be added");
         assertTrue(resultStr.contains("X-Custom-Flag: true"), "Third header should be added");
+    }
+
+    @Test
+    @DisplayName("Remove single header case-insensitive")
+    void removeSingleHeaderCaseInsensitive() throws IOException {
+        String email = "From: sender@example.com\r\n" +
+                "To: recipient@example.com\r\n" +
+                "X-Spam-Score: 5.0\r\n" +
+                "Subject: Test Email\r\n" +
+                "\r\n" +
+                "Body content";
+
+        HeaderWrangler wrangler = new HeaderWrangler();
+        wrangler.removeHeaders(List.of("x-spam-score"));
+
+        ByteArrayInputStream input = new ByteArrayInputStream(email.getBytes(StandardCharsets.UTF_8));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        wrangler.process(input, output);
+        String resultStr = new String(output.toByteArray(), StandardCharsets.UTF_8);
+
+        assertFalse(resultStr.contains("X-Spam-Score"), "X-Spam-Score header should be removed");
+        assertTrue(resultStr.contains("From: sender@example.com"), "From header should be preserved");
+        assertTrue(resultStr.contains("To: recipient@example.com"), "To header should be preserved");
+        assertTrue(resultStr.contains("Subject: Test Email"), "Subject header should be preserved");
+        assertTrue(resultStr.contains("Body content"), "Body should be preserved");
+    }
+
+    @Test
+    @DisplayName("Remove header with continuation lines")
+    void removeHeaderWithContinuationLines() throws IOException {
+        String email = "From: sender@example.com\r\n" +
+                "To: recipient@example.com\r\n" +
+                "X-Long-Header: This is a very long value\r\n" +
+                "\tthat continues on the next line\r\n" +
+                "\tand even another line\r\n" +
+                "Subject: Test Email\r\n" +
+                "\r\n" +
+                "Body content";
+
+        HeaderWrangler wrangler = new HeaderWrangler();
+        wrangler.removeHeaders(List.of("X-Long-Header"));
+
+        ByteArrayInputStream input = new ByteArrayInputStream(email.getBytes(StandardCharsets.UTF_8));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        wrangler.process(input, output);
+        String resultStr = new String(output.toByteArray(), StandardCharsets.UTF_8);
+
+        assertFalse(resultStr.contains("X-Long-Header"), "X-Long-Header should be removed");
+        assertFalse(resultStr.contains("that continues"), "Continuation line should be removed");
+        assertFalse(resultStr.contains("and even another"), "Second continuation line should be removed");
+        assertTrue(resultStr.contains("From: sender@example.com"), "From header should be preserved");
+        assertTrue(resultStr.contains("Subject: Test Email"), "Subject header should be preserved");
+        assertTrue(resultStr.contains("Body content"), "Body should be preserved");
+    }
+
+    @Test
+    @DisplayName("Remove multiple headers")
+    void removeMultipleHeaders() throws IOException {
+        String email = "From: sender@example.com\r\n" +
+                "To: recipient@example.com\r\n" +
+                "X-Spam-Score: 5.0\r\n" +
+                "X-Spam-Status: Yes\r\n" +
+                "Subject: Test Email\r\n" +
+                "X-Custom-Flag: true\r\n" +
+                "\r\n" +
+                "Body content";
+
+        HeaderWrangler wrangler = new HeaderWrangler();
+        wrangler.removeHeaders(List.of("X-Spam-Score", "X-Spam-Status", "X-Custom-Flag"));
+
+        ByteArrayInputStream input = new ByteArrayInputStream(email.getBytes(StandardCharsets.UTF_8));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        wrangler.process(input, output);
+        String resultStr = new String(output.toByteArray(), StandardCharsets.UTF_8);
+
+        assertFalse(resultStr.contains("X-Spam-Score"), "X-Spam-Score should be removed");
+        assertFalse(resultStr.contains("X-Spam-Status"), "X-Spam-Status should be removed");
+        assertFalse(resultStr.contains("X-Custom-Flag"), "X-Custom-Flag should be removed");
+        assertTrue(resultStr.contains("From: sender@example.com"), "From header should be preserved");
+        assertTrue(resultStr.contains("To: recipient@example.com"), "To header should be preserved");
+        assertTrue(resultStr.contains("Subject: Test Email"), "Subject header should be preserved");
+        assertTrue(resultStr.contains("Body content"), "Body should be preserved");
+    }
+
+    @Test
+    @DisplayName("Combine removal with tagging")
+    void combineRemovalWithTagging() throws IOException {
+        String email = "From: sender@example.com\r\n" +
+                "To: recipient@example.com\r\n" +
+                "X-Old-Header: old value\r\n" +
+                "Subject: Test Email\r\n" +
+                "\r\n" +
+                "Body content";
+
+        HeaderWrangler wrangler = new HeaderWrangler();
+        wrangler.removeHeaders(List.of("X-Old-Header"));
+        wrangler.addHeaderTag(new HeaderTag("Subject", "[SPAM]"));
+
+        ByteArrayInputStream input = new ByteArrayInputStream(email.getBytes(StandardCharsets.UTF_8));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        wrangler.process(input, output);
+        String resultStr = new String(output.toByteArray(), StandardCharsets.UTF_8);
+
+        assertFalse(resultStr.contains("X-Old-Header"), "X-Old-Header should be removed");
+        assertTrue(resultStr.contains("Subject: [SPAM] Test Email"), "Subject should be tagged");
+        assertTrue(resultStr.contains("From: sender@example.com"), "From header should be preserved");
+        assertTrue(resultStr.contains("Body content"), "Body should be preserved");
+    }
+
+    @Test
+    @DisplayName("Combine removal with appending")
+    void combineRemovalWithAppending() throws IOException {
+        String email = "From: sender@example.com\r\n" +
+                "To: recipient@example.com\r\n" +
+                "X-Old-Header: old value\r\n" +
+                "Subject: Test Email\r\n" +
+                "\r\n" +
+                "Body content";
+
+        HeaderWrangler wrangler = new HeaderWrangler();
+        wrangler.removeHeaders(List.of("X-Old-Header"));
+        wrangler.addHeader(new MimeHeader("X-New-Header", "new value"));
+
+        ByteArrayInputStream input = new ByteArrayInputStream(email.getBytes(StandardCharsets.UTF_8));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        wrangler.process(input, output);
+        String resultStr = new String(output.toByteArray(), StandardCharsets.UTF_8);
+
+        assertFalse(resultStr.contains("X-Old-Header"), "X-Old-Header should be removed");
+        assertTrue(resultStr.contains("X-New-Header: new value"), "X-New-Header should be added");
+        assertTrue(resultStr.contains("From: sender@example.com"), "From header should be preserved");
+        assertTrue(resultStr.contains("Subject: Test Email"), "Subject header should be preserved");
+        assertTrue(resultStr.contains("Body content"), "Body should be preserved");
+    }
+
+    @Test
+    @DisplayName("Combine removal, tagging, and appending")
+    void combineRemovalTaggingAndAppending() throws IOException {
+        String email = "From: sender@example.com\r\n" +
+                "To: recipient@example.com\r\n" +
+                "X-Old-Header: old value\r\n" +
+                "Subject: Test Email\r\n" +
+                "\r\n" +
+                "Body content";
+
+        HeaderWrangler wrangler = new HeaderWrangler();
+        wrangler.removeHeaders(List.of("X-Old-Header"));
+        wrangler.addHeaderTag(new HeaderTag("Subject", "[TAGGED]"));
+        wrangler.addHeader(new MimeHeader("X-New-Header", "new value"));
+
+        ByteArrayInputStream input = new ByteArrayInputStream(email.getBytes(StandardCharsets.UTF_8));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        wrangler.process(input, output);
+        String resultStr = new String(output.toByteArray(), StandardCharsets.UTF_8);
+
+        assertFalse(resultStr.contains("X-Old-Header"), "X-Old-Header should be removed");
+        assertTrue(resultStr.contains("Subject: [TAGGED] Test Email"), "Subject should be tagged");
+        assertTrue(resultStr.contains("X-New-Header: new value"), "X-New-Header should be added");
+        assertTrue(resultStr.contains("From: sender@example.com"), "From header should be preserved");
+        assertTrue(resultStr.contains("Body content"), "Body should be preserved");
+    }
+
+    @Test
+    @DisplayName("Remove header preserves MIME body structure")
+    void removeHeaderPreservesMimeBody() throws IOException {
+        String email = "From: sender@example.com\r\n" +
+                "To: recipient@example.com\r\n" +
+                "Subject: Test\r\n" +
+                "X-Remove-Me: value\r\n" +
+                "Content-Type: multipart/mixed; boundary=\"boundary123\"\r\n" +
+                "\r\n" +
+                "--boundary123\r\n" +
+                "Content-Type: text/plain\r\n" +
+                "\r\n" +
+                "Part 1\r\n" +
+                "--boundary123--\r\n";
+
+        HeaderWrangler wrangler = new HeaderWrangler();
+        wrangler.removeHeaders(List.of("X-Remove-Me"));
+
+        ByteArrayInputStream input = new ByteArrayInputStream(email.getBytes(StandardCharsets.UTF_8));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        wrangler.process(input, output);
+        String resultStr = new String(output.toByteArray(), StandardCharsets.UTF_8);
+
+        assertFalse(resultStr.contains("X-Remove-Me"), "X-Remove-Me header should be removed");
+        assertTrue(resultStr.contains("--boundary123"), "Boundary should be preserved");
+        assertTrue(resultStr.contains("Part 1"), "Content should be preserved");
+        assertTrue(resultStr.contains("Content-Type: multipart/mixed"), "Content-Type header should be preserved");
     }
 
     @Test
