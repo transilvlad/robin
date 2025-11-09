@@ -161,7 +161,7 @@ When both values are non-empty, all endpoints except `/health` will require auth
 Leave empty to disable authentication.
 
 **API Authentication**: Configure `apiUsername` and `apiPassword` to enable HTTP Basic Authentication for the client API endpoint.
-When both values are non-empty, all endpoints except `/client/health` will require authentication.
+When both values are non-empty, all endpoints except `/health` will require authentication.
 Leave empty to disable authentication.
 
 Below are concise examples for each auxiliary config file.

@@ -55,11 +55,30 @@
         <span class="description">- View the current relay queue as an HTML table (session UID, protocol, mailbox, retries, recipients, files).</span>
     </li>
     <li>
-        <a href="/client/health"><code>/client/health</code></a>
+        <a href="/logs"><code>/logs</code></a>
+        <span class="description">- Searches log files for lines matching a query string. Supports text/plain GET requests only.
+            <br>Returns usage message if no query parameter is set. Searches current and previous log4j2 log files.</span>
+    </li>
+    <li>
+        <a href="/health"><code>/health</code></a>
         <span class="description">- Liveness probe for the client API server.</span>
     </li>
 </ul>
 <h2>Send</h2>
+<ul>
+    <li>
+        <b>Endpoint:</b> <code>/client/send</code> (POST)
+    </li>
+    <li>
+        <b>Request body:</b> JSON or JSON5 case
+    </li>
+    <li>
+        <b>Description:</b> Submits a case via POST (body)
+    </li>
+    <li>
+        <b>Response:</b> Session result (JSON)
+    </li>
+</ul>
 <div class="note">
     <p>Bash:</p>
     <pre><code>curl -X POST \
@@ -80,14 +99,24 @@ Invoke-RestMethod -Method Post -Uri 'http://localhost:8090/client/send' -Content
 
 <h2>Queue</h2>
 <ul>
-    <li>You can use the following URL parameters:</li>
     <li>
-        <b>protocol</b> <i>Default: ESMTP</i>
-            <br/>Options: SMTP, LMTP, ESMTP, DOVECOT-LDA
+        <b>Endpoint:</b> <code>/client/queue</code> (POST)
     </li>
     <li>
-        <b>mailbox</b> <i>Default: INBOX</i> - Only needed when using DOVECOT-LDA protocol!
-            <br/>Options: INBOX, Sent, Trash, Archive, Junk or whatever your folders are named
+        <b>Request body:</b> JSON or JSON5 case (same as <code>/client/send</code>)
+    </li>
+    <li>
+        <b>Description:</b> Enqueues the built session for relay instead of sending immediately.
+    </li>
+    <li>
+        <b>Optional URL parameters:</b>
+        <ul>
+            <li><b>protocol</b> <i>Default: ESMTP</i> — Options: SMTP, LMTP, ESMTP, DOVECOT-LDA</li>
+            <li><b>mailbox</b> <i>Default: INBOX</i> — Only needed for DOVECOT-LDA protocol. Options: INBOX, Sent, Trash, Archive, Junk, etc.</li>
+        </ul>
+    </li>
+    <li>
+        <b>Response:</b> Session enqueued result (JSON)
     </li>
 </ul>
 <div class="note">
@@ -106,6 +135,39 @@ curl -X POST -H "Content-Type: application/json" -d %DATA% "http://localhost:809
     <p>PowerShell:</p>
     <pre><code>$body = '{"mx":["127.0.0.1"],"port":25,"envelopes":[{"mail":"tony@example.com","rcpt":["pepper@example.com"],"subject":"Queued","message":"Send later"}]}'
 Invoke-RestMethod -Method Post -Uri 'http://localhost:8090/client/queue' -ContentType 'application/json' -Body $body</code></pre>
+</div>
+<h2>Logs</h2>
+<ul>
+    <li>
+        <b>Endpoint:</b> <code>/logs</code> (GET)
+    </li>
+    <li>
+        <b>Query parameters:</b>
+        <ul>
+            <li><b>query</b> or <b>q</b> <i>(required)</i> - Search term to find in log files</li>
+        </ul>
+    </li>
+    <li>
+        Searches the current and previous log4j2 log files. The log file location is automatically determined from the log4j2 configuration.
+    </li>
+    <li>
+        Returns matching lines as <code>text/plain</code>. If no query parameter is provided, returns usage information.
+    </li>
+</ul>
+<div class="note">
+    <p>Bash:</p>
+    <pre><code>curl "http://localhost:8090/logs?query=ERROR"
+curl "http://localhost:8090/logs?q=session"</code></pre>
+</div>
+<div class="note">
+    <p>Windows CMD:</p>
+    <pre><code>curl "http://localhost:8090/logs?query=ERROR"
+curl "http://localhost:8090/logs?q=session"</code></pre>
+</div>
+<div class="note">
+    <p>PowerShell:</p>
+    <pre><code>Invoke-RestMethod -Method Get -Uri 'http://localhost:8090/logs?query=ERROR'
+Invoke-RestMethod -Method Get -Uri 'http://localhost:8090/logs?q=session'</code></pre>
 </div>
 </body>
 </html>
