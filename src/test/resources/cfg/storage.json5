@@ -3,7 +3,7 @@
   // If disabled, emails are not stored on disk or scanned or delivered to Dovecot.
   enabled: true,
 
-  // AutoDelete files at connection/session end.
+  // Auto delete files at connection/session end.
   // If enabled, files are deleted when the SMTP/IMAP session ends,
   // however queued items are copied and deleted after successful delivery or bounce.
   autoDelete: true,
