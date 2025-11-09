@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * DovecotUserLookupNative is a UNIX domain socket client for performing user existence lookups
  * against a Dovecot authentication user database (auth-userdb) service using native Java UNIX
- * domain sockets (JDK 16+).
+ * domain sockets.
  * <p>
  * This class provides the main user lookup operation:
  * <ul>

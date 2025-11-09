@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * DovecotSaslAuthNative is a UNIX domain socket client for authenticating users against
- * a Dovecot SASL authentication service using native Java socket support (JDK 16+).
+ * a Dovecot SASL authentication service using native Java socket support.
  * <p>
  * This class provides the main authentication operation:
  * <ul>
