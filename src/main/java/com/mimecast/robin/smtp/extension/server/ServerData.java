@@ -94,36 +94,29 @@ public class ServerData extends ServerProcessor {
                 connection.write(String.format(SmtpResponses.MESSAGE_SIZE_LIMIT_EXCEEDED_552, connection.getSession().getUID()));
                 return false;
             }
-            
-            Optional<ScenarioConfig> opt = connection.getScenario();
-            if (opt.isPresent() && opt.get().getData() != null) {
-                connection.write(opt.get().getData() + " [" + connection.getSession().getUID() + "]");
-            } else {
-                connection.write(String.format(SmtpResponses.RECEIVED_OK_250, connection.getSession().getUID()));
-            }
-            
-            return true;
-        }
-        
-        if (connection.getSession().getEnvelopes().isEmpty() || connection.getSession().getEnvelopes().getLast().getRcpts().isEmpty()) {
-            connection.write(String.format(SmtpResponses.NO_VALID_RECIPIENTS_554, connection.getSession().getUID()));
-            return false;
-        }
-
-        // Read email lines and store to disk.
-        try {
-            if (!asciiRead("eml")) {
+        } else {
+            if (connection.getSession().getEnvelopes().isEmpty() || connection.getSession().getEnvelopes().getLast().getRcpts().isEmpty()) {
+                connection.write(String.format(SmtpResponses.NO_VALID_RECIPIENTS_554, connection.getSession().getUID()));
                 return false;
             }
-        } catch (LimitExceededException e) {
-            connection.write(String.format(SmtpResponses.MESSAGE_SIZE_LIMIT_EXCEEDED_552, connection.getSession().getUID()));
+
+            // Read email lines and store to disk.
+            try {
+                if (!asciiRead("eml")) {
+                    return false;
+                }
+            } catch (LimitExceededException e) {
+                connection.write(String.format(SmtpResponses.MESSAGE_SIZE_LIMIT_EXCEEDED_552, connection.getSession().getUID()));
+                return false;
+            }
+
+            // Call RAW webhook after successful storage.
+            if (!callRawWebhook()) {
+                return false;
+            }
         }
 
-        // Call RAW webhook after successful storage.
-        if (!callRawWebhook()) {
-            return false;
-        }
-
+        // Send scenario response or accept message.
         Optional<ScenarioConfig> opt = connection.getScenario();
         if (opt.isPresent() && opt.get().getData() != null) {
             connection.write(opt.get().getData() + " [" + connection.getSession().getUID() + "]");
@@ -219,9 +212,6 @@ public class ServerData extends ServerProcessor {
                 if (bdatVerb.isLast()) {
                     log.info("Blackholed email - {} bytes received but not saved", bytesReceived);
                 }
-                
-                // Scenario response or accept (no webhook call for blackholed emails).
-                scenarioResponse(connection.getSession().getUID());
             } else {
                 // Read bytes.
                 StorageClient storageClient = Factories.getStorageClient(connection, "eml");
@@ -242,10 +232,10 @@ public class ServerData extends ServerProcessor {
                 if (!callRawWebhook()) {
                     return false;
                 }
-
-                // Scenario response or accept.
-                scenarioResponse(connection.getSession().getUID());
             }
+            
+            // Scenario response or accept.
+            scenarioResponse(connection.getSession().getUID());
         }
 
         return true;
