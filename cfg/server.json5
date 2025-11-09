@@ -156,6 +156,12 @@
     timeoutSeconds: 5
   },
 
+  // Maximum size in bytes for email messages (default: 10242400, 0 = unlimited).
+  emailSizeLimit: 10242400,
+
+  // Maximum number of envelopes (recipients) per message (default: 100, 0 = unlimited).
+  envelopesLimit: 100,
+
   // Users allowed to authorize to the server.
   // This feature should be used for testing only.
   // This is disabled by default for security reasons.

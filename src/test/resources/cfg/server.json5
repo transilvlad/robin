@@ -91,19 +91,49 @@
   // Truststore password or path to password file.
   truststorepassword: "avengers",
 
-  // Metrics endpoint port.
-  metricsPort: 8080,
+  // Metrics endpoint configuration.
+  metrics: {
+    // Port for metrics endpoint.
+    port: 8080,
 
-  // Metrics endpoint authentication (optional, leave empty to disable).
-  metricsUsername: "",
-  metricsPassword: "",
+    // Authentication type: none, basic, bearer.
+    authType: "none",
 
-  // API endpoint port.
-  apiPort: 8090,
+    // Authentication value.
+    // For basic: "username:password"
+    // For bearer: "token"
+    authValue: "",
 
-  // API endpoint authentication (optional, leave empty to disable).
-  apiUsername: "",
-  apiPassword: "",
+    // IP addresses or CIDR blocks allowed without authentication.
+    allowList: [
+      // "127.0.0.1",
+      // "::1",
+      // "192.168.1.0/24",
+      // "10.0.0.0/8"
+    ]
+  },
+
+  // API endpoint configuration.
+  api: {
+    // Port for API endpoint.
+    port: 8090,
+
+    // Authentication type: none, basic, bearer.
+    authType: "none",
+
+    // Authentication value.
+    // For basic: "username:password"
+    // For bearer: "token"
+    authValue: "",
+
+    // IP addresses or CIDR blocks allowed without authentication.
+    allowList: [
+      // "127.0.0.1",
+      // "::1",
+      // "192.168.1.0/24",
+      // "10.0.0.0/8"
+    ]
+  },
 
   // RBL (Realtime Blackhole List) configuration.
   rbl: {
@@ -125,6 +155,12 @@
     // Maximum time in seconds to wait for RBL responses (default: 5).
     timeoutSeconds: 5
   },
+
+  // Maximum size in bytes for email messages (default: 10242400, 0 = unlimited).
+  emailSizeLimit: 10242400,
+
+  // Maximum number of envelopes (recipients) per message (default: 100, 0 = unlimited).
+  envelopesLimit: 100,
 
   // Users allowed to authorize to the server.
   // This feature should be used for testing only.
