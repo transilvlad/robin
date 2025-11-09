@@ -70,7 +70,7 @@ COPY --from=build /usr/src/robin/target/robin.jar /usr/local/robin/robin.jar
 COPY src/test/resources/keystore.jks /usr/local/robin/keystore.jks
 
 # Copy configuration files to the cfg directory.
-# COPY cfg /usr/local/robin/cfg # Uncomment if not using Docker Compose.
+COPY cfg /usr/local/robin/cfg
 
 # --
 
