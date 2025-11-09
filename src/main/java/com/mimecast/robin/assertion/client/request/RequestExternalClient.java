@@ -190,7 +190,7 @@ public class RequestExternalClient extends MatchExternalClient {
 
                 break;
 
-            } catch (IOException e) {
+            } catch (Exception e) {
                 throw new AssertException(e.getMessage());
             }
         }
@@ -208,7 +208,7 @@ public class RequestExternalClient extends MatchExternalClient {
          *
          * @param session Session instance.
          */
-        public RequestClient(Session session) {
+        public RequestClient(Session session) throws Exception {
             super(session);
         }
 

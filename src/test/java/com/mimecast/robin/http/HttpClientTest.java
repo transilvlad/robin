@@ -33,7 +33,7 @@ class HttpClientTest {
     }
 
     @Test
-    void isSuccessful() throws IOException, NoSuchAlgorithmException, KeyManagementException {
+    void isSuccessful() throws Exception {
 
         Response response = new Response.Builder()
                 .request(request)
@@ -54,7 +54,7 @@ class HttpClientTest {
     }
 
     @Test
-    void isUnsuccessful() throws IOException, NoSuchAlgorithmException, KeyManagementException {
+    void isUnsuccessful() throws Exception {
 
         Response response = new Response.Builder()
                 .request(request)

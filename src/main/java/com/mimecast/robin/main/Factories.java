@@ -14,10 +14,10 @@ import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.extension.client.Behaviour;
 import com.mimecast.robin.smtp.extension.client.DefaultBehaviour;
 import com.mimecast.robin.smtp.security.DefaultTLSSocket;
-import com.mimecast.robin.smtp.security.PermissiveTrustManager;
 import com.mimecast.robin.smtp.security.TLSSocket;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.storage.*;
+import com.mimecast.robin.trust.TrustManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -200,8 +200,9 @@ public class Factories {
      * Gets TrustManager.
      *
      * @return TrustManager instance.
+     * @throws Exception If the TrustManager cannot be created.
      */
-    public static X509TrustManager getTrustManager() {
+    public static X509TrustManager getTrustManager() throws Exception {
         if (trustManager != null) {
             try {
                 return trustManager.call();
@@ -210,7 +211,7 @@ public class Factories {
             }
         }
 
-        return new PermissiveTrustManager();
+        return new TrustManager();
     }
 
     /**

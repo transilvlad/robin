@@ -50,7 +50,7 @@ public abstract class RequestBase extends Foundation {
      * Constructs a new RequestBase instance with given client configuration path.
      * <p>To be used in combination with the Junit launcher service.
      */
-    public RequestBase() {
+    public RequestBase() throws Exception {
         config = new BasicConfig(Config.getProperties().getMapProperty("request"));
         session = Factories.getSession();
     }
@@ -60,7 +60,7 @@ public abstract class RequestBase extends Foundation {
      *
      * @param session Session instance.
      */
-    public RequestBase(Session session) {
+    public RequestBase(Session session) throws Exception {
         config = new BasicConfig(Config.getProperties().getMapProperty("request"));
         this.session = session;
     }
@@ -71,7 +71,7 @@ public abstract class RequestBase extends Foundation {
      * @param configDirPath Directory path.
      * @throws ConfigurationException Unable to read/parse config file.
      */
-    public RequestBase(String configDirPath) throws ConfigurationException {
+    public RequestBase(String configDirPath) throws Exception {
         init(configDirPath);
         config = new BasicConfig(Config.getProperties().getMapProperty("request"));
         session = Factories.getSession();

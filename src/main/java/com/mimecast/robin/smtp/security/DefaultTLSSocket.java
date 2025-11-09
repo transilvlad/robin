@@ -89,7 +89,7 @@ public class DefaultTLSSocket implements TLSSocket {
      * @throws GeneralSecurityException Problems with TrustManager or KeyManager.
      */
     @Override
-    public SSLSocket startTLS(boolean client) throws IOException, GeneralSecurityException {
+    public SSLSocket startTLS(boolean client) throws Exception {
         if (socket == null) {
             throw new IOException("Socket not defined");
         }

@@ -165,7 +165,7 @@ public class HumioClient {
      * @throws KeyManagementException   Key management exception.
      * @throws NoSuchAlgorithmException No such algorithm exception.
      */
-    protected String makeRequest(String content, String url) throws IOException, NoSuchAlgorithmException, KeyManagementException {
+    protected String makeRequest(String content, String url) throws Exception {
         String auth = "";
         if (Config.getProperties() != null) {
             auth = Config.getProperties().getStringProperty("humio.auth", "");

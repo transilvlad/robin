@@ -1,12 +1,20 @@
 package com.mimecast.robin.trust;
 
+import com.mimecast.robin.main.Foundation;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import javax.naming.ConfigurationException;
 import java.security.cert.CertificateException;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PermissiveTrustManagerTest {
+
+    @BeforeAll
+    static void before() throws ConfigurationException {
+        Foundation.init("src/test/resources/cfg/");
+    }
 
     @Test
     void use() throws CertificateException {

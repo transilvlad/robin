@@ -24,7 +24,7 @@ public class ExampleHttp {
      * <p>Navigate to <a href="https://robin.requestcatcher.com">robin.requestcatcher.com</a> to debug.
      */
     @Test
-    void delete() throws AssertException, IOException {
+    void delete() throws Exception {
         new RequestClient()
                 .request("src/test/resources/cases/config/request/delete.json5");
     }
@@ -35,7 +35,7 @@ public class ExampleHttp {
      * <p>Navigate to <a href="https://robin.requestcatcher.com">robin.requestcatcher.com</a> to debug.
      */
     @Test
-    void postFiles() throws AssertException, IOException {
+    void postFiles() throws Exception {
         new RequestClient()
                 .request("src/test/resources/cases/config/request/post-files.json5");
     }
@@ -45,7 +45,7 @@ public class ExampleHttp {
      * <p>Navigate to <a href="https://robin.requestcatcher.com">robin.requestcatcher.com</a> to debug.
      */
     @Test
-    void postJson() throws AssertException, IOException {
+    void postJson() throws Exception {
         new RequestClient()
                 .request("src/test/resources/cases/config/request/post-json.json5");
     }
@@ -55,7 +55,7 @@ public class ExampleHttp {
      * <p>Navigate to <a href="https://robin.requestcatcher.com">robin.requestcatcher.com</a> to debug.
      */
     @Test
-    void putFiles() throws AssertException, IOException {
+    void putFiles() throws Exception {
         new RequestClient()
                 .request("src/test/resources/cases/config/request/put-files.json5");
     }
@@ -65,7 +65,7 @@ public class ExampleHttp {
      * <p>Navigate to <a href="https://robin.requestcatcher.com">robin.requestcatcher.com</a> to debug.
      */
     @Test
-    void putJson() throws AssertException, IOException {
+    void putJson() throws Exception {
         new RequestClient()
                 .request("src/test/resources/cases/config/request/put-json.json5");
     }
@@ -75,7 +75,7 @@ public class ExampleHttp {
      * <p>Navigate to <a href="https://robin.requestcatcher.com">robin.requestcatcher.com</a> to debug.
      */
     @Test
-    void get() throws AssertException, IOException {
+    void get() throws Exception {
         new RequestClient()
                 .request("src/test/resources/cases/config/request/get.json5");
     }
@@ -85,7 +85,7 @@ public class ExampleHttp {
      * <p>Navigate to <a href="https://robin.requestcatcher.com">robin.requestcatcher.com</a> to debug.
      */
     @Test
-    void postJsonByMap() throws AssertException, IOException {
+    void postJsonByMap() throws Exception {
         var map = Map.of(
                 "request", Map.of(
                         "type", "POST",

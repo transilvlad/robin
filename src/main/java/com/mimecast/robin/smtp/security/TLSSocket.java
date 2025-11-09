@@ -42,7 +42,7 @@ public interface TLSSocket {
      * @throws IOException              Unable to read.
      * @throws GeneralSecurityException Problems with TrustManager or KeyManager.
      */
-    SSLSocket startTLS(boolean client) throws IOException, GeneralSecurityException;
+    SSLSocket startTLS(boolean client) throws Exception;
 
     /**
      * Gets default protocols or enabled ones from configured list.
