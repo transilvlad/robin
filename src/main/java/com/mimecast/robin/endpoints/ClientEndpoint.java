@@ -469,12 +469,8 @@ public class ClientEndpoint {
             // Search yesterday's log file if it exists
             matchCount += searchLogFile(yesterdayLogFile, query, results);
 
-            if (matchCount == 0) {
-                sendText(exchange, 200, "No matches found for query: " + query + "\n");
-            } else {
-                String response = "Found " + matchCount + " matching line(s) for query: " + query + "\n\n" + results.toString();
-                sendText(exchange, 200, response);
-            }
+            // Return just the results without additional text
+            sendText(exchange, 200, results.toString());
             log.debug("Logs search completed: query='{}', matches={}", query, matchCount);
         } catch (Exception e) {
             log.error("Error processing /logs: {}", e.getMessage());
@@ -557,9 +553,9 @@ public class ClientEndpoint {
         }
 
         int matches = 0;
-        try {
-            List<String> lines = Files.readAllLines(path, StandardCharsets.UTF_8);
-            for (String line : lines) {
+        try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+            String line;
+            while ((line = reader.readLine()) != null) {
                 if (line.contains(query)) {
                     results.append(line).append("\n");
                     matches++;
