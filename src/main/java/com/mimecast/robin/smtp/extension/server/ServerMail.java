@@ -104,7 +104,7 @@ public class ServerMail extends ServerProcessor {
             MessageEnvelope envelope = new MessageEnvelope();
             connection.getSession().addEnvelope(envelope);
 
-            // Check if envelope should be blackholed based on IP, EHLO, and MAIL FROM
+            // Check if envelope should be blackholed based on IP, EHLO, and MAIL FROM.
             if (connection.getSession().isBlackholed() ||
                 BlackholeMatcher.shouldBlackhole(
                     connection.getSession().getFriendAddr(),

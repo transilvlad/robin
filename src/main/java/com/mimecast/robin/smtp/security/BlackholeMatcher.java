@@ -29,7 +29,7 @@ public class BlackholeMatcher {
      * @return true if the email should be blackholed, false otherwise.
      */
     public static boolean shouldBlackhole(String ip, String ehlo, String mail, String rcpt, BlackholeConfig config) {
-        // If blackhole is not enabled, don't blackhole anything
+        // If blackhole is not enabled, don't blackhole anything.
         if (!config.isEnabled()) {
             return false;
         }
@@ -39,7 +39,7 @@ public class BlackholeMatcher {
             return false;
         }
 
-        // Check each rule
+        // Check each rule.
         for (Map<String, String> rule : rules) {
             if (matchesRule(ip, ehlo, mail, rcpt, rule)) {
                 log.info("Blackhole match - IP: {}, EHLO: {}, MAIL: {}, RCPT: {}", ip, ehlo, mail, rcpt);
@@ -62,27 +62,27 @@ public class BlackholeMatcher {
      * @return true if all patterns in the rule match, false otherwise.
      */
     private static boolean matchesRule(String ip, String ehlo, String mail, String rcpt, Map<String, String> rule) {
-        // Check IP pattern if specified
+        // Check IP pattern if specified.
         if (rule.containsKey("ip") && !matchesPattern(ip, rule.get("ip"))) {
             return false;
         }
 
-        // Check EHLO pattern if specified
+        // Check EHLO pattern if specified.
         if (rule.containsKey("ehlo") && !matchesPattern(ehlo, rule.get("ehlo"))) {
             return false;
         }
 
-        // Check MAIL pattern if specified
+        // Check MAIL pattern if specified.
         if (rule.containsKey("mail") && !matchesPattern(mail, rule.get("mail"))) {
             return false;
         }
 
-        // Check RCPT pattern if specified
+        // Check RCPT pattern if specified.
         if (rule.containsKey("rcpt") && !matchesPattern(rcpt, rule.get("rcpt"))) {
             return false;
         }
 
-        // All specified patterns matched
+        // All specified patterns matched.
         return true;
     }
 
@@ -94,12 +94,12 @@ public class BlackholeMatcher {
      * @return true if the value matches the pattern, false otherwise.
      */
     private static boolean matchesPattern(String value, String pattern) {
-        // If pattern is null or empty, it means no restriction - match anything
+        // If pattern is null or empty, it means no restriction - match anything.
         if (pattern == null || pattern.isEmpty()) {
             return true;
         }
         
-        // If we have a pattern but value is null, no match
+        // If we have a pattern but value is null, no match.
         if (value == null) {
             return false;
         }

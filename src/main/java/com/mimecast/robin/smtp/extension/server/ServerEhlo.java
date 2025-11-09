@@ -38,7 +38,7 @@ public class ServerEhlo extends ServerProcessor {
         EhloVerb ehloVerb = new EhloVerb(verb);
         connection.getSession().setEhlo(ehloVerb.getDomain());
 
-        // Check if session should be blackholed based on IP and EHLO
+        // Check if session should be blackholed based on IP and EHLO.
         if (BlackholeMatcher.shouldBlackhole(
                 connection.getSession().getFriendAddr(),
                 ehloVerb.getDomain(),

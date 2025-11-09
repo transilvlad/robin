@@ -38,7 +38,7 @@ public class ServerRcpt extends ServerMail {
     public boolean process(Connection connection, Verb verb) throws IOException {
         super.process(connection, verb);
 
-        // Check if this specific recipient should be blackholed
+        // Check if this specific recipient should be blackholed.
         boolean blackholedRecipient = false;
         if (!connection.getSession().getEnvelopes().isEmpty()) {
             String mailFrom = connection.getSession().getEnvelopes().getLast().getMail();
@@ -71,7 +71,7 @@ public class ServerRcpt extends ServerMail {
                     for (Map<String, String> entry : opt.get().getRcpt()) {
                         if (getAddress() != null && getAddress().getAddress().matches(entry.get("value"))) {
                             String response = entry.get("response");
-                            // Only add recipient if not blackholed
+                            // Only add recipient if not blackholed.
                             if (response.startsWith("2") && !connection.getSession().getEnvelopes().isEmpty() && !blackholedRecipient) {
                                 connection.getSession().getEnvelopes().getLast().addRcpt(getAddress().getAddress());
                             }
@@ -83,12 +83,12 @@ public class ServerRcpt extends ServerMail {
             }
         }
 
-        // Accept all, but only add recipient if not blackholed
+        // Accept all, but only add recipient if not blackholed.
         if (!connection.getSession().getEnvelopes().isEmpty() && !blackholedRecipient) {
             connection.getSession().getEnvelopes().getLast().addRcpt(getAddress().getAddress());
         }
         
-        // If recipient was blackholed, mark the envelope as blackholed if it has no recipients
+        // If recipient was blackholed, mark the envelope as blackholed if it has no recipients.
         if (blackholedRecipient && !connection.getSession().getEnvelopes().isEmpty()) {
             if (connection.getSession().getEnvelopes().getLast().getRcpts().isEmpty()) {
                 connection.getSession().getEnvelopes().getLast().setBlackholed(true);
