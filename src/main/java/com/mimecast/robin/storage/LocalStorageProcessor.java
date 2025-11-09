@@ -11,9 +11,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
 
@@ -36,7 +36,7 @@ public class LocalStorageProcessor implements StorageProcessor {
     public boolean process(Connection connection, EmailParser emailParser) throws IOException {
         ServerConfig config = Config.getServer();
 
-        // Check if local mailbox storage is enabled
+        // Check if local mailbox storage is enabled.
         if (!config.getStorage().getBooleanProperty("localMailbox")) {
             log.debug("Local mailbox storage disabled by configuration (localMailbox=false). Skipping.");
             return true;
@@ -55,12 +55,12 @@ public class LocalStorageProcessor implements StorageProcessor {
             return false;
         }
 
-        // Handle outbound vs inbound differently
+        // Handle outbound vs inbound differently.
         if (connection.getSession().isOutbound()) {
-            // For outbound, save once to sender's outbox
+            // For outbound, save once to sender's outbox.
             saveToOutbox(connection, emailParser, sourceFile, envelope.getMail());
         } else {
-            // For inbound, save to each recipient's mailbox
+            // For inbound, save to each recipient's mailbox.
             saveToRecipientMailboxes(connection, emailParser, sourceFile, envelope.getRcpts());
         }
 
@@ -82,7 +82,7 @@ public class LocalStorageProcessor implements StorageProcessor {
         String basePath = config.getStorage().getStringProperty("path", "/tmp/store");
         String mailbox = Config.getServer().getRelay().getStringProperty("outbox", "Sent");
 
-        // Parse sender email to get domain and username
+        // Parse sender email to get domain and username.
         String[] splits = sender.split("@");
         if (splits.length != 2) {
             log.warn("Invalid sender email format: {}", sender);
@@ -92,20 +92,20 @@ public class LocalStorageProcessor implements StorageProcessor {
         String domain = PathUtils.normalize(splits[1]);
         String username = PathUtils.normalize(splits[0]);
 
-        // Build destination path: basePath/domain/username/mailbox/
+        // Build destination path: basePath/domain/username/mailbox/.
         String destPath = Paths.get(basePath, domain, username, mailbox).toString();
 
-        // Create directory if needed
+        // Create directory if needed.
         if (!PathUtils.makePath(destPath)) {
             log.error("Failed to create destination path: {}", destPath);
             throw new IOException("Failed to create destination path: " + destPath);
         }
 
-        // Generate destination filename
+        // Generate destination filename.
         String fileName = new File(sourceFile).getName();
         String destFile = Paths.get(destPath, fileName).toString();
 
-        // Prepend received header (without "for recipient" field)
+        // Prepend received header (without "for recipient" field).
         ReceivedHeader receivedHeader = new ReceivedHeader(connection);
         saveEmailWithHeader(sourceFile, destFile, receivedHeader.toString(), emailParser);
 
@@ -127,7 +127,7 @@ public class LocalStorageProcessor implements StorageProcessor {
         String mailbox = Config.getServer().getRelay().getStringProperty("mailbox", "INBOX");
 
         for (String recipient : recipients) {
-            // Parse recipient email to get domain and username
+            // Parse recipient email to get domain and username.
             String[] splits = recipient.split("@");
             if (splits.length != 2) {
                 log.warn("Invalid recipient email format: {}", recipient);
@@ -137,20 +137,20 @@ public class LocalStorageProcessor implements StorageProcessor {
             String domain = PathUtils.normalize(splits[1]);
             String username = PathUtils.normalize(splits[0]);
 
-            // Build destination path: basePath/domain/username/mailbox/
+            // Build destination path: basePath/domain/username/mailbox/.
             String destPath = Paths.get(basePath, domain, username, mailbox).toString();
 
-            // Create directory if needed
+            // Create directory if needed.
             if (!PathUtils.makePath(destPath)) {
                 log.error("Failed to create destination path: {}", destPath);
                 continue;
             }
 
-            // Generate destination filename
+            // Generate destination filename.
             String fileName = new File(sourceFile).getName();
             String destFile = Paths.get(destPath, fileName).toString();
 
-            // Prepend received header with recipient
+            // Prepend received header with recipient.
             ReceivedHeader receivedHeader = new ReceivedHeader(connection);
             receivedHeader.setRecipientAddress(recipient);
             saveEmailWithHeader(sourceFile, destFile, receivedHeader.toString(), emailParser);
@@ -169,13 +169,19 @@ public class LocalStorageProcessor implements StorageProcessor {
      * @throws IOException If an I/O error occurs.
      */
     private void saveEmailWithHeader(String sourceFile, String destFile, String receivedHeader, EmailParser emailParser) throws IOException {
-        // Read source file content
-        byte[] sourceContent = Files.readAllBytes(Paths.get(sourceFile));
-
-        // Write received header followed by source content to destination
-        try (FileOutputStream fos = new FileOutputStream(destFile)) {
+        // Write received header followed by source content to destination.
+        try (FileInputStream fis = new FileInputStream(sourceFile);
+             FileOutputStream fos = new FileOutputStream(destFile)) {
+            
+            // Write the received header first.
             fos.write(receivedHeader.getBytes());
-            fos.write(sourceContent);
+            
+            // Stream the source file content to destination.
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = fis.read(buffer)) != -1) {
+                fos.write(buffer, 0, bytesRead);
+            }
         }
     }
 }
