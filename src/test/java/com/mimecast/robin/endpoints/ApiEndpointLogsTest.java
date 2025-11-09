@@ -26,9 +26,9 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Unit tests for ClientEndpoint logs functionality.
+ * Unit tests for ApiEndpoint logs functionality.
  */
-class ClientEndpointLogsTest {
+class ApiEndpointLogsTest {
 
     private Path tempDir;
     private Path todayLogFile;
@@ -195,16 +195,16 @@ class ClientEndpointLogsTest {
         config.put("authType", "none");
         config.put("port", 8090);
 
-        ClientEndpoint endpoint = new ClientEndpoint();
+        ApiEndpoint endpoint = new ApiEndpoint();
         MockHttpExchange exchange = new MockHttpExchange("127.0.0.1", "GET", "/logs");
 
         // Use reflection to access private handleLogs method
         try {
-            java.lang.reflect.Method method = ClientEndpoint.class.getDeclaredMethod("handleLogs", HttpExchange.class);
+            java.lang.reflect.Method method = ApiEndpoint.class.getDeclaredMethod("handleLogs", HttpExchange.class);
             method.setAccessible(true);
             
             // Set auth field
-            java.lang.reflect.Field authField = ClientEndpoint.class.getDeclaredField("auth");
+            java.lang.reflect.Field authField = ApiEndpoint.class.getDeclaredField("auth");
             authField.setAccessible(true);
             authField.set(endpoint, new HttpAuth(new EndpointConfig(config), "Test"));
             
@@ -228,16 +228,16 @@ class ClientEndpointLogsTest {
         config.put("authType", "none");
         config.put("port", 8090);
 
-        ClientEndpoint endpoint = new ClientEndpoint();
+        ApiEndpoint endpoint = new ApiEndpoint();
         MockHttpExchange exchange = new MockHttpExchange("127.0.0.1", "POST", "/logs?query=test");
 
         // Use reflection to access private handleLogs method
         try {
-            java.lang.reflect.Method method = ClientEndpoint.class.getDeclaredMethod("handleLogs", HttpExchange.class);
+            java.lang.reflect.Method method = ApiEndpoint.class.getDeclaredMethod("handleLogs", HttpExchange.class);
             method.setAccessible(true);
             
             // Set auth field
-            java.lang.reflect.Field authField = ClientEndpoint.class.getDeclaredField("auth");
+            java.lang.reflect.Field authField = ApiEndpoint.class.getDeclaredField("auth");
             authField.setAccessible(true);
             authField.set(endpoint, new HttpAuth(new EndpointConfig(config), "Test"));
             

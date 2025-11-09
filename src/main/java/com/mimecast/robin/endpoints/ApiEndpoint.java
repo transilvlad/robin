@@ -32,14 +32,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Client case submission endpoint.
+ * API endpoint for case submission and queue management.
  *
  * <p>Starts a lightweight HTTP server to accept JSON/JSON5 case definitions
  * (either as raw JSON in the body or by providing a file path) and executes the client.
  *
  * <p>Endpoint:
  * <ul>
- *   <li><b>GET /</b> — Serves a simple HTML landing page documenting available client endpoints.</li>
+ *   <li><b>GET /</b> — Serves a simple HTML landing page documenting available API endpoints.</li>
  *   <li><b>POST /client/send</b> — Accepts either a JSON/JSON5 payload describing a case or a query parameter
  *       <code>path</code> that points to a case file on disk. It executes the SMTP client with the supplied case and
  *       responds with the final {@link Session} serialized as JSON.</li>
@@ -58,8 +58,8 @@ import java.util.Map;
  *   <li>{@link MessageEnvelope#getStream() stream} and internal <code>bytes</code> backing</li>
  * </ul>
  */
-public class ClientEndpoint {
-    private static final Logger log = LogManager.getLogger(ClientEndpoint.class);
+public class ApiEndpoint {
+    private static final Logger log = LogManager.getLogger(ApiEndpoint.class);
 
     /**
      * Gson instance used for serializing responses with an exclusion strategy
@@ -73,14 +73,14 @@ public class ClientEndpoint {
     private HttpAuth auth;
 
     /**
-     * Starts the client utils endpoint with endpoint configuration.
+     * Starts the API endpoint with endpoint configuration.
      *
      * @param config EndpointConfig containing port and authentication settings (authType, authValue, allowList).
      * @throws IOException If an I/O error occurs during server startup.
      */
     public void start(EndpointConfig config) throws IOException {
         // Initialize authentication handler.
-        this.auth = new HttpAuth(config, "Client API");
+        this.auth = new HttpAuth(config, "API");
 
         // Build a Gson serializer that excludes fields we don't want to expose.
         gson = new GsonBuilder()
@@ -94,7 +94,7 @@ public class ClientEndpoint {
 
         // Register endpoints.
 
-        // Landing page for client endpoint discovery.
+        // Landing page for API endpoint discovery.
         server.createContext("/", this::handleLandingPage);
 
         // Main endpoint that triggers a Client.send(...) run for the supplied case.
@@ -109,24 +109,24 @@ public class ClientEndpoint {
         // Logs search endpoint.
         server.createContext("/logs", this::handleLogs);
 
-        // Liveness endpoint for client API.
+        // Liveness endpoint for API.
         server.createContext("/health", exchange -> sendJson(exchange, 200, "{\"status\":\"UP\"}"));
 
         // Start the embedded server on a background thread.
         new Thread(server::start).start();
         log.info("Landing available at http://localhost:{}/", apiPort);
-        log.info("Submission endpoint available at http://localhost:{}/client/send", apiPort);
+        log.info("Send endpoint available at http://localhost:{}/client/send", apiPort);
         log.info("Queue endpoint available at http://localhost:{}/client/queue", apiPort);
         log.info("Queue list available at http://localhost:{}/client/queue-list", apiPort);
         log.info("Logs available at http://localhost:{}/logs", apiPort);
         log.info("Health available at http://localhost:{}/health", apiPort);
         if (auth.isAuthEnabled()) {
-            log.info("Authentication is enabled for client API endpoint");
+            log.info("Authentication is enabled for API endpoint");
         }
     }
 
     /**
-     * Serves a simple HTML landing page that documents available client endpoints.
+     * Serves a simple HTML landing page that documents available API endpoints.
      */
     private void handleLandingPage(HttpExchange exchange) throws IOException {
         log.debug("Handling landing page request: method={}, uri={}, remote={}",
@@ -138,11 +138,11 @@ public class ClientEndpoint {
         }
 
         try {
-            String response = readResourceFile("client-endpoints-ui.html");
+            String response = readResourceFile("api-endpoints-ui.html");
             sendHtml(exchange, 200, response);
             log.debug("Landing page served successfully");
         } catch (IOException e) {
-            log.error("Could not read client-endpoints-ui.html", e);
+            log.error("Could not read api-endpoints-ui.html", e);
             sendText(exchange, 500, "Internal Server Error");
         }
     }
@@ -538,7 +538,7 @@ public class ClientEndpoint {
     /**
      * Reads a resource file from the classpath into a string.
      *
-     * @param path The resource path (e.g., "client-endpoints-ui.html").
+     * @param path The resource path (e.g., "api-endpoints-ui.html").
      * @return The file contents as a string.
      * @throws IOException If the resource cannot be found or read.
      */
