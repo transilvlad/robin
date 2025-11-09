@@ -300,7 +300,7 @@ public class EmailReceipt implements Runnable {
                 // Check if webhook returned a custom SMTP response.
                 String smtpResponse = WebhookCaller.extractSmtpResponse(response.getBody());
                 if (smtpResponse != null && !smtpResponse.isEmpty()) {
-                    connection.write(String.format(smtpResponse, connection.getSession().getUID()));
+                    connection.write(smtpResponse + " [" + connection.getSession().getUID() + "]");
                     return !smtpResponse.startsWith("4") && !smtpResponse.startsWith("5"); // Stop processing, webhook provided response.
                 }
 

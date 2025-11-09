@@ -311,7 +311,7 @@ public class ServerData extends ServerProcessor {
                     WebhookResponse response = WebhookCaller.callRaw(rawCfg, filePath, connection);
                     String smtpResponse = WebhookCaller.extractSmtpResponse(response.getBody());
                     if (smtpResponse != null) {
-                        connection.write(String.format(smtpResponse, connection.getSession().getUID()));
+                        connection.write(smtpResponse + " [" + connection.getSession().getUID() + "]");
                         return !smtpResponse.startsWith("4") && !smtpResponse.startsWith("5"); // Stop processing, webhook provided response.
                     }
 
