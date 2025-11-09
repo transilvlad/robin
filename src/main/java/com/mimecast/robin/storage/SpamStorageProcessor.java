@@ -1,6 +1,6 @@
 package com.mimecast.robin.storage;
 
-import com.mimecast.robin.config.BasicConfig;
+import com.mimecast.robin.config.server.RspamdConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.scanners.RspamdClient;
@@ -29,24 +29,24 @@ public class SpamStorageProcessor implements StorageProcessor {
      */
     @Override
     public boolean process(Connection connection, EmailParser emailParser) throws IOException {
-        BasicConfig rspamdConfig = Config.getServer().getRspamd();
-        if (rspamdConfig.getBooleanProperty("enabled")) {
+        RspamdConfig rspamdConfig = Config.getServer().getRspamd();
+        if (rspamdConfig.isEnabled()) {
             File emailFile = new File(connection.getSession().getEnvelopes().getLast().getFile());
             RspamdClient rspamdClient = new RspamdClient(
-                    rspamdConfig.getStringProperty("host", "localhost"),
-                    rspamdConfig.getLongProperty("port", 11333L).intValue())
+                    rspamdConfig.getHost(),
+                    rspamdConfig.getPort())
                     .setEmailDirection(connection.getSession().getDirection())
-                    .setSpfScanEnabled(rspamdConfig.getBooleanProperty("spfScanEnabled"))
-                    .setDkimScanEnabled(rspamdConfig.getBooleanProperty("dkimScanEnabled"))
-                    .setDmarcScanEnabled(rspamdConfig.getBooleanProperty("dmarcScanEnabled"));
+                    .setSpfScanEnabled(rspamdConfig.isSpfScanEnabled())
+                    .setDkimScanEnabled(rspamdConfig.isDkimScanEnabled())
+                    .setDmarcScanEnabled(rspamdConfig.isDmarcScanEnabled());
 
             // Scan the email and retrieve the score
             rspamdClient.scanFile(emailFile);
             double score = rspamdClient.getScore();
             
             // Get thresholds with defaults
-            double discardThreshold = rspamdConfig.getDoubleProperty("discardThreshold", 15.0);
-            double rejectThreshold = rspamdConfig.getDoubleProperty("rejectThreshold", 7.0);
+            double discardThreshold = rspamdConfig.getDiscardThreshold();
+            double rejectThreshold = rspamdConfig.getRejectThreshold();
             
             // Validate thresholds - discardThreshold should be >= rejectThreshold
             if (discardThreshold < rejectThreshold) {
