@@ -30,8 +30,19 @@ COPY --from=build /usr/src/robin/target/robin.jar /usr/local/robin/robin.jar
 # Copy the keystore file to the appropriate location.
 COPY ./src/test/resources/keystore.jks /usr/local/robin/keystore.jks
 
-# Copy configuration files to the cfg directory.
-COPY cfg /usr/local/robin/cfg
+# Build argument to control whether to include cfg files in the image
+# Default is true for published standalone images
+# Set to false when building with docker-compose: --build-arg INCLUDE_CFG=false
+ARG INCLUDE_CFG=true
+
+# Conditionally copy configuration files
+RUN if [ "$INCLUDE_CFG" = "true" ]; then mkdir -p /tmp/include-cfg; fi
+COPY cfg /tmp/cfg-temp/
+RUN if [ "$INCLUDE_CFG" = "true" ]; then \
+      mv /tmp/cfg-temp /usr/local/robin/cfg; \
+    else \
+      rm -rf /tmp/cfg-temp && mkdir -p /usr/local/robin/cfg; \
+    fi
 
 # Expose standard SMTP ports and Robin endpoint ports.
 EXPOSE 25 465 587 8080 8090

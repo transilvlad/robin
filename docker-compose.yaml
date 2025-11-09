@@ -4,6 +4,8 @@ services:
     build:
       context: ./
       dockerfile: ./Dockerfile
+      args:
+        INCLUDE_CFG: "false"
     volumes:
       - ./cfg:/usr/local/robin/cfg
       - ./log:/var/log
