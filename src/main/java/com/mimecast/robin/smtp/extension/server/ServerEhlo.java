@@ -3,10 +3,12 @@ package com.mimecast.robin.smtp.extension.server;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.mimecast.robin.config.server.ScenarioConfig;
+import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Extensions;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.extension.Extension;
+import com.mimecast.robin.smtp.security.BlackholeMatcher;
 import com.mimecast.robin.smtp.verb.EhloVerb;
 import com.mimecast.robin.smtp.verb.Verb;
 import org.apache.commons.lang3.StringUtils;
@@ -35,6 +37,16 @@ public class ServerEhlo extends ServerProcessor {
 
         EhloVerb ehloVerb = new EhloVerb(verb);
         connection.getSession().setEhlo(ehloVerb.getDomain());
+
+        // Check if session should be blackholed based on IP and EHLO
+        if (BlackholeMatcher.shouldBlackhole(
+                connection.getSession().getFriendAddr(),
+                ehloVerb.getDomain(),
+                null,
+                null,
+                Config.getServer().getBlackholeConfig())) {
+            connection.getSession().setBlackholed(true);
+        }
 
         // Prepare welcome message.
         String welcome = "Welcome [" + connection.getSession().getFriendRdns() + " (" + connection.getSession().getFriendAddr() + ")]";

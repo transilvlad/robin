@@ -1,0 +1,39 @@
+{
+  // Enable or disable blackhole functionality (default: false).
+  enabled: false,
+
+  // List of blackhole rules.
+  // Emails matching any rule will be accepted but not saved.
+  // All regex patterns are optional - if not specified, they match everything.
+  // Examples:
+  rules: [
+    // Example: Blackhole all emails from specific IP address
+    // {
+    //   ip: "192\\.168\\.1\\.100"
+    // },
+
+    // Example: Blackhole emails from IP range to specific recipient
+    // {
+    //   ip: "10\\.0\\..*",
+    //   rcpt: ".*@spam\\.example\\.com"
+    // },
+
+    // Example: Blackhole based on EHLO domain
+    // {
+    //   ehlo: ".*\\.malicious\\.com"
+    // },
+
+    // Example: Blackhole based on sender address
+    // {
+    //   mail: "spammer@.*"
+    // },
+
+    // Example: Blackhole complex rule with multiple conditions
+    // {
+    //   ip: "192\\.168\\..*",
+    //   ehlo: ".*\\.test\\.com",
+    //   mail: ".*@sender\\.example\\.com",
+    //   rcpt: ".*@recipient\\.example\\.com"
+    // }
+  ]
+}

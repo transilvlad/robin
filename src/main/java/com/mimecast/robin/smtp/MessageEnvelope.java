@@ -33,6 +33,9 @@ public class MessageEnvelope implements Serializable, Cloneable {
     private final Map<String, String> headers = new HashMap<>();
     private boolean prependHeaders = false;
 
+    // Blackholed status - true if email should be accepted but not saved.
+    private boolean blackholed = false;
+
     // Set MimeConfig.
     private MimeConfig mime = null;
 
@@ -672,6 +675,26 @@ public class MessageEnvelope implements Serializable, Cloneable {
      */
     public MessageEnvelope setAssertions(AssertConfig assertConfig) {
         this.assertConfig = assertConfig;
+        return this;
+    }
+
+    /**
+     * Is envelope blackholed.
+     *
+     * @return Boolean.
+     */
+    public boolean isBlackholed() {
+        return blackholed;
+    }
+
+    /**
+     * Sets envelope blackholed status.
+     *
+     * @param blackholed Blackholed status.
+     * @return MessageEnvelope instance.
+     */
+    public MessageEnvelope setBlackholed(boolean blackholed) {
+        this.blackholed = blackholed;
         return this;
     }
 

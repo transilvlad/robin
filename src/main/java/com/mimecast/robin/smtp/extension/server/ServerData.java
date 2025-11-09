@@ -84,8 +84,46 @@ public class ServerData extends ServerProcessor {
      */
     private boolean ascii() throws IOException {
         if (connection.getSession().getEnvelopes().isEmpty() || connection.getSession().getEnvelopes().getLast().getRcpts().isEmpty()) {
+            // Check if envelope is blackholed - if so, accept without valid recipients check
+            if (!connection.getSession().getEnvelopes().isEmpty() && connection.getSession().getEnvelopes().getLast().isBlackholed()) {
+                // Blackholed email - read data but don't store
+                try {
+                    if (!asciiReadBlackhole("eml")) {
+                        return false;
+                    }
+                } catch (LimitExceededException e) {
+                    connection.write(String.format(SmtpResponses.MESSAGE_SIZE_LIMIT_EXCEEDED_552, connection.getSession().getUID()));
+                    return false;
+                }
+                
+                connection.write(String.format(SmtpResponses.RECEIVED_OK_250, connection.getSession().getUID()));
+                return true;
+            }
+            
             connection.write(String.format(SmtpResponses.NO_VALID_RECIPIENTS_554, connection.getSession().getUID()));
             return false;
+        }
+
+        // Check if envelope is blackholed
+        if (connection.getSession().getEnvelopes().getLast().isBlackholed()) {
+            // Blackholed email - read data but don't store or call webhooks
+            try {
+                if (!asciiReadBlackhole("eml")) {
+                    return false;
+                }
+            } catch (LimitExceededException e) {
+                connection.write(String.format(SmtpResponses.MESSAGE_SIZE_LIMIT_EXCEEDED_552, connection.getSession().getUID()));
+                return false;
+            }
+            
+            Optional<ScenarioConfig> opt = connection.getScenario();
+            if (opt.isPresent() && opt.get().getData() != null) {
+                connection.write(opt.get().getData() + " [" + connection.getSession().getUID() + "]");
+            } else {
+                connection.write(String.format(SmtpResponses.RECEIVED_OK_250, connection.getSession().getUID()));
+            }
+            
+            return true;
         }
 
         // Read email lines and store to disk.
@@ -141,6 +179,30 @@ public class ServerData extends ServerProcessor {
     }
 
     /**
+     * ASCII read for blackholed emails - reads data but doesn't save.
+     *
+     * @param extension File extension.
+     * @return Boolean.
+     * @throws IOException            Unable to communicate.
+     * @throws LimitExceededException Limit exceeded.
+     */
+    protected boolean asciiReadBlackhole(String extension) throws IOException, LimitExceededException {
+        connection.write(SmtpResponses.READY_WILLING_354);
+
+        // Use a NullOutputStream to discard the data
+        try (CountingOutputStream cos = new CountingOutputStream(java.io.OutputStream.nullOutputStream())) {
+            connection.setTimeout(connection.getSession().getExtendedTimeout());
+            connection.readMultiline(cos, emailSizeLimit);
+            bytesReceived = cos.getByteCount();
+        } finally {
+            connection.setTimeout(connection.getSession().getTimeout());
+        }
+
+        log.info("Blackholed email - {} bytes received but not saved", bytesReceived);
+        return true;
+    }
+
+    /**
      * Binary receipt.
      * TODO: Support multiple BDAT chunks.
      *
@@ -159,28 +221,47 @@ public class ServerData extends ServerProcessor {
             return false;
 
         } else {
-            // Read bytes.
-            StorageClient storageClient = Factories.getStorageClient(connection, "eml");
-            CountingOutputStream cos = new CountingOutputStream(storageClient.getStream());
+            // Check if envelope is blackholed
+            boolean isBlackholed = !connection.getSession().getEnvelopes().isEmpty() && 
+                                   connection.getSession().getEnvelopes().getLast().isBlackholed();
+            
+            if (isBlackholed) {
+                // Blackholed email - read bytes but don't store
+                CountingOutputStream cos = new CountingOutputStream(java.io.OutputStream.nullOutputStream());
+                
+                binaryRead(bdatVerb, cos);
+                bytesReceived = cos.getByteCount();
+                
+                if (bdatVerb.isLast()) {
+                    log.info("Blackholed email - {} bytes received but not saved", bytesReceived);
+                }
+                
+                // Scenario response or accept (no webhook call for blackholed emails).
+                scenarioResponse(connection.getSession().getUID());
+            } else {
+                // Read bytes.
+                StorageClient storageClient = Factories.getStorageClient(connection, "eml");
+                CountingOutputStream cos = new CountingOutputStream(storageClient.getStream());
 
-            binaryRead(bdatVerb, cos);
-            bytesReceived = cos.getByteCount();
+                binaryRead(bdatVerb, cos);
+                bytesReceived = cos.getByteCount();
 
-            if (bdatVerb.isLast()) {
-                log.debug("Last chunk received.");
-                if (!storageClient.save()) {
-                    connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+                if (bdatVerb.isLast()) {
+                    log.debug("Last chunk received.");
+                    if (!storageClient.save()) {
+                        connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+                        return false;
+                    }
+                }
+
+                // Call RAW webhook after successful storage.
+                if (!callRawWebhook()) {
                     return false;
                 }
-            }
 
-            // Call RAW webhook after successful storage.
-            if (!callRawWebhook()) {
-                return false;
+                // Scenario response or accept.
+                scenarioResponse(connection.getSession().getUID());
             }
-
-            // Scenario response or accept.
-            scenarioResponse(connection.getSession().getUID());
         }
 
         return true;

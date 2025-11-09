@@ -47,6 +47,7 @@ public class ServerConfig extends ConfigFoundation {
         CONFIG_FILENAMES.put("clamav", "clamav.json5");
         CONFIG_FILENAMES.put("rspamd", "rspamd.json5");
         CONFIG_FILENAMES.put("blocklist", "blocklist.json5");
+        CONFIG_FILENAMES.put("blackhole", "blackhole.json5");
     }
 
     /**
@@ -286,6 +287,21 @@ public class ServerConfig extends ConfigFoundation {
         }
         // Return default config if not defined.
         return new BlocklistConfig(null);
+    }
+
+    /**
+     * Gets blackhole configuration.
+     *
+     * @return BlackholeConfig instance.
+     */
+    public BlackholeConfig getBlackholeConfig() {
+        loadExternalIfAbsent("blackhole", Map.class);
+
+        if (map.containsKey("blackhole")) {
+            return new BlackholeConfig(getMapProperty("blackhole"));
+        }
+        // Return default config if not defined.
+        return new BlackholeConfig(null);
     }
 
     /**

@@ -1,9 +1,11 @@
 package com.mimecast.robin.smtp.extension.server;
 
 import com.mimecast.robin.config.server.ScenarioConfig;
+import com.mimecast.robin.main.Config;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
+import com.mimecast.robin.smtp.security.BlackholeMatcher;
 import com.mimecast.robin.smtp.verb.Verb;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.ThreadContext;
@@ -101,6 +103,17 @@ public class ServerMail extends ServerProcessor {
             // Make envelope.
             MessageEnvelope envelope = new MessageEnvelope();
             connection.getSession().addEnvelope(envelope);
+
+            // Check if envelope should be blackholed based on IP, EHLO, and MAIL FROM
+            if (connection.getSession().isBlackholed() ||
+                BlackholeMatcher.shouldBlackhole(
+                    connection.getSession().getFriendAddr(),
+                    connection.getSession().getEhlo(),
+                    getAddress().getAddress(),
+                    null,
+                    Config.getServer().getBlackholeConfig())) {
+                envelope.setBlackholed(true);
+            }
 
             // ScenarioConfig response.
             Optional<ScenarioConfig> opt = connection.getScenario();
