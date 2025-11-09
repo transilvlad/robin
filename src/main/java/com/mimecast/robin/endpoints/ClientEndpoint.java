@@ -73,7 +73,7 @@ public class ClientEndpoint {
     private HttpAuth auth;
 
     /**
-     * Starts the client submission endpoint with endpoint configuration.
+     * Starts the client utils endpoint with endpoint configuration.
      *
      * @param config EndpointConfig containing port and authentication settings (authType, authValue, allowList).
      * @throws IOException If an I/O error occurs during server startup.

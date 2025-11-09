@@ -245,8 +245,8 @@ The following endpoints are available:
         }
         ```
 
-Client Submission Endpoint
---------------------------
+Client Utils Endpoint
+---------------------
 
 <img src="img/endpoint-client.jpg" alt="Metrics Endpoints Diagram" style="max-width: 1200px;"/>
 

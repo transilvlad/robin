@@ -7,9 +7,7 @@ import com.mimecast.robin.metrics.MetricsCron;
 import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.smtp.SmtpListener;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
-import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.storage.StorageCleaner;
-import com.mimecast.robin.util.Magic;
 import com.mimecast.robin.util.VaultClient;
 import com.mimecast.robin.util.VaultClientFactory;
 import com.mimecast.robin.util.VaultMagicProvider;
@@ -144,11 +142,11 @@ public class Server extends Foundation {
             log.error("Unable to start metrics cron: {}", e.getMessage());
         }
 
-        // Start the client submission endpoint.
+        // Start the client utils endpoint.
         try {
             new ClientEndpoint().start(Config.getServer().getApi());
         } catch (IOException e) {
-            log.error("Unable to start client submission endpoint: {}", e.getMessage());
+            log.error("Unable to start client utils endpoint: {}", e.getMessage());
         }
     }
 
