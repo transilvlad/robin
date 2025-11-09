@@ -1,0 +1,59 @@
+{
+  // Enable or disable blackhole functionality (default: false).
+  // When enabled, emails matching the configured rules will be accepted
+  // but not saved to disk or processed by webhooks.
+  enabled: false,
+
+  // List of blackhole rules.
+  // Each rule can contain one or more conditions (ip, ehlo, mail, rcpt).
+  // All conditions within a single rule must match for the rule to apply (AND logic).
+  // If any rule matches, the email will be blackholed (OR logic between rules).
+  // All patterns are regular expressions.
+  // If a pattern is not specified, it matches anything for that field.
+  rules: [
+    // Example 1: Blackhole all emails from a specific IP address
+    // {
+    //   ip: "192\\.168\\.1\\.100"
+    // },
+
+    // Example 2: Blackhole emails from IP range to specific recipient
+    // {
+    //   ip: "10\\.0\\..*",
+    //   rcpt: ".*@honeypot\\.example\\.com"
+    // },
+
+    // Example 3: Blackhole based on EHLO domain pattern
+    // {
+    //   ehlo: ".*\\.suspicious\\.com"
+    // },
+
+    // Example 4: Blackhole based on sender email address
+    // {
+    //   mail: "spammer@.*"
+    // },
+
+    // Example 5: Blackhole emails to test/spam trap addresses
+    // {
+    //   rcpt: ".*@(spam-trap|test-inbox)\\.example\\.com"
+    // },
+
+    // Example 6: Complex rule with multiple conditions
+    // All conditions must match for this rule to apply
+    // {
+    //   ip: "192\\.168\\..*",
+    //   ehlo: ".*\\.test\\.com",
+    //   mail: ".*@sender\\.example\\.com",
+    //   rcpt: ".*@recipient\\.example\\.com"
+    // }
+  ]
+
+  // Notes:
+  // - When only one recipient is blackholed, others will still receive the email
+  // - Recipients are not added to the envelope for RCPT matches
+  // - INFO level log entries are created when emails are blackholed
+  // - The blackhole check happens at different SMTP stages:
+  //   * EHLO: checks IP + EHLO domain
+  //   * MAIL: checks IP + EHLO + MAIL FROM
+  //   * RCPT: checks IP + EHLO + MAIL FROM + RCPT TO
+  //   * DATA: skips storage and webhooks if blackholed
+}

@@ -129,6 +129,11 @@ public class Session implements Serializable, Cloneable {
     private String friendRbl;
 
     /**
+     * Session is blackholed (accept but don't save).
+     */
+    private boolean blackholed;
+
+    /**
      * [Client] HELO domain.
      */
     private String helo = "";
@@ -678,6 +683,26 @@ public class Session implements Serializable, Cloneable {
      */
     public Session setFriendRbl(String friendRbl) {
         this.friendRbl = friendRbl;
+        return this;
+    }
+
+    /**
+     * Is session blackholed.
+     *
+     * @return Boolean.
+     */
+    public boolean isBlackholed() {
+        return blackholed;
+    }
+
+    /**
+     * Sets session blackholed status.
+     *
+     * @param blackholed Blackholed status.
+     * @return Self.
+     */
+    public Session setBlackholed(boolean blackholed) {
+        this.blackholed = blackholed;
         return this;
     }
 

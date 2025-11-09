@@ -5,6 +5,7 @@ import com.mimecast.robin.main.Config;
 import com.mimecast.robin.sasl.DovecotUserLookupNative;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
+import com.mimecast.robin.smtp.security.BlackholeMatcher;
 import com.mimecast.robin.smtp.verb.MailVerb;
 import com.mimecast.robin.smtp.verb.Verb;
 
@@ -37,6 +38,18 @@ public class ServerRcpt extends ServerMail {
     public boolean process(Connection connection, Verb verb) throws IOException {
         super.process(connection, verb);
 
+        // Check if this specific recipient should be blackholed.
+        boolean blackholedRecipient = false;
+        if (!connection.getSession().getEnvelopes().isEmpty()) {
+            String mailFrom = connection.getSession().getEnvelopes().getLast().getMail();
+            blackholedRecipient = BlackholeMatcher.shouldBlackhole(
+                connection.getSession().getFriendAddr(),
+                connection.getSession().getEhlo(),
+                mailFrom,
+                getAddress().getAddress(),
+                Config.getServer().getBlackholeConfig());
+        }
+
         // When receiving inbound email.
         if (connection.getSession().isInbound()) {
             // Check if users are enabled in configuration and try and authenticate if so.
@@ -58,7 +71,8 @@ public class ServerRcpt extends ServerMail {
                     for (Map<String, String> entry : opt.get().getRcpt()) {
                         if (getAddress() != null && getAddress().getAddress().matches(entry.get("value"))) {
                             String response = entry.get("response");
-                            if (response.startsWith("2") && !connection.getSession().getEnvelopes().isEmpty()) {
+                            // Only add recipient if not blackholed.
+                            if (response.startsWith("2") && !connection.getSession().getEnvelopes().isEmpty() && !blackholedRecipient) {
                                 connection.getSession().getEnvelopes().getLast().addRcpt(getAddress().getAddress());
                             }
                             connection.write(response);
@@ -69,10 +83,18 @@ public class ServerRcpt extends ServerMail {
             }
         }
 
-        // Accept all.
-        if (!connection.getSession().getEnvelopes().isEmpty()) {
+        // Accept all, but only add recipient if not blackholed.
+        if (!connection.getSession().getEnvelopes().isEmpty() && !blackholedRecipient) {
             connection.getSession().getEnvelopes().getLast().addRcpt(getAddress().getAddress());
         }
+        
+        // If recipient was blackholed, mark the envelope as blackholed if it has no recipients.
+        if (blackholedRecipient && !connection.getSession().getEnvelopes().isEmpty()) {
+            if (connection.getSession().getEnvelopes().getLast().getRcpts().isEmpty()) {
+                connection.getSession().getEnvelopes().getLast().setBlackholed(true);
+            }
+        }
+        
         connection.write(String.format(SmtpResponses.RECIPIENT_OK_250, connection.getSession().getUID()));
 
         return true;
