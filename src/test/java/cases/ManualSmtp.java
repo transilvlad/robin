@@ -38,7 +38,7 @@ public class ManualSmtp {
     @Test
     void inboundDovecot() throws AssertException, IOException {
         new Client()
-                .send("src/test/resources/cases/config/manual/inbound.json5");
+                .send("src/test/resources/cases/config/manual/inbound.dovecot.json5");
     }
 
     /**
@@ -50,6 +50,6 @@ public class ManualSmtp {
     @Test
     void outboundDovecot() throws AssertException, IOException {
         new Client()
-                .send("src/test/resources/cases/config/manual/outbound.json5");
+                .send("src/test/resources/cases/config/manual/outbound.dovecot.json5");
     }
 }

@@ -124,8 +124,7 @@ public class LocalStorageClient implements StorageClient {
      */
     @Override
     public String getPath() {
-        String folder = config.getStorage().getStringProperty(connection.getSession().isInbound() ? "inboundFolder" : "outboundFolder");
-        return folder != null ? Paths.get(path, folder).toString() : path;
+        return path;
     }
 
     /**

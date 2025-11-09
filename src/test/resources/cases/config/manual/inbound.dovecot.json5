@@ -23,7 +23,8 @@
       mail: "tony@example.com",
 
       rcpt: [
-        "pepper@example.com"
+        "pepper@example.com",
+        "happy@example.com"
       ],
 
       // Email eml file to transmit.
@@ -44,7 +45,7 @@
         external: [
           {
             // Assertion type IMAP for pulling emails.
-            type: "imap",
+            type: "imapXXX",
 
             // How long to wait before asserting.
             wait: 5,
