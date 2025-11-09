@@ -26,7 +26,11 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,7 +50,9 @@ import java.util.Map;
  *   <li><b>POST /client/queue</b> — Same inputs as <code>/client/send</code>, but instead of sending immediately, it
  *       enqueues the built {@link Session} as a {@link RelaySession} into the persistent relay queue.</li>
  *   <li><b>GET /client/queue-list</b> — Lists the current relay queue contents in a simple HTML table.</li>
- *   <li><b>GET /client/health</b> — Simple liveness endpoint returning HTTP 200 with <code>{"status":"UP"}</code>.</li>
+ *   <li><b>GET /logs</b> — Searches log files for lines matching a query string. Supports text/plain GET requests only.
+ *       Returns usage message if no query parameter is set. Searches current and previous log4j2 log files.</li>
+ *   <li><b>GET /health</b> — Simple liveness endpoint returning HTTP 200 with <code>{"status":"UP"}</code>.</li>
  * </ul>
  *
  * <p>Response serialization excludes heavy or sensitive fields to keep payloads compact and safe:
@@ -104,8 +110,11 @@ public class ClientEndpoint {
         // Queue listing endpoint.
         server.createContext("/client/queue-list", this::handleQueueList);
 
+        // Logs search endpoint.
+        server.createContext("/logs", this::handleLogs);
+
         // Liveness endpoint for client API.
-        server.createContext("/client/health", exchange -> sendJson(exchange, 200, "{\"status\":\"UP\"}"));
+        server.createContext("/health", exchange -> sendJson(exchange, 200, "{\"status\":\"UP\"}"));
 
         // Start the embedded server on a background thread.
         new Thread(server::start).start();
@@ -113,7 +122,8 @@ public class ClientEndpoint {
         log.info("Submission endpoint available at http://localhost:{}/client/send", apiPort);
         log.info("Queue endpoint available at http://localhost:{}/client/queue", apiPort);
         log.info("Queue list available at http://localhost:{}/client/queue-list", apiPort);
-        log.info("Health available at http://localhost:{}/client/health", apiPort);
+        log.info("Logs available at http://localhost:{}/logs", apiPort);
+        log.info("Health available at http://localhost:{}/health", apiPort);
         if (auth.isAuthEnabled()) {
             log.info("Authentication is enabled for client API endpoint");
         }
@@ -379,6 +389,103 @@ public class ClientEndpoint {
             log.error("Error processing /client/queue-list: {}", e.getMessage());
             sendText(exchange, 500, "Internal Server Error: " + e.getMessage());
         }
+    }
+
+    /**
+     * Handles <b>GET /logs</b> requests.
+     * <p>Searches current and previous log4j2 log files for lines matching a query string.
+     * <p>Supports only GET requests with query parameter "query" or "q".
+     * <p>Returns usage message if no query parameter is provided.
+     */
+    private void handleLogs(HttpExchange exchange) throws IOException {
+        // Only GET is supported, reject anything else.
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            log.debug("Rejecting non-GET request to /logs: method={}", exchange.getRequestMethod());
+            sendText(exchange, 405, "Method Not Allowed");
+            return;
+        }
+
+        if (!auth.isAuthenticated(exchange)) {
+            auth.sendAuthRequired(exchange);
+            return;
+        }
+
+        log.debug("GET /logs from {}", exchange.getRemoteAddress());
+        try {
+            Map<String, String> queryParams = parseQuery(exchange.getRequestURI());
+            String query = queryParams.get("query");
+            if (query == null || query.isBlank()) {
+                query = queryParams.get("q");
+            }
+
+            if (query == null || query.isBlank()) {
+                String usage = "Usage: /logs?query=<search-term>\n" +
+                        "       /logs?q=<search-term>\n\n" +
+                        "Searches the current and previous log4j2 log files for lines matching the query string.\n" +
+                        "Returns matching lines as plain text.\n";
+                sendText(exchange, 200, usage);
+                return;
+            }
+
+            log.info("Searching logs for query: '{}'", query);
+            StringBuilder results = new StringBuilder();
+            int matchCount = 0;
+
+            // Get current date and yesterday's date for log file names
+            LocalDate today = LocalDate.now();
+            LocalDate yesterday = today.minusDays(1);
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
+
+            // Search today's log file
+            String todayLogFile = "/var/log/robin-" + today.format(formatter) + ".log";
+            matchCount += searchLogFile(todayLogFile, query, results);
+
+            // Search yesterday's log file if it exists
+            String yesterdayLogFile = "/var/log/robin-" + yesterday.format(formatter) + ".log";
+            matchCount += searchLogFile(yesterdayLogFile, query, results);
+
+            if (matchCount == 0) {
+                sendText(exchange, 200, "No matches found for query: " + query + "\n");
+            } else {
+                String response = "Found " + matchCount + " matching line(s) for query: " + query + "\n\n" + results.toString();
+                sendText(exchange, 200, response);
+            }
+            log.debug("Logs search completed: query='{}', matches={}", query, matchCount);
+        } catch (Exception e) {
+            log.error("Error processing /logs: {}", e.getMessage());
+            sendText(exchange, 500, "Internal Server Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Searches a log file for lines matching the query string.
+     *
+     * @param logFilePath Path to the log file.
+     * @param query Query string to search for.
+     * @param results StringBuilder to append matching lines to.
+     * @return Number of matches found.
+     */
+    private int searchLogFile(String logFilePath, String query, StringBuilder results) {
+        Path path = Paths.get(logFilePath);
+        if (!Files.exists(path)) {
+            log.debug("Log file does not exist: {}", logFilePath);
+            return 0;
+        }
+
+        int matches = 0;
+        try {
+            List<String> lines = Files.readAllLines(path, StandardCharsets.UTF_8);
+            for (String line : lines) {
+                if (line.contains(query)) {
+                    results.append(line).append("\n");
+                    matches++;
+                }
+            }
+            log.debug("Searched log file: {}, found {} matches", logFilePath, matches);
+        } catch (IOException e) {
+            log.error("Error reading log file {}: {}", logFilePath, e.getMessage());
+        }
+        return matches;
     }
 
     /**
