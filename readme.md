@@ -1,11 +1,10 @@
-Robin MTA Server and Tester
-===========================
+![Robin MTA Server and Tester](doc/img/robin.jpg)
+
 By **Vlad Marian** *<transilvlad@gmail.com>*
 
 
 Overview
 --------
-<img align="right" width="200" height="200" src="doc/img/robin.jpg" alt="Logo">
 Robin MTA Server and Tester is a development, debug and testing tool for MTA architects.
 
 However, as the name suggests it can also be used as a lightweight MTA server with Dovecot SASL AUTH and mailbox integration.
