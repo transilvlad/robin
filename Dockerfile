@@ -35,13 +35,14 @@ COPY ./src/test/resources/keystore.jks /usr/local/robin/keystore.jks
 # Set to false when building with docker-compose: --build-arg INCLUDE_CFG=false
 ARG INCLUDE_CFG=true
 
-# Conditionally copy configuration files
-RUN if [ "$INCLUDE_CFG" = "true" ]; then mkdir -p /tmp/include-cfg; fi
-COPY cfg /tmp/cfg-temp/
+# Copy configuration files conditionally
+# When INCLUDE_CFG=true (default), cfg files are copied into the image
+# When INCLUDE_CFG=false (docker-compose), only the directory structure is created for volume mounting
+COPY cfg /tmp/cfg/
 RUN if [ "$INCLUDE_CFG" = "true" ]; then \
-      mv /tmp/cfg-temp /usr/local/robin/cfg; \
+      mv /tmp/cfg /usr/local/robin/cfg; \
     else \
-      rm -rf /tmp/cfg-temp && mkdir -p /usr/local/robin/cfg; \
+      rm -rf /tmp/cfg && mkdir -p /usr/local/robin/cfg; \
     fi
 
 # Expose standard SMTP ports and Robin endpoint ports.
