@@ -379,6 +379,21 @@ Endpoints
   - Returns matching lines as plain text
   - If no query parameter is provided, returns usage information
   - Example:
+
+- **`GET /store[/path]`** — Browse local message storage directory.
+  - Path parameter: relative path within the configured storage directory
+  - Response content varies based on the requested path:
+    - **Directory listings**: `text/html; charset=utf-8` - Interactive HTML page with clickable links
+    - **Individual .eml files**: `text/plain; charset=utf-8` - Raw email content
+  - Only `.eml` files are served; other file types return 404
+  - Empty directories (containing no `.eml` files recursively) are not shown
+  - Directory traversal protection prevents access outside the storage path
+  - Uses the storage path configured in `storage.json5` (defaults to `/tmp/store`)
+  - HTML listings use the same styling as other API endpoints
+  - Examples:
+    - `/store/` - List storage root directory
+    - `/store/example.com/` - List subdirectory
+    - `/store/example.com/user/new/renamed.eml` - View email content
     ```bash
     curl "http://localhost:8090/logs?query=ERROR"
     curl "http://localhost:8090/logs?q=session"

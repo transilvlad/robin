@@ -26,6 +26,8 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
@@ -48,6 +50,8 @@ import java.util.Map;
  *   <li><b>GET /client/queue-list</b> — Lists the current relay queue contents in a simple HTML table.</li>
  *   <li><b>GET /logs</b> — Searches log files for lines matching a query string. Supports text/plain GET requests only.
  *       Returns usage message if no query parameter is set. Searches current and previous log4j2 log files.</li>
+ *   <li><b>GET /store[/...]</b> — Browse local message storage. Directory listings are returned as HTML with clickable
+ *       links; individual <code>.eml</code> files are returned as <code>text/plain</code>. Empty folders are ignored.</li>
  *   <li><b>GET /health</b> — Simple liveness endpoint returning HTTP 200 with <code>{"status":"UP"}</code>.</li>
  * </ul>
  *
@@ -109,6 +113,9 @@ public class ApiEndpoint {
         // Logs search endpoint.
         server.createContext("/logs", this::handleLogs);
 
+        // Storage browser endpoint (directory listing and .eml serving).
+        server.createContext("/store", this::handleStore);
+
         // Liveness endpoint for API.
         server.createContext("/health", exchange -> sendJson(exchange, 200, "{\"status\":\"UP\"}"));
 
@@ -119,6 +126,7 @@ public class ApiEndpoint {
         log.info("Queue endpoint available at http://localhost:{}/client/queue", apiPort);
         log.info("Queue list available at http://localhost:{}/client/queue-list", apiPort);
         log.info("Logs available at http://localhost:{}/logs", apiPort);
+        log.info("Store available at http://localhost:{}/store/", apiPort);
         log.info("Health available at http://localhost:{}/health", apiPort);
         if (auth.isAuthEnabled()) {
             log.info("Authentication is enabled for API endpoint");
@@ -239,7 +247,7 @@ public class ApiEndpoint {
             String protocolOverride = query.getOrDefault("protocol", Config.getServer().getRelay().getStringProperty("protocol", "ESMTP"));
             // mailbox parameter is an override for dovecot folder delivery
             // Default to inboxFolder as most queued items are inbound
-            String mailboxOverride = query.getOrDefault("mailbox", 
+            String mailboxOverride = query.getOrDefault("mailbox",
                     Config.getServer().getDovecot().getStringProperty("inboxFolder", "INBOX"));
             log.debug("/client/queue overrides: protocol={}, mailbox={}", protocolOverride, mailboxOverride);
 
@@ -440,6 +448,95 @@ public class ApiEndpoint {
     }
 
     /**
+     * Storage browser handler.
+     * <p>Directory listings are returned as HTML (clickable links). Individual .eml files are served as text/plain.
+     */
+    private void handleStore(HttpExchange exchange) throws IOException {
+        log.debug("Handling store request: method={}, uri={}, remote={}",
+                exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
+
+        if (!auth.isAuthenticated(exchange)) {
+            auth.sendAuthRequired(exchange);
+            return;
+        }
+
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendText(exchange, 405, "Method Not Allowed");
+            return;
+        }
+
+        // Parse and validate the requested path
+        String base = Config.getServer().getStorage().getStringProperty("path", "/tmp/store");
+        Path basePath = Paths.get(base).toAbsolutePath().normalize();
+
+        String decoded = parseStorePath(exchange.getRequestURI().getPath());
+        if (decoded.contains("..")) {
+            sendText(exchange, 403, "Forbidden");
+            return;
+        }
+
+        Path target = decoded.isEmpty() ? basePath : basePath.resolve(decoded).toAbsolutePath().normalize();
+        if (!target.startsWith(basePath)) {
+            sendText(exchange, 403, "Forbidden");
+            return;
+        }
+
+        // Serve individual .eml files as text/plain
+        if (Files.isRegularFile(target)) {
+            serveEmlFile(exchange, target);
+            return;
+        }
+
+        // Generate directory listing
+        if (!Files.exists(target) || !Files.isDirectory(target)) {
+            sendText(exchange, 404, "Not Found");
+            return;
+        }
+
+        StorageDirectoryListing listing = new StorageDirectoryListing("/store");
+        String template = readResourceFile("store-browser-ui.html");
+        String items = listing.generateItems(target, decoded);
+
+        String html = template
+                .replace("{{PATH}}", escapeHtml("/" + decoded))
+                .replace("{{ITEMS}}", items);
+
+        sendHtml(exchange, 200, html);
+    }
+
+    /**
+     * Parses the store path from the request URI.
+     */
+    private String parseStorePath(String requestPath) {
+        String prefix = "/store";
+        String rel = requestPath.length() > prefix.length() ? requestPath.substring(prefix.length()) : "/";
+
+        String decoded = URLDecoder.decode(rel, StandardCharsets.UTF_8);
+        return decoded.startsWith("/") ? decoded.substring(1) : decoded;
+    }
+
+    /**
+     * Serves an individual .eml file as text/plain.
+     */
+    private void serveEmlFile(HttpExchange exchange, Path target) throws IOException {
+        if (!target.getFileName().toString().toLowerCase().endsWith(".eml")) {
+            sendText(exchange, 404, "Not Found");
+            return;
+        }
+
+        Headers headers = exchange.getResponseHeaders();
+        headers.set("Content-Type", "text/plain; charset=utf-8");
+        long len = Files.size(target);
+        exchange.sendResponseHeaders(200, len);
+
+        try (OutputStream os = exchange.getResponseBody();
+             InputStream is = Files.newInputStream(target)) {
+            is.transferTo(os);
+        }
+        log.debug("Served eml file: {} ({} bytes)", target.toString(), len);
+    }
+
+    /**
      * Escape minimal HTML characters
      */
     private String escapeHtml(String s) {
@@ -478,7 +575,7 @@ public class ApiEndpoint {
     }
 
     /**
-     * Sends a HTML response with the specified HTTP status code.
+     * Sends a JSON response with the specified HTTP status code.
      *
      * @param exchange HTTP exchange.
      * @param code     HTTP status code.
