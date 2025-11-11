@@ -20,11 +20,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Integration tests for queue control API endpoints.
- * NOTE: This test can be run individually with: mvn test -Dtest=ApiEndpointQueueControlsIntegrationTest
- * It is excluded from the main test suite due to environment setup requirements.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class ApiEndpointQueueControlsIntegrationTest {
+class ApiEndpointQueueControlsTest {
 
     private static final int TEST_PORT = 8095;
     private static final String BASE_URL = "http://localhost:" + TEST_PORT;

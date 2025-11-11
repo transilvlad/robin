@@ -71,6 +71,22 @@ public interface QueueDatabase<T extends Serializable> extends Closeable {
     int removeByIndices(List<Integer> indices);
 
     /**
+     * Remove an item from the queue by UID (for RelaySession).
+     *
+     * @param uid The UID of the item to remove
+     * @return true if item was removed, false if not found
+     */
+    boolean removeByUID(String uid);
+
+    /**
+     * Remove items from the queue by UIDs (for RelaySession).
+     *
+     * @param uids The UIDs of items to remove
+     * @return Number of items successfully removed
+     */
+    int removeByUIDs(List<String> uids);
+
+    /**
      * Clear all items from the queue.
      */
     void clear();

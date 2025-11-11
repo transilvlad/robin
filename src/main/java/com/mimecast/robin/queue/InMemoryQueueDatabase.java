@@ -128,6 +128,47 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
     }
 
     /**
+     * Remove an item from the queue by UID (for RelaySession).
+     */
+    @Override
+    public boolean removeByUID(String uid) {
+        if (uid == null) {
+            return false;
+        }
+        
+        for (T item : queue) {
+            if (item instanceof RelaySession) {
+                RelaySession relaySession = (RelaySession) item;
+                if (uid.equals(relaySession.getUID())) {
+                    if (queue.remove(item)) {
+                        size.decrementAndGet();
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Remove items from the queue by UIDs (for RelaySession).
+     */
+    @Override
+    public int removeByUIDs(List<String> uids) {
+        if (uids == null || uids.isEmpty()) {
+            return 0;
+        }
+        
+        int removed = 0;
+        for (String uid : uids) {
+            if (removeByUID(uid)) {
+                removed++;
+            }
+        }
+        return removed;
+    }
+
+    /**
      * Clear all items from the queue.
      */
     @Override

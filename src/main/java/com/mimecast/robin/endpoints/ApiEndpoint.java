@@ -48,7 +48,7 @@ import java.util.Map;
  *       responds with the final {@link Session} serialized as JSON.</li>
  *   <li><b>POST /client/queue</b> — Same inputs as <code>/client/send</code>, but instead of sending immediately, it
  *       enqueues the built {@link Session} as a {@link RelaySession} into the persistent relay queue.</li>
- *   <li><b>GET /client/queue-list</b> — Lists the current relay queue contents in a simple HTML table.</li>
+ *   <li><b>GET /client/queue/list</b> — Lists the current relay queue contents in a simple HTML table.</li>
  *   <li><b>GET /logs</b> — Searches log files for lines matching a query string. Supports text/plain GET requests only.
  *       Returns usage message if no query parameter is set. Searches current and previous log4j2 log files.</li>
  *   <li><b>GET /store[/...]</b> — Browse local message storage. Directory listings are returned as HTML with clickable
@@ -109,7 +109,7 @@ public class ApiEndpoint {
         server.createContext("/client/queue", this::handleClientQueue);
 
         // Queue listing endpoint.
-        server.createContext("/client/queue-list", this::handleQueueList);
+        server.createContext("/client/queue/list", this::handleQueueList);
 
         // Queue control endpoints.
         server.createContext("/client/queue/delete", this::handleQueueDelete);
@@ -130,7 +130,7 @@ public class ApiEndpoint {
         log.info("Landing available at http://localhost:{}/", apiPort);
         log.info("Send endpoint available at http://localhost:{}/client/send", apiPort);
         log.info("Queue endpoint available at http://localhost:{}/client/queue", apiPort);
-        log.info("Queue list available at http://localhost:{}/client/queue-list", apiPort);
+        log.info("Queue list available at http://localhost:{}/client/queue/list", apiPort);
         log.info("Queue delete available at http://localhost:{}/client/queue/delete", apiPort);
         log.info("Queue retry available at http://localhost:{}/client/queue/retry", apiPort);
         log.info("Queue bounce available at http://localhost:{}/client/queue/bounce", apiPort);
@@ -318,7 +318,7 @@ public class ApiEndpoint {
      * Supports pagination via query parameters: page (1-based) and limit (default 50).
      */
     private void handleQueueList(HttpExchange exchange) throws IOException {
-        log.debug("GET /client/queue-list from {}", exchange.getRemoteAddress());
+        log.debug("GET /client/queue/list from {}", exchange.getRemoteAddress());
 
         if (!auth.isAuthenticated(exchange)) {
             auth.sendAuthRequired(exchange);
@@ -490,7 +490,7 @@ public class ApiEndpoint {
 
             sendHtml(exchange, 200, html);
         } catch (Exception e) {
-            log.error("Error processing /client/queue-list: {}", e.getMessage());
+            log.error("Error processing /client/queue/list: {}", e.getMessage());
             sendText(exchange, 500, "Internal Server Error: " + e.getMessage());
         }
     }

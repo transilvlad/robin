@@ -179,6 +179,59 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
     }
 
     /**
+     * Remove an item from the queue by UID (for RelaySession).
+     */
+    @Override
+    public boolean removeByUID(String uid) {
+        if (uid == null) {
+            return false;
+        }
+        
+        for (Map.Entry<Long, T> entry : queue.entrySet()) {
+            T item = entry.getValue();
+            if (item instanceof RelaySession) {
+                RelaySession relaySession = (RelaySession) item;
+                if (uid.equals(relaySession.getUID())) {
+                    queue.remove(entry.getKey());
+                    db.commit();
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Remove items from the queue by UIDs (for RelaySession).
+     */
+    @Override
+    public int removeByUIDs(List<String> uids) {
+        if (uids == null || uids.isEmpty()) {
+            return 0;
+        }
+        
+        int removed = 0;
+        for (String uid : uids) {
+            for (Map.Entry<Long, T> entry : queue.entrySet()) {
+                T item = entry.getValue();
+                if (item instanceof RelaySession) {
+                    RelaySession relaySession = (RelaySession) item;
+                    if (uid.equals(relaySession.getUID())) {
+                        queue.remove(entry.getKey());
+                        removed++;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if (removed > 0) {
+            db.commit();
+        }
+        return removed;
+    }
+
+    /**
      * Clear all items from the queue.
      */
     @Override

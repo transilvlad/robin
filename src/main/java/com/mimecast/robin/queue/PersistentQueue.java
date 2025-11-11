@@ -119,6 +119,26 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
     }
 
     /**
+     * Remove an item from the queue by UID (for RelaySession).
+     *
+     * @param uid The UID of the item to remove
+     * @return true if item was removed, false if not found
+     */
+    public boolean removeByUID(String uid) {
+        return database.removeByUID(uid);
+    }
+
+    /**
+     * Remove items from the queue by UIDs (for RelaySession).
+     *
+     * @param uids The UIDs of items to remove
+     * @return Number of items successfully removed
+     */
+    public int removeByUIDs(List<String> uids) {
+        return database.removeByUIDs(uids);
+    }
+
+    /**
      * Clear all items from the queue.
      */
     public void clear() {
