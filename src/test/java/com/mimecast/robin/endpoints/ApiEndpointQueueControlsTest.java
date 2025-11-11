@@ -81,15 +81,18 @@ class ApiEndpointQueueControlsTest {
     void testQueueDeleteSingleItem() throws Exception {
         // Add items to the queue.
         PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
-        queue.enqueue(new RelaySession(new Session().setUID("test-1")));
-        queue.enqueue(new RelaySession(new Session().setUID("test-2")));
-        queue.enqueue(new RelaySession(new Session().setUID("test-3")));
+        RelaySession rs1 = new RelaySession(new Session().setUID("test-1"));
+        RelaySession rs2 = new RelaySession(new Session().setUID("test-2"));
+        RelaySession rs3 = new RelaySession(new Session().setUID("test-3"));
+        queue.enqueue(rs1);
+        queue.enqueue(rs2);
+        queue.enqueue(rs3);
         
         assertEquals(3, queue.size());
         
-        // Delete item at index 1 (test-2).
+        // Delete item by UID (test-2).
         Map<String, Object> payload = new HashMap<>();
-        payload.put("index", 1);
+        payload.put("uid", rs2.getUID());
         
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(BASE_URL + "/client/queue/delete"))
@@ -117,15 +120,22 @@ class ApiEndpointQueueControlsTest {
     void testQueueDeleteMultipleItems() throws Exception {
         // Add items to the queue.
         PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
-        for (int i = 1; i <= 5; i++) {
-            queue.enqueue(new RelaySession(new Session().setUID("test-" + i)));
-        }
+        RelaySession rs1 = new RelaySession(new Session().setUID("test-1"));
+        RelaySession rs2 = new RelaySession(new Session().setUID("test-2"));
+        RelaySession rs3 = new RelaySession(new Session().setUID("test-3"));
+        RelaySession rs4 = new RelaySession(new Session().setUID("test-4"));
+        RelaySession rs5 = new RelaySession(new Session().setUID("test-5"));
+        queue.enqueue(rs1);
+        queue.enqueue(rs2);
+        queue.enqueue(rs3);
+        queue.enqueue(rs4);
+        queue.enqueue(rs5);
         
         assertEquals(5, queue.size());
         
-        // Delete items at indices 1, 3 (test-2 and test-4).
+        // Delete items by UIDs (test-2 and test-4).
         Map<String, Object> payload = new HashMap<>();
-        payload.put("indices", new int[]{1, 3});
+        payload.put("uids", new String[]{rs2.getUID(), rs4.getUID()});
         
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(BASE_URL + "/client/queue/delete"))
@@ -160,9 +170,9 @@ class ApiEndpointQueueControlsTest {
         assertEquals(1, queue.size());
         assertEquals(0, queue.snapshot().get(0).getRetryCount());
         
-        // Retry item at index 0.
+        // Retry item by UID.
         Map<String, Object> payload = new HashMap<>();
-        payload.put("index", 0);
+        payload.put("uid", session.getUID());
         
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(BASE_URL + "/client/queue/retry"))
@@ -189,14 +199,16 @@ class ApiEndpointQueueControlsTest {
     void testQueueBounceSingleItem() throws Exception {
         // Add items to the queue.
         PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
-        queue.enqueue(new RelaySession(new Session().setUID("bounce-test")));
-        queue.enqueue(new RelaySession(new Session().setUID("keep-test")));
+        RelaySession rs1 = new RelaySession(new Session().setUID("bounce-test"));
+        RelaySession rs2 = new RelaySession(new Session().setUID("keep-test"));
+        queue.enqueue(rs1);
+        queue.enqueue(rs2);
         
         assertEquals(2, queue.size());
         
-        // Bounce item at index 0.
+        // Bounce item by UID.
         Map<String, Object> payload = new HashMap<>();
-        payload.put("index", 0);
+        payload.put("uid", rs1.getUID());
         
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(BASE_URL + "/client/queue/bounce"))
@@ -231,7 +243,7 @@ class ApiEndpointQueueControlsTest {
         
         // Request page 2 with limit 10.
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(BASE_URL + "/client/queue-list?page=2&limit=10"))
+                .uri(URI.create(BASE_URL + "/client/queue/list?page=2&limit=10"))
                 .GET()
                 .build();
         
@@ -259,7 +271,7 @@ class ApiEndpointQueueControlsTest {
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         
         assertEquals(400, response.statusCode());
-        assertTrue(response.body().contains("Missing 'index' or 'indices' parameter"));
+        assertTrue(response.body().contains("Missing 'uid' or 'uids' parameter"));
     }
 
     @Test
