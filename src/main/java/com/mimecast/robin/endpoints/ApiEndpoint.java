@@ -78,6 +78,11 @@ public class ApiEndpoint {
     private HttpAuth auth;
 
     /**
+     * Queue operations handler for managing queue-related requests.
+     */
+    private QueueOperationsHandler queueHandler;
+
+    /**
      * Starts the API endpoint with endpoint configuration.
      *
      * @param config EndpointConfig containing port and authentication settings (authType, authValue, allowList).
@@ -86,6 +91,9 @@ public class ApiEndpoint {
     public void start(EndpointConfig config) throws IOException {
         // Initialize authentication handler.
         this.auth = new HttpAuth(config, "API");
+
+        // Initialize queue operations handler.
+        this.queueHandler = new QueueOperationsHandler(this);
 
         // Build a Gson serializer that excludes fields we don't want to expose.
         gson = new GsonBuilder()
@@ -111,10 +119,10 @@ public class ApiEndpoint {
         // Queue listing endpoint.
         server.createContext("/client/queue/list", this::handleQueueList);
 
-        // Queue control endpoints.
-        server.createContext("/client/queue/delete", this::handleQueueDelete);
-        server.createContext("/client/queue/retry", this::handleQueueRetry);
-        server.createContext("/client/queue/bounce", this::handleQueueBounce);
+        // Queue control endpoints (delegated to QueueOperationsHandler).
+        server.createContext("/client/queue/delete", queueHandler::handleDelete);
+        server.createContext("/client/queue/retry", queueHandler::handleRetry);
+        server.createContext("/client/queue/bounce", queueHandler::handleBounce);
 
         // Logs search endpoint.
         server.createContext("/logs", this::handleLogs);
@@ -384,217 +392,27 @@ public class ApiEndpoint {
     }
 
     /**
-     * Handles <b>POST /client/queue/delete</b> requests.
-     * <p>Deletes queue items by UID or UIDs.
-     * <p>Accepts JSON body with either "uid" (single string) or "uids" (array of strings).
+     * Checks if the request method matches expected and if the exchange is authenticated.
+     * Sends appropriate error responses if checks fail.
+     *
+     * @param exchange HTTP exchange.
+     * @param expectedMethod Expected HTTP method (e.g., "POST", "GET").
+     * @return true if method and auth check pass, false otherwise.
+     * @throws IOException If an I/O error occurs.
      */
-    private void handleQueueDelete(HttpExchange exchange) throws IOException {
-        if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
-            log.debug("Rejecting non-POST request to /client/queue/delete: method={}", exchange.getRequestMethod());
+    boolean checkMethodAndAuth(HttpExchange exchange, String expectedMethod) throws IOException {
+        if (!expectedMethod.equalsIgnoreCase(exchange.getRequestMethod())) {
+            log.debug("Rejecting non-{} request: method={}", expectedMethod, exchange.getRequestMethod());
             sendText(exchange, 405, "Method Not Allowed");
-            return;
+            return false;
         }
 
         if (!auth.isAuthenticated(exchange)) {
             auth.sendAuthRequired(exchange);
-            return;
+            return false;
         }
 
-        log.info("POST /client/queue/delete from {}", exchange.getRemoteAddress());
-        try {
-            String body = readBody(exchange.getRequestBody());
-            if (body.isBlank()) {
-                sendText(exchange, 400, "Empty request body");
-                return;
-            }
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> payload = new Gson().fromJson(body, Map.class);
-            if (payload == null) {
-                sendText(exchange, 400, "Invalid JSON body");
-                return;
-            }
-
-            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
-            int deletedCount = 0;
-
-            // Handle single UID.
-            if (payload.containsKey("uid")) {
-                String uid = (String) payload.get("uid");
-                if (queue.removeByUID(uid)) {
-                    deletedCount = 1;
-                    log.info("Deleted queue item with UID {}", uid);
-                } else {
-                    log.warn("Failed to delete queue item with UID {}", uid);
-                }
-            }
-            // Handle multiple UIDs.
-            else if (payload.containsKey("uids")) {
-                @SuppressWarnings("unchecked")
-                List<String> uids = (List<String>) payload.get("uids");
-                deletedCount = queue.removeByUIDs(uids);
-                log.info("Deleted {} queue items", deletedCount);
-            } else {
-                sendText(exchange, 400, "Missing 'uid' or 'uids' parameter");
-                return;
-            }
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("status", "OK");
-            response.put("deletedCount", deletedCount);
-            response.put("queueSize", queue.size());
-
-            String json = gson.toJson(response);
-            sendJson(exchange, 200, json);
-        } catch (Exception e) {
-            log.error("Error processing /client/queue/delete: {}", e.getMessage(), e);
-            sendText(exchange, 500, "Internal Server Error: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Handles <b>POST /client/queue/retry</b> requests.
-     * <p>Retries queue items by UID or UIDs (dequeue and re-enqueue with retry count bump).
-     * <p>Accepts JSON body with either "uid" (single string) or "uids" (array of strings).
-     */
-    private void handleQueueRetry(HttpExchange exchange) throws IOException {
-        if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
-            log.debug("Rejecting non-POST request to /client/queue/retry: method={}", exchange.getRequestMethod());
-            sendText(exchange, 405, "Method Not Allowed");
-            return;
-        }
-
-        if (!auth.isAuthenticated(exchange)) {
-            auth.sendAuthRequired(exchange);
-            return;
-        }
-
-        log.info("POST /client/queue/retry from {}", exchange.getRemoteAddress());
-        try {
-            String body = readBody(exchange.getRequestBody());
-            if (body.isBlank()) {
-                sendText(exchange, 400, "Empty request body");
-                return;
-            }
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> payload = new Gson().fromJson(body, Map.class);
-            if (payload == null) {
-                sendText(exchange, 400, "Invalid JSON body");
-                return;
-            }
-
-            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
-            List<RelaySession> items = queue.snapshot();
-            List<String> targetUIDs = new ArrayList<>();
-
-            // Collect target UIDs.
-            if (payload.containsKey("uid")) {
-                targetUIDs.add((String) payload.get("uid"));
-            } else if (payload.containsKey("uids")) {
-                @SuppressWarnings("unchecked")
-                List<String> uids = (List<String>) payload.get("uids");
-                targetUIDs.addAll(uids);
-            } else {
-                sendText(exchange, 400, "Missing 'uid' or 'uids' parameter");
-                return;
-            }
-
-            // Collect items to retry and remove them from queue.
-            List<RelaySession> toRetry = new ArrayList<>();
-            for (RelaySession item : items) {
-                if (targetUIDs.contains(item.getUID())) {
-                    toRetry.add(item);
-                }
-            }
-
-            // Remove items.
-            int removedCount = queue.removeByUIDs(targetUIDs);
-
-            // Re-enqueue with bumped retry count.
-            for (RelaySession relaySession : toRetry) {
-                relaySession.bumpRetryCount();
-                queue.enqueue(relaySession);
-            }
-
-            log.info("Retried {} queue items", toRetry.size());
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("status", "OK");
-            response.put("retriedCount", toRetry.size());
-            response.put("queueSize", queue.size());
-
-            String json = gson.toJson(response);
-            sendJson(exchange, 200, json);
-        } catch (Exception e) {
-            log.error("Error processing /client/queue/retry: {}", e.getMessage(), e);
-            sendText(exchange, 500, "Internal Server Error: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Handles <b>POST /client/queue/bounce</b> requests.
-     * <p>Bounces queue items by UID or UIDs (remove and optionally generate bounce message).
-     * <p>Accepts JSON body with either "uid" (single string) or "uids" (array of strings).
-     */
-    private void handleQueueBounce(HttpExchange exchange) throws IOException {
-        if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
-            log.debug("Rejecting non-POST request to /client/queue/bounce: method={}", exchange.getRequestMethod());
-            sendText(exchange, 405, "Method Not Allowed");
-            return;
-        }
-
-        if (!auth.isAuthenticated(exchange)) {
-            auth.sendAuthRequired(exchange);
-            return;
-        }
-
-        log.info("POST /client/queue/bounce from {}", exchange.getRemoteAddress());
-        try {
-            String body = readBody(exchange.getRequestBody());
-            if (body.isBlank()) {
-                sendText(exchange, 400, "Empty request body");
-                return;
-            }
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> payload = new Gson().fromJson(body, Map.class);
-            if (payload == null) {
-                sendText(exchange, 400, "Invalid JSON body");
-                return;
-            }
-
-            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
-            List<String> targetUIDs = new ArrayList<>();
-
-            // Collect target UIDs.
-            if (payload.containsKey("uid")) {
-                targetUIDs.add((String) payload.get("uid"));
-            } else if (payload.containsKey("uids")) {
-                @SuppressWarnings("unchecked")
-                List<String> uids = (List<String>) payload.get("uids");
-                targetUIDs.addAll(uids);
-            } else {
-                sendText(exchange, 400, "Missing 'uid' or 'uids' parameter");
-                return;
-            }
-
-            // Remove items (bounce = delete in this context).
-            // Future enhancement: generate actual bounce messages.
-            int bouncedCount = queue.removeByUIDs(targetUIDs);
-            log.info("Bounced {} queue items", bouncedCount);
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("status", "OK");
-            response.put("bouncedCount", bouncedCount);
-            response.put("queueSize", queue.size());
-
-            String json = gson.toJson(response);
-            sendJson(exchange, 200, json);
-        } catch (Exception e) {
-            log.error("Error processing /client/queue/bounce: {}", e.getMessage(), e);
-            sendText(exchange, 500, "Internal Server Error: " + e.getMessage());
-        }
+        return true;
     }
 
     /**
@@ -762,7 +580,7 @@ public class ApiEndpoint {
      * @param json     JSON payload.
      * @throws IOException If an I/O error occurs.
      */
-    private void sendJson(HttpExchange exchange, int code, String json) throws IOException {
+    void sendJson(HttpExchange exchange, int code, String json) throws IOException {
         Headers headers = exchange.getResponseHeaders();
         headers.set("Content-Type", "application/json; charset=utf-8");
         byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
@@ -800,7 +618,7 @@ public class ApiEndpoint {
      * @param text     Plain text payload.
      * @throws IOException If an I/O error occurs.
      */
-    private void sendText(HttpExchange exchange, int code, String text) throws IOException {
+    void sendText(HttpExchange exchange, int code, String text) throws IOException {
         Headers headers = exchange.getResponseHeaders();
         headers.set("Content-Type", "text/plain; charset=utf-8");
         byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
@@ -818,7 +636,7 @@ public class ApiEndpoint {
      * @return String content of the request body.
      * @throws IOException If an I/O error occurs while reading.
      */
-    private String readBody(InputStream is) throws IOException {
+    String readBody(InputStream is) throws IOException {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
             StringBuilder sb = new StringBuilder();
             String line;
