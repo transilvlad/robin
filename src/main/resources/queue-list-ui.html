@@ -18,6 +18,39 @@
     .muted { color: #666; }
     .header { display: flex; align-items: center; gap: 12px; margin-bottom: 1em; }
     .logo { width: 45px; height: 45px; }
+    .actions { text-align: center; }
+    .actions button { 
+      margin: 2px; 
+      padding: 4px 8px; 
+      border: 1px solid #ccc; 
+      background: #f9f9f9; 
+      cursor: pointer; 
+      border-radius: 3px;
+      font-size: 12px;
+    }
+    .actions button:hover { background: #e9e9e9; }
+    .btn-delete { color: #c00; }
+    .btn-delete:hover { background: #ffe0e0; }
+    .btn-retry { color: #060; }
+    .btn-retry:hover { background: #e0ffe0; }
+    .btn-bounce { color: #660; }
+    .btn-bounce:hover { background: #fff0e0; }
+    .bulk-actions { margin: 16px 0; padding: 12px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px; }
+    .bulk-actions button { margin-right: 8px; padding: 6px 12px; }
+    .pagination { margin: 16px 0; text-align: center; }
+    .pagination a, .pagination span { 
+      display: inline-block; 
+      margin: 0 4px; 
+      padding: 4px 8px; 
+      border: 1px solid #ddd; 
+      text-decoration: none; 
+      color: #333;
+      border-radius: 3px;
+    }
+    .pagination a:hover { background: #e9e9e9; }
+    .pagination .current { background: #007bff; color: white; border-color: #007bff; }
+    .pagination .disabled { color: #999; cursor: not-allowed; }
+    .checkbox-col { width: 30px; text-align: center; }
   </style>
 </head>
 <body>
@@ -40,10 +73,27 @@
   </svg>
   <h1>Relay Queue</h1>
 </header>
-  <p class="meta">Total items: <strong>{{TOTAL}}</strong></p>
+  <p class="meta">
+    Total items: <strong>{{TOTAL}}</strong> | 
+    Showing <strong>{{SHOWING_FROM}}</strong> to <strong>{{SHOWING_TO}}</strong> | 
+    Page <strong>{{PAGE}}</strong> of <strong>{{TOTAL_PAGES}}</strong>
+  </p>
+  
+  <div class="bulk-actions">
+    <strong>Bulk Actions:</strong>
+    <button onclick="bulkDelete()">Delete Selected</button>
+    <button onclick="bulkRetry()">Retry Selected</button>
+    <button onclick="bulkBounce()">Bounce Selected</button>
+    <button onclick="selectAll()">Select All</button>
+    <button onclick="selectNone()">Select None</button>
+  </div>
+  
+  {{PAGINATION}}
+  
   <table>
     <thead>
       <tr>
+        <th class="checkbox-col"><input type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll()"/></th>
         <th>#</th>
         <th>Session UID</th>
         <th>Date</th>
@@ -53,11 +103,112 @@
         <th>Envelopes</th>
         <th>Recipients</th>
         <th>Files</th>
+        <th class="actions">Actions</th>
       </tr>
     </thead>
     <tbody>
       {{ROWS}}
     </tbody>
   </table>
+  
+  {{PAGINATION}}
+  
+  <script>
+    function toggleSelectAll() {
+      const checked = document.getElementById('selectAllCheckbox').checked;
+      document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = checked);
+    }
+    
+    function selectAll() {
+      document.getElementById('selectAllCheckbox').checked = true;
+      document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = true);
+    }
+    
+    function selectNone() {
+      document.getElementById('selectAllCheckbox').checked = false;
+      document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = false);
+    }
+    
+    function getSelectedIndices() {
+      const indices = [];
+      document.querySelectorAll('.row-checkbox:checked').forEach(cb => {
+        indices.push(parseInt(cb.getAttribute('data-index')));
+      });
+      return indices;
+    }
+    
+    function bulkDelete() {
+      const indices = getSelectedIndices();
+      if (indices.length === 0) {
+        alert('Please select items to delete');
+        return;
+      }
+      if (!confirm(`Delete ${indices.length} selected item(s)?`)) return;
+      performAction('/client/queue/delete', { indices });
+    }
+    
+    function bulkRetry() {
+      const indices = getSelectedIndices();
+      if (indices.length === 0) {
+        alert('Please select items to retry');
+        return;
+      }
+      if (!confirm(`Retry ${indices.length} selected item(s)?`)) return;
+      performAction('/client/queue/retry', { indices });
+    }
+    
+    function bulkBounce() {
+      const indices = getSelectedIndices();
+      if (indices.length === 0) {
+        alert('Please select items to bounce');
+        return;
+      }
+      if (!confirm(`Bounce ${indices.length} selected item(s)?`)) return;
+      performAction('/client/queue/bounce', { indices });
+    }
+    
+    document.querySelectorAll('.btn-delete').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const index = parseInt(this.getAttribute('data-index'));
+        const uid = this.getAttribute('data-uid');
+        if (!confirm(`Delete item ${uid}?`)) return;
+        performAction('/client/queue/delete', { index });
+      });
+    });
+    
+    document.querySelectorAll('.btn-retry').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const index = parseInt(this.getAttribute('data-index'));
+        const uid = this.getAttribute('data-uid');
+        if (!confirm(`Retry item ${uid}?`)) return;
+        performAction('/client/queue/retry', { index });
+      });
+    });
+    
+    document.querySelectorAll('.btn-bounce').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const index = parseInt(this.getAttribute('data-index'));
+        const uid = this.getAttribute('data-uid');
+        if (!confirm(`Bounce item ${uid}?`)) return;
+        performAction('/client/queue/bounce', { index });
+      });
+    });
+    
+    function performAction(url, payload) {
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(response => response.json())
+      .then(data => {
+        alert(`Success: ${JSON.stringify(data)}`);
+        window.location.reload();
+      })
+      .catch(error => {
+        alert(`Error: ${error}`);
+      });
+    }
+  </script>
 </body>
 </html>

@@ -81,12 +81,67 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
     }
 
     /**
+     * Remove an item from the queue by index (0-based).
+     */
+    @Override
+    public boolean removeByIndex(int index) {
+        if (index < 0) {
+            return false;
+        }
+        List<T> items = new ArrayList<>(queue);
+        if (index >= items.size()) {
+            return false;
+        }
+        T item = items.get(index);
+        boolean removed = queue.remove(item);
+        if (removed) {
+            size.decrementAndGet();
+        }
+        return removed;
+    }
+
+    /**
+     * Remove items from the queue by indices (0-based).
+     */
+    @Override
+    public int removeByIndices(List<Integer> indices) {
+        if (indices == null || indices.isEmpty()) {
+            return 0;
+        }
+        
+        // Take snapshot and sort indices in descending order to avoid index shift issues
+        List<T> items = new ArrayList<>(queue);
+        List<Integer> sortedIndices = new ArrayList<>(indices);
+        sortedIndices.sort((a, b) -> b - a);
+        
+        int removed = 0;
+        for (int index : sortedIndices) {
+            if (index >= 0 && index < items.size()) {
+                T item = items.get(index);
+                if (queue.remove(item)) {
+                    size.decrementAndGet();
+                    removed++;
+                }
+            }
+        }
+        return removed;
+    }
+
+    /**
+     * Clear all items from the queue.
+     */
+    @Override
+    public void clear() {
+        queue.clear();
+        size.set(0);
+    }
+
+    /**
      * Close the database.
      * For in-memory implementation, this clears the queue.
      */
     @Override
     public void close() {
-        queue.clear();
-        size.set(0);
+        clear();
     }
 }

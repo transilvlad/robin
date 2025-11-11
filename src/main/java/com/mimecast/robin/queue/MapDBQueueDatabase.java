@@ -126,6 +126,68 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
     }
 
     /**
+     * Remove an item from the queue by index (0-based).
+     */
+    @Override
+    public boolean removeByIndex(int index) {
+        if (index < 0) {
+            return false;
+        }
+        
+        List<Long> keys = new ArrayList<>(queue.keySet());
+        if (index >= keys.size()) {
+            return false;
+        }
+        
+        Long key = keys.get(index);
+        T removed = queue.remove(key);
+        if (removed != null) {
+            db.commit();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Remove items from the queue by indices (0-based).
+     */
+    @Override
+    public int removeByIndices(List<Integer> indices) {
+        if (indices == null || indices.isEmpty()) {
+            return 0;
+        }
+        
+        // Get keys and sort indices in descending order to avoid index shift issues
+        List<Long> keys = new ArrayList<>(queue.keySet());
+        List<Integer> sortedIndices = new ArrayList<>(indices);
+        sortedIndices.sort((a, b) -> b - a);
+        
+        int removed = 0;
+        for (int index : sortedIndices) {
+            if (index >= 0 && index < keys.size()) {
+                Long key = keys.get(index);
+                if (queue.remove(key) != null) {
+                    removed++;
+                }
+            }
+        }
+        
+        if (removed > 0) {
+            db.commit();
+        }
+        return removed;
+    }
+
+    /**
+     * Clear all items from the queue.
+     */
+    @Override
+    public void clear() {
+        queue.clear();
+        db.commit();
+    }
+
+    /**
      * Close the database.
      */
     @Override

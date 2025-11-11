@@ -55,6 +55,27 @@ public interface QueueDatabase<T extends Serializable> extends Closeable {
     List<T> snapshot();
 
     /**
+     * Remove an item from the queue by index (0-based).
+     *
+     * @param index The index of the item to remove
+     * @return true if item was removed, false if index was out of bounds
+     */
+    boolean removeByIndex(int index);
+
+    /**
+     * Remove items from the queue by indices (0-based).
+     *
+     * @param indices The indices of items to remove
+     * @return Number of items successfully removed
+     */
+    int removeByIndices(List<Integer> indices);
+
+    /**
+     * Clear all items from the queue.
+     */
+    void clear();
+
+    /**
      * Initialize the database connection/resources.
      * Called during queue creation.
      */

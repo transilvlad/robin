@@ -99,6 +99,33 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
     }
 
     /**
+     * Remove an item from the queue by index (0-based).
+     *
+     * @param index The index of the item to remove
+     * @return true if item was removed, false if index was out of bounds
+     */
+    public boolean removeByIndex(int index) {
+        return database.removeByIndex(index);
+    }
+
+    /**
+     * Remove items from the queue by indices (0-based).
+     *
+     * @param indices The indices of items to remove
+     * @return Number of items successfully removed
+     */
+    public int removeByIndices(List<Integer> indices) {
+        return database.removeByIndices(indices);
+    }
+
+    /**
+     * Clear all items from the queue.
+     */
+    public void clear() {
+        database.clear();
+    }
+
+    /**
      * Close the database.
      */
     @Override

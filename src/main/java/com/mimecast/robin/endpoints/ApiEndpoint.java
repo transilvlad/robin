@@ -29,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -110,6 +111,11 @@ public class ApiEndpoint {
         // Queue listing endpoint.
         server.createContext("/client/queue-list", this::handleQueueList);
 
+        // Queue control endpoints.
+        server.createContext("/client/queue/delete", this::handleQueueDelete);
+        server.createContext("/client/queue/retry", this::handleQueueRetry);
+        server.createContext("/client/queue/bounce", this::handleQueueBounce);
+
         // Logs search endpoint.
         server.createContext("/logs", this::handleLogs);
 
@@ -125,6 +131,9 @@ public class ApiEndpoint {
         log.info("Send endpoint available at http://localhost:{}/client/send", apiPort);
         log.info("Queue endpoint available at http://localhost:{}/client/queue", apiPort);
         log.info("Queue list available at http://localhost:{}/client/queue-list", apiPort);
+        log.info("Queue delete available at http://localhost:{}/client/queue/delete", apiPort);
+        log.info("Queue retry available at http://localhost:{}/client/queue/retry", apiPort);
+        log.info("Queue bounce available at http://localhost:{}/client/queue/bounce", apiPort);
         log.info("Logs available at http://localhost:{}/logs", apiPort);
         log.info("Store available at http://localhost:{}/store/", apiPort);
         log.info("Health available at http://localhost:{}/health", apiPort);
@@ -306,6 +315,7 @@ public class ApiEndpoint {
 
     /**
      * Lists the relay queue contents in a simple HTML table.
+     * Supports pagination via query parameters: page (1-based) and limit (default 50).
      */
     private void handleQueueList(HttpExchange exchange) throws IOException {
         log.debug("GET /client/queue-list from {}", exchange.getRemoteAddress());
@@ -316,8 +326,33 @@ public class ApiEndpoint {
         }
 
         try {
+            // Parse pagination parameters.
+            Map<String, String> queryParams = parseQuery(exchange.getRequestURI());
+            int page = 1;
+            int limit = 50;
+            
+            try {
+                if (queryParams.containsKey("page")) {
+                    page = Math.max(1, Integer.parseInt(queryParams.get("page")));
+                }
+                if (queryParams.containsKey("limit")) {
+                    limit = Math.max(1, Math.min(1000, Integer.parseInt(queryParams.get("limit"))));
+                }
+            } catch (NumberFormatException e) {
+                log.warn("Invalid pagination parameters: {}", e.getMessage());
+            }
+
             PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
-            List<RelaySession> items = queue.snapshot();
+            List<RelaySession> allItems = queue.snapshot();
+            
+            // Calculate pagination.
+            int total = allItems.size();
+            int startIndex = (page - 1) * limit;
+            int endIndex = Math.min(startIndex + limit, total);
+            int totalPages = (int) Math.ceil((double) total / limit);
+            
+            // Get page items.
+            List<RelaySession> items = startIndex < total ? allItems.subList(startIndex, endIndex) : new ArrayList<>();
 
             // Load HTML template from resources.
             String template = readResourceFile("queue-list-ui.html");
@@ -325,6 +360,7 @@ public class ApiEndpoint {
             // Build only the dynamic rows HTML.
             StringBuilder rows = new StringBuilder(Math.max(8192, items.size() * 256));
             for (int i = 0; i < items.size(); i++) {
+                int globalIndex = startIndex + i;
                 RelaySession relaySession = items.get(i);
                 Session session = relaySession.getSession();
                 List<MessageEnvelope> envs = session != null ? session.getEnvelopes() : null;
@@ -373,10 +409,12 @@ public class ApiEndpoint {
                 }
 
                 String lastRetry = relaySession.getLastRetryTime() > 0 ? relaySession.getLastRetryDate() : "-";
+                String sessionUID = session != null ? session.getUID() : "-";
 
                 rows.append("<tr>")
-                        .append("<td class='nowrap'>").append(i + 1).append("</td>")
-                        .append("<td class='mono'>").append(escapeHtml(session != null ? session.getUID() : "-")).append("</td>")
+                        .append("<td class='checkbox-col'><input type='checkbox' class='row-checkbox' data-index='").append(globalIndex).append("'/></td>")
+                        .append("<td class='nowrap'>").append(globalIndex + 1).append("</td>")
+                        .append("<td class='mono'>").append(escapeHtml(sessionUID)).append("</td>")
                         .append("<td>").append(escapeHtml(session.getDate())).append("</td>")
                         .append("<td>").append(escapeHtml(relaySession.getProtocol())).append("</td>")
                         .append("<td>").append(relaySession.getRetryCount()).append("</td>")
@@ -384,16 +422,300 @@ public class ApiEndpoint {
                         .append("<td>").append(envCount).append("</td>")
                         .append("<td>").append(recipients).append("</td>")
                         .append("<td>").append(files).append("</td>")
+                        .append("<td class='actions nowrap'>")
+                        .append("<button class='btn-delete' data-index='").append(globalIndex).append("' data-uid='").append(escapeHtml(sessionUID)).append("'>Delete</button> ")
+                        .append("<button class='btn-retry' data-index='").append(globalIndex).append("' data-uid='").append(escapeHtml(sessionUID)).append("'>Retry</button> ")
+                        .append("<button class='btn-bounce' data-index='").append(globalIndex).append("' data-uid='").append(escapeHtml(sessionUID)).append("'>Bounce</button>")
+                        .append("</td>")
                         .append("</tr>");
             }
 
+            // Build pagination controls.
+            StringBuilder pagination = new StringBuilder();
+            if (totalPages > 1) {
+                pagination.append("<div class='pagination'>");
+                
+                // Previous button.
+                if (page > 1) {
+                    pagination.append("<a href='?page=").append(page - 1).append("&limit=").append(limit).append("'>&laquo; Previous</a> ");
+                } else {
+                    pagination.append("<span class='disabled'>&laquo; Previous</span> ");
+                }
+                
+                // Page numbers (show up to 9 pages around current).
+                int startPage = Math.max(1, page - 4);
+                int endPage = Math.min(totalPages, page + 4);
+                
+                if (startPage > 1) {
+                    pagination.append("<a href='?page=1&limit=").append(limit).append("'>1</a> ");
+                    if (startPage > 2) {
+                        pagination.append("<span>...</span> ");
+                    }
+                }
+                
+                for (int p = startPage; p <= endPage; p++) {
+                    if (p == page) {
+                        pagination.append("<span class='current'>").append(p).append("</span> ");
+                    } else {
+                        pagination.append("<a href='?page=").append(p).append("&limit=").append(limit).append("'>").append(p).append("</a> ");
+                    }
+                }
+                
+                if (endPage < totalPages) {
+                    if (endPage < totalPages - 1) {
+                        pagination.append("<span>...</span> ");
+                    }
+                    pagination.append("<a href='?page=").append(totalPages).append("&limit=").append(limit).append("'>").append(totalPages).append("</a> ");
+                }
+                
+                // Next button.
+                if (page < totalPages) {
+                    pagination.append("<a href='?page=").append(page + 1).append("&limit=").append(limit).append("'>Next &raquo;</a>");
+                } else {
+                    pagination.append("<span class='disabled'>Next &raquo;</span>");
+                }
+                
+                pagination.append("</div>");
+            }
+
             String html = template
-                    .replace("{{TOTAL}}", String.valueOf(items.size()))
+                    .replace("{{TOTAL}}", String.valueOf(total))
+                    .replace("{{PAGE}}", String.valueOf(page))
+                    .replace("{{LIMIT}}", String.valueOf(limit))
+                    .replace("{{TOTAL_PAGES}}", String.valueOf(totalPages))
+                    .replace("{{SHOWING_FROM}}", String.valueOf(startIndex + 1))
+                    .replace("{{SHOWING_TO}}", String.valueOf(endIndex))
+                    .replace("{{PAGINATION}}", pagination.toString())
                     .replace("{{ROWS}}", rows.toString());
 
             sendHtml(exchange, 200, html);
         } catch (Exception e) {
             log.error("Error processing /client/queue-list: {}", e.getMessage());
+            sendText(exchange, 500, "Internal Server Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Handles <b>POST /client/queue/delete</b> requests.
+     * <p>Deletes queue items by index or indices.
+     * <p>Accepts JSON body with either "index" (single integer) or "indices" (array of integers).
+     */
+    private void handleQueueDelete(HttpExchange exchange) throws IOException {
+        if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+            log.debug("Rejecting non-POST request to /client/queue/delete: method={}", exchange.getRequestMethod());
+            sendText(exchange, 405, "Method Not Allowed");
+            return;
+        }
+
+        if (!auth.isAuthenticated(exchange)) {
+            auth.sendAuthRequired(exchange);
+            return;
+        }
+
+        log.info("POST /client/queue/delete from {}", exchange.getRemoteAddress());
+        try {
+            String body = readBody(exchange.getRequestBody());
+            if (body.isBlank()) {
+                sendText(exchange, 400, "Empty request body");
+                return;
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> payload = new Gson().fromJson(body, Map.class);
+            if (payload == null) {
+                sendText(exchange, 400, "Invalid JSON body");
+                return;
+            }
+
+            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
+            int deletedCount = 0;
+
+            // Handle single index.
+            if (payload.containsKey("index")) {
+                Object indexObj = payload.get("index");
+                int index = indexObj instanceof Double ? ((Double) indexObj).intValue() : (Integer) indexObj;
+                if (queue.removeByIndex(index)) {
+                    deletedCount = 1;
+                    log.info("Deleted queue item at index {}", index);
+                } else {
+                    log.warn("Failed to delete queue item at index {}", index);
+                }
+            }
+            // Handle multiple indices.
+            else if (payload.containsKey("indices")) {
+                @SuppressWarnings("unchecked")
+                List<Object> indicesObj = (List<Object>) payload.get("indices");
+                List<Integer> indices = new ArrayList<>();
+                for (Object obj : indicesObj) {
+                    indices.add(obj instanceof Double ? ((Double) obj).intValue() : (Integer) obj);
+                }
+                deletedCount = queue.removeByIndices(indices);
+                log.info("Deleted {} queue items", deletedCount);
+            } else {
+                sendText(exchange, 400, "Missing 'index' or 'indices' parameter");
+                return;
+            }
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "OK");
+            response.put("deletedCount", deletedCount);
+            response.put("queueSize", queue.size());
+
+            String json = gson.toJson(response);
+            sendJson(exchange, 200, json);
+        } catch (Exception e) {
+            log.error("Error processing /client/queue/delete: {}", e.getMessage(), e);
+            sendText(exchange, 500, "Internal Server Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Handles <b>POST /client/queue/retry</b> requests.
+     * <p>Retries queue items by index or indices (dequeue and re-enqueue with retry count bump).
+     * <p>Accepts JSON body with either "index" (single integer) or "indices" (array of integers).
+     */
+    private void handleQueueRetry(HttpExchange exchange) throws IOException {
+        if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+            log.debug("Rejecting non-POST request to /client/queue/retry: method={}", exchange.getRequestMethod());
+            sendText(exchange, 405, "Method Not Allowed");
+            return;
+        }
+
+        if (!auth.isAuthenticated(exchange)) {
+            auth.sendAuthRequired(exchange);
+            return;
+        }
+
+        log.info("POST /client/queue/retry from {}", exchange.getRemoteAddress());
+        try {
+            String body = readBody(exchange.getRequestBody());
+            if (body.isBlank()) {
+                sendText(exchange, 400, "Empty request body");
+                return;
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> payload = new Gson().fromJson(body, Map.class);
+            if (payload == null) {
+                sendText(exchange, 400, "Invalid JSON body");
+                return;
+            }
+
+            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
+            List<RelaySession> items = queue.snapshot();
+            List<Integer> targetIndices = new ArrayList<>();
+
+            // Collect target indices.
+            if (payload.containsKey("index")) {
+                Object indexObj = payload.get("index");
+                targetIndices.add(indexObj instanceof Double ? ((Double) indexObj).intValue() : (Integer) indexObj);
+            } else if (payload.containsKey("indices")) {
+                @SuppressWarnings("unchecked")
+                List<Object> indicesObj = (List<Object>) payload.get("indices");
+                for (Object obj : indicesObj) {
+                    targetIndices.add(obj instanceof Double ? ((Double) obj).intValue() : (Integer) obj);
+                }
+            } else {
+                sendText(exchange, 400, "Missing 'index' or 'indices' parameter");
+                return;
+            }
+
+            // Collect items to retry and remove them from queue.
+            List<RelaySession> toRetry = new ArrayList<>();
+            for (int index : targetIndices) {
+                if (index >= 0 && index < items.size()) {
+                    toRetry.add(items.get(index));
+                }
+            }
+
+            // Remove items (in reverse order to avoid index shifts).
+            int removedCount = queue.removeByIndices(targetIndices);
+
+            // Re-enqueue with bumped retry count.
+            for (RelaySession relaySession : toRetry) {
+                relaySession.bumpRetryCount();
+                queue.enqueue(relaySession);
+            }
+
+            log.info("Retried {} queue items", toRetry.size());
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "OK");
+            response.put("retriedCount", toRetry.size());
+            response.put("queueSize", queue.size());
+
+            String json = gson.toJson(response);
+            sendJson(exchange, 200, json);
+        } catch (Exception e) {
+            log.error("Error processing /client/queue/retry: {}", e.getMessage(), e);
+            sendText(exchange, 500, "Internal Server Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Handles <b>POST /client/queue/bounce</b> requests.
+     * <p>Bounces queue items by index or indices (remove and optionally generate bounce message).
+     * <p>Accepts JSON body with either "index" (single integer) or "indices" (array of integers).
+     */
+    private void handleQueueBounce(HttpExchange exchange) throws IOException {
+        if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+            log.debug("Rejecting non-POST request to /client/queue/bounce: method={}", exchange.getRequestMethod());
+            sendText(exchange, 405, "Method Not Allowed");
+            return;
+        }
+
+        if (!auth.isAuthenticated(exchange)) {
+            auth.sendAuthRequired(exchange);
+            return;
+        }
+
+        log.info("POST /client/queue/bounce from {}", exchange.getRemoteAddress());
+        try {
+            String body = readBody(exchange.getRequestBody());
+            if (body.isBlank()) {
+                sendText(exchange, 400, "Empty request body");
+                return;
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> payload = new Gson().fromJson(body, Map.class);
+            if (payload == null) {
+                sendText(exchange, 400, "Invalid JSON body");
+                return;
+            }
+
+            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
+            List<Integer> targetIndices = new ArrayList<>();
+
+            // Collect target indices.
+            if (payload.containsKey("index")) {
+                Object indexObj = payload.get("index");
+                targetIndices.add(indexObj instanceof Double ? ((Double) indexObj).intValue() : (Integer) indexObj);
+            } else if (payload.containsKey("indices")) {
+                @SuppressWarnings("unchecked")
+                List<Object> indicesObj = (List<Object>) payload.get("indices");
+                for (Object obj : indicesObj) {
+                    targetIndices.add(obj instanceof Double ? ((Double) obj).intValue() : (Integer) obj);
+                }
+            } else {
+                sendText(exchange, 400, "Missing 'index' or 'indices' parameter");
+                return;
+            }
+
+            // Remove items (bounce = delete in this context).
+            // Future enhancement: generate actual bounce messages.
+            int bouncedCount = queue.removeByIndices(targetIndices);
+            log.info("Bounced {} queue items", bouncedCount);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "OK");
+            response.put("bouncedCount", bouncedCount);
+            response.put("queueSize", queue.size());
+
+            String json = gson.toJson(response);
+            sendJson(exchange, 200, json);
+        } catch (Exception e) {
+            log.error("Error processing /client/queue/bounce: {}", e.getMessage(), e);
             sendText(exchange, 500, "Internal Server Error: " + e.getMessage());
         }
     }
