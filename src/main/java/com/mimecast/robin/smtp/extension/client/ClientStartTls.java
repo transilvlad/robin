@@ -38,8 +38,8 @@ public class ClientStartTls extends ClientProcessor {
                 connection.getSession().getSessionTransactionList().addTransaction("TLS", "",
                         connection.getProtocol() + ":" + connection.getCipherSuite(), false);
             } catch (SmtpException e) {
-                connection.getSession().getSessionTransactionList().addTransaction("TLS", "",
-                        e.getCause().getMessage(), true);
+                String message = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
+                connection.getSession().getSessionTransactionList().addTransaction("TLS", "", message, true);
                 throw e;
             }
 

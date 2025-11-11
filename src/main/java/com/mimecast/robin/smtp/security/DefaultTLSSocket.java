@@ -119,7 +119,7 @@ public class DefaultTLSSocket implements TLSSocket {
         // Wrap 'socket' from above in a TLS socket.
         InetSocketAddress remoteAddress = (InetSocketAddress) socket.getRemoteSocketAddress();
         @SuppressWarnings("squid:S2095")
-        SSLSocket sslSocket = (SSLSocket) sf.createSocket(socket, remoteAddress.getHostName(), socket.getPort(), true);
+        SSLSocket sslSocket = (SSLSocket) sf.createSocket(socket, remoteAddress.getHostString(), socket.getPort(), true);
 
         // We are a client.
         sslSocket.setUseClientMode(client);
@@ -129,7 +129,7 @@ public class DefaultTLSSocket implements TLSSocket {
         sslSocket.setEnabledCipherSuites(getEnabledCipherSuites(sslSocket));
 
         // Make a friend!
-        log.info("Attempting handshake with: {}.", sslSocket.getSession().getPeerHost());
+        log.info("Attempting handshake with: {}.", remoteAddress.getHostString());
         sslSocket.startHandshake();
         log.debug("Handshake done with: {} / {}.", sslSocket.getSession().getProtocol(), sslSocket.getSession().getCipherSuite());
 
