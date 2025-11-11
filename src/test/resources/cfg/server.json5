@@ -91,6 +91,9 @@
   // Truststore password or path to password file.
   truststorepassword: "avengers",
 
+  // Allow self-signed certificates (default: false).
+  allowSelfSigned: true,
+
   // Metrics endpoint configuration.
   metrics: {
     // Port for metrics endpoint.

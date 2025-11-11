@@ -17,6 +17,7 @@ import com.mimecast.robin.smtp.security.DefaultTLSSocket;
 import com.mimecast.robin.smtp.security.TLSSocket;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.storage.*;
+import com.mimecast.robin.trust.PermissiveTrustManager;
 import com.mimecast.robin.trust.TrustManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -209,6 +210,12 @@ public class Factories {
             } catch (Exception e) {
                 log.error("Error calling trust manager: {}", e.getMessage());
             }
+        }
+
+        // Use permissive trust manager if allowSelfSigned is enabled.
+        if (Config.getServer().isAllowSelfSigned()) {
+            log.warn("PermissiveTrustManager enabled: accepting self-signed certificates");
+            return new PermissiveTrustManager();
         }
 
         return new TrustManager();

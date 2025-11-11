@@ -214,6 +214,16 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
+     * Allows accepting self-signed certificates when true.
+     * ONLY enable for local testing; never in production.
+     *
+     * @return Boolean (default: false).
+     */
+    public boolean isAllowSelfSigned() {
+        return getBooleanProperty("allowSelfSigned", false);
+    }
+
+    /**
      * Gets metrics endpoint configuration.
      *
      * @return EndpointConfig instance for metrics.

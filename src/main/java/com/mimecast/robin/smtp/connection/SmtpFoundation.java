@@ -459,7 +459,7 @@ public abstract class SmtpFoundation {
         } catch (Exception e) {
             log.info("Error in {} TLS negociation: {}", (client ? "client" : "server"), e.getMessage());
             close();
-            throw new SmtpException(e);
+            throw new SmtpException(e.getMessage());
         }
     }
 
