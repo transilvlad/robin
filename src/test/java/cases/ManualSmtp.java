@@ -22,6 +22,16 @@ public class ManualSmtp {
     }
 
     /**
+     * Manual test case for testing a single recipient.
+     * Local mailbox and or Dovecot storage need to be enabled.
+     */
+    @Test
+    void inbound() throws AssertException, IOException {
+        new Client()
+                .send("src/test/resources/cases/config/manual/inbound.one.recipient.json5");
+    }
+
+    /**
      * Manual test case for testing multiple recipients.
      * Local mailbox and or Dovecot storage need to be enabled.
      */
