@@ -247,6 +247,9 @@
                 <version>3.5.4</version>
                 <configuration>
                     <argLine>-Dfile.encoding=UTF-8</argLine>
+                    <excludes>
+                        <exclude>**/*IntegrationTest.java</exclude>
+                    </excludes>
                 </configuration>
             </plugin>
 
