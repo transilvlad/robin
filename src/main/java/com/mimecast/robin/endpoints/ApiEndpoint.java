@@ -357,126 +357,14 @@ public class ApiEndpoint {
             // Load HTML template from resources.
             String template = readResourceFile("queue-list-ui.html");
 
-            // Build only the dynamic rows HTML.
+            // Build rows using helper method.
             StringBuilder rows = new StringBuilder(Math.max(8192, items.size() * 256));
             for (int i = 0; i < items.size(); i++) {
-                int globalIndex = startIndex + i;
-                RelaySession relaySession = items.get(i);
-                Session session = relaySession.getSession();
-                List<MessageEnvelope> envs = session != null ? session.getEnvelopes() : null;
-                int envCount = envs != null ? envs.size() : 0;
-
-                // Recipients summary (first 5 unique, then +N).
-                StringBuilder recipients = new StringBuilder();
-                int added = 0;
-                java.util.HashSet<String> seen = new java.util.HashSet<>();
-                if (envs != null) {
-                    for (MessageEnvelope env : envs) {
-                        if (env == null) continue;
-                        for (String r : env.getRcpts()) {
-                            if (seen.add(r)) {
-                                if (added > 0) recipients.append(", ");
-                                recipients.append(escapeHtml(r));
-                                added++;
-                                if (added >= 5) break;
-                            }
-                        }
-                        if (added >= 5) break;
-                    }
-                }
-                if (envs != null) {
-                    int totalRecipients = envs.stream().mapToInt(e -> e.getRcpts() != null ? e.getRcpts().size() : 0).sum();
-                    if (totalRecipients > added) {
-                        recipients.append(" … (+").append(totalRecipients - added).append(")");
-                    }
-                }
-
-                // Files summary (first 5 base names with tooltip of full path).
-                StringBuilder files = new StringBuilder();
-                int fadded = 0;
-                if (envs != null) {
-                    for (MessageEnvelope env : envs) {
-                        if (env == null) continue;
-                        String f = env.getFile();
-                        if (f != null && !f.isBlank()) {
-                            String base = Paths.get(f).getFileName().toString();
-                            if (fadded > 0) files.append(", ");
-                            files.append("<span title='").append(escapeHtml(f)).append("'>").append(escapeHtml(base)).append("</span>");
-                            fadded++;
-                            if (fadded >= 5) break;
-                        }
-                    }
-                }
-
-                String lastRetry = relaySession.getLastRetryTime() > 0 ? relaySession.getLastRetryDate() : "-";
-                String sessionUID = session != null ? session.getUID() : "-";
-
-                rows.append("<tr>")
-                        .append("<td class='checkbox-col'><input type='checkbox' class='row-checkbox' data-index='").append(globalIndex).append("'/></td>")
-                        .append("<td class='nowrap'>").append(globalIndex + 1).append("</td>")
-                        .append("<td class='mono'>").append(escapeHtml(sessionUID)).append("</td>")
-                        .append("<td>").append(escapeHtml(session.getDate())).append("</td>")
-                        .append("<td>").append(escapeHtml(relaySession.getProtocol())).append("</td>")
-                        .append("<td>").append(relaySession.getRetryCount()).append("</td>")
-                        .append("<td class='nowrap'>").append(escapeHtml(lastRetry)).append("</td>")
-                        .append("<td>").append(envCount).append("</td>")
-                        .append("<td>").append(recipients).append("</td>")
-                        .append("<td>").append(files).append("</td>")
-                        .append("<td class='actions nowrap'>")
-                        .append("<button class='btn-delete' data-index='").append(globalIndex).append("' data-uid='").append(escapeHtml(sessionUID)).append("'>Delete</button> ")
-                        .append("<button class='btn-retry' data-index='").append(globalIndex).append("' data-uid='").append(escapeHtml(sessionUID)).append("'>Retry</button> ")
-                        .append("<button class='btn-bounce' data-index='").append(globalIndex).append("' data-uid='").append(escapeHtml(sessionUID)).append("'>Bounce</button>")
-                        .append("</td>")
-                        .append("</tr>");
+                rows.append(buildQueueRow(items.get(i), startIndex + i + 1));
             }
 
-            // Build pagination controls.
-            StringBuilder pagination = new StringBuilder();
-            if (totalPages > 1) {
-                pagination.append("<div class='pagination'>");
-                
-                // Previous button.
-                if (page > 1) {
-                    pagination.append("<a href='?page=").append(page - 1).append("&limit=").append(limit).append("'>&laquo; Previous</a> ");
-                } else {
-                    pagination.append("<span class='disabled'>&laquo; Previous</span> ");
-                }
-                
-                // Page numbers (show up to 9 pages around current).
-                int startPage = Math.max(1, page - 4);
-                int endPage = Math.min(totalPages, page + 4);
-                
-                if (startPage > 1) {
-                    pagination.append("<a href='?page=1&limit=").append(limit).append("'>1</a> ");
-                    if (startPage > 2) {
-                        pagination.append("<span>...</span> ");
-                    }
-                }
-                
-                for (int p = startPage; p <= endPage; p++) {
-                    if (p == page) {
-                        pagination.append("<span class='current'>").append(p).append("</span> ");
-                    } else {
-                        pagination.append("<a href='?page=").append(p).append("&limit=").append(limit).append("'>").append(p).append("</a> ");
-                    }
-                }
-                
-                if (endPage < totalPages) {
-                    if (endPage < totalPages - 1) {
-                        pagination.append("<span>...</span> ");
-                    }
-                    pagination.append("<a href='?page=").append(totalPages).append("&limit=").append(limit).append("'>").append(totalPages).append("</a> ");
-                }
-                
-                // Next button.
-                if (page < totalPages) {
-                    pagination.append("<a href='?page=").append(page + 1).append("&limit=").append(limit).append("'>Next &raquo;</a>");
-                } else {
-                    pagination.append("<span class='disabled'>Next &raquo;</span>");
-                }
-                
-                pagination.append("</div>");
-            }
+            // Build pagination controls using helper method.
+            String pagination = buildPaginationControls(page, totalPages, limit);
 
             String html = template
                     .replace("{{TOTAL}}", String.valueOf(total))
@@ -485,7 +373,7 @@ public class ApiEndpoint {
                     .replace("{{TOTAL_PAGES}}", String.valueOf(totalPages))
                     .replace("{{SHOWING_FROM}}", String.valueOf(startIndex + 1))
                     .replace("{{SHOWING_TO}}", String.valueOf(endIndex))
-                    .replace("{{PAGINATION}}", pagination.toString())
+                    .replace("{{PAGINATION}}", pagination)
                     .replace("{{ROWS}}", rows.toString());
 
             sendHtml(exchange, 200, html);
@@ -497,8 +385,8 @@ public class ApiEndpoint {
 
     /**
      * Handles <b>POST /client/queue/delete</b> requests.
-     * <p>Deletes queue items by index or indices.
-     * <p>Accepts JSON body with either "index" (single integer) or "indices" (array of integers).
+     * <p>Deletes queue items by UID or UIDs.
+     * <p>Accepts JSON body with either "uid" (single string) or "uids" (array of strings).
      */
     private void handleQueueDelete(HttpExchange exchange) throws IOException {
         if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
@@ -530,29 +418,24 @@ public class ApiEndpoint {
             PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
             int deletedCount = 0;
 
-            // Handle single index.
-            if (payload.containsKey("index")) {
-                Object indexObj = payload.get("index");
-                int index = indexObj instanceof Double ? ((Double) indexObj).intValue() : (Integer) indexObj;
-                if (queue.removeByIndex(index)) {
+            // Handle single UID.
+            if (payload.containsKey("uid")) {
+                String uid = (String) payload.get("uid");
+                if (queue.removeByUID(uid)) {
                     deletedCount = 1;
-                    log.info("Deleted queue item at index {}", index);
+                    log.info("Deleted queue item with UID {}", uid);
                 } else {
-                    log.warn("Failed to delete queue item at index {}", index);
+                    log.warn("Failed to delete queue item with UID {}", uid);
                 }
             }
-            // Handle multiple indices.
-            else if (payload.containsKey("indices")) {
+            // Handle multiple UIDs.
+            else if (payload.containsKey("uids")) {
                 @SuppressWarnings("unchecked")
-                List<Object> indicesObj = (List<Object>) payload.get("indices");
-                List<Integer> indices = new ArrayList<>();
-                for (Object obj : indicesObj) {
-                    indices.add(obj instanceof Double ? ((Double) obj).intValue() : (Integer) obj);
-                }
-                deletedCount = queue.removeByIndices(indices);
+                List<String> uids = (List<String>) payload.get("uids");
+                deletedCount = queue.removeByUIDs(uids);
                 log.info("Deleted {} queue items", deletedCount);
             } else {
-                sendText(exchange, 400, "Missing 'index' or 'indices' parameter");
+                sendText(exchange, 400, "Missing 'uid' or 'uids' parameter");
                 return;
             }
 
@@ -571,8 +454,8 @@ public class ApiEndpoint {
 
     /**
      * Handles <b>POST /client/queue/retry</b> requests.
-     * <p>Retries queue items by index or indices (dequeue and re-enqueue with retry count bump).
-     * <p>Accepts JSON body with either "index" (single integer) or "indices" (array of integers).
+     * <p>Retries queue items by UID or UIDs (dequeue and re-enqueue with retry count bump).
+     * <p>Accepts JSON body with either "uid" (single string) or "uids" (array of strings).
      */
     private void handleQueueRetry(HttpExchange exchange) throws IOException {
         if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
@@ -603,33 +486,30 @@ public class ApiEndpoint {
 
             PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
             List<RelaySession> items = queue.snapshot();
-            List<Integer> targetIndices = new ArrayList<>();
+            List<String> targetUIDs = new ArrayList<>();
 
-            // Collect target indices.
-            if (payload.containsKey("index")) {
-                Object indexObj = payload.get("index");
-                targetIndices.add(indexObj instanceof Double ? ((Double) indexObj).intValue() : (Integer) indexObj);
-            } else if (payload.containsKey("indices")) {
+            // Collect target UIDs.
+            if (payload.containsKey("uid")) {
+                targetUIDs.add((String) payload.get("uid"));
+            } else if (payload.containsKey("uids")) {
                 @SuppressWarnings("unchecked")
-                List<Object> indicesObj = (List<Object>) payload.get("indices");
-                for (Object obj : indicesObj) {
-                    targetIndices.add(obj instanceof Double ? ((Double) obj).intValue() : (Integer) obj);
-                }
+                List<String> uids = (List<String>) payload.get("uids");
+                targetUIDs.addAll(uids);
             } else {
-                sendText(exchange, 400, "Missing 'index' or 'indices' parameter");
+                sendText(exchange, 400, "Missing 'uid' or 'uids' parameter");
                 return;
             }
 
             // Collect items to retry and remove them from queue.
             List<RelaySession> toRetry = new ArrayList<>();
-            for (int index : targetIndices) {
-                if (index >= 0 && index < items.size()) {
-                    toRetry.add(items.get(index));
+            for (RelaySession item : items) {
+                if (targetUIDs.contains(item.getUID())) {
+                    toRetry.add(item);
                 }
             }
 
-            // Remove items (in reverse order to avoid index shifts).
-            int removedCount = queue.removeByIndices(targetIndices);
+            // Remove items.
+            int removedCount = queue.removeByUIDs(targetUIDs);
 
             // Re-enqueue with bumped retry count.
             for (RelaySession relaySession : toRetry) {
@@ -654,8 +534,8 @@ public class ApiEndpoint {
 
     /**
      * Handles <b>POST /client/queue/bounce</b> requests.
-     * <p>Bounces queue items by index or indices (remove and optionally generate bounce message).
-     * <p>Accepts JSON body with either "index" (single integer) or "indices" (array of integers).
+     * <p>Bounces queue items by UID or UIDs (remove and optionally generate bounce message).
+     * <p>Accepts JSON body with either "uid" (single string) or "uids" (array of strings).
      */
     private void handleQueueBounce(HttpExchange exchange) throws IOException {
         if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
@@ -685,26 +565,23 @@ public class ApiEndpoint {
             }
 
             PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
-            List<Integer> targetIndices = new ArrayList<>();
+            List<String> targetUIDs = new ArrayList<>();
 
-            // Collect target indices.
-            if (payload.containsKey("index")) {
-                Object indexObj = payload.get("index");
-                targetIndices.add(indexObj instanceof Double ? ((Double) indexObj).intValue() : (Integer) indexObj);
-            } else if (payload.containsKey("indices")) {
+            // Collect target UIDs.
+            if (payload.containsKey("uid")) {
+                targetUIDs.add((String) payload.get("uid"));
+            } else if (payload.containsKey("uids")) {
                 @SuppressWarnings("unchecked")
-                List<Object> indicesObj = (List<Object>) payload.get("indices");
-                for (Object obj : indicesObj) {
-                    targetIndices.add(obj instanceof Double ? ((Double) obj).intValue() : (Integer) obj);
-                }
+                List<String> uids = (List<String>) payload.get("uids");
+                targetUIDs.addAll(uids);
             } else {
-                sendText(exchange, 400, "Missing 'index' or 'indices' parameter");
+                sendText(exchange, 400, "Missing 'uid' or 'uids' parameter");
                 return;
             }
 
             // Remove items (bounce = delete in this context).
             // Future enhancement: generate actual bounce messages.
-            int bouncedCount = queue.removeByIndices(targetIndices);
+            int bouncedCount = queue.removeByUIDs(targetUIDs);
             log.info("Bounced {} queue items", bouncedCount);
 
             Map<String, Object> response = new HashMap<>();
@@ -1015,5 +892,162 @@ public class ApiEndpoint {
      */
     private String urlDecode(String s) {
         return URLDecoder.decode(s, StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Builds an HTML row for a relay session in the queue list.
+     *
+     * @param relaySession The relay session.
+     * @param rowNumber The display row number (1-based).
+     * @return HTML string for the row.
+     */
+    private String buildQueueRow(RelaySession relaySession, int rowNumber) {
+        Session session = relaySession.getSession();
+        List<MessageEnvelope> envs = session != null ? session.getEnvelopes() : null;
+        int envCount = envs != null ? envs.size() : 0;
+
+        // Recipients summary (first 5 unique, then +N).
+        StringBuilder recipients = new StringBuilder();
+        int added = 0;
+        java.util.HashSet<String> seen = new java.util.HashSet<>();
+        if (envs != null) {
+            for (MessageEnvelope env : envs) {
+                if (env == null) continue;
+                for (String r : env.getRcpts()) {
+                    if (seen.add(r)) {
+                        if (added > 0) recipients.append(", ");
+                        recipients.append(escapeHtml(r));
+                        added++;
+                        if (added >= 5) break;
+                    }
+                }
+                if (added >= 5) break;
+            }
+        }
+        if (envs != null) {
+            int totalRecipients = envs.stream().mapToInt(e -> e.getRcpts() != null ? e.getRcpts().size() : 0).sum();
+            if (totalRecipients > added) {
+                recipients.append(" … (+").append(totalRecipients - added).append(")");
+            }
+        }
+
+        // Files summary (first 5 base names with tooltip of full path).
+        StringBuilder files = new StringBuilder();
+        int fadded = 0;
+        if (envs != null) {
+            for (MessageEnvelope env : envs) {
+                if (env == null) continue;
+                String f = env.getFile();
+                if (f != null && !f.isBlank()) {
+                    String base = Paths.get(f).getFileName().toString();
+                    if (fadded > 0) files.append(", ");
+                    files.append("<span title='").append(escapeHtml(f)).append("'>").append(escapeHtml(base)).append("</span>");
+                    fadded++;
+                    if (fadded >= 5) break;
+                }
+            }
+        }
+
+        String lastRetry = relaySession.getLastRetryTime() > 0 ? relaySession.getLastRetryDate() : "-";
+        String sessionUID = session != null ? session.getUID() : "-";
+        String relayUID = relaySession.getUID();
+
+        // Load row template.
+        String rowTemplate;
+        try {
+            rowTemplate = readResourceFile("queue-list-row.html");
+        } catch (IOException e) {
+            log.error("Failed to load queue-list-row.html: {}", e.getMessage());
+            // Fallback to inline template.
+            rowTemplate = "<tr>" +
+                    "<td class='checkbox-col'><input type='checkbox' class='row-checkbox' data-uid='{{RELAY_UID}}'/></td>" +
+                    "<td class='nowrap'>{{ROW_NUMBER}}</td>" +
+                    "<td class='mono'>{{SESSION_UID}}</td>" +
+                    "<td>{{DATE}}</td>" +
+                    "<td>{{PROTOCOL}}</td>" +
+                    "<td>{{RETRY_COUNT}}</td>" +
+                    "<td class='nowrap'>{{LAST_RETRY}}</td>" +
+                    "<td>{{ENVELOPES}}</td>" +
+                    "<td>{{RECIPIENTS}}</td>" +
+                    "<td>{{FILES}}</td>" +
+                    "<td class='actions nowrap'>" +
+                    "<button class='btn-delete' data-uid='{{RELAY_UID}}'>Delete</button> " +
+                    "<button class='btn-retry' data-uid='{{RELAY_UID}}'>Retry</button> " +
+                    "<button class='btn-bounce' data-uid='{{RELAY_UID}}'>Bounce</button>" +
+                    "</td>" +
+                    "</tr>";
+        }
+
+        return rowTemplate
+                .replace("{{RELAY_UID}}", escapeHtml(relayUID))
+                .replace("{{ROW_NUMBER}}", String.valueOf(rowNumber))
+                .replace("{{SESSION_UID}}", escapeHtml(sessionUID))
+                .replace("{{DATE}}", escapeHtml(session.getDate()))
+                .replace("{{PROTOCOL}}", escapeHtml(relaySession.getProtocol()))
+                .replace("{{RETRY_COUNT}}", String.valueOf(relaySession.getRetryCount()))
+                .replace("{{LAST_RETRY}}", escapeHtml(lastRetry))
+                .replace("{{ENVELOPES}}", String.valueOf(envCount))
+                .replace("{{RECIPIENTS}}", recipients.toString())
+                .replace("{{FILES}}", files.toString());
+    }
+
+    /**
+     * Builds pagination controls HTML.
+     *
+     * @param currentPage Current page number (1-based).
+     * @param totalPages Total number of pages.
+     * @param limit Items per page.
+     * @return HTML string for pagination controls.
+     */
+    private String buildPaginationControls(int currentPage, int totalPages, int limit) {
+        if (totalPages <= 1) {
+            return "";
+        }
+
+        StringBuilder pagination = new StringBuilder();
+        pagination.append("<div class='pagination'>");
+        
+        // Previous button.
+        if (currentPage > 1) {
+            pagination.append("<a href='?page=").append(currentPage - 1).append("&limit=").append(limit).append("'>&laquo; Previous</a> ");
+        } else {
+            pagination.append("<span class='disabled'>&laquo; Previous</span> ");
+        }
+        
+        // Page numbers (show up to 9 pages around current).
+        int startPage = Math.max(1, currentPage - 4);
+        int endPage = Math.min(totalPages, currentPage + 4);
+        
+        if (startPage > 1) {
+            pagination.append("<a href='?page=1&limit=").append(limit).append("'>1</a> ");
+            if (startPage > 2) {
+                pagination.append("<span>...</span> ");
+            }
+        }
+        
+        for (int p = startPage; p <= endPage; p++) {
+            if (p == currentPage) {
+                pagination.append("<span class='current'>").append(p).append("</span> ");
+            } else {
+                pagination.append("<a href='?page=").append(p).append("&limit=").append(limit).append("'>").append(p).append("</a> ");
+            }
+        }
+        
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                pagination.append("<span>...</span> ");
+            }
+            pagination.append("<a href='?page=").append(totalPages).append("&limit=").append(limit).append("'>").append(totalPages).append("</a> ");
+        }
+        
+        // Next button.
+        if (currentPage < totalPages) {
+            pagination.append("<a href='?page=").append(currentPage + 1).append("&limit=").append(limit).append("'>Next &raquo;</a>");
+        } else {
+            pagination.append("<span class='disabled'>Next &raquo;</span>");
+        }
+        
+        pagination.append("</div>");
+        return pagination.toString();
     }
 }

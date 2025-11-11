@@ -135,68 +135,65 @@
       document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = false);
     }
     
-    function getSelectedIndices() {
-      const indices = [];
+    function getSelectedUIDs() {
+      const uids = [];
       document.querySelectorAll('.row-checkbox:checked').forEach(cb => {
-        indices.push(parseInt(cb.getAttribute('data-index')));
+        uids.push(cb.getAttribute('data-uid'));
       });
-      return indices;
+      return uids;
     }
     
     function bulkDelete() {
-      const indices = getSelectedIndices();
-      if (indices.length === 0) {
+      const uids = getSelectedUIDs();
+      if (uids.length === 0) {
         alert('Please select items to delete');
         return;
       }
-      if (!confirm(`Delete ${indices.length} selected item(s)?`)) return;
-      performAction('/client/queue/delete', { indices });
+      if (!confirm(`Delete ${uids.length} selected item(s)?`)) return;
+      performAction('/client/queue/delete', { uids });
     }
     
     function bulkRetry() {
-      const indices = getSelectedIndices();
-      if (indices.length === 0) {
+      const uids = getSelectedUIDs();
+      if (uids.length === 0) {
         alert('Please select items to retry');
         return;
       }
-      if (!confirm(`Retry ${indices.length} selected item(s)?`)) return;
-      performAction('/client/queue/retry', { indices });
+      if (!confirm(`Retry ${uids.length} selected item(s)?`)) return;
+      performAction('/client/queue/retry', { uids });
     }
     
     function bulkBounce() {
-      const indices = getSelectedIndices();
-      if (indices.length === 0) {
+      const uids = getSelectedUIDs();
+      if (uids.length === 0) {
         alert('Please select items to bounce');
         return;
       }
-      if (!confirm(`Bounce ${indices.length} selected item(s)?`)) return;
-      performAction('/client/queue/bounce', { indices });
+      if (!confirm(`Bounce ${uids.length} selected item(s)?`)) return;
+      performAction('/client/queue/bounce', { uids });
     }
     
     document.querySelectorAll('.btn-delete').forEach(btn => {
       btn.addEventListener('click', function() {
-        const index = parseInt(this.getAttribute('data-index'));
         const uid = this.getAttribute('data-uid');
         if (!confirm(`Delete item ${uid}?`)) return;
-        performAction('/client/queue/delete', { index });
+        performAction('/client/queue/delete', { uid });
       });
     });
     
     document.querySelectorAll('.btn-retry').forEach(btn => {
       btn.addEventListener('click', function() {
-        const index = parseInt(this.getAttribute('data-index'));
         const uid = this.getAttribute('data-uid');
         if (!confirm(`Retry item ${uid}?`)) return;
-        performAction('/client/queue/retry', { index });
+        performAction('/client/queue/retry', { uid });
       });
     });
     
     document.querySelectorAll('.btn-bounce').forEach(btn => {
       btn.addEventListener('click', function() {
-        const index = parseInt(this.getAttribute('data-index'));
         const uid = this.getAttribute('data-uid');
         if (!confirm(`Bounce item ${uid}?`)) return;
-        performAction('/client/queue/bounce', { index });
+        performAction('/client/queue/bounce', { uid });
       });
     });
     
