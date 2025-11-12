@@ -2,12 +2,14 @@ package com.mimecast.robin.endpoints;
 
 import com.google.gson.Gson;
 import com.mimecast.robin.config.server.EndpointConfig;
+import com.mimecast.robin.main.Foundation;
 import com.mimecast.robin.queue.PersistentQueue;
 import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.smtp.session.Session;
 import org.junit.jupiter.api.*;
 
+import javax.naming.ConfigurationException;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -31,7 +33,10 @@ class ApiEndpointQueueControlsTest {
     private Gson gson;
 
     @BeforeAll
-    void setUp() throws IOException {
+    void setUp() throws IOException, ConfigurationException {
+        // Initialize Foundation with test configuration
+        Foundation.init("src/test/resources/cfg/");
+        
         apiEndpoint = new ApiEndpoint();
         
         Map<String, Object> configMap = new HashMap<>();
