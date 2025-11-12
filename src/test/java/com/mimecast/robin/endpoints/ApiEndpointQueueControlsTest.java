@@ -2,6 +2,7 @@ package com.mimecast.robin.endpoints;
 
 import com.google.gson.Gson;
 import com.mimecast.robin.config.server.EndpointConfig;
+import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Foundation;
 import com.mimecast.robin.queue.PersistentQueue;
 import com.mimecast.robin.queue.RelayQueueCron;
@@ -10,11 +11,14 @@ import com.mimecast.robin.smtp.session.Session;
 import org.junit.jupiter.api.*;
 
 import javax.naming.ConfigurationException;
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -31,11 +35,20 @@ class ApiEndpointQueueControlsTest {
     private ApiEndpoint apiEndpoint;
     private HttpClient httpClient;
     private Gson gson;
+    private Path tmpDir;
+    private File tmpQueueFile;
 
     @BeforeAll
     void setUp() throws IOException, ConfigurationException {
         // Initialize Foundation with test configuration
         Foundation.init("src/test/resources/cfg/");
+        
+        // Create a temporary directory and queue file for testing
+        tmpDir = Files.createTempDirectory("robinRelayQueue-");
+        tmpQueueFile = tmpDir.resolve("relayQueue-" + System.nanoTime() + ".db").toFile();
+        
+        // Override the queue file path in runtime config to use temp directory
+        Config.getServer().getQueue().getMap().put("queueFile", tmpQueueFile.getAbsolutePath());
         
         apiEndpoint = new ApiEndpoint();
         
@@ -55,37 +68,23 @@ class ApiEndpointQueueControlsTest {
         
         httpClient = HttpClient.newHttpClient();
         gson = new Gson();
-        
-        // Ensure the queue directory exists.
-        java.io.File queueDir = RelayQueueCron.QUEUE_FILE.getParentFile();
-        if (queueDir != null && !queueDir.exists()) {
-            queueDir.mkdirs();
-        }
     }
 
     @BeforeEach
     void clearQueue() {
-        // Clear the queue before each test if possible.
+        // Clear the queue before each test.
         try {
-            java.io.File queueDir = RelayQueueCron.QUEUE_FILE.getParentFile();
-            if (queueDir != null && !queueDir.exists()) {
-                queueDir.mkdirs();
-            }
-            
-            if (queueDir != null && queueDir.canWrite()) {
-                PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
-                queue.clear();
-            }
+            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(tmpQueueFile);
+            queue.clear();
         } catch (Exception e) {
-            // If the queue can't be cleared (permission issues), skip it.
-            // Tests will still work as they create their own data.
+            // Ignore errors during queue clearing
         }
     }
 
     @Test
     void testQueueDeleteSingleItem() throws Exception {
         // Add items to the queue.
-        PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
+        PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(tmpQueueFile);
         RelaySession rs1 = new RelaySession(new Session().setUID("test-1"));
         RelaySession rs2 = new RelaySession(new Session().setUID("test-2"));
         RelaySession rs3 = new RelaySession(new Session().setUID("test-3"));
@@ -124,7 +123,7 @@ class ApiEndpointQueueControlsTest {
     @Test
     void testQueueDeleteMultipleItems() throws Exception {
         // Add items to the queue.
-        PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
+        PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(tmpQueueFile);
         RelaySession rs1 = new RelaySession(new Session().setUID("test-1"));
         RelaySession rs2 = new RelaySession(new Session().setUID("test-2"));
         RelaySession rs3 = new RelaySession(new Session().setUID("test-3"));
@@ -168,7 +167,7 @@ class ApiEndpointQueueControlsTest {
     @Test
     void testQueueRetrySingleItem() throws Exception {
         // Add items to the queue.
-        PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
+        PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(tmpQueueFile);
         RelaySession session = new RelaySession(new Session().setUID("retry-test"));
         queue.enqueue(session);
         
@@ -203,7 +202,7 @@ class ApiEndpointQueueControlsTest {
     @Test
     void testQueueBounceSingleItem() throws Exception {
         // Add items to the queue.
-        PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
+        PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(tmpQueueFile);
         RelaySession rs1 = new RelaySession(new Session().setUID("bounce-test"));
         RelaySession rs2 = new RelaySession(new Session().setUID("keep-test"));
         queue.enqueue(rs1);
@@ -239,7 +238,7 @@ class ApiEndpointQueueControlsTest {
     @Test
     void testQueueListWithPagination() throws Exception {
         // Add 25 items to the queue.
-        PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
+        PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(tmpQueueFile);
         for (int i = 1; i <= 25; i++) {
             queue.enqueue(new RelaySession(new Session().setUID("item-" + i)));
         }
@@ -291,5 +290,24 @@ class ApiEndpointQueueControlsTest {
         
         assertEquals(400, response.statusCode());
         assertTrue(response.body().contains("Empty request body"));
+    }
+
+    @AfterAll
+    void tearDown() {
+        // Close the queue and clean up temporary files
+        try {
+            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(tmpQueueFile);
+            queue.close();
+        } catch (Exception ignored) {}
+        
+        // Delete queue file and any WAL segments
+        try { tmpQueueFile.delete(); } catch (Exception ignored) {}
+        for (int i = 0; i < 4; i++) {
+            try { new File(tmpQueueFile.getAbsolutePath() + ".wal." + i).delete(); } catch (Exception ignored) {}
+        }
+        try { new File(tmpQueueFile.getAbsolutePath() + ".p").delete(); } catch (Exception ignored) {}
+        
+        // Delete temp directory
+        try { Files.deleteIfExists(tmpDir); } catch (Exception ignored) {}
     }
 }
