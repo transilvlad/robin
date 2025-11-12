@@ -1,6 +1,7 @@
 {
   // Queue file to use for persisting messages that could not be relayed.
-  queueFile: "/usr/local/robin/relayQueue.db",
+  // For tests, use /tmp to avoid permission issues.
+  queueFile: "/tmp/robinRelayQueue.db",
 
   // Queue cron initial run delay (in seconds).
   queueInitialDelay: 10,
