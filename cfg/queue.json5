@@ -14,5 +14,30 @@
   // Concurrency scale for parallel access.
   // Increase this value to improve performance on high throughput systems.
   // Must be the sum of all listeners max pool sizes (optionally plus 2 for the dequeue cron and queue-list endpoint).
-  concurrencyScale: 32
+  concurrencyScale: 32,
+
+  // MapDB backend configuration.
+  // If this section exists, MapDB will be used for queue persistence.
+  // queueMapDB: {
+  //   // Concurrency scale for MapDB (defaults to 32 if not specified).
+  //   concurrencyScale: 32
+  // },
+
+  // MariaDB backend configuration.
+  // If this section exists and queueMapDB is not present, MariaDB will be used for queue persistence.
+  // queueMariaDB: {
+  //   jdbcUrl: "jdbc:mariadb://localhost:3306/robin",
+  //   username: "robin",
+  //   password: "your_password_here",
+  //   tableName: "queue"
+  // },
+
+  // PostgreSQL backend configuration.
+  // If this section exists and queueMapDB and queueMariaDB are not present, PostgreSQL will be used for queue persistence.
+  // queuePgSQL: {
+  //   jdbcUrl: "jdbc:postgresql://localhost:5432/robin",
+  //   username: "robin",
+  //   password: "your_password_here",
+  //   tableName: "queue"
+  // }
 }

@@ -64,6 +64,7 @@ Documentation
 
 ### Server
 - [Server configuration](doc/server.md)
+- [Queue Persistence](#queue-persistence) - Configurable queue backends (MapDB, MariaDB, PostgreSQL).
 - [HashiCorp Vault](doc/vault.md)
 - [SMTP webhooks](doc/webhooks.md)
 - [Endpoints](doc/endpoints.md) - JVM metrics implementation.
@@ -98,3 +99,142 @@ Documentation
 - [Code of conduct](code_of_conduct.md)
 
 _Robin is designed with single responsibility principle in mind and thus can provide reusable components for various tasks._
+
+
+Queue Persistence
+-----------------
+
+Robin supports multiple queue persistence backends for storing messages that could not be relayed. The queue backend is configured in `cfg/queue.json5`.
+
+### Supported Backends
+
+#### MapDB (Default)
+MapDB is a lightweight, file-based embedded database. It is the default backend and requires no external dependencies.
+
+**Configuration:**
+```json5
+{
+  queueFile: "/usr/local/robin/relayQueue.db",
+  queueMapDB: {
+    concurrencyScale: 32
+  }
+}
+```
+
+#### MariaDB
+MariaDB provides a robust SQL-based queue with transaction support.
+
+**Configuration:**
+```json5
+{
+  queueMariaDB: {
+    jdbcUrl: "jdbc:mariadb://localhost:3306/robin",
+    username: "robin",
+    password: "your_password_here",
+    tableName: "queue"
+  }
+}
+```
+
+**Database Setup:**
+The queue table will be automatically created on initialization with the following structure:
+```sql
+CREATE TABLE IF NOT EXISTS queue (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  data LONGBLOB NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+```
+
+#### PostgreSQL
+PostgreSQL provides enterprise-grade queue persistence with ACID compliance.
+
+**Configuration:**
+```json5
+{
+  queuePgSQL: {
+    jdbcUrl: "jdbc:postgresql://localhost:5432/robin",
+    username: "robin",
+    password: "your_password_here",
+    tableName: "queue"
+  }
+}
+```
+
+**Database Setup:**
+The queue table will be automatically created on initialization with the following structure:
+```sql
+CREATE TABLE IF NOT EXISTS queue (
+  id BIGSERIAL PRIMARY KEY,
+  data BYTEA NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Backend Selection Priority
+
+The queue backend is selected in the following priority order:
+1. **MapDB** - if `queueMapDB` configuration exists
+2. **MariaDB** - if `queueMariaDB` configuration exists (and `queueMapDB` does not)
+3. **PostgreSQL** - if `queuePgSQL` configuration exists (and `queueMapDB` and `queueMariaDB` do not)
+4. **MapDB** - fallback default if no backend is configured
+
+### Configuration Options
+
+All backends share these common queue configuration options in `queue.json5`:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `queueFile` | String | `/usr/local/robin/relayQueue.db` | File path for MapDB backend |
+| `queueInitialDelay` | Integer | 10 | Initial delay before queue processing starts (seconds) |
+| `queueInterval` | Integer | 30 | Interval between queue processing cycles (seconds) |
+| `maxDequeuePerTick` | Integer | 10 | Maximum messages to process per cycle |
+| `concurrencyScale` | Integer | 32 | Thread pool size for concurrent queue operations |
+
+### Backend-Specific Options
+
+#### MapDB Options
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `queueMapDB.concurrencyScale` | Integer | 32 | MapDB-specific concurrency configuration |
+
+#### MariaDB Options
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `queueMariaDB.jdbcUrl` | String | `jdbc:mariadb://localhost:3306/robin` | JDBC connection URL |
+| `queueMariaDB.username` | String | `robin` | Database username |
+| `queueMariaDB.password` | String | _(empty)_ | Database password |
+| `queueMariaDB.tableName` | String | `queue` | Table name for queue storage |
+
+#### PostgreSQL Options
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `queuePgSQL.jdbcUrl` | String | `jdbc:postgresql://localhost:5432/robin` | JDBC connection URL |
+| `queuePgSQL.username` | String | `robin` | Database username |
+| `queuePgSQL.password` | String | _(empty)_ | Database password |
+| `queuePgSQL.tableName` | String | `queue` | Table name for queue storage |
+
+### Example: Full queue.json5 Configuration
+
+```json5
+{
+  // Queue file for MapDB backend
+  queueFile: "/usr/local/robin/relayQueue.db",
+
+  // Queue processing settings
+  queueInitialDelay: 10,
+  queueInterval: 30,
+  maxDequeuePerTick: 10,
+  concurrencyScale: 32,
+
+  // Use PostgreSQL backend
+  queuePgSQL: {
+    jdbcUrl: "jdbc:postgresql://db.example.com:5432/robin_queue",
+    username: "robin_user",
+    password: "secure_password",
+    tableName: "relay_queue"
+  }
+}
+```
+
+**Note:** Only configure one backend section (`queueMapDB`, `queueMariaDB`, or `queuePgSQL`) to avoid confusion, though the selection priority will handle multiple configurations gracefully.

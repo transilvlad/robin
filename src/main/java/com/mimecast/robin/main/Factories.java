@@ -5,8 +5,8 @@ import com.mimecast.robin.assertion.client.ExternalClient;
 import com.mimecast.robin.assertion.client.imap.ImapExternalClient;
 import com.mimecast.robin.assertion.client.logs.LogsExternalClient;
 import com.mimecast.robin.config.BasicConfig;
-import com.mimecast.robin.queue.MapDBQueueDatabase;
 import com.mimecast.robin.queue.QueueDatabase;
+import com.mimecast.robin.queue.QueueFactory;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.smtp.auth.DigestCache;
 import com.mimecast.robin.smtp.auth.StaticDigestCache;
@@ -357,9 +357,7 @@ public class Factories {
             }
         }
 
-        // Default to MapDB implementation
-        MapDBQueueDatabase<RelaySession> db = new MapDBQueueDatabase<>(file);
-        db.initialize();
-        return db;
+        // Use factory to select appropriate backend
+        return QueueFactory.createQueueDatabase(file);
     }
 }
