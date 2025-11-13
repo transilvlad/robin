@@ -17,6 +17,12 @@ public class RelaySession implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
+     * Unique identifier for this relay session.
+     * This is final and cannot be changed, unlike the session UID which can be duplicated.
+     */
+    private final String uid;
+
+    /**
      * Session.
      */
     private final Session session;
@@ -50,8 +56,18 @@ public class RelaySession implements Serializable {
      * Constructs a new DovecotSession instance.
      */
     public RelaySession(Session session) {
+        this.uid = java.util.UUID.randomUUID().toString();
         this.session = session;
         this.createTime = Instant.now().getEpochSecond();
+    }
+
+    /**
+     * Gets the unique identifier for this relay session.
+     *
+     * @return String UID.
+     */
+    public String getUID() {
+        return uid;
     }
 
     /**
@@ -154,12 +170,22 @@ public class RelaySession implements Serializable {
     }
 
     /**
-     * Implements equality check by session UID.
+     * Implements equality check by relay session UID.
      *
      * @return Boolean.
      */
     @Override
     public boolean equals(Object obj) {
-        return obj instanceof RelaySession && session.getUID().equals(((RelaySession) obj).getSession().getUID());
+        return obj instanceof RelaySession && uid.equals(((RelaySession) obj).getUID());
+    }
+
+    /**
+     * Generates hash code based on relay session UID.
+     *
+     * @return Hash code.
+     */
+    @Override
+    public int hashCode() {
+        return uid.hashCode();
     }
 }

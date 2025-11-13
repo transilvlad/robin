@@ -81,12 +81,108 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
     }
 
     /**
+     * Remove an item from the queue by index (0-based).
+     */
+    @Override
+    public boolean removeByIndex(int index) {
+        if (index < 0) {
+            return false;
+        }
+        List<T> items = new ArrayList<>(queue);
+        if (index >= items.size()) {
+            return false;
+        }
+        T item = items.get(index);
+        boolean removed = queue.remove(item);
+        if (removed) {
+            size.decrementAndGet();
+        }
+        return removed;
+    }
+
+    /**
+     * Remove items from the queue by indices (0-based).
+     */
+    @Override
+    public int removeByIndices(List<Integer> indices) {
+        if (indices == null || indices.isEmpty()) {
+            return 0;
+        }
+        
+        // Take snapshot and sort indices in descending order to avoid index shift issues
+        List<T> items = new ArrayList<>(queue);
+        List<Integer> sortedIndices = new ArrayList<>(indices);
+        sortedIndices.sort((a, b) -> b - a);
+        
+        int removed = 0;
+        for (int index : sortedIndices) {
+            if (index >= 0 && index < items.size()) {
+                T item = items.get(index);
+                if (queue.remove(item)) {
+                    size.decrementAndGet();
+                    removed++;
+                }
+            }
+        }
+        return removed;
+    }
+
+    /**
+     * Remove an item from the queue by UID (for RelaySession).
+     */
+    @Override
+    public boolean removeByUID(String uid) {
+        if (uid == null) {
+            return false;
+        }
+        
+        for (T item : queue) {
+            if (item instanceof RelaySession) {
+                RelaySession relaySession = (RelaySession) item;
+                if (uid.equals(relaySession.getUID())) {
+                    if (queue.remove(item)) {
+                        size.decrementAndGet();
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Remove items from the queue by UIDs (for RelaySession).
+     */
+    @Override
+    public int removeByUIDs(List<String> uids) {
+        if (uids == null || uids.isEmpty()) {
+            return 0;
+        }
+        
+        int removed = 0;
+        for (String uid : uids) {
+            if (removeByUID(uid)) {
+                removed++;
+            }
+        }
+        return removed;
+    }
+
+    /**
+     * Clear all items from the queue.
+     */
+    @Override
+    public void clear() {
+        queue.clear();
+        size.set(0);
+    }
+
+    /**
      * Close the database.
      * For in-memory implementation, this clears the queue.
      */
     @Override
     public void close() {
-        queue.clear();
-        size.set(0);
+        clear();
     }
 }
