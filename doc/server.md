@@ -306,7 +306,7 @@ Below are concise examples for each auxiliary config file.
 
       // Concurrency scale for parallel access.
       // Increase this value to improve performance on high throughput systems.
-      // Must be the sum of all listeners max pool sizes (optionally plus 2 for the dequeue cron and queue-list endpoint).
+      // Must be the sum of all listeners max pool sizes (optionally plus 2 for the dequeue cron and queue/list endpoint).
       concurrencyScale: 32
     }
 

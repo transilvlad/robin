@@ -359,7 +359,7 @@ Endpoints
   - Returns a confirmation with queue size and the filtered Session object
   - HTTP status: `202 Accepted`
 
-- **`GET /client/queue-list`** — Lists all items currently in the relay queue.
+- **`GET /client/queue/list`** — Lists all items currently in the relay queue.
   - Response: `text/html; charset=utf-8`
   - Returns an HTML table showing queued sessions with details:
     - Session UID
