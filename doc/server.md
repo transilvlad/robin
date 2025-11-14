@@ -624,11 +624,13 @@ Multiple chaos headers can be present in the same email to test different scenar
 
 ### Examples
 
-**Bypass AVStorageProcessor:**
+**Bypass any storage processor:**
 
     X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor
+    X-Robin-Chaos: LocalStorageClient; call=SpamStorageProcessor
+    X-Robin-Chaos: LocalStorageClient; call=LocalStorageProcessor
 
-This bypasses the antivirus scanning processor and continues processing.
+This bypasses the specified storage processor. The `call` parameter should match the processor class name (e.g., `AVStorageProcessor`, `SpamStorageProcessor`, `LocalStorageProcessor`, `DovecotStorageProcessor`).
 
 **Simulate Dovecot LDA storage failure:**
 

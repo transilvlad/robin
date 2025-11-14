@@ -244,11 +244,9 @@ public class LocalStorageClient implements StorageClient {
         for (MimeHeader header : chaosHeaders.getByValue(processorClassName)) {
             String callParam = header.getParameter("call");
             
-            // The call parameter format is: call=ProcessorClassName
-            // Additional parameters after a colon would be tokenized separately.
-            // For now, we just check if the call parameter matches AVStorageProcessor
-            // and bypass the processor.
-            if (callParam != null && callParam.equals("AVStorageProcessor")) {
+            // The call parameter should match the processor class name to bypass.
+            // Format: call=ProcessorClassName (e.g., call=AVStorageProcessor, call=SpamStorageProcessor).
+            if (callParam != null && callParam.equals(processorClassName)) {
                 log.warn("Chaos header bypassing {} with call parameter: {}", processorClassName, callParam);
                 return true; // Bypass the processor call.
             }
