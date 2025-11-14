@@ -32,12 +32,31 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
      * Constructs a new SQLQueueDatabase instance.
      *
      * @param config Database configuration including connection details
+     * @throws IllegalArgumentException if table name contains invalid characters
      */
     protected SQLQueueDatabase(DBConfig config) {
         this.jdbcUrl = config.jdbcUrl;
         this.username = config.username;
         this.password = config.password;
-        this.tableName = config.tableName;
+        this.tableName = validateTableName(config.tableName);
+    }
+    
+    /**
+     * Validate table name to prevent SQL injection.
+     * Only allows alphanumeric characters and underscores.
+     *
+     * @param tableName Table name to validate
+     * @return Validated table name
+     * @throws IllegalArgumentException if table name contains invalid characters
+     */
+    private String validateTableName(String tableName) {
+        if (tableName == null || tableName.isEmpty()) {
+            throw new IllegalArgumentException("Table name cannot be null or empty");
+        }
+        if (!tableName.matches("^[a-zA-Z0-9_]+$")) {
+            throw new IllegalArgumentException("Table name contains invalid characters. Only alphanumeric and underscore allowed: " + tableName);
+        }
+        return tableName;
     }
 
     /**

@@ -160,12 +160,14 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
      */
     @Override
     public void close() {
-        instance = null;
         try {
             database.close();
         } catch (Exception e) {
             // Log the error but don't propagate it to maintain close() contract.
             log.error("Error closing queue database: {}", e.getMessage());
+        } finally {
+            // Set instance to null after closing to prevent race conditions
+            instance = null;
         }
     }
 }

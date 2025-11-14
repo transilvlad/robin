@@ -2,6 +2,7 @@ package com.mimecast.robin.queue;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -122,7 +123,7 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
         
         // Sort indices in descending order to avoid index shifting issues
         List<Integer> sortedIndices = new ArrayList<>(indices);
-        sortedIndices.sort((a, b) -> b.compareTo(a));
+        sortedIndices.sort(Comparator.reverseOrder());
         
         int removed = 0;
         for (int index : sortedIndices) {
