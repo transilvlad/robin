@@ -253,9 +253,9 @@ public class Main {
         log("");
 
         // Capture System.out to get help output
-        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-        java.io.PrintStream ps = new java.io.PrintStream(baos);
-        java.io.PrintStream oldOut = System.out;
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PrintStream ps = new PrintStream(baos);
+        PrintStream oldOut = System.out;
         System.setOut(ps);
 
         try {
