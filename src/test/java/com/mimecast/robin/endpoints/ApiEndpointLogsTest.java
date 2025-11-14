@@ -10,14 +10,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.*;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
@@ -33,7 +33,6 @@ class ApiEndpointLogsTest {
     private Path tempDir;
     private Path todayLogFile;
     private Path yesterdayLogFile;
-    private String originalLogPattern;
 
     /**
      * Mock HttpExchange for testing logs endpoint.
@@ -148,7 +147,7 @@ class ApiEndpointLogsTest {
     void setUp() throws IOException {
         // Create temporary directory for test log files
         tempDir = Files.createTempDirectory("robin-test-logs-");
-        
+
         // Get current date and yesterday's date for log file names
         LocalDate today = LocalDate.now();
         LocalDate yesterday = today.minusDays(1);
@@ -173,9 +172,6 @@ class ApiEndpointLogsTest {
 
         Files.writeString(todayLogFile, todayContent, StandardCharsets.UTF_8);
         Files.writeString(yesterdayLogFile, yesterdayContent, StandardCharsets.UTF_8);
-        
-        // Store original log directory and set it to temp directory for tests
-        originalLogPattern = "/var/log";
     }
 
     @AfterEach
@@ -190,7 +186,7 @@ class ApiEndpointLogsTest {
      * Tests that logs endpoint returns usage when no query parameter is provided.
      */
     @Test
-    void testLogsEndpointNoQuery() throws IOException, URISyntaxException {
+    void testLogsEndpointNoQuery() {
         Map<String, Object> config = new HashMap<>();
         config.put("authType", "none");
         config.put("port", 8090);
@@ -200,14 +196,14 @@ class ApiEndpointLogsTest {
 
         // Use reflection to access private handleLogs method
         try {
-            java.lang.reflect.Method method = ApiEndpoint.class.getDeclaredMethod("handleLogs", HttpExchange.class);
+            Method method = ApiEndpoint.class.getDeclaredMethod("handleLogs", HttpExchange.class);
             method.setAccessible(true);
-            
-            // Set auth field
-            java.lang.reflect.Field authField = ApiEndpoint.class.getDeclaredField("auth");
+
+            // Set auth field from parent HttpEndpoint class
+            Field authField = HttpEndpoint.class.getDeclaredField("auth");
             authField.setAccessible(true);
             authField.set(endpoint, new HttpAuth(new EndpointConfig(config), "Test"));
-            
+
             method.invoke(endpoint, exchange);
 
             assertEquals(200, exchange.getResponseCode());
@@ -223,7 +219,7 @@ class ApiEndpointLogsTest {
      * Tests that logs endpoint rejects non-GET requests.
      */
     @Test
-    void testLogsEndpointPostMethod() throws IOException {
+    void testLogsEndpointPostMethod() {
         Map<String, Object> config = new HashMap<>();
         config.put("authType", "none");
         config.put("port", 8090);
@@ -233,14 +229,14 @@ class ApiEndpointLogsTest {
 
         // Use reflection to access private handleLogs method
         try {
-            java.lang.reflect.Method method = ApiEndpoint.class.getDeclaredMethod("handleLogs", HttpExchange.class);
+            Method method = ApiEndpoint.class.getDeclaredMethod("handleLogs", HttpExchange.class);
             method.setAccessible(true);
-            
-            // Set auth field
-            java.lang.reflect.Field authField = ApiEndpoint.class.getDeclaredField("auth");
+
+            // Set auth field from parent HttpEndpoint class
+            Field authField = HttpEndpoint.class.getDeclaredField("auth");
             authField.setAccessible(true);
             authField.set(endpoint, new HttpAuth(new EndpointConfig(config), "Test"));
-            
+
             method.invoke(endpoint, exchange);
 
             assertEquals(405, exchange.getResponseCode());
