@@ -157,9 +157,10 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
     /**
      * Close the database and reset the singleton instance.
      * <p>After calling close(), the next call to {@link #getInstance()} will create a new instance.
+     * <p>This method is synchronized to prevent race conditions with {@link #getInstance()}.
      */
     @Override
-    public void close() {
+    public synchronized void close() {
         try {
             database.close();
         } catch (Exception e) {
