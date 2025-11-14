@@ -380,6 +380,7 @@ class MetricsCronTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void testStaticLabelsConfiguration() throws Exception {
         Field staticLabelsField = MetricsCron.class.getDeclaredField("staticLabels");
         staticLabelsField.setAccessible(true);
@@ -457,7 +458,7 @@ class MetricsCronTest {
         Object timeSeries = timeSeriesClass.getDeclaredConstructor(List.class, sampleClass)
                 .newInstance(labels, sample);
 
-        List<Object> seriesList = Arrays.asList(timeSeries);
+        List<Object> seriesList = List.of(timeSeries);
 
         byte[] result = (byte[]) encodeWriteRequest.invoke(null, seriesList);
 
@@ -465,4 +466,3 @@ class MetricsCronTest {
         assertTrue(result.length > 0);
     }
 }
-

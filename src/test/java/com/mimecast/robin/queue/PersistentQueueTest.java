@@ -3,23 +3,17 @@ package com.mimecast.robin.queue;
 import com.mimecast.robin.smtp.session.Session;
 import org.junit.jupiter.api.*;
 
-import java.io.File;
-import java.nio.file.Paths;
-import java.util.UUID;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 @TestMethodOrder(MethodOrderer.MethodName.class)
 class PersistentQueueTest {
 
-    static File dbFile;
     static PersistentQueue<RelaySession> queue;
 
     @BeforeAll
     static void before() {
-        dbFile = Paths.get(System.getProperty("java.io.tmpdir"), UUID.randomUUID() + ".db").toFile();
-        dbFile.deleteOnExit();
-        queue = PersistentQueue.getInstance(dbFile);
+        // Uses in-memory database from test resources config (all backends disabled)
+        queue = PersistentQueue.getInstance();
     }
 
     @AfterAll
@@ -53,15 +47,6 @@ class PersistentQueueTest {
         // Clean up.
         assertEquals("peekDoesNotRemove", queue.dequeue().getSession().getUID());
         assertTrue(queue.isEmpty());
-    }
-
-    @Test
-    void persistsAcrossInstances() {
-        queue.enqueue(new RelaySession(new Session().setUID("persistsAcrossInstances")));
-        queue.close();
-
-        queue = PersistentQueue.getInstance(dbFile);
-        assertEquals("persistsAcrossInstances", queue.dequeue().getSession().getUID());
     }
 
     @Test

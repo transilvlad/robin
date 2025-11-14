@@ -171,7 +171,7 @@ public class DovecotStorageProcessor implements StorageProcessor {
         log.debug("Enqueuing for action={}", dovecotConfig.getStringProperty("failureBehaviour"));
 
         // Queue for retry.
-        PersistentQueue.getInstance(new File(config.getQueue().getStringProperty("queueFile", RelayQueueCron.QUEUE_FILE.getAbsolutePath())))
+        PersistentQueue.getInstance()
                 .enqueue(relaySession);
     }
 

@@ -66,7 +66,7 @@ public class QueueOperationsHandler {
                 return;
             }
 
-            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
+            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance();
             int deletedCount = 0;
 
             // Handle single UID.
@@ -128,7 +128,7 @@ public class QueueOperationsHandler {
                 return;
             }
 
-            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
+            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance();
             List<RelaySession> items = queue.snapshot();
             List<String> targetUIDs = new ArrayList<>();
 
@@ -201,7 +201,7 @@ public class QueueOperationsHandler {
                 return;
             }
 
-            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
+            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance();
             List<String> targetUIDs = new ArrayList<>();
 
             // Collect target UIDs.

@@ -367,9 +367,6 @@ Below are concise examples for each auxiliary config file.
 `queue.json5` – Persistence & retry scheduling for failed outbound deliveries:
 
     {
-      // Queue file to use for persisting messages that could not be relayed.
-      queueFile: "/usr/local/robin/relayQueue.db",
-
       // Queue cron initial run delay (in seconds).
       queueInitialDelay: 10,
 
@@ -379,10 +376,15 @@ Below are concise examples for each auxiliary config file.
       // Maximum number of messages to attempt to relay per cron tick.
       maxDequeuePerTick: 10,
 
-      // Concurrency scale for parallel access.
-      // Increase this value to improve performance on high throughput systems.
-      // Must be the sum of all listeners max pool sizes (optionally plus 2 for the dequeue cron and queue/list endpoint).
-      concurrencyScale: 32
+      // MapDB backend configuration.
+      queueMapDB: {
+        enabled: true,
+        queueFile: "/usr/local/robin/relayQueue.db",
+        // Concurrency scale for parallel access.
+        // Increase this value to improve performance on high throughput systems.
+        // Must be the sum of all listeners max pool sizes (optionally plus 2 for the dequeue cron and queue/list endpoint).
+        concurrencyScale: 32
+      }
     }
 
 `prometheus.json5` – Remote write metrics push (disabled by default):

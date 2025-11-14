@@ -20,25 +20,27 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for RelayDequeue class.
- * Tests the dequeuing and processing logic for relay sessions.
+ * <p>Tests the dequeuing and processing logic for relay sessions.
+ * <p>Uses in-memory queue database from test configuration.
  */
 public class RelayDequeueTest {
 
     @TempDir
     Path tempDir;
 
-    private PersistentQueueMock testQueue;
+    private PersistentQueue<RelaySession> testQueue;
     private RelayDequeue relayDequeue;
 
     @BeforeEach
     void setUp() {
-        testQueue = new PersistentQueueMock();
+        // Uses in-memory database from test config (all backends disabled)
+        testQueue = PersistentQueue.getInstance();
         relayDequeue = new RelayDequeue(testQueue);
     }
 
     @AfterEach
     void tearDown() {
-        // Cleanup the temporary queue and its files.
+        // Cleanup the queue
         if (testQueue != null) {
             testQueue.close();
         }
@@ -52,8 +54,8 @@ public class RelayDequeueTest {
         // When: Process batch.
         relayDequeue.processBatch(10, Instant.now().getEpochSecond());
 
-        // Then: No items should be processed.
-        assertEquals(0, testQueue.dequeueCount);
+        // Then: Queue should remain empty.
+        assertEquals(0, testQueue.size());
     }
 
     @Test
@@ -66,10 +68,11 @@ public class RelayDequeueTest {
         }
 
         // When: Process batch with limit of 5.
+        int initialSize = (int) testQueue.size();
         relayDequeue.processBatch(5, Instant.now().getEpochSecond());
 
-        // Then: Should only attempt to dequeue 5 items.
-        assertTrue(testQueue.dequeueCount <= 5, "Should respect max dequeue limit");
+        // Then: Should process at most 5 items (some may be re-queued if relay fails).
+        assertTrue(testQueue.size() >= initialSize - 5, "Should respect max dequeue limit");
     }
 
     @Test

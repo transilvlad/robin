@@ -301,7 +301,7 @@ public class ApiEndpoint {
             QueueFiles.persistEnvelopeFiles(relaySession);
 
             // Enqueue for later relay.
-            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
+            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance();
             queue.enqueue(relaySession);
             long size = queue.size();
             log.info("Relay session queued: protocol={}, mailbox={}, queueSize={}", protocolOverride, mailboxOverride, size);
@@ -338,7 +338,7 @@ public class ApiEndpoint {
             Map<String, String> queryParams = parseQuery(exchange.getRequestURI());
             int page = 1;
             int limit = 50;
-            
+
             try {
                 if (queryParams.containsKey("page")) {
                     page = Math.max(1, Integer.parseInt(queryParams.get("page")));
@@ -350,15 +350,15 @@ public class ApiEndpoint {
                 log.warn("Invalid pagination parameters: {}", e.getMessage());
             }
 
-            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
+            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance();
             List<RelaySession> allItems = queue.snapshot();
-            
+
             // Calculate pagination.
             int total = allItems.size();
             int startIndex = (page - 1) * limit;
             int endIndex = Math.min(startIndex + limit, total);
             int totalPages = (int) Math.ceil((double) total / limit);
-            
+
             // Get page items.
             List<RelaySession> items = startIndex < total ? allItems.subList(startIndex, endIndex) : new ArrayList<>();
 
@@ -824,25 +824,25 @@ public class ApiEndpoint {
 
         StringBuilder pagination = new StringBuilder();
         pagination.append("<div class='pagination'>");
-        
+
         // Previous button.
         if (currentPage > 1) {
             pagination.append("<a href='?page=").append(currentPage - 1).append("&limit=").append(limit).append("'>&laquo; Previous</a> ");
         } else {
             pagination.append("<span class='disabled'>&laquo; Previous</span> ");
         }
-        
+
         // Page numbers (show up to 9 pages around current).
         int startPage = Math.max(1, currentPage - 4);
         int endPage = Math.min(totalPages, currentPage + 4);
-        
+
         if (startPage > 1) {
             pagination.append("<a href='?page=1&limit=").append(limit).append("'>1</a> ");
             if (startPage > 2) {
                 pagination.append("<span>...</span> ");
             }
         }
-        
+
         for (int p = startPage; p <= endPage; p++) {
             if (p == currentPage) {
                 pagination.append("<span class='current'>").append(p).append("</span> ");
@@ -850,21 +850,21 @@ public class ApiEndpoint {
                 pagination.append("<a href='?page=").append(p).append("&limit=").append(limit).append("'>").append(p).append("</a> ");
             }
         }
-        
+
         if (endPage < totalPages) {
             if (endPage < totalPages - 1) {
                 pagination.append("<span>...</span> ");
             }
             pagination.append("<a href='?page=").append(totalPages).append("&limit=").append(limit).append("'>").append(totalPages).append("</a> ");
         }
-        
+
         // Next button.
         if (currentPage < totalPages) {
             pagination.append("<a href='?page=").append(currentPage + 1).append("&limit=").append(limit).append("'>Next &raquo;</a>");
         } else {
             pagination.append("<span class='disabled'>Next &raquo;</span>");
         }
-        
+
         pagination.append("</div>");
         return pagination.toString();
     }
