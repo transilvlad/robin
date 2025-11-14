@@ -97,6 +97,9 @@ public class ServiceEndpoint {
         server.createContext("/", this::handleLandingPage);
         log.info("Landing available at http://localhost:{}/", port);
 
+        // Favicon.
+        server.createContext("/favicon.ico", this::handleFavicon);
+
         // Environment and system endpoints.
         server.createContext("/env", this::handleEnv);
         log.info("Environment variable available at http://localhost:{}/env", port);
@@ -143,6 +146,34 @@ public class ServiceEndpoint {
             sendResponse(exchange, 200, "text/html; charset=utf-8", response);
         } catch (IOException e) {
             log.error("Could not read service-endpoints-ui.html", e);
+            sendError(exchange, 500, "Internal Server Error");
+        }
+    }
+
+    /**
+     * Handles requests for the favicon.ico file.
+     *
+     * @param exchange The HTTP exchange object.
+     * @throws IOException If an I/O error occurs.
+     */
+    protected void handleFavicon(HttpExchange exchange) throws IOException {
+        log.trace("Handling /favicon.ico: method={}, uri={}, remote={}",
+                exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream("favicon.ico")) {
+            if (is == null) {
+                sendError(exchange, 404, "Not Found");
+                return;
+            }
+            byte[] faviconBytes = is.readAllBytes();
+            exchange.getResponseHeaders().set("Content-Type", "image/x-icon");
+            exchange.getResponseHeaders().set("Cache-Control", "public, max-age=86400");
+            exchange.sendResponseHeaders(200, faviconBytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(faviconBytes);
+            }
+            log.trace("Sent favicon: bytes={}", faviconBytes.length);
+        } catch (IOException e) {
+            log.error("Could not read favicon.ico", e);
             sendError(exchange, 500, "Internal Server Error");
         }
     }

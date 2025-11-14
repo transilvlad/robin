@@ -111,6 +111,9 @@ public class ApiEndpoint {
         // Landing page for API endpoint discovery.
         server.createContext("/", this::handleLandingPage);
 
+        // Favicon.
+        server.createContext("/favicon.ico", this::handleFavicon);
+
         // Main endpoint that triggers a Client.send(...) run for the supplied case.
         server.createContext("/client/send", this::handleClientSend);
 
@@ -169,6 +172,35 @@ public class ApiEndpoint {
             log.debug("Landing page served successfully");
         } catch (IOException e) {
             log.error("Could not read api-endpoints-ui.html", e);
+            sendText(exchange, 500, "Internal Server Error");
+        }
+    }
+
+    /**
+     * Handles requests for the favicon.ico file.
+     *
+     * @param exchange The HTTP exchange object.
+     * @throws IOException If an I/O error occurs.
+     */
+    private void handleFavicon(HttpExchange exchange) throws IOException {
+        log.trace("Handling /favicon.ico: method={}, uri={}, remote={}",
+                exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream("favicon.ico")) {
+            if (is == null) {
+                sendText(exchange, 404, "Not Found");
+                return;
+            }
+            byte[] faviconBytes = is.readAllBytes();
+            Headers headers = exchange.getResponseHeaders();
+            headers.set("Content-Type", "image/x-icon");
+            headers.set("Cache-Control", "public, max-age=86400");
+            exchange.sendResponseHeaders(200, faviconBytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(faviconBytes);
+            }
+            log.trace("Sent favicon: bytes={}", faviconBytes.length);
+        } catch (IOException e) {
+            log.error("Could not read favicon.ico", e);
             sendText(exchange, 500, "Internal Server Error");
         }
     }
