@@ -103,7 +103,6 @@ All backends share these common queue configuration options in `queue.json5`:
 | `queueInitialDelay` | Integer | 10 | Initial delay before queue processing starts (seconds) |
 | `queueInterval` | Integer | 30 | Interval between queue processing cycles (seconds) |
 | `maxDequeuePerTick` | Integer | 10 | Maximum messages to process per cycle |
-| `concurrencyScale` | Integer | 32 | Thread pool size for concurrent queue operations |
 
 ## Backend-Specific Options
 
@@ -140,7 +139,6 @@ All backends share these common queue configuration options in `queue.json5`:
   queueInitialDelay: 10,
   queueInterval: 30,
   maxDequeuePerTick: 10,
-  concurrencyScale: 32,
 
   queueMapDB: {
     enabled: true,
@@ -156,7 +154,6 @@ All backends share these common queue configuration options in `queue.json5`:
   queueInitialDelay: 10,
   queueInterval: 30,
   maxDequeuePerTick: 10,
-  concurrencyScale: 32,
 
   queueMapDB: {
     enabled: false
@@ -178,7 +175,6 @@ All backends share these common queue configuration options in `queue.json5`:
   queueInitialDelay: 10,
   queueInterval: 30,
   maxDequeuePerTick: 10,
-  concurrencyScale: 32,
 
   queueMapDB: {
     enabled: false
@@ -219,7 +215,7 @@ All queue backends implement the `QueueDatabase` interface, providing:
 - Clear all items
 
 ### SQL Backends
-MariaDB and PostgreSQL backends extend `AbstractSQLQueueDatabase`, which provides:
+MariaDB and PostgreSQL backends extend `SQLQueueDatabase`, which provides:
 - Automatic table creation on initialization
 - PreparedStatement usage to prevent SQL injection
 - Java object serialization for queue items

@@ -12,7 +12,7 @@ import java.io.Serializable;
  *
  * @param <T> Type of items stored in the queue, must be Serializable
  */
-public class QueuePgSQL<T extends Serializable> extends AbstractSQLQueueDatabase<T> {
+public class QueuePgSQL<T extends Serializable> extends SQLQueueDatabase<T> {
 
     /**
      * Constructs a new QueuePgSQL instance.

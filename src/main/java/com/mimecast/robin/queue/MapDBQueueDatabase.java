@@ -1,6 +1,5 @@
 package com.mimecast.robin.queue;
 
-import com.mimecast.robin.main.Config;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.mapdb.*;
@@ -8,9 +7,7 @@ import org.mapdb.serializer.SerializerJava;
 
 import java.io.File;
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * MapDB implementation of QueueDatabase.
@@ -23,6 +20,7 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
     private static final Logger log = LogManager.getLogger(MapDBQueueDatabase.class);
 
     private final File file;
+    private final int concurrencyScale;
     private DB db;
     private BTreeMap<Long, T> queue;
     private Atomic.Long seq;
@@ -31,15 +29,18 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
      * Constructs a new MapDBQueueDatabase instance.
      *
      * @param file The file to store the database.
+     * @param concurrencyScale The concurrency scale for MapDB (default: 32).
      */
-    public MapDBQueueDatabase(File file) {
+    public MapDBQueueDatabase(File file, int concurrencyScale) {
         this.file = file;
+        this.concurrencyScale = concurrencyScale;
     }
 
     /**
      * Initialize the database connection/resources.
      */
     @Override
+    @SuppressWarnings({"unchecked"})
     public void initialize() {
         // Check if this is a temp file (used in tests) to configure MapDB appropriately.
         boolean isTempFile = file.getAbsolutePath().contains("temp") ||
@@ -48,7 +49,7 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
 
         DBMaker.Maker dbMaker = DBMaker
                 .fileDB(file)
-                .concurrencyScale(Math.toIntExact(Config.getServer().getQueue().getLongProperty("concurrencyScale", 32L)))
+                .concurrencyScale(concurrencyScale)
                 .closeOnJvmShutdown();
 
         if (isTempFile) {
@@ -66,7 +67,7 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
         }
 
         this.seq = db.atomicLong("queue_seq").createOrOpen();
-        this.queue = db.treeMap("queue_map", Serializer.LONG, new SerializerJava()).createOrOpen();
+        this.queue = (BTreeMap<Long, T>) db.treeMap("queue_map", Serializer.LONG, new SerializerJava()).createOrOpen();
     }
 
     /**
@@ -186,11 +187,9 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
         if (uid == null) {
             return false;
         }
-
         for (Map.Entry<Long, T> entry : queue.entrySet()) {
             T item = entry.getValue();
-            if (item instanceof RelaySession) {
-                RelaySession relaySession = (RelaySession) item;
+            if (item instanceof RelaySession relaySession) {
                 if (uid.equals(relaySession.getUID())) {
                     queue.remove(entry.getKey());
                     db.commit();
@@ -210,25 +209,27 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
             return 0;
         }
 
-        int removed = 0;
-        for (String uid : uids) {
-            for (Map.Entry<Long, T> entry : queue.entrySet()) {
-                T item = entry.getValue();
-                if (item instanceof RelaySession) {
-                    RelaySession relaySession = (RelaySession) item;
-                    if (uid.equals(relaySession.getUID())) {
-                        queue.remove(entry.getKey());
-                        removed++;
-                        break;
-                    }
+        Set<String> uidSet = new HashSet<>(uids);
+        List<Long> keysToRemove = new ArrayList<>();
+
+        for (Map.Entry<Long, T> entry : queue.entrySet()) {
+            T item = entry.getValue();
+            if (item instanceof RelaySession relaySession) {
+                if (uidSet.contains(relaySession.getUID())) {
+                    keysToRemove.add(entry.getKey());
                 }
             }
         }
 
-        if (removed > 0) {
+        for (Long key : keysToRemove) {
+            queue.remove(key);
+        }
+
+        if (!keysToRemove.isEmpty()) {
             db.commit();
         }
-        return removed;
+
+        return keysToRemove.size();
     }
 
     /**

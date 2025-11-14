@@ -141,15 +141,11 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
      */
     @Override
     public boolean removeByUID(String uid) {
-        if (uid == null) {
-            return false;
-        }
-        
+        if (uid == null) return false;
         for (int i = 0; i < queue.size(); i++) {
             T item = queue.get(i);
-            if (item instanceof RelaySession) {
-                RelaySession relaySession = (RelaySession) item;
-                if (uid.equals(relaySession.getSession().getUID())) {
+            if (item instanceof RelaySession relaySession) {
+                if (uid.equals(relaySession.getUID())) {
                     queue.remove(i);
                     return true;
                 }
@@ -169,7 +165,6 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
         if (uids == null || uids.isEmpty()) {
             return 0;
         }
-        
         int removed = 0;
         for (String uid : uids) {
             if (removeByUID(uid)) {

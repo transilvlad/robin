@@ -5,8 +5,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.*;
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /**
  * Abstract base class for SQL-based queue database implementations.
@@ -20,9 +19,8 @@ import java.util.List;
  *
  * @param <T> Type of items stored in the queue, must be Serializable
  */
-public abstract class AbstractSQLQueueDatabase<T extends Serializable> implements QueueDatabase<T> {
-
-    private static final Logger log = LogManager.getLogger(AbstractSQLQueueDatabase.class);
+public abstract class SQLQueueDatabase<T extends Serializable> implements QueueDatabase<T> {
+    private static final Logger log = LogManager.getLogger(SQLQueueDatabase.class);
 
     protected Connection connection;
     protected final String tableName;
@@ -31,11 +29,11 @@ public abstract class AbstractSQLQueueDatabase<T extends Serializable> implement
     private final String password;
 
     /**
-     * Constructs a new AbstractSQLQueueDatabase instance.
+     * Constructs a new SQLQueueDatabase instance.
      *
      * @param config Database configuration including connection details
      */
-    protected AbstractSQLQueueDatabase(DBConfig config) {
+    protected SQLQueueDatabase(DBConfig config) {
         this.jdbcUrl = config.jdbcUrl;
         this.username = config.username;
         this.password = config.password;
@@ -216,17 +214,48 @@ public abstract class AbstractSQLQueueDatabase<T extends Serializable> implement
             return 0;
         }
         
-        int removed = 0;
-        List<Integer> sortedIndices = new ArrayList<>(indices);
-        sortedIndices.sort(Integer::compareTo);
-        
-        // Remove from highest index to lowest to avoid index shifting issues
-        for (int i = sortedIndices.size() - 1; i >= 0; i--) {
-            if (removeByIndex(sortedIndices.get(i))) {
-                removed++;
+        // Get all IDs first
+        String selectSQL = "SELECT id FROM " + tableName + " ORDER BY id";
+        List<Long> allIds = new ArrayList<>();
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(selectSQL)) {
+            while (rs.next()) {
+                allIds.add(rs.getLong("id"));
+            }
+        } catch (SQLException e) {
+            log.error("Failed to fetch IDs: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to fetch IDs", e);
+        }
+
+        // Collect IDs to delete
+        List<Long> idsToDelete = new ArrayList<>();
+        for (int index : indices) {
+            if (index >= 0 && index < allIds.size()) {
+                idsToDelete.add(allIds.get(index));
             }
         }
-        return removed;
+
+        if (idsToDelete.isEmpty()) {
+            return 0;
+        }
+
+        // Delete in a single batch query
+        StringBuilder placeholders = new StringBuilder();
+        for (int i = 0; i < idsToDelete.size(); i++) {
+            if (i > 0) placeholders.append(",");
+            placeholders.append("?");
+        }
+        String deleteSQL = "DELETE FROM " + tableName + " WHERE id IN (" + placeholders + ")";
+
+        try (PreparedStatement pstmt = connection.prepareStatement(deleteSQL)) {
+            for (int i = 0; i < idsToDelete.size(); i++) {
+                pstmt.setLong(i + 1, idsToDelete.get(i));
+            }
+            return pstmt.executeUpdate();
+        } catch (SQLException e) {
+            log.error("Failed to remove by indices: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to remove by indices", e);
+        }
     }
 
     @Override
@@ -234,21 +263,16 @@ public abstract class AbstractSQLQueueDatabase<T extends Serializable> implement
         if (uid == null) {
             return false;
         }
-        
         String selectSQL = "SELECT id, data FROM " + tableName + " ORDER BY id";
         String deleteSQL = "DELETE FROM " + tableName + " WHERE id = ?";
-        
         try (Statement stmt = connection.createStatement();
              ResultSet rs = stmt.executeQuery(selectSQL)) {
-            
             while (rs.next()) {
                 long id = rs.getLong("id");
                 byte[] data = rs.getBytes("data");
                 T item = deserialize(data);
-                
-                if (item instanceof RelaySession) {
-                    RelaySession relaySession = (RelaySession) item;
-                    if (uid.equals(relaySession.getSession().getUID())) {
+                if (item instanceof RelaySession relaySession) {
+                    if (uid.equals(relaySession.getUID())) {
                         try (PreparedStatement deleteStmt = connection.prepareStatement(deleteSQL)) {
                             deleteStmt.setLong(1, id);
                             return deleteStmt.executeUpdate() > 0;
@@ -269,13 +293,48 @@ public abstract class AbstractSQLQueueDatabase<T extends Serializable> implement
             return 0;
         }
         
-        int removed = 0;
-        for (String uid : uids) {
-            if (removeByUID(uid)) {
-                removed++;
+        Set<String> uidSet = new HashSet<>(uids);
+        String selectSQL = "SELECT id, data FROM " + tableName + " ORDER BY id";
+        List<Long> idsToDelete = new ArrayList<>();
+
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(selectSQL)) {
+            while (rs.next()) {
+                long id = rs.getLong("id");
+                byte[] data = rs.getBytes("data");
+                T item = deserialize(data);
+                if (item instanceof RelaySession relaySession) {
+                    if (uidSet.contains(relaySession.getUID())) {
+                        idsToDelete.add(id);
+                    }
+                }
             }
+        } catch (SQLException e) {
+            log.error("Failed to fetch items for UID removal: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to fetch items for UID removal", e);
         }
-        return removed;
+
+        if (idsToDelete.isEmpty()) {
+            return 0;
+        }
+
+        // Delete in a single batch query
+        StringBuilder placeholders = new StringBuilder();
+        for (int i = 0; i < idsToDelete.size(); i++) {
+            if (i > 0) placeholders.append(",");
+            placeholders.append("?");
+        }
+        String deleteSQL = "DELETE FROM " + tableName + " WHERE id IN (" + placeholders + ")";
+
+        try (PreparedStatement pstmt = connection.prepareStatement(deleteSQL)) {
+            for (int i = 0; i < idsToDelete.size(); i++) {
+                pstmt.setLong(i + 1, idsToDelete.get(i));
+            }
+            return pstmt.executeUpdate();
+        } catch (SQLException e) {
+            log.error("Failed to delete by UIDs: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to delete by UIDs", e);
+        }
     }
 
     @Override

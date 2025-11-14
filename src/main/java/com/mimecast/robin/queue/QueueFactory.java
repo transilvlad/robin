@@ -51,8 +51,9 @@ public class QueueFactory {
             BasicConfig mapDBConfig = new BasicConfig(queueConfig.getMapProperty("queueMapDB"));
             if (mapDBConfig.getBooleanProperty("enabled", true)) {
                 String queueFile = mapDBConfig.getStringProperty("queueFile", "/usr/local/robin/relayQueue.db");
+                int concurrencyScale = Math.toIntExact(mapDBConfig.getLongProperty("concurrencyScale", 32L));
                 log.info("Using MapDB queue backend with config file: {}", queueFile);
-                database = new MapDBQueueDatabase<>(new java.io.File(queueFile));
+                database = new MapDBQueueDatabase<>(new java.io.File(queueFile), concurrencyScale);
                 database.initialize();
                 return database;
             }

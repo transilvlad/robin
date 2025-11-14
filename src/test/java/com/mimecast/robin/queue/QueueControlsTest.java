@@ -17,14 +17,11 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestMethodOrder(MethodOrderer.MethodName.class)
 class QueueControlsTest {
 
-    static File dbFile;
     static PersistentQueue<RelaySession> queue;
 
     @BeforeAll
     static void before() {
-        dbFile = Paths.get(System.getProperty("java.io.tmpdir"), "test-" + UUID.randomUUID() + ".db").toFile();
-        dbFile.deleteOnExit();
-        queue = PersistentQueue.getInstance(dbFile);
+        queue = PersistentQueue.getInstance();
     }
 
     @AfterAll
