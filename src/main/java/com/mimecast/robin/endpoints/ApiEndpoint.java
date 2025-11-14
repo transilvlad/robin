@@ -64,7 +64,7 @@ import java.util.stream.Collectors;
  *   <li>{@link MessageEnvelope#getStream() stream} and internal <code>bytes</code> backing</li>
  * </ul>
  */
-public class ApiEndpoint {
+public class ApiEndpoint extends HttpEndpoint {
     private static final Logger log = LogManager.getLogger(ApiEndpoint.class);
 
     /**
@@ -73,10 +73,6 @@ public class ApiEndpoint {
      */
     private Gson gson;
 
-    /**
-     * HTTP Authentication handler for securing API endpoints.
-     */
-    private HttpAuth auth;
 
     /**
      * Queue operations handler for managing queue-related requests.
@@ -176,34 +172,6 @@ public class ApiEndpoint {
         }
     }
 
-    /**
-     * Handles requests for the favicon.ico file.
-     *
-     * @param exchange The HTTP exchange object.
-     * @throws IOException If an I/O error occurs.
-     */
-    private void handleFavicon(HttpExchange exchange) throws IOException {
-        log.trace("Handling /favicon.ico: method={}, uri={}, remote={}",
-                exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream("favicon.ico")) {
-            if (is == null) {
-                sendText(exchange, 404, "Not Found");
-                return;
-            }
-            byte[] faviconBytes = is.readAllBytes();
-            Headers headers = exchange.getResponseHeaders();
-            headers.set("Content-Type", "image/x-icon");
-            headers.set("Cache-Control", "public, max-age=86400");
-            exchange.sendResponseHeaders(200, faviconBytes.length);
-            try (OutputStream os = exchange.getResponseBody()) {
-                os.write(faviconBytes);
-            }
-            log.trace("Sent favicon: bytes={}", faviconBytes.length);
-        } catch (IOException e) {
-            log.error("Could not read favicon.ico", e);
-            sendText(exchange, 500, "Internal Server Error");
-        }
-    }
 
     /**
      * Handles <b>POST /client/send</b> requests.
@@ -605,62 +573,6 @@ public class ApiEndpoint {
         return out.toString();
     }
 
-    /**
-     * Sends a JSON response with the specified HTTP status code.
-     *
-     * @param exchange HTTP exchange.
-     * @param code     HTTP status code.
-     * @param json     JSON payload.
-     * @throws IOException If an I/O error occurs.
-     */
-    void sendJson(HttpExchange exchange, int code, String json) throws IOException {
-        Headers headers = exchange.getResponseHeaders();
-        headers.set("Content-Type", "application/json; charset=utf-8");
-        byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
-        exchange.sendResponseHeaders(code, bytes.length);
-        try (OutputStream os = exchange.getResponseBody()) {
-            os.write(bytes);
-        }
-        log.debug("Sent JSON response: status={}, bytes={}", code, bytes.length);
-    }
-
-    /**
-     * Sends a JSON response with the specified HTTP status code.
-     *
-     * @param exchange HTTP exchange.
-     * @param code     HTTP status code.
-     * @param html     HTML payload.
-     * @throws IOException If an I/O error occurs.
-     */
-    private void sendHtml(HttpExchange exchange, int code, String html) throws IOException {
-        Headers headers = exchange.getResponseHeaders();
-        headers.set("Content-Type", "text/html; charset=utf-8");
-        byte[] bytes = html.getBytes(StandardCharsets.UTF_8);
-        exchange.sendResponseHeaders(code, bytes.length);
-        try (OutputStream os = exchange.getResponseBody()) {
-            os.write(bytes);
-        }
-        log.trace("Sent HTML response: status={}, bytes={}", code, bytes.length);
-    }
-
-    /**
-     * Sends a plain text response with the specified HTTP status code.
-     *
-     * @param exchange HTTP exchange.
-     * @param code     HTTP status code.
-     * @param text     Plain text payload.
-     * @throws IOException If an I/O error occurs.
-     */
-    void sendText(HttpExchange exchange, int code, String text) throws IOException {
-        Headers headers = exchange.getResponseHeaders();
-        headers.set("Content-Type", "text/plain; charset=utf-8");
-        byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
-        exchange.sendResponseHeaders(code, bytes.length);
-        try (OutputStream os = exchange.getResponseBody()) {
-            os.write(bytes);
-        }
-        log.debug("Sent text response: status={}, bytes={}", code, bytes.length);
-    }
 
     /**
      * Reads the full request body into a string using UTF-8 encoding.
@@ -874,24 +786,5 @@ public class ApiEndpoint {
 
         pagination.append("</div>");
         return pagination.toString();
-    }
-
-    /**
-     * Reads a resource file from the classpath into a string.
-     *
-     * @param path The path to the resource file.
-     * @return The content of the file as a string.
-     * @throws IOException If the resource is not found or cannot be read.
-     */
-    protected String readResourceFile(String path) throws IOException {
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream(path)) {
-            if (is == null) {
-                throw new IOException("Resource not found: " + path);
-            }
-            try (InputStreamReader isr = new InputStreamReader(is, StandardCharsets.UTF_8);
-                 BufferedReader reader = new BufferedReader(isr)) {
-                return reader.lines().collect(Collectors.joining("\n"));
-            }
-        }
     }
 }

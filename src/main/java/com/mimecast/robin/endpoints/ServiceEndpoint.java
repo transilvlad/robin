@@ -34,15 +34,13 @@ import java.util.stream.Collectors;
  * <p>It provides metrics in Prometheus and Graphite formats, along with a simple web UI for visualization.
  * <p>Additionally, it offers endpoints for health checks, environment variables, system properties, thread dumps, and heap dumps.
  */
-public class ServiceEndpoint {
+public class ServiceEndpoint extends HttpEndpoint {
     private static final Logger log = LogManager.getLogger(ServiceEndpoint.class);
 
-    protected HttpServer server;
     private PrometheusMeterRegistry prometheusRegistry;
     private GraphiteMeterRegistry graphiteRegistry;
     private JvmGcMetrics jvmGcMetrics;
     protected final long startTime = System.currentTimeMillis();
-    protected HttpAuth auth;
 
     /**
      * Starts the embedded HTTP server for the service endpoint with endpoint configuration.
@@ -150,33 +148,6 @@ public class ServiceEndpoint {
         }
     }
 
-    /**
-     * Handles requests for the favicon.ico file.
-     *
-     * @param exchange The HTTP exchange object.
-     * @throws IOException If an I/O error occurs.
-     */
-    protected void handleFavicon(HttpExchange exchange) throws IOException {
-        log.trace("Handling /favicon.ico: method={}, uri={}, remote={}",
-                exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream("favicon.ico")) {
-            if (is == null) {
-                sendError(exchange, 404, "Not Found");
-                return;
-            }
-            byte[] faviconBytes = is.readAllBytes();
-            exchange.getResponseHeaders().set("Content-Type", "image/x-icon");
-            exchange.getResponseHeaders().set("Cache-Control", "public, max-age=86400");
-            exchange.sendResponseHeaders(200, faviconBytes.length);
-            try (OutputStream os = exchange.getResponseBody()) {
-                os.write(faviconBytes);
-            }
-            log.trace("Sent favicon: bytes={}", faviconBytes.length);
-        } catch (IOException e) {
-            log.error("Could not read favicon.ico", e);
-            sendError(exchange, 500, "Internal Server Error");
-        }
-    }
 
     /**
      * Handles requests for the metrics UI page.
@@ -341,41 +312,6 @@ public class ServiceEndpoint {
         sendResponse(exchange, 200, "application/json; charset=utf-8", response);
     }
 
-    /**
-     * Sends a successful HTTP response.
-     *
-     * @param exchange    The HTTP exchange object.
-     * @param code        The HTTP status code.
-     * @param contentType The content type of the response.
-     * @param response    The response body as a string.
-     * @throws IOException If an I/O error occurs.
-     */
-    protected void sendResponse(HttpExchange exchange, int code, String contentType, String response) throws IOException {
-        byte[] responseBytes = response.getBytes(StandardCharsets.UTF_8);
-        exchange.getResponseHeaders().set("Content-Type", contentType);
-        exchange.sendResponseHeaders(code, responseBytes.length);
-        try (OutputStream os = exchange.getResponseBody()) {
-            os.write(responseBytes);
-        }
-        log.trace("Sent response: status={}, contentType={}, bytes={}", code, contentType, responseBytes.length);
-    }
-
-    /**
-     * Sends an error HTTP response.
-     *
-     * @param exchange The HTTP exchange object.
-     * @param code     The HTTP error code.
-     * @param message  The error message.
-     * @throws IOException If an I/O error occurs.
-     */
-    protected void sendError(HttpExchange exchange, int code, String message) throws IOException {
-        byte[] responseBytes = message.getBytes(StandardCharsets.UTF_8);
-        exchange.sendResponseHeaders(code, responseBytes.length);
-        try (OutputStream os = exchange.getResponseBody()) {
-            os.write(responseBytes);
-        }
-        log.debug("Sent error response: status={}, bytes={}", code, responseBytes.length);
-    }
 
     /**
      * Registers shutdown hooks to gracefully close resources.
@@ -440,25 +376,6 @@ public class ServiceEndpoint {
             dump.append("\n");
         }
         return dump.toString();
-    }
-
-    /**
-     * Reads a resource file from the classpath into a string.
-     *
-     * @param path The path to the resource file.
-     * @return The content of the file as a string.
-     * @throws IOException If the resource is not found or cannot be read.
-     */
-    protected String readResourceFile(String path) throws IOException {
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream(path)) {
-            if (is == null) {
-                throw new IOException("Resource not found: " + path);
-            }
-            try (InputStreamReader isr = new InputStreamReader(is, StandardCharsets.UTF_8);
-                 BufferedReader reader = new BufferedReader(isr)) {
-                return reader.lines().collect(Collectors.joining("\n"));
-            }
-        }
     }
 }
 
