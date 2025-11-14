@@ -74,3 +74,42 @@ The following headers will enable additional functionalities within the Robin se
 
 - `X-Robin-Filename` - If a value is present and valid filename, this will be used to rename the stored eml file.
 - `X-Robin-Relay` - If a value is present and valid server name and optional port number emai will be relayed to it post receipt.
+- `X-Robin-Chaos` - If present and chaos headers are enabled, allows bypassing normal processing for testing exception scenarios.
+
+
+Magic chaos headers
+===================
+
+The `X-Robin-Chaos` header allows testing exception scenarios by bypassing normal processing and returning predefined results.
+
+**WARNING:** This feature is intended for testing purposes only. Do NOT enable in production environments.
+
+To enable chaos headers, set `chaosHeaders: true` in `server.json5`.
+
+The header value format is: `ClassName; param1=value1; param2=value2`
+
+Where:
+- `ClassName` - The implementation class where the action occurs (e.g., `LocalStorageClient`, `DovecotLdaClient`).
+- Parameters define the bypass behavior specific to each implementation.
+
+Multiple chaos headers can be present in the same email to test different scenarios.
+
+### Implementation examples
+
+**Bypass AVStorageProcessor:**
+```
+X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor:false
+```
+
+This bypasses the call to AVStorageProcessor and continues processing without virus scanning.
+
+**Simulate Dovecot LDA failure:**
+```
+X-Robin-Chaos: DovecotLdaClient; recipient=tony@example.com; result="1:storage full"
+```
+
+This bypasses the actual Dovecot LDA call for the specified recipient and returns the predefined result pair:
+- Exit code: `1` (failure)
+- Error message: `"storage full"`
+
+The result parameter format is: `"exitCode:errorMessage"`

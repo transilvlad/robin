@@ -5,6 +5,7 @@ import com.mimecast.robin.config.server.ServerConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.mime.EmailParser;
+import com.mimecast.robin.mime.headers.ChaosHeaders;
 import com.mimecast.robin.queue.PersistentQueue;
 import com.mimecast.robin.queue.QueueFiles;
 import com.mimecast.robin.queue.RelayQueueCron;
@@ -44,7 +45,7 @@ public class DovecotStorageProcessor implements StorageProcessor {
             return true; // Nothing to do, not an error.
         }
 
-        saveToDovecotLda(connection, config);
+        saveToDovecotLda(connection, emailParser, config);
 
         log.debug("Completed Dovecot storage processing for uid={}", connection.getSession().getUID());
         return true;
@@ -54,10 +55,11 @@ public class DovecotStorageProcessor implements StorageProcessor {
      * Save email to Dovecot LDA.
      *
      * @param connection Connection instance.
+     * @param emailParser EmailParser instance.
      * @param config     Server configuration.
      * @throws IOException If an I/O error occurs during processing.
      */
-    protected void saveToDovecotLda(Connection connection, ServerConfig config) throws IOException {
+    protected void saveToDovecotLda(Connection connection, EmailParser emailParser, ServerConfig config) throws IOException {
         if (!config.getDovecot().getBooleanProperty("saveToDovecotLda")) {
             log.debug("Dovecot LDA storage disabled by configuration (saveToDovecotLda=false). Skipping mailbox delivery.");
             return;
@@ -76,7 +78,7 @@ public class DovecotStorageProcessor implements StorageProcessor {
                 folder);
 
         // Invoke Dovecot LDA delivery.
-        getDovecotLdaClientInstance(connection)
+        getDovecotLdaClientInstance(connection, emailParser)
                 .send();
 
         // Retrieve transaction results.
@@ -192,5 +194,24 @@ public class DovecotStorageProcessor implements StorageProcessor {
                 .setMailbox(folder);
 
         return new DovecotLdaClient(relaySession);
+    }
+    
+    /**
+     * Get DovecotLdaClient instance with chaos headers.
+     * <p>Used internally when chaos headers are available.
+     *
+     * @param connection Connection instance.
+     * @param emailParser EmailParser instance for chaos headers.
+     * @return DovecotLdaClient instance.
+     */
+    protected DovecotLdaClient getDovecotLdaClientInstance(Connection connection, EmailParser emailParser) {
+        DovecotLdaClient client = getDovecotLdaClientInstance(connection);
+        
+        // Set chaos headers if enabled.
+        if (Config.getServer().isChaosHeaders() && emailParser != null) {
+            client.setChaosHeaders(new ChaosHeaders(emailParser));
+        }
+        
+        return client;
     }
 }

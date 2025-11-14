@@ -227,7 +227,12 @@ Example `server.json5` (core listeners & feature flags):
       // Users allowed to authorize to the server.
       // This feature should be used for testing only.
       // This is disabled by default for security reasons.
-      usersEnabled: false // See users.json5 for user definitions.
+      usersEnabled: false, // See users.json5 for user definitions.
+
+      // Chaos headers for testing exception scenarios.
+      // WARNING: Do NOT enable in production. This feature allows bypassing normal processing
+      // and is intended strictly for development and testing purposes.
+      chaosHeaders: false
     }
 
 **Service Authentication**: Configure `serviceUsername` and `servicePassword` to enable HTTP Basic Authentication for the service endpoint. 
@@ -586,4 +591,56 @@ Below are concise examples for each auxiliary config file.
       // Response to give clients (appears as success to the client).
       response: "250 Message accepted and will be processed"
     }
+
+
+Chaos Headers
+-------------
+
+The chaos headers feature allows testing exception scenarios by bypassing normal processing and returning predefined results.
+
+**WARNING:** This feature is intended for testing purposes only. Do NOT enable in production environments as it allows bypassing normal processing flows.
+
+### Configuration
+
+Enable chaos headers in `server.json5`:
+
+    {
+      // Chaos headers for testing exception scenarios.
+      // WARNING: Do NOT enable in production.
+      chaosHeaders: true
+    }
+
+### Usage
+
+Add `X-Robin-Chaos` headers to test emails with the format:
+
+    X-Robin-Chaos: ClassName; param1=value1; param2=value2
+
+Where:
+- `ClassName` - The implementation class where the action occurs.
+- Parameters define the bypass behavior.
+
+Multiple chaos headers can be present in the same email to test different scenarios.
+
+### Examples
+
+**Bypass AVStorageProcessor:**
+
+    X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor:false
+
+This bypasses the antivirus scanning processor and continues processing.
+
+**Simulate Dovecot LDA storage failure:**
+
+    X-Robin-Chaos: DovecotLdaClient; recipient=tony@example.com; result="1:storage full"
+
+This simulates a storage failure for the specified recipient with exit code `1` and error message `storage full`.
+
+**Test multiple scenarios:**
+
+    X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor:false
+    X-Robin-Chaos: DovecotLdaClient; recipient=user1@example.com; result="0:success"
+    X-Robin-Chaos: DovecotLdaClient; recipient=user2@example.com; result="1:quota exceeded"
+
+See [magic.md](magic.md) for complete chaos headers documentation.
 

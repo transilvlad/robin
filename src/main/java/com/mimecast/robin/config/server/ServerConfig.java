@@ -417,6 +417,17 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
+     * Is chaos headers enabled.
+     * <p>WARNING: This feature is intended for testing purposes only.
+     * Do NOT enable in production environments as it allows bypassing normal processing.
+     *
+     * @return Boolean (default: false).
+     */
+    public boolean isChaosHeaders() {
+        return getBooleanProperty("chaosHeaders", false);
+    }
+
+    /**
      * Applies magic replacement to string values in a configuration map.
      *
      * @param config Configuration map to process.

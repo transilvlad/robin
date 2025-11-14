@@ -1,6 +1,8 @@
 package com.mimecast.robin.queue.relay;
 
 import com.mimecast.robin.main.Config;
+import com.mimecast.robin.mime.headers.ChaosHeaders;
+import com.mimecast.robin.mime.headers.MimeHeader;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
@@ -27,6 +29,11 @@ public class DovecotLdaClient {
     private static final Logger log = LogManager.getLogger(DovecotLdaClient.class);
 
     private final RelaySession relaySession;
+    
+    /**
+     * Chaos headers for testing exceptions.
+     */
+    private ChaosHeaders chaosHeaders;
 
     /**
      * Constructs new DovecotLdaClient instance.
@@ -35,6 +42,17 @@ public class DovecotLdaClient {
      */
     public DovecotLdaClient(RelaySession relaySession) {
         this.relaySession = relaySession;
+    }
+
+    /**
+     * Sets chaos headers for testing.
+     *
+     * @param chaosHeaders ChaosHeaders instance.
+     * @return Self.
+     */
+    public DovecotLdaClient setChaosHeaders(ChaosHeaders chaosHeaders) {
+        this.chaosHeaders = chaosHeaders;
+        return this;
     }
 
     /**
@@ -153,6 +171,25 @@ public class DovecotLdaClient {
      * @throws InterruptedException On process interruption.
      */
     protected Pair<Integer, String> callDovecotLda(String recipient) throws IOException, InterruptedException {
+        // Check for chaos headers if enabled and present.
+        if (Config.getServer().isChaosHeaders() && chaosHeaders != null && chaosHeaders.hasHeaders()) {
+            for (MimeHeader header : chaosHeaders.getByValue("DovecotLdaClient")) {
+                String recipientParam = header.getParameter("recipient");
+                String resultParam = header.getParameter("result");
+                
+                if (recipientParam != null && resultParam != null && recipientParam.equalsIgnoreCase(recipient)) {
+                    // Parse result parameter: "exitCode:errorMessage"
+                    String[] parts = resultParam.split(":", 2);
+                    int exitCode = Integer.parseInt(parts[0]);
+                    String error = parts.length > 1 ? parts[1] : "";
+                    
+                    log.warn("Chaos header bypassing Dovecot LDA call for recipient: {} with result: exitCode={} error={}", 
+                             recipient, exitCode, error);
+                    return Pair.of(exitCode, error);
+                }
+            }
+        }
+        
         List<String> command = new ArrayList<>(Arrays.asList(
                 Config.getServer().getDovecot().getStringProperty("ldaBinary"),
                 "-d", recipient,

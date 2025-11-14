@@ -4,6 +4,7 @@ import com.mimecast.robin.config.server.ServerConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.mime.EmailParser;
+import com.mimecast.robin.mime.headers.ChaosHeaders;
 import com.mimecast.robin.mime.headers.MimeHeader;
 import com.mimecast.robin.queue.relay.RelayMessage;
 import com.mimecast.robin.smtp.connection.Connection;
@@ -167,7 +168,14 @@ public class LocalStorageClient implements StorageClient {
                     // Run storage processors.
                     for (Callable<StorageProcessor> storageProcessor : Factories.getStorageProcessors()) {
                         try {
-                            if (!storageProcessor.call().process(connection, parser)) {
+                            StorageProcessor processor = storageProcessor.call();
+                            
+                            // Check for chaos headers if enabled.
+                            if (config.isChaosHeaders() && processChaosHeader(processor)) {
+                                continue;
+                            }
+                            
+                            if (!processor.process(connection, parser)) {
                                 return false;
                             }
                         } catch (Exception e) {
@@ -213,6 +221,41 @@ public class LocalStorageClient implements StorageClient {
                 }
             }
         }
+    }
+
+    /**
+     * Processes chaos header for a storage processor.
+     * <p>Checks if there's a chaos header that matches the processor class name
+     * and bypasses the processor call based on the header parameters.
+     *
+     * @param processor The storage processor to check.
+     * @return True if processor should be bypassed, false otherwise.
+     */
+    private boolean processChaosHeader(StorageProcessor processor) {
+        ChaosHeaders chaosHeaders = new ChaosHeaders(parser);
+        
+        if (!chaosHeaders.hasHeaders()) {
+            return false;
+        }
+        
+        String processorClassName = processor.getClass().getSimpleName();
+        
+        // Check for chaos headers matching this processor class.
+        for (MimeHeader header : chaosHeaders.getByValue(processorClassName)) {
+            String callParam = header.getParameter("call");
+            
+            if (callParam != null) {
+                // Format: call=AVStorageProcessor:false
+                String[] parts = callParam.split(":", 2);
+                if (parts.length == 2 && parts[0].equals("AVStorageProcessor")) {
+                    boolean result = Boolean.parseBoolean(parts[1]);
+                    log.warn("Chaos header bypassing {} with call parameter result: {}", processorClassName, result);
+                    return true; // Bypass the processor call.
+                }
+            }
+        }
+        
+        return false;
     }
 
     /**
