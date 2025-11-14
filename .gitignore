@@ -6,3 +6,4 @@ log/
 store/
 target/
 store/
+*.class

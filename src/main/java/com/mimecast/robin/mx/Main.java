@@ -9,8 +9,8 @@ import com.mimecast.robin.mx.client.XBillDnsRecordClient;
 import com.mimecast.robin.mx.exception.*;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
+import org.apache.commons.cli.help.HelpFormatter;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.validator.ValidatorException;
 import org.apache.logging.log4j.Level;
@@ -252,15 +252,26 @@ public class Main {
         log(" Robin MTA-STS client tool");
         log("");
 
-        StringWriter out = new StringWriter();
-        PrintWriter pw = new PrintWriter(out);
+        // Capture System.out to get help output
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PrintStream ps = new PrintStream(baos);
+        PrintStream oldOut = System.out;
+        System.setOut(ps);
 
-        HelpFormatter formatter = new HelpFormatter();
-        formatter.printHelp(pw, 80, " ", "", options, formatter.getLeftPadding(), formatter.getDescPadding(), "", true);
+        try {
+            HelpFormatter formatter = HelpFormatter.builder()
+                .setShowSince(false)
+                .get();
+            formatter.printHelp(" ", "", options, "", true);
+            System.out.flush();
+        } catch (java.io.IOException e) {
+            // Should not happen with ByteArrayOutputStream
+            throw new RuntimeException(e);
+        } finally {
+            System.setOut(oldOut);
+        }
 
-        pw.flush();
-
-        log(out.toString());
+        log(baos.toString());
         log("");
     }
 
