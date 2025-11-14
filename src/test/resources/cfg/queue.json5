@@ -1,7 +1,4 @@
 {
-  // Queue file to use for persisting messages that could not be relayed.
-  queueFile: "/usr/local/robin/relayQueue.db",
-
   // Queue cron initial run delay (in seconds).
   queueInitialDelay: 10,
 
@@ -11,8 +8,18 @@
   // Maximum number of messages to attempt to relay per cron tick.
   maxDequeuePerTick: 10,
 
-  // Concurrency scale for parallel access.
-  // Increase this value to improve performance on high throughput systems.
-  // Must be the sum of all listeners max pool sizes (optionally plus 2 for the dequeue cron and queue/list endpoint).
-  concurrencyScale: 32
+  // MapDB backend configuration (disabled for tests - using in-memory instead).
+  queueMapDB: {
+    enabled: false
+  },
+
+  // MariaDB backend configuration (disabled for tests).
+  queueMariaDB: {
+    enabled: false
+  },
+
+  // PostgreSQL backend configuration (disabled for tests).
+  queuePgSQL: {
+    enabled: false
+  }
 }

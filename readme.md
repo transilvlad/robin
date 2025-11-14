@@ -64,6 +64,7 @@ Documentation
 
 ### Server
 - [Server configuration](doc/server.md)
+- [Queue Persistence](doc/queue.md) - Configurable queue backends (MapDB, MariaDB, PostgreSQL).
 - [HashiCorp Vault](doc/vault.md)
 - [SMTP webhooks](doc/webhooks.md)
 - [Endpoints](doc/endpoints.md) - JVM metrics implementation.

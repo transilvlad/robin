@@ -2,23 +2,24 @@ package com.mimecast.robin.queue;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * In-memory implementation of QueueDatabase for testing or temporary queues.
  * <p>This implementation does not persist data to disk and is lost on application restart.
+ * <p>Uses {@link CopyOnWriteArrayList} for thread-safe FIFO operations with indexed access support.
  *
  * @param <T> Type of items stored in the queue, must be Serializable
  */
 public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatabase<T> {
 
-    private final ConcurrentLinkedQueue<T> queue = new ConcurrentLinkedQueue<>();
-    private final AtomicLong size = new AtomicLong(0);
+    private final CopyOnWriteArrayList<T> queue = new CopyOnWriteArrayList<>();
 
     /**
      * Initialize the database connection/resources.
+     * <p>No initialization needed for in-memory implementation.
      */
     @Override
     public void initialize() {
@@ -32,32 +33,39 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
      */
     @Override
     public void enqueue(T item) {
-        queue.offer(item);
-        size.incrementAndGet();
+        queue.add(item);
     }
 
     /**
      * Remove and return the head of the queue, or null if empty.
+     *
+     * @return The head item or null if empty
      */
     @Override
     public T dequeue() {
-        T item = queue.poll();
-        if (item != null) {
-            size.decrementAndGet();
+        if (queue.isEmpty()) {
+            return null;
         }
-        return item;
+        return queue.remove(0);
     }
 
     /**
      * Peek at the head without removing.
+     *
+     * @return The head item or null if empty
      */
     @Override
     public T peek() {
-        return queue.peek();
+        if (queue.isEmpty()) {
+            return null;
+        }
+        return queue.get(0);
     }
 
     /**
      * Check if the queue is empty.
+     *
+     * @return true if the queue is empty
      */
     @Override
     public boolean isEmpty() {
@@ -66,14 +74,18 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
 
     /**
      * Get the size of the queue.
+     *
+     * @return The number of items in the queue
      */
     @Override
     public long size() {
-        return size.get();
+        return queue.size();
     }
 
     /**
      * Take a snapshot copy of current values for read-only inspection.
+     *
+     * @return Immutable list of all items in the queue
      */
     @Override
     public List<T> snapshot() {
@@ -82,26 +94,26 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
 
     /**
      * Remove an item from the queue by index (0-based).
+     *
+     * @param index The index of the item to remove
+     * @return true if item was removed, false if index was out of bounds
      */
     @Override
     public boolean removeByIndex(int index) {
-        if (index < 0) {
+        if (index < 0 || index >= queue.size()) {
             return false;
         }
-        List<T> items = new ArrayList<>(queue);
-        if (index >= items.size()) {
-            return false;
-        }
-        T item = items.get(index);
-        boolean removed = queue.remove(item);
-        if (removed) {
-            size.decrementAndGet();
-        }
-        return removed;
+        
+        queue.remove(index);
+        return true;
     }
 
     /**
      * Remove items from the queue by indices (0-based).
+     * <p>Indices are processed in descending order to avoid index shifting issues.
+     *
+     * @param indices The indices of items to remove
+     * @return Number of items successfully removed
      */
     @Override
     public int removeByIndices(List<Integer> indices) {
@@ -109,19 +121,14 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
             return 0;
         }
         
-        // Take snapshot and sort indices in descending order to avoid index shift issues
-        List<T> items = new ArrayList<>(queue);
+        // Sort indices in descending order to avoid index shifting issues
         List<Integer> sortedIndices = new ArrayList<>(indices);
-        sortedIndices.sort((a, b) -> b - a);
+        sortedIndices.sort(Comparator.reverseOrder());
         
         int removed = 0;
         for (int index : sortedIndices) {
-            if (index >= 0 && index < items.size()) {
-                T item = items.get(index);
-                if (queue.remove(item)) {
-                    size.decrementAndGet();
-                    removed++;
-                }
+            if (removeByIndex(index)) {
+                removed++;
             }
         }
         return removed;
@@ -129,21 +136,19 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
 
     /**
      * Remove an item from the queue by UID (for RelaySession).
+     *
+     * @param uid The UID of the item to remove
+     * @return true if item was removed, false if not found
      */
     @Override
     public boolean removeByUID(String uid) {
-        if (uid == null) {
-            return false;
-        }
-        
-        for (T item : queue) {
-            if (item instanceof RelaySession) {
-                RelaySession relaySession = (RelaySession) item;
+        if (uid == null) return false;
+        for (int i = 0; i < queue.size(); i++) {
+            T item = queue.get(i);
+            if (item instanceof RelaySession relaySession) {
                 if (uid.equals(relaySession.getUID())) {
-                    if (queue.remove(item)) {
-                        size.decrementAndGet();
-                        return true;
-                    }
+                    queue.remove(i);
+                    return true;
                 }
             }
         }
@@ -152,13 +157,15 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
 
     /**
      * Remove items from the queue by UIDs (for RelaySession).
+     *
+     * @param uids The UIDs of items to remove
+     * @return Number of items successfully removed
      */
     @Override
     public int removeByUIDs(List<String> uids) {
         if (uids == null || uids.isEmpty()) {
             return 0;
         }
-        
         int removed = 0;
         for (String uid : uids) {
             if (removeByUID(uid)) {
@@ -174,12 +181,11 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
     @Override
     public void clear() {
         queue.clear();
-        size.set(0);
     }
 
     /**
      * Close the database.
-     * For in-memory implementation, this clears the queue.
+     * <p>For in-memory implementation, this clears the queue.
      */
     @Override
     public void close() {

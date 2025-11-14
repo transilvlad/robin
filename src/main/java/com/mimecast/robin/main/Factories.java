@@ -5,8 +5,8 @@ import com.mimecast.robin.assertion.client.ExternalClient;
 import com.mimecast.robin.assertion.client.imap.ImapExternalClient;
 import com.mimecast.robin.assertion.client.logs.LogsExternalClient;
 import com.mimecast.robin.config.BasicConfig;
-import com.mimecast.robin.queue.MapDBQueueDatabase;
 import com.mimecast.robin.queue.QueueDatabase;
+import com.mimecast.robin.queue.QueueFactory;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.smtp.auth.DigestCache;
 import com.mimecast.robin.smtp.auth.StaticDigestCache;
@@ -334,21 +334,24 @@ public class Factories {
     }
 
     /**
-     * Sets QueueDatabase.
+     * Sets QueueDatabase callable for custom factory override.
+     * <p>Used primarily in tests to inject custom queue implementations.
      *
-     * @param callable QueueDatabase callable.
+     * @param callable QueueDatabase callable
      */
     public static void setQueueDatabase(Callable<QueueDatabase<RelaySession>> callable) {
         queueDatabase = callable;
     }
 
     /**
-     * Gets QueueDatabase.
+     * Gets QueueDatabase instance using configuration-based backend selection.
+     * <p>If a custom factory has been set via {@link #setQueueDatabase(Callable)}, uses that.
+     * Otherwise delegates to {@link QueueFactory#createQueueDatabase()} which selects backend
+     * based on configuration priority: MapDB → MariaDB → PostgreSQL → InMemory.
      *
-     * @param file The file to store the database.
-     * @return QueueDatabase instance.
+     * @return QueueDatabase instance
      */
-    public static QueueDatabase<RelaySession> getQueueDatabase(File file) {
+    public static QueueDatabase<RelaySession> getQueueDatabase() {
         if (queueDatabase != null) {
             try {
                 return queueDatabase.call();
@@ -357,9 +360,7 @@ public class Factories {
             }
         }
 
-        // Default to MapDB implementation
-        MapDBQueueDatabase<RelaySession> db = new MapDBQueueDatabase<>(file);
-        db.initialize();
-        return db;
+        // Use factory to select appropriate backend based on configuration
+        return QueueFactory.createQueueDatabase();
     }
 }

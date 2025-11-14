@@ -2,30 +2,17 @@ package com.mimecast.robin.queue;
 
 import com.mimecast.robin.main.Factories;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
-
-import java.io.File;
-import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Test class for the queue database factory system.
+ * <p>Tests use in-memory database (all backends disabled in test resources config).
  */
 class QueueDatabaseFactoryTest {
 
-    @TempDir
-    Path tempDir;
-
-    private File queueFile;
     private PersistentQueue<RelaySession> queue;
-
-    @BeforeEach
-    void setUp() {
-        queueFile = tempDir.resolve("test-queue.db").toFile();
-    }
 
     @AfterEach
     void tearDown() {
@@ -41,31 +28,25 @@ class QueueDatabaseFactoryTest {
     }
 
     @Test
-    void testDefaultMapDBImplementation() {
-        // When no custom factory is set, should use MapDB by default.
-        // But since this can cause file locking issues on Windows with temp directories,
-        // we'll just verify the queue can be created and basic operations work
-        queue = PersistentQueue.getInstance(queueFile);
+    void testDefaultInMemoryImplementation() {
+        // With test config, all backends are disabled, so should use in-memory
+        queue = PersistentQueue.getInstance();
 
         assertNotNull(queue);
         assertTrue(queue.isEmpty());
         assertEquals(0, queue.size());
-
-        // Test that we can close it properly
-        queue.close();
-        queue = null; // Don't let tearDown try to close it again
     }
 
     @Test
     void testInMemoryImplementation() {
-        // Set custom in-memory implementation
+        // Explicitly set in-memory implementation
         Factories.setQueueDatabase(() -> {
             InMemoryQueueDatabase<RelaySession> db = new InMemoryQueueDatabase<>();
             db.initialize();
             return db;
         });
 
-        queue = PersistentQueue.getInstance(queueFile);
+        queue = PersistentQueue.getInstance();
 
         // Test basic operations
         assertTrue(queue.isEmpty());
@@ -100,33 +81,33 @@ class QueueDatabaseFactoryTest {
             return db;
         });
 
-        queue = PersistentQueue.getInstance(queueFile);
+        queue = PersistentQueue.getInstance();
         RelaySession testSession = new RelaySession(null);
         queue.enqueue(testSession);
         assertEquals(1, queue.size());
         queue.close();
 
-        // Reset factory to null (should use default MapDB)
+        // Reset factory to null (should use default from config - in-memory for tests)
         Factories.setQueueDatabase(null);
 
-        // Create new queue instance - should use MapDB now
-        queue = PersistentQueue.getInstance(queueFile);
+        // Create new queue instance
+        queue = PersistentQueue.getInstance();
 
-        // The queue should be empty since we switched from in-memory to persistent
-        // and the in-memory data was lost
+        // The queue should be empty since it's a new instance
         assertNotNull(queue);
+        assertTrue(queue.isEmpty());
     }
 
     @Test
     void testSnapshotFunctionality() {
-        // Use in-memory for easier testing
+        // Use in-memory (default for tests)
         Factories.setQueueDatabase(() -> {
             InMemoryQueueDatabase<RelaySession> db = new InMemoryQueueDatabase<>();
             db.initialize();
             return db;
         });
 
-        queue = PersistentQueue.getInstance(queueFile);
+        queue = PersistentQueue.getInstance();
 
         // Add multiple items
         RelaySession session1 = new RelaySession(null);
