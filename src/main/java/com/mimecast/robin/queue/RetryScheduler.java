@@ -57,7 +57,7 @@ public class RetryScheduler {
         return (int) Math.round(FIRST_WAIT_MINUTES * Math.pow(GROWTH_FACTOR, retryCount)) * 60; // Return wait time in seconds.
     }
 
-    // Added getters to expose scheduler configuration for metrics/health.
+    // Added getters to expose scheduler configuration for service/health.
     public static int getTotalRetries() {
         return TOTAL_RETRIES;
     }

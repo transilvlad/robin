@@ -19,20 +19,67 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Extended metrics endpoint for Robin-specific statistics.
+ * Extended service endpoint for Robin-specific statistics.
  *
- * <p>This class extends {@link MetricsEndpoint} to add Robin-specific metrics including:
+ * <p>This class extends {@link ServiceEndpoint} to add Robin-specific metrics including:
  * <p>- SMTP listener thread pool statistics
  * <p>- Relay queue size and retry histogram
  * <p>- Retry scheduler configuration and cron execution stats
  * <p>- Metrics cron execution stats
  * <p>- Configuration reload via HTTP API endpoint
  */
-public class RobinMetricsEndpoint extends MetricsEndpoint {
-    private static final Logger log = LogManager.getLogger(RobinMetricsEndpoint.class);
+public class RobinServiceEndpoint extends ServiceEndpoint {
+    private static final Logger log = LogManager.getLogger(RobinServiceEndpoint.class);
 
     private static final Object CONFIG_RELOAD_LOCK = new Object();
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+
+    /**
+     * Overrides createContexts to add config endpoints at the top in landing page order.
+     * Organizes endpoints into logical groups: config, metrics, and system.
+     */
+    @Override
+    protected void createContexts() {
+        int port = server.getAddress().getPort();
+
+        // Landing page.
+        server.createContext("/", this::handleLandingPage);
+        log.info("Landing available at http://localhost:{}/", port);
+
+        // Config endpoints at the top (matching landing page order).
+        server.createContext("/config", this::handleConfigViewer);
+        log.info("Config viewer available at http://localhost:{}/config", port);
+
+        server.createContext("/config/reload", this::handleConfigReload);
+        log.info("Config reload available at http://localhost:{}/config/reload", port);
+
+        // System endpoints grouped under /system
+        server.createContext("/system/env", this::handleEnv);
+        log.info("Environment variables available at http://localhost:{}/system/env", port);
+
+        server.createContext("/system/props", this::handleSysProps);
+        log.info("System properties available at http://localhost:{}/system/props", port);
+
+        server.createContext("/system/threads", this::handleThreads);
+        log.info("Thread dump available at http://localhost:{}/system/threads", port);
+
+        server.createContext("/system/heapdump", this::handleHeapDump);
+        log.info("Heap dump available at http://localhost:{}/system/heapdump", port);
+
+        // Metrics endpoints grouped under /metrics
+        server.createContext("/metrics", this::handleMetricsUi);
+        log.info("Metrics UI available at http://localhost:{}/metrics", port);
+
+        server.createContext("/metrics/graphite", this::handleGraphite);
+        log.info("Graphite metrics available at http://localhost:{}/metrics/graphite", port);
+
+        server.createContext("/metrics/prometheus", this::handlePrometheus);
+        log.info("Prometheus metrics available at http://localhost:{}/metrics/prometheus", port);
+
+        // Health endpoint last
+        server.createContext("/health", this::handleHealth);
+        log.info("Health available at http://localhost:{}/health", port);
+    }
 
     /**
      * Handles requests for the application's health status with Robin-specific stats.
@@ -139,52 +186,6 @@ public class RobinMetricsEndpoint extends MetricsEndpoint {
     }
 
     /**
-     * Overrides createContexts to add config endpoints at the top in landing page order.
-     */
-    @Override
-    protected void createContexts() {
-        int port = server.getAddress().getPort();
-
-        // Landing page.
-        server.createContext("/", this::handleLandingPage);
-        log.info("Landing available at http://localhost:{}/", port);
-
-        // Config endpoints at the top (matching landing page order).
-        server.createContext("/config", this::handleConfigViewer);
-        log.info("Config viewer available at http://localhost:{}/config", port);
-
-        server.createContext("/config/reload", this::handleConfigReload);
-        log.info("Config reload available at http://localhost:{}/config/reload", port);
-
-        // Environment and system endpoints.
-        server.createContext("/env", this::handleEnv);
-        log.info("Environment variable available at http://localhost:{}/env", port);
-
-        server.createContext("/sysprops", this::handleSysProps);
-        log.info("System properties available at http://localhost:{}/sysprops", port);
-
-        server.createContext("/threads", this::handleThreads);
-        log.info("Threads dump available at http://localhost:{}/threads", port);
-
-        server.createContext("/heapdump", this::handleHeapDump);
-        log.info("Heap dump available at http://localhost:{}/heapdump", port);
-
-        // Metrics endpoints.
-        server.createContext("/metrics", this::handleMetricsUi);
-        log.info("UI available at http://localhost:{}/metrics", port);
-
-        server.createContext("/graphite", this::handleGraphite);
-        log.info("Graphite data available at http://localhost:{}/graphite", port);
-
-        server.createContext("/prometheus", this::handlePrometheus);
-        log.info("Prometheus data available at http://localhost:{}/prometheus", port);
-
-        // Health endpoint.
-        server.createContext("/health", this::handleHealth);
-        log.info("Health available at http://localhost:{}/health", port);
-    }
-
-    /**
      * Handles GET requests to display configuration viewer UI.
      * Shows properties and server configuration in formatted JSON with reload button.
      *
@@ -225,7 +226,7 @@ public class RobinMetricsEndpoint extends MetricsEndpoint {
      * Builds the HTML page for configuration viewer.
      *
      * @param propertiesJson Properties configuration as JSON string.
-     * @param serverJson Server configuration as JSON string.
+     * @param serverJson     Server configuration as JSON string.
      * @return Complete HTML page.
      */
     private String buildConfigViewerHtml(String propertiesJson, String serverJson) {
@@ -326,7 +327,6 @@ public class RobinMetricsEndpoint extends MetricsEndpoint {
                 .replace("\"", "&quot;")
                 .replace("'", "&#39;");
     }
-
 
     /**
      * Handles POST requests to reload server configuration.

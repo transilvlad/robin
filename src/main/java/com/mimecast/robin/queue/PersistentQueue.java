@@ -92,7 +92,7 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
     }
 
     /**
-     * Take a snapshot copy of current values for read-only inspection (e.g., metrics/health).
+     * Take a snapshot copy of current values for read-only inspection (e.g., service/health).
      */
     public List<T> snapshot() {
         return database.snapshot();

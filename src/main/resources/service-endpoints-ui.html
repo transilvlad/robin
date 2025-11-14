@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Diagnostic Endpoints</title>
+    <title>Service Endpoints</title>
     <style>
         body { font-family: sans-serif; margin: 2em; background-color: #fdfdfd; color: #333; }
         ul { list-style-type: none; padding: 0; }
@@ -36,17 +36,17 @@
       <path fill="#6D6D70" d="M461 507c4 0 7 2 10 4h-7l-3-1-2-1 2-2Z"/>
       <path fill="#C6C5C7" d="M434 498h9l1 3-11-1 1-2Z"/>
     </svg>
-    <h1>Diagnostic Endpoints</h1>
+    <h1>Service Endpoints</h1>
 </header>
 <ul>
     <li><a href="/config"><code>/config</code></a><span class="description">- Configuration viewer and reload</span></li>
-    <li><a href="/env"><code>/env</code></a><span class="description">- System environment variables</span></li>
-    <li><a href="/sysprops"><code>/sysprops</code></a><span class="description">- Java system properties</span></li>
-    <li><a href="/threads"><code>/threads</code></a><span class="description">- Thread dump endpoint</span></li>
-    <li><a href="/heapdump"><code>/heapdump</code></a><span class="description">- Triggers a heap dump</span></li>
+    <li><a href="/system/env"><code>/system/env</code></a><span class="description">- System environment variables</span></li>
+    <li><a href="/system/props"><code>/system/props</code></a><span class="description">- Java system properties</span></li>
+    <li><a href="/system/threads"><code>/system/threads</code></a><span class="description">- Thread dump endpoint</span></li>
+    <li><a href="/system/heapdump"><code>/system/heapdump</code></a><span class="description">- Triggers a heap dump</span></li>
     <li><a href="/metrics"><code>/metrics</code></a><span class="description">- Metrics UI</span></li>
-    <li><a href="/graphite"><code>/graphite</code></a><span class="description">- Graphite data endpoint</span></li>
-    <li><a href="/prometheus"><code>/prometheus</code></a><span class="description">- Prometheus data endpoint</span></li>
+    <li><a href="/metrics/graphite"><code>/metrics/graphite</code></a><span class="description">- Graphite data endpoint</span></li>
+    <li><a href="/metrics/prometheus"><code>/metrics/prometheus</code></a><span class="description">- Prometheus data endpoint</span></li>
     <li><a href="/health"><code>/health</code></a><span class="description">- Application health status</span></li>
 </ul>
 </body>

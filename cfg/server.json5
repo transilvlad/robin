@@ -94,9 +94,9 @@
   // Allow self-signed certificates (default: false).
   allowSelfSigned: true,
 
-  // Metrics endpoint configuration.
-  metrics: {
-    // Port for metrics endpoint.
+  // Service endpoint configuration.
+  service: {
+    // Port for service endpoint.
     port: 8080,
 
     // Authentication type: none, basic, bearer.

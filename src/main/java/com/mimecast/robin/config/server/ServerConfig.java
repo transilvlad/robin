@@ -224,12 +224,12 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
-     * Gets metrics endpoint configuration.
+     * Gets service endpoint configuration.
      *
-     * @return EndpointConfig instance for metrics.
+     * @return EndpointConfig instance for service.
      */
-    public EndpointConfig getMetrics() {
-        return getEndpointConfig("metrics", 8080);
+    public EndpointConfig getService() {
+        return getEndpointConfig("service");
     }
 
     /**
@@ -238,17 +238,16 @@ public class ServerConfig extends ConfigFoundation {
      * @return EndpointConfig instance for API.
      */
     public EndpointConfig getApi() {
-        return getEndpointConfig("api", 8090);
+        return getEndpointConfig("api");
     }
 
     /**
      * Gets endpoint configuration with magic replacement applied.
      *
-     * @param key         Configuration key (metrics or api).
-     * @param defaultPort Default port if not configured.
+     * @param key         Configuration key (service or api).
      * @return EndpointConfig instance.
      */
-    private EndpointConfig getEndpointConfig(String key, int defaultPort) {
+    private EndpointConfig getEndpointConfig(String key) {
         if (map.containsKey(key) && map.get(key) instanceof Map) {
             Map<String, Object> endpointMap = getMapProperty(key);
             Map<String, Object> processedMap = applyMagicToConfig(endpointMap);

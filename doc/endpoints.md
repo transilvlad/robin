@@ -1,19 +1,17 @@
 Monitoring Endpoints
 ====================
 
-This document outlines the monitoring and metrics endpoints provided by the application.
+This document outlines the monitoring and service endpoints provided by the application.
 These endpoints are served by a lightweight HTTP server and provide insights into the application's performance and state.
 
-All endpoints are available under the port configured in `server.json5` - `metricsPort` parameter.
-
-<img src="img/endpoint-metrics.jpg" alt="Metrics Endpoints Diagram" style="max-width: 1200px;"/>
+<img src="img/endpoint-service.jpg" alt="Service Endpoints Diagram" style="max-width: 1200px;"/>
 
 Authentication
 --------------
 
-The metrics endpoints support HTTP authentication for securing access to sensitive metrics and diagnostic information.
+The service endpoints support HTTP authentication for securing access to sensitive configuration, metrics and diagnostic information.
 
-To enable authentication, configure the `metrics` object in `server.json5`.
+To enable authentication, configure the `service` object in `server.json5`.
 Make use of magic to load secrets, see [Secrets, magic and Local Secrets File](secrets.md).
 
 **Do NOT commit real secrets into the repository!!!**
@@ -22,7 +20,7 @@ Make use of magic to load secrets, see [Secrets, magic and Local Secrets File](s
 
 ```json5
 {
-  metrics: {
+  service: {
     port: 8080,
     
     // Authentication type: none, basic, bearer
@@ -31,7 +29,7 @@ Make use of magic to load secrets, see [Secrets, magic and Local Secrets File](s
     // Authentication value
     // For basic: "username:password"
     // For bearer: "token"
-    authValue: "{$metricsUsername}:{$metricsPassword}",
+    authValue: "{$serviceUsername}:{$servicePassword}",
     
     // IP addresses or CIDR blocks allowed without authentication
     allowList: [
@@ -67,7 +65,7 @@ When both authentication and an allow list are configured:
 **Basic Authentication:**
 ```json5
 {
-  metrics: {
+  service: {
     port: 8080,
     authType: "basic",
     authValue: "admin:secretPassword123"
@@ -78,7 +76,7 @@ When both authentication and an allow list are configured:
 **Bearer Token Authentication:**
 ```json5
 {
-  metrics: {
+  service: {
     port: 8080,
     authType: "bearer",
     authValue: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
@@ -89,7 +87,7 @@ When both authentication and an allow list are configured:
 **IP Allow List Only (Local Access):**
 ```json5
 {
-  metrics: {
+  service: {
     port: 8080,
     authType: "none",
     allowList: ["127.0.0.1", "::1"]
@@ -100,10 +98,10 @@ When both authentication and an allow list are configured:
 **Combined Authentication and Allow List:**
 ```json5
 {
-  metrics: {
+  service: {
     port: 8080,
     authType: "bearer",
-    authValue: "{$metricsToken}",
+    authValue: "{$serviceToken}",
     allowList: ["10.0.0.0/8"]
   }
 }
@@ -113,15 +111,23 @@ When authentication is enabled, all endpoints except `/health` require valid cre
 
 Endpoints
 ---------
-The following endpoints are available:
+
+The service endpoints are provided by two classes:
+
+1. **ServiceEndpoint** - Base class providing standard endpoints at root level
+2. **RobinMetricsEndpoint** - Robin's implementation that overrides and reorganizes endpoints into logical groups
+
+ServiceEndpoint Base Paths
+--------------------------
+When using the base `ServiceEndpoint` directly, endpoints are available at:
 
 - **/** - Provides a simple discovery mechanism by listing all available endpoints.
     - **Content-Type**: `text/html; charset=utf-8`
 
-- **/metrics** - This UI fetches data from the `/metrics` endpoint and renders it as a series of charts. It is built using the Chart.js library for visualization.
+- **/metrics** - Metrics UI that fetches data from the `/graphite` endpoint and renders it as a series of charts using Chart.js.
     - **Content-Type**: `text/html; charset=utf-8`
 
-- **/graphite** - Exposes metrics in the Graphite format. This format is suitable for consumption by Graphite servers and other compatible monitoring tools.
+- **/metrics/graphite** - Exposes metrics in the Graphite format. This format is suitable for consumption by Graphite servers and other compatible monitoring tools.
     - **Content-Type**: `text/plain`
     - **Example**:
         ```
@@ -130,7 +136,7 @@ The following endpoints are available:
         process_cpu_usage 0.015625 1678886400
         ```
 
-- **/prometheus** - Exposes metrics in the Prometheus exposition format, suitable for consumption by Prometheus servers.
+- **/metrics/prometheus** - Exposes metrics in the Prometheus exposition format, suitable for consumption by Prometheus servers.
     - **Content-Type**: `text/plain`
     - **Example**:
         ```
@@ -164,22 +170,74 @@ The following endpoints are available:
 
 - **/threads** - Provides a standard Java thread dump, which is useful for diagnosing deadlocks, contention, or other threading-related issues. The format is similar to what `jstack` would produce.
     - **Content-Type**: `text/plain; charset=utf-8`
-    - **Example**:
-        ```
-        "main" #1 prio=5 state=RUNNABLE
-           at java.base@11.0.12/java.lang.Thread.dumpThreads(Native Method)
-           at java.base@11.0.12/java.lang.Thread.getAllStackTraces(Thread.java:1610)
-           ...
 
-        "Reference Handler" #2 prio=10 state=RUNNABLE
-           at java.base@11.0.12/java.lang.ref.Reference.waitForReferencePendingList(Native Method)
-           at java.base@11.0.12/java.lang.ref.Reference.processPendingReferences(Reference.java:241)
-           ...
-        ```
-
-- **`/heapdump`** - Triggers a heap dump programmatically and saves it to a file in the application's working directory. This is an advanced diagnostic tool for memory leak analysis.
+- **`/heapdump`** - Triggers a heap dump programmatically and saves it to a file. This is an advanced diagnostic tool for memory leak analysis.
     - **Content-Type**: `text/plain`
+
+- **/health** - Returns the application's health status (always available, no authentication required).
+    - **Content-Type**: `application/json; charset=utf-8`
     - **Example**:
+        ```json
+        {"status":"UP", "uptime":"0d 0h 5m 32s"}
+        ```
+
+RobinMetricsEndpoint Reorganized Paths
+--------------------------------------
+When using Robin's `RobinMetricsEndpoint`, endpoints are reorganized into logical groups:
+
+**Configuration Endpoints:**
+
+- **/config** - Configuration viewer UI showing current `properties.json5` and `server.json5` configurations in formatted JSON with reload button.
+    - **Content-Type**: `text/html; charset=utf-8`
+
+- **/config/reload** - Triggers immediate reload of configuration files via POST request (thread-safe, uses single-threaded scheduler).
+    - **Method**: `POST`
+    - **Content-Type**: `application/json; charset=utf-8`
+    - **Success Response**:
+        ```json
+        {"status":"OK", "message":"Configuration reloaded successfully"}
+        ```
+    - **Error Response**:
+        ```json
+        {"status":"ERROR", "message":"Failed to reload configuration: <error details>"}
+        ```
+
+**System Endpoints** (grouped under `/system/`):
+
+- **/system/env** - Exposes the system environment variables.
+    - **Content-Type**: `text/plain; charset=utf-8`
+
+- **/system/props** - Exposes the Java system properties.
+    - **Content-Type**: `text/plain; charset=utf-8`
+
+- **/system/threads** - Provides a Java thread dump.
+    - **Content-Type**: `text/plain; charset=utf-8`
+
+- **/system/heapdump** - Triggers the creation of a heap dump file.
+    - **Content-Type**: `text/plain`
+
+**Metrics Endpoints** (grouped under `/metrics/`):
+
+- **/metrics** - Metrics UI that fetches data from the `/metrics/graphite` endpoint and renders charts using Chart.js.
+    - **Content-Type**: `text/html; charset=utf-8`
+
+- **/metrics/graphite** - Exposes metrics in Graphite format.
+    - **Content-Type**: `text/plain`
+
+- **/metrics/prometheus** - Exposes metrics in Prometheus exposition format.
+    - **Content-Type**: `text/plain`
+
+**Core Endpoints:**
+
+- **/** - Provides a simple discovery mechanism by listing all available endpoints.
+    - **Content-Type**: `text/html; charset=utf-8`
+
+- **/health** - Returns the application's health status with Robin-specific statistics (always available, no authentication required).
+    - **Content-Type**: `application/json; charset=utf-8`
+    - **Example**:
+        ```json
+        {"status":"UP", "uptime":"0d 0h 5m 32s", "listeners":[...], "queue":{...}, "scheduler":{...}, "metricsCron":{...}}
+        ```
         ```
         Heap dump created at: heapdump-1678886400000.hprof
         ```
@@ -445,44 +503,47 @@ Examples
 Library Usage
 =============
 
-`MetricsEndpoint` can be used as a standalone library in other Java applications to expose metrics and monitoring endpoints.
+`ServiceEndpoint` can be used as a standalone library in other Java applications to expose configmetrics and monitoring endpoints.
 
 Basic Usage
 -----------
 
-To integrate `MetricsEndpoint` into your application:
+To integrate `ServiceEndpoint` into your application:
 
 ```java
-import com.mimecast.robin.endpoints.MetricsEndpoint;
+import com.mimecast.robin.endpoints.ServiceEndpoint;
 
 // In your application initialization method:
-MetricsEndpoint metricsEndpoint = new MetricsEndpoint();
-metricsEndpoint.start(8080); // Start on port 8080.
+ServiceEndpoint serviceEndpoint = new ServiceEndpoint();
+serviceEndpoint.
+
+        start(8080); // Start on port 8080.
 ```
 
-The endpoint will expose all standard monitoring endpoints (`/metrics`, `/prometheus`, `/graphite`, `/health`, etc.) on the specified port.
+The endpoint will expose all standard service endpoints (`/config`, `/config/reload`, `/metrics`, `/metrics/prometheus`, `/metrics/graphite`, `/system/env`, `/system/sysprops`, `/system/threads`, `/system/heapdump`, `/health`, etc.) on the specified port when using ServiceEndpoint directly.
 
-Extending MetricsEndpoint
---------------------------
+Extending ServiceEndpoint
+-------------------------
 
-To create a custom metrics endpoint with application-specific statistics, extend `MetricsEndpoint`:
+To create a custom service endpoint with application-specific statistics, extend `ServiceEndpoint`:
 
 ```java
-import com.mimecast.robin.endpoints.MetricsEndpoint;
+import com.mimecast.robin.endpoints.ServiceEndpoint;
 import com.sun.net.httpserver.HttpExchange;
+
 import java.io.IOException;
 import java.time.Duration;
 
-public class CustomMetricsEndpoint extends MetricsEndpoint {
+public class CustomServiceEndpoint extends ServiceEndpoint {
     @Override
     protected void handleHealth(HttpExchange exchange) throws IOException {
         // Call parent implementation or create custom response.
         Duration uptime = Duration.ofMillis(System.currentTimeMillis() - startTime);
         String customStats = ""; // Your custom JSON metrics here.
         String response = String.format(
-            "{\"status\":\"UP\", \"uptime\":\"%s\", \"customData\":%s}",
-            uptime, customStats);
-        
+                "{\"status\":\"UP\", \"uptime\":\"%s\", \"customData\":%s}",
+                uptime, customStats);
+
         sendResponse(exchange, 200, "application/json; charset=utf-8", response);
     }
 }
@@ -491,7 +552,7 @@ public class CustomMetricsEndpoint extends MetricsEndpoint {
 Protected Methods and Fields
 ----------------------------
 
-`MetricsEndpoint` provides the following protected members for extension:
+`ServiceEndpoint` provides the following protected members for extension:
 
 - `protected HttpServer server` - The underlying HTTP server instance for context creation.
 - `protected final long startTime` - Application start time in milliseconds.

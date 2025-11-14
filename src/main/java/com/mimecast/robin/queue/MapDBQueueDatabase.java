@@ -118,7 +118,7 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
     }
 
     /**
-     * Take a snapshot copy of current values for read-only inspection (e.g., metrics/health).
+     * Take a snapshot copy of current values for read-only inspection (e.g., service/health).
      */
     @Override
     public List<T> snapshot() {

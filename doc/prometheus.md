@@ -64,7 +64,7 @@ Quick start
 }
 ```
 
-2. Start Robin normally. The push cron will begin after the metrics endpoint initializes.
+2. Start Robin normally. The push cron will begin after the service endpoint initializes.
 
 3. Verify on your backend that series are received (check tenant/headers if using a multi-tenant setup).
 
@@ -269,28 +269,32 @@ Important Notes
 - **Metric Name Normalization**: Metric names use underscores instead of dots in the include/exclude filters.
   - Example: filter `^jvm_memory_.*` matches Micrometer metric `jvm.memory.used`.
 
-Example: Integration with MetricsEndpoint
------------------------------------------
+Example: Integration with ServiceEndpoint
+-------------------------------------------
 
-If you're already using `MetricsEndpoint` in your application, you can add Prometheus remote write without additional registry setup:
+If you're already using `ServiceEndpoint` in your application, you can add Prometheus remote write without additional registry setup:
 
 ```java
-import com.mimecast.robin.endpoints.MetricsEndpoint;
-import com.mimecast.robin.metrics.MetricsCron;
+import com.mimecast.robin.endpoints.ServiceEndpoint;
+import com.mimecast.robin.endpoints.ServiceEndpoint;
 import com.mimecast.robin.config.BasicConfig;
 
-// Start metrics endpoint.
-MetricsEndpoint metricsEndpoint = new MetricsEndpoint();
-metricsEndpoint.start(8090);
+// Start service endpoint.
+ServiceEndpoint serviceEndpoint = new ServiceEndpoint();
+serviceEndpoint.
 
-// Configure and start Prometheus remote write.
-Map<String, Object> prometheusConfig = Map.of(
-    "enabled", true,
-    "remoteWriteUrl", "http://localhost:9201/api/v1/write",
-    "intervalSeconds", 15,
-    "labels", Map.of("job", "my-app")
-);
-MetricsCron.run(new BasicConfig(prometheusConfig));
+        start(8090);
+
+        // Configure and start Prometheus remote write.
+        Map<String, Object> prometheusConfig = Map.of(
+                "enabled", true,
+                "remoteWriteUrl", "http://localhost:9201/api/v1/write",
+                "intervalSeconds", 15,
+                "labels", Map.of("job", "my-app")
+        );
+MetricsCron.
+
+        run(new BasicConfig(prometheusConfig));
 // Now metrics are both scraped at /prometheus and pushed to the remote backend.
 ```
 

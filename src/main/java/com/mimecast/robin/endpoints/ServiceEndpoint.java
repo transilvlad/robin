@@ -28,14 +28,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
- * Monitoring and management endpoint.
+ * Monitoring and management service endpoint.
  *
  * <p>This class sets up an embedded HTTP server to expose various application metrics and operational endpoints.
  * <p>It provides metrics in Prometheus and Graphite formats, along with a simple web UI for visualization.
  * <p>Additionally, it offers endpoints for health checks, environment variables, system properties, thread dumps, and heap dumps.
  */
-public class MetricsEndpoint {
-    private static final Logger log = LogManager.getLogger(MetricsEndpoint.class);
+public class ServiceEndpoint {
+    private static final Logger log = LogManager.getLogger(ServiceEndpoint.class);
 
     protected HttpServer server;
     private PrometheusMeterRegistry prometheusRegistry;
@@ -45,7 +45,7 @@ public class MetricsEndpoint {
     protected HttpAuth auth;
 
     /**
-     * Starts the embedded HTTP server for the metrics and management endpoint with endpoint configuration.
+     * Starts the embedded HTTP server for the service endpoint with endpoint configuration.
      * <p>This method initializes metric registries, binds JVM metrics, creates HTTP contexts for all endpoints,
      * and sets up shutdown hooks for graceful termination.
      *
@@ -53,14 +53,15 @@ public class MetricsEndpoint {
      * @throws IOException If an I/O error occurs during server startup.
      */
     public void start(EndpointConfig config) throws IOException {
-        this.auth = new HttpAuth(config, "Metrics Endpoint");
+        this.auth = new HttpAuth(config, "Service Endpoint");
 
         prometheusRegistry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
         graphiteRegistry = getGraphiteMeterRegistry();
         MetricsRegistry.register(prometheusRegistry, graphiteRegistry);
         bindJvmMetrics();
 
-       server = HttpServer.create(new InetSocketAddress(config.getPort(8080)), 10);
+        int metricsPort = config.getPort(8080);
+        server = HttpServer.create(new InetSocketAddress(metricsPort), 10);
         createContexts();
         shutdownHooks();
 
@@ -90,7 +91,7 @@ public class MetricsEndpoint {
      * Creates and registers HTTP context handlers for all supported endpoints.
      */
     protected void createContexts() {
-        int port = server.getAddress().getPort();
+        int port = ((InetSocketAddress) server.getAddress()).getPort();
 
         // Landing page.
         server.createContext("/", this::handleLandingPage);
@@ -113,11 +114,11 @@ public class MetricsEndpoint {
         server.createContext("/metrics", this::handleMetricsUi);
         log.info("UI available at http://localhost:{}/metrics", port);
 
-        server.createContext("/graphite", this::handleGraphite);
-        log.info("Graphite data available at http://localhost:{}/graphite", port);
+        server.createContext("/metrics/graphite", this::handleGraphite);
+        log.info("Graphite data available at http://localhost:{}/metrics/graphite", port);
 
-        server.createContext("/prometheus", this::handlePrometheus);
-        log.info("Prometheus data available at http://localhost:{}/prometheus", port);
+        server.createContext("/metrics/prometheus", this::handlePrometheus);
+        log.info("Prometheus data available at http://localhost:{}/metrics/prometheus", port);
 
         // Health endpoint.
         server.createContext("/health", this::handleHealth);
@@ -131,17 +132,17 @@ public class MetricsEndpoint {
      * @throws IOException If an I/O error occurs.
      */
     protected void handleLandingPage(HttpExchange exchange) throws IOException {
-        log.debug("Handling metrics landing page: method={}, uri={}, remote={}",
+        log.debug("Handling service landing page: method={}, uri={}, remote={}",
                 exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
         if (!auth.isAuthenticated(exchange)) {
             auth.sendAuthRequired(exchange);
             return;
         }
         try {
-            String response = readResourceFile("metrics-endpoints-ui.html");
+            String response = readResourceFile("service-endpoints-ui.html");
             sendResponse(exchange, 200, "text/html; charset=utf-8", response);
         } catch (IOException e) {
-            log.error("Could not read metrics-endpoints-ui.html", e);
+            log.error("Could not read service-endpoints-ui.html", e);
             sendError(exchange, 500, "Internal Server Error");
         }
     }
@@ -175,7 +176,7 @@ public class MetricsEndpoint {
      * @throws IOException If an I/O error occurs.
      */
     protected void handleGraphite(HttpExchange exchange) throws IOException {
-        log.trace("Handling /graphite: method={}, uri={}, remote={}",
+        log.trace("Handling /metrics/graphite: method={}, uri={}, remote={}",
                 exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
         if (!auth.isAuthenticated(exchange)) {
             auth.sendAuthRequired(exchange);

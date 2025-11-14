@@ -14,5 +14,5 @@ services:
       - "25:25"     # SMTP
       - "587:587"   # SUBMISSION
       - "465:465"   # SMTPS
-      - "8080:8080"   # Metrics
+      - "8080:8080"   # Service
       - "8090:8090"   # API

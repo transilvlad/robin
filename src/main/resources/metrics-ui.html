@@ -39,7 +39,7 @@
 <div id="charts-container"></div>
 <script>
     const metricsToChart = [
-        'robin_email_receipt_start', 'robin_email_receipt_success', 'robin_email_receipt_limit',, 'robin_email_receipt_exception',
+        'robin_email_receipt_start', 'robin_email_receipt_success', 'robin_email_receipt_limit', 'robin_email_receipt_exception',
         'robin_email_rbl_rejection', 'robin_email_virus_rejection', 'robin_email_spam_rejection',
         'jvm_threads_daemon', 'jvm_threads_live', 'jvm_threads_peak', 'jvm_threads_started', 'jvm_threads_states',
         'process_cpu_usage', 'system_cpu_count', 'system_cpu_usage',
@@ -65,7 +65,7 @@
         });
     });
     function fetchData() {
-        fetch('/graphite')
+        fetch('/metrics/graphite')
             .then(response => response.text())
             .then(text => {
                 const lines = text.trim().split('\n');

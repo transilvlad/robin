@@ -2,7 +2,7 @@ package com.mimecast.robin.main;
 
 import com.mimecast.robin.config.server.ServerConfig;
 import com.mimecast.robin.endpoints.ApiEndpoint;
-import com.mimecast.robin.endpoints.RobinMetricsEndpoint;
+import com.mimecast.robin.endpoints.RobinServiceEndpoint;
 import com.mimecast.robin.metrics.MetricsCron;
 import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.smtp.SmtpListener;
@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>This class is responsible for initializing and managing the server's lifecycle.
  * <p>It loads configurations, sets up SMTP listeners, and starts various background services
- * such as metrics, API endpoints, and queue processing.
+ * such as service, API endpoints, and queue processing.
  *
  * <p>The server is started by calling the static {@link #run(String)} method with the path
  * to the configuration directory.
@@ -113,7 +113,7 @@ public class Server extends Foundation {
 
     /**
      * Starts up the prerequisite services for the server.
-     * This includes storage cleaning, queue management, metrics, and API endpoints.
+     * This includes storage cleaning, queue management, service and API endpoints.
      */
     private static void startup() {
         // Initialize Vault integration for secrets management.
@@ -125,10 +125,10 @@ public class Server extends Foundation {
         // Start the relay queue cron job for processing queued messages.
         RelayQueueCron.run();
 
-        // Start the metrics endpoint for monitoring.
+        // Start the service endpoint for monitoring.
         try {
-            RobinMetricsEndpoint metricsEndpoint = new RobinMetricsEndpoint();
-            metricsEndpoint.start(Config.getServer().getMetrics());
+            RobinServiceEndpoint serviceEndpoint = new RobinServiceEndpoint();
+            serviceEndpoint.start(Config.getServer().getService());
             SmtpMetrics.initialize();
         } catch (IOException e) {
             log.error("Unable to start monitoring endpoint: {}", e.getMessage());

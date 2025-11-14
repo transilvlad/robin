@@ -10,7 +10,7 @@ import java.util.Map;
  * Endpoint authentication configuration.
  *
  * <p>This class provides type safe access to endpoint authentication configuration
- * for metrics and API endpoints. It supports both basic and bearer authentication
+ * for service and API endpoints. It supports both basic and bearer authentication
  * types similar to webhook authentication.
  *
  * <p>IP allow lists can be configured to bypass authentication for specific addresses

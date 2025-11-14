@@ -10,7 +10,7 @@ Server core configuration lives in `server.json5`.
 
 Configuration Reload
 --------------------
-Configuration can be reloaded without restarting the server via the metrics API.
+Configuration can be reloaded without restarting the server via the service API.
 
 **Config Viewer UI**: Access the configuration viewer at `http://localhost:8080/config` to:
 - View current `properties.json5` and `server.json5` configurations in formatted JSON
@@ -23,7 +23,7 @@ Configuration can be reloaded without restarting the server via the metrics API.
 
 This endpoint triggers immediate reload of `properties.json5` and `server.json5` configurations.
 The reload operation uses the existing single-threaded scheduler ensuring thread-safe, serialized updates.
-Authentication is required if metrics endpoint authentication is enabled.
+Authentication is required if service endpoint authentication is enabled.
 
 **Terminal Examples**:
 
@@ -59,6 +59,7 @@ Error response:
 ```
 
 External files (auto‑loaded if present in same directory):
+- `properties.json5` Global application properties.
 - `storage.json5` Email storage options.
 - `users.json5` Local test users (disabled when Dovecot auth enabled).
 - `scenarios.json5` SMTP behavior scenarios.
@@ -69,6 +70,9 @@ External files (auto‑loaded if present in same directory):
 - `webhooks.json5` Per-command HTTP callbacks with optional response override.
 - `vault.json5` HashiCorp Vault integration settings for secrets management.
 - `clamav.json5` ClamAV integration for virus scanning.
+- `rspamd.json5` Rspamd integration for spam/phishing detection.
+- `blocklist.json5` IP blocklist configuration.
+- `blackhole.json5` Blackhole mode configuration.
 
 Example `server.json5` (core listeners & feature flags):
 
@@ -165,19 +169,39 @@ Example `server.json5` (core listeners & feature flags):
       // Truststore password or path to password file.
       truststorepassword: "avengers",
 
-      // Metrics endpoint port.
-      metricsPort: 8080,
-
-      // Metrics endpoint authentication (optional, leave empty to disable).
-      metricsUsername: "",
-      metricsPassword: "",
-
-      // API endpoint port.
-      apiPort: 8090,
-
-      // API endpoint authentication (optional, leave empty to disable).
-      apiUsername: "",
-      apiPassword: "",
+      // Service endpoint configuration.
+      service: {
+        // Port for service endpoint.
+        port: 8080,
+        
+        // Authentication type: none, basic, bearer.
+        authType: "none",
+        
+        // Authentication value.
+        // For basic: "username:password"
+        // For bearer: "token"
+        authValue: "",
+        
+        // IP addresses or CIDR blocks allowed without authentication.
+        allowList: []
+      },
+        
+      // API endpoint configuration.
+      api: {
+        // Port for API endpoint.
+        port: 8090,
+        
+        // Authentication type: none, basic, bearer.
+        authType: "none",
+        
+        // Authentication value.
+        // For basic: "username:password"
+        // For bearer: "token"
+        authValue: "",
+        
+        // IP addresses or CIDR blocks allowed without authentication.
+        allowList: []
+      },
 
       // RBL (Realtime Blackhole List) configuration.
       rbl: {
@@ -206,7 +230,7 @@ Example `server.json5` (core listeners & feature flags):
       usersEnabled: false // See users.json5 for user definitions.
     }
 
-**Metrics Authentication**: Configure `metricsUsername` and `metricsPassword` to enable HTTP Basic Authentication for the metrics endpoint. 
+**Service Authentication**: Configure `serviceUsername` and `servicePassword` to enable HTTP Basic Authentication for the service endpoint. 
 When both values are non-empty, all endpoints (including `/config` and `/config/reload`) except `/health` will require authentication.
 Leave empty to disable authentication.
 
@@ -528,3 +552,36 @@ Below are concise examples for each auxiliary config file.
         onVirus: "reject"
       }
     }
+
+`blocklist.json5` – IP blocklist configuration:
+
+    {
+      // Enable IP blocklist checking.
+      enabled: false,
+
+      // List of IP addresses or CIDR ranges to block.
+      blockedIps: [
+        "192.168.1.0/24",
+        "10.0.0.5"
+      ],
+
+      // Action to take when blocked IP connects.
+      // "reject" - Reject connection.
+      // "log" - Log and allow.
+      action: "reject"
+    }
+
+`blackhole.json5` – Blackhole mode configuration:
+
+    {
+      // Enable blackhole mode.
+      // In this mode, the server accepts all mail but discards it.
+      enabled: false,
+
+      // Log discarded messages.
+      logDiscarded: true,
+
+      // Response to give clients (appears as success to the client).
+      response: "250 Message accepted and will be processed"
+    }
+
