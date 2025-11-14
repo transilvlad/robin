@@ -8,9 +8,6 @@
   // Maximum number of messages to attempt to relay per cron tick.
   maxDequeuePerTick: 10,
 
-  // Concurrency scale for parallel access.
-  concurrencyScale: 32,
-
   // MapDB backend configuration (disabled for tests - using in-memory instead).
   queueMapDB: {
     enabled: false

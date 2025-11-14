@@ -130,20 +130,20 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
      */
     @Override
     public boolean removeByIndex(int index) {
-        if (index < 0 || index >= queue.size()) {
+        if (index < 0) {
             return false;
         }
-        
+
         List<Long> keys = new ArrayList<>(queue.keySet());
-        keys.sort(Long::compareTo);
-        
-        if (index < keys.size()) {
-            Long key = keys.get(index);
-            boolean removed = queue.remove(key) != null;
-            if (removed) {
-                db.commit();
-            }
-            return removed;
+        if (index >= keys.size()) {
+            return false;
+        }
+
+        Long key = keys.get(index);
+        T removed = queue.remove(key);
+        if (removed != null) {
+            db.commit();
+            return true;
         }
         return false;
     }
@@ -156,14 +156,12 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
         if (indices == null || indices.isEmpty()) {
             return 0;
         }
-        
+
+        // Get keys and sort indices in descending order to avoid index shift issues
         List<Long> keys = new ArrayList<>(queue.keySet());
-        keys.sort(Long::compareTo);
-        
-        // Sort indices in descending order to avoid index shifting issues
         List<Integer> sortedIndices = new ArrayList<>(indices);
-        sortedIndices.sort((a, b) -> b.compareTo(a));
-        
+        sortedIndices.sort((a, b) -> b - a);
+
         int removed = 0;
         for (int index : sortedIndices) {
             if (index >= 0 && index < keys.size()) {
@@ -173,7 +171,7 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
                 }
             }
         }
-        
+
         if (removed > 0) {
             db.commit();
         }
@@ -188,12 +186,12 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
         if (uid == null) {
             return false;
         }
-        
+
         for (Map.Entry<Long, T> entry : queue.entrySet()) {
             T item = entry.getValue();
             if (item instanceof RelaySession) {
                 RelaySession relaySession = (RelaySession) item;
-                if (uid.equals(relaySession.getSession().getUID())) {
+                if (uid.equals(relaySession.getUID())) {
                     queue.remove(entry.getKey());
                     db.commit();
                     return true;
@@ -211,14 +209,14 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
         if (uids == null || uids.isEmpty()) {
             return 0;
         }
-        
+
         int removed = 0;
         for (String uid : uids) {
             for (Map.Entry<Long, T> entry : queue.entrySet()) {
                 T item = entry.getValue();
                 if (item instanceof RelaySession) {
                     RelaySession relaySession = (RelaySession) item;
-                    if (uid.equals(relaySession.getSession().getUID())) {
+                    if (uid.equals(relaySession.getUID())) {
                         queue.remove(entry.getKey());
                         removed++;
                         break;
@@ -226,7 +224,7 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
                 }
             }
         }
-        
+
         if (removed > 0) {
             db.commit();
         }

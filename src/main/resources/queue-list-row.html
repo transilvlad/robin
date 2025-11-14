@@ -1,0 +1,17 @@
+<tr>
+  <td class='checkbox-col'><input type='checkbox' class='row-checkbox' data-uid='{{RELAY_UID}}'/></td>
+  <td class='nowrap'>{{ROW_NUMBER}}</td>
+  <td class='mono'>{{SESSION_UID}}</td>
+  <td>{{DATE}}</td>
+  <td>{{PROTOCOL}}</td>
+  <td>{{RETRY_COUNT}}</td>
+  <td class='nowrap'>{{LAST_RETRY}}</td>
+  <td>{{ENVELOPES}}</td>
+  <td>{{RECIPIENTS}}</td>
+  <td>{{FILES}}</td>
+  <td class='actions nowrap'>
+    <button class='btn-delete' data-uid='{{RELAY_UID}}'>Delete</button>
+    <button class='btn-retry' data-uid='{{RELAY_UID}}'>Retry</button>
+    <button class='btn-bounce' data-uid='{{RELAY_UID}}'>Bounce</button>
+  </td>
+</tr>
