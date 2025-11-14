@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * API endpoint for case submission and queue management.
@@ -650,32 +651,6 @@ public class ApiEndpoint {
     }
 
     /**
-     * Reads a resource file from the classpath into a string.
-     *
-     * @param path The resource path (e.g., "api-endpoints-ui.html").
-     * @return The file contents as a string.
-     * @throws IOException If the resource cannot be found or read.
-     */
-    private String readResourceFile(String path) throws IOException {
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream(path)) {
-            if (is == null) {
-                throw new IOException("Resource not found: " + path);
-            }
-            try (InputStreamReader isr = new InputStreamReader(is, StandardCharsets.UTF_8);
-                 BufferedReader reader = new BufferedReader(isr)) {
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    sb.append(line).append('\n');
-                }
-                String s = sb.toString();
-                log.debug("Read resource '{}', bytes={}", path, s.getBytes(StandardCharsets.UTF_8).length);
-                return s;
-            }
-        }
-    }
-
-    /**
      * Parses the query string from a URI into a map of key-value pairs.
      *
      * @param uri Request URI.
@@ -867,5 +842,24 @@ public class ApiEndpoint {
 
         pagination.append("</div>");
         return pagination.toString();
+    }
+
+    /**
+     * Reads a resource file from the classpath into a string.
+     *
+     * @param path The path to the resource file.
+     * @return The content of the file as a string.
+     * @throws IOException If the resource is not found or cannot be read.
+     */
+    protected String readResourceFile(String path) throws IOException {
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream(path)) {
+            if (is == null) {
+                throw new IOException("Resource not found: " + path);
+            }
+            try (InputStreamReader isr = new InputStreamReader(is, StandardCharsets.UTF_8);
+                 BufferedReader reader = new BufferedReader(isr)) {
+                return reader.lines().collect(Collectors.joining("\n"));
+            }
+        }
     }
 }

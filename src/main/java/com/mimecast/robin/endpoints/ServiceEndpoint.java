@@ -418,7 +418,7 @@ public class ServiceEndpoint {
      * @return The content of the file as a string.
      * @throws IOException If the resource is not found or cannot be read.
      */
-    private String readResourceFile(String path) throws IOException {
+    protected String readResourceFile(String path) throws IOException {
         try (InputStream is = getClass().getClassLoader().getResourceAsStream(path)) {
             if (is == null) {
                 throw new IOException("Resource not found: " + path);
