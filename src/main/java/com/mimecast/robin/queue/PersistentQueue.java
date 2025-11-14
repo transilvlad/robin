@@ -5,79 +5,57 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.Closeable;
-import java.io.File;
 import java.io.Serializable;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * A persistent FIFO queue that delegates to a QueueDatabase implementation.
- * <p>Uses the Factory pattern to allow different database backends.
+ * <p>Uses the Factory pattern to allow different database backends (MapDB, MariaDB, PostgreSQL, or InMemory).
+ * Backend selection is configuration-driven via {@link QueueFactory}.
+ * <p>This class implements the Singleton pattern. All code should use {@link #getInstance()} to obtain
+ * the queue instance, which will be backed by the configured database implementation.
+ *
+ * @param <T> Type of items stored in the queue, must be Serializable
  */
 public class PersistentQueue<T extends Serializable> implements Closeable {
 
     private static final Logger log = LogManager.getLogger(PersistentQueue.class);
 
-    private final File file;
     private final QueueDatabase<T> database;
 
-    // Singleton instances map.
-    private static final Map<String, PersistentQueue<RelaySession>> instances = new HashMap<>();
-    private static final String CONFIG_BASED_KEY = "__config_based__";
+    // Singleton instance.
+    private static PersistentQueue<RelaySession> instance;
 
     /**
-     * Get a singleton instance of PersistentQueue using configuration-based backend selection.
-     * <p>This method should be used in production code where backend selection is based on configuration.
+     * Get the singleton instance of PersistentQueue using configuration-based backend selection.
+     * <p>The backend is selected by {@link QueueFactory} based on configuration in queue.json5.
+     * Backend priority: MapDB → MariaDB → PostgreSQL → InMemory.
      *
-     * @return The PersistentQueue instance.
+     * @return The PersistentQueue instance
      */
     @SuppressWarnings("unchecked")
-    public static PersistentQueue<RelaySession> getInstance() {
-        if (!instances.containsKey(CONFIG_BASED_KEY)) {
-            instances.put(CONFIG_BASED_KEY, new PersistentQueue<>(null));
+    public static synchronized PersistentQueue<RelaySession> getInstance() {
+        if (instance == null) {
+            instance = new PersistentQueue<>();
         }
-
-        return instances.get(CONFIG_BASED_KEY);
-    }
-
-    /**
-     * Get a singleton instance of PersistentQueue for the given file.
-     * <p>This method should be used in tests where a specific temp file is provided.
-     *
-     * @param file The file to store the database (for MapDB).
-     * @return The PersistentQueue instance.
-     */
-    @SuppressWarnings("unchecked")
-    public static PersistentQueue<RelaySession> getInstance(File file) {
-        if (file == null) {
-            return getInstance();
-        }
-
-        String instanceKey = file.getAbsolutePath();
-
-        if (!instances.containsKey(instanceKey)) {
-            instances.put(instanceKey, new PersistentQueue<>(file));
-        }
-
-        return instances.get(instanceKey);
+        return instance;
     }
 
     /**
      * Constructs a new PersistentQueue instance.
-     *
-     * @param file The file to store the database.
+     * <p>Private constructor to enforce singleton pattern.
+     * Uses {@link Factories#getQueueDatabase()} which delegates to {@link QueueFactory}.
      */
     @SuppressWarnings("unchecked")
-    PersistentQueue(File file) {
-        this.file = file;
-        this.database = (QueueDatabase<T>) Factories.getQueueDatabase(file);
+    private PersistentQueue() {
+        this.database = (QueueDatabase<T>) Factories.getQueueDatabase();
     }
 
     /**
      * Add an item to the tail of the queue.
      *
-     * @return Self.
+     * @param item Item to enqueue
+     * @return Self for method chaining
      */
     public PersistentQueue<T> enqueue(T item) {
         database.enqueue(item);
@@ -86,6 +64,8 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
 
     /**
      * Remove and return the head of the queue, or null if empty.
+     *
+     * @return The head item or null if empty
      */
     public T dequeue() {
         return database.dequeue();
@@ -93,6 +73,8 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
 
     /**
      * Peek at the head without removing.
+     *
+     * @return The head item or null if empty
      */
     public T peek() {
         return database.peek();
@@ -100,6 +82,8 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
 
     /**
      * Check if the queue is empty.
+     *
+     * @return true if the queue is empty
      */
     public boolean isEmpty() {
         return database.isEmpty();
@@ -107,6 +91,8 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
 
     /**
      * Get the size of the queue.
+     *
+     * @return The number of items in the queue
      */
     public long size() {
         return database.size();
@@ -114,25 +100,25 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
 
     /**
      * Take a snapshot copy of current values for read-only inspection (e.g., metrics/health).
+     *
+     * @return Immutable list of all items currently in the queue
      */
     public List<T> snapshot() {
         return database.snapshot();
     }
 
     /**
-     * Close the database.
+     * Close the database and reset the singleton instance.
+     * <p>After calling close(), the next call to {@link #getInstance()} will create a new instance.
      */
     @Override
     public void close() {
-        String instanceKey = file != null ? file.getAbsolutePath() : CONFIG_BASED_KEY;
-        instances.remove(instanceKey);
+        instance = null;
         try {
             database.close();
         } catch (Exception e) {
             // Log the error but don't propagate it to maintain close() contract.
-            // This is especially important for MapDB WAL files on Windows.
-            String fileInfo = file != null ? file.getAbsolutePath() : "config-based";
-            log.error("Error closing queue database for {}: {}", fileInfo, e.getMessage());
+            log.error("Error closing queue database: {}", e.getMessage());
         }
     }
 }

@@ -100,13 +100,6 @@ class LocalStorageClientTest {
     @ParameterizedTest
     @CsvSource({"0", "1"})
     void saveToDovecotLda(int param) throws IOException {
-        // Use a unique, non-existent queue file path for each run (MapDB should create it).
-        Path tmpDir = Files.createTempDirectory("robinRelayQueue-");
-        File tmpQueueFile = tmpDir.resolve("relayQueue-" + System.nanoTime() + ".db").toFile();
-
-        // Override relay queue file in runtime config so production code writes to this file.
-        Config.getServer().getQueue().getMap().put("queueFile", tmpQueueFile.getAbsolutePath());
-
         Connection connection = new Connection(new Session());
         MessageEnvelope envelope = new MessageEnvelope().addRcpt("tony@example.com");
         connection.getSession().addEnvelope(envelope);
@@ -124,17 +117,12 @@ class LocalStorageClientTest {
 
         try { new File(localStorageClient.getFile()).delete(); } catch (Exception ignored) {}
 
-        // Clean up the temp queue file and any WALs if we enqueued a bounce.
+        // Clean up the queue if we enqueued a bounce (uses in-memory queue from test config).
         if (param != 0) {
-            PersistentQueue.getInstance(tmpQueueFile).dequeue();
-            try { PersistentQueue.getInstance(tmpQueueFile).close(); } catch (Exception ignored) {}
+            try {
+                PersistentQueue.getInstance().dequeue();
+                PersistentQueue.getInstance().close();
+            } catch (Exception ignored) {}
         }
-
-        // Attempt to delete queue file and any potential WAL segments, then the temp directory.
-        try { new File(tmpQueueFile.getAbsolutePath()).delete(); } catch (Exception ignored) {}
-        for (int i = 0; i < 4; i++) {
-            try { new File(tmpQueueFile.getAbsolutePath() + ".wal." + i).delete(); } catch (Exception ignored) {}
-        }
-        try { Files.deleteIfExists(tmpDir); } catch (Exception ignored) {}
     }
 }

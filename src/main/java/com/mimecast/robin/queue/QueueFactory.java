@@ -5,18 +5,18 @@ import com.mimecast.robin.main.Config;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.File;
-
 /**
  * Factory for creating QueueDatabase instances based on configuration.
- * <p>Selects the appropriate queue backend in priority order:
+ * <p>Selects the appropriate queue backend based on enabled flag in priority order:
  * <ol>
- *   <li>If file parameter is provided (non-null), use MapDB with that file (for tests)</li>
- *   <li>MapDB - if queueMapDB.enabled is true</li>
- *   <li>MariaDB - if queueMariaDB.enabled is true</li>
- *   <li>PostgreSQL - if queuePgSQL.enabled is true</li>
- *   <li>MapDB - fallback default using queueFile from config</li>
+ *   <li>MapDB - if {@code queueMapDB.enabled} is true (default for production)</li>
+ *   <li>MariaDB - if {@code queueMariaDB.enabled} is true</li>
+ *   <li>PostgreSQL - if {@code queuePgSQL.enabled} is true</li>
+ *   <li>InMemory - fallback when all backends are disabled (default for tests)</li>
  * </ol>
+ * <p>All production code should use {@link PersistentQueue#getInstance()} which delegates
+ * to this factory for backend selection. The InMemory backend provides no persistence and
+ * is automatically used when all other backends are disabled, making it ideal for unit tests.
  */
 public class QueueFactory {
 
@@ -31,89 +31,60 @@ public class QueueFactory {
 
     /**
      * Creates and initializes a QueueDatabase instance based on configuration.
+     * <p>Backend selection is determined by the enabled flags in the queue configuration:
+     * <ul>
+     *   <li>If {@code queueMapDB.enabled} is true, returns MapDB implementation</li>
+     *   <li>Else if {@code queueMariaDB.enabled} is true, returns MariaDB implementation</li>
+     *   <li>Else if {@code queuePgSQL.enabled} is true, returns PostgreSQL implementation</li>
+     *   <li>Else returns InMemory implementation (no persistence)</li>
+     * </ul>
      *
-     * @param file The file to use for MapDB backend. If non-null, MapDB will be used with this file (for tests).
-     *             If null, backend selection is based on configuration.
-     * @param <T>  Type of items stored in the queue
+     * @param <T> Type of items stored in the queue
      * @return Initialized QueueDatabase instance
      */
-    public static <T extends java.io.Serializable> QueueDatabase<T> createQueueDatabase(File file) {
+    public static <T extends java.io.Serializable> QueueDatabase<T> createQueueDatabase() {
         BasicConfig queueConfig = Config.getServer().getQueue();
         QueueDatabase<T> database;
 
-        // If file is explicitly provided (not null), use MapDB with that file (for tests)
-        if (file != null) {
-            log.info("Using MapDB queue backend with provided file: {}", file.getAbsolutePath());
-            database = new MapDBQueueDatabase<>(file);
-        }
         // Check for MapDB configuration and enabled flag
-        else if (queueConfig.getMap().containsKey("queueMapDB")) {
+        if (queueConfig.getMap().containsKey("queueMapDB")) {
             BasicConfig mapDBConfig = new BasicConfig(queueConfig.getMapProperty("queueMapDB"));
             if (mapDBConfig.getBooleanProperty("enabled", true)) {
                 String queueFile = mapDBConfig.getStringProperty("queueFile", "/usr/local/robin/relayQueue.db");
                 log.info("Using MapDB queue backend with config file: {}", queueFile);
-                database = new MapDBQueueDatabase<>(new File(queueFile));
-            } else {
-                database = selectFromDatabaseBackends(queueConfig);
+                database = new MapDBQueueDatabase<>(new java.io.File(queueFile));
+                database.initialize();
+                return database;
             }
         }
+
         // Check for MariaDB configuration and enabled flag
-        else if (queueConfig.getMap().containsKey("queueMariaDB")) {
-            BasicConfig mariaDBConfig = new BasicConfig(queueConfig.getMapProperty("queueMariaDB"));
-            if (mariaDBConfig.getBooleanProperty("enabled", false)) {
-                log.info("Using MariaDB queue backend");
-                database = new QueueMariaDB<>();
-            } else {
-                database = selectFromDatabaseBackends(queueConfig);
-            }
-        }
-        // Check for PostgreSQL configuration and enabled flag
-        else if (queueConfig.getMap().containsKey("queuePgSQL")) {
-            BasicConfig pgSQLConfig = new BasicConfig(queueConfig.getMapProperty("queuePgSQL"));
-            if (pgSQLConfig.getBooleanProperty("enabled", false)) {
-                log.info("Using PostgreSQL queue backend");
-                database = new QueuePgSQL<>();
-            } else {
-                database = selectFromDatabaseBackends(queueConfig);
-            }
-        }
-        // Default to MapDB using queueFile from config
-        else {
-            String queueFile = queueConfig.getStringProperty("queueFile", "/usr/local/robin/relayQueue.db");
-            log.info("No queue backend configured, using default MapDB with file: {}", queueFile);
-            database = new MapDBQueueDatabase<>(new File(queueFile));
-        }
-
-        database.initialize();
-        return database;
-    }
-
-    /**
-     * Helper method to select from configured database backends based on enabled flag.
-     */
-    private static <T extends java.io.Serializable> QueueDatabase<T> selectFromDatabaseBackends(BasicConfig queueConfig) {
-        // Check MariaDB
         if (queueConfig.getMap().containsKey("queueMariaDB")) {
             BasicConfig mariaDBConfig = new BasicConfig(queueConfig.getMapProperty("queueMariaDB"));
             if (mariaDBConfig.getBooleanProperty("enabled", false)) {
                 log.info("Using MariaDB queue backend");
-                return new QueueMariaDB<>();
+                database = new QueueMariaDB<>();
+                database.initialize();
+                return database;
             }
         }
 
-        // Check PostgreSQL
+        // Check for PostgreSQL configuration and enabled flag
         if (queueConfig.getMap().containsKey("queuePgSQL")) {
             BasicConfig pgSQLConfig = new BasicConfig(queueConfig.getMapProperty("queuePgSQL"));
             if (pgSQLConfig.getBooleanProperty("enabled", false)) {
                 log.info("Using PostgreSQL queue backend");
-                return new QueuePgSQL<>();
+                database = new QueuePgSQL<>();
+                database.initialize();
+                return database;
             }
         }
 
-        // Fall back to MapDB using queueFile from config
-        String queueFile = queueConfig.getStringProperty("queueFile", "/usr/local/robin/relayQueue.db");
-        log.info("No enabled database backend, falling back to default MapDB with file: {}", queueFile);
-        return new MapDBQueueDatabase<>(new File(queueFile));
+        // Fall back to in-memory database when all backends are disabled (typically for tests)
+        log.info("All queue backends disabled, using in-memory queue database");
+        database = new InMemoryQueueDatabase<>();
+        database.initialize();
+        return database;
     }
 }
 

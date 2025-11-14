@@ -126,6 +126,123 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
     }
 
     /**
+     * Remove an item from the queue by index (0-based).
+     */
+    @Override
+    public boolean removeByIndex(int index) {
+        if (index < 0 || index >= queue.size()) {
+            return false;
+        }
+        
+        List<Long> keys = new ArrayList<>(queue.keySet());
+        keys.sort(Long::compareTo);
+        
+        if (index < keys.size()) {
+            Long key = keys.get(index);
+            boolean removed = queue.remove(key) != null;
+            if (removed) {
+                db.commit();
+            }
+            return removed;
+        }
+        return false;
+    }
+
+    /**
+     * Remove items from the queue by indices (0-based).
+     */
+    @Override
+    public int removeByIndices(List<Integer> indices) {
+        if (indices == null || indices.isEmpty()) {
+            return 0;
+        }
+        
+        List<Long> keys = new ArrayList<>(queue.keySet());
+        keys.sort(Long::compareTo);
+        
+        // Sort indices in descending order to avoid index shifting issues
+        List<Integer> sortedIndices = new ArrayList<>(indices);
+        sortedIndices.sort((a, b) -> b.compareTo(a));
+        
+        int removed = 0;
+        for (int index : sortedIndices) {
+            if (index >= 0 && index < keys.size()) {
+                Long key = keys.get(index);
+                if (queue.remove(key) != null) {
+                    removed++;
+                }
+            }
+        }
+        
+        if (removed > 0) {
+            db.commit();
+        }
+        return removed;
+    }
+
+    /**
+     * Remove an item from the queue by UID (for RelaySession).
+     */
+    @Override
+    public boolean removeByUID(String uid) {
+        if (uid == null) {
+            return false;
+        }
+        
+        for (Map.Entry<Long, T> entry : queue.entrySet()) {
+            T item = entry.getValue();
+            if (item instanceof RelaySession) {
+                RelaySession relaySession = (RelaySession) item;
+                if (uid.equals(relaySession.getSession().getUID())) {
+                    queue.remove(entry.getKey());
+                    db.commit();
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Remove items from the queue by UIDs (for RelaySession).
+     */
+    @Override
+    public int removeByUIDs(List<String> uids) {
+        if (uids == null || uids.isEmpty()) {
+            return 0;
+        }
+        
+        int removed = 0;
+        for (String uid : uids) {
+            for (Map.Entry<Long, T> entry : queue.entrySet()) {
+                T item = entry.getValue();
+                if (item instanceof RelaySession) {
+                    RelaySession relaySession = (RelaySession) item;
+                    if (uid.equals(relaySession.getSession().getUID())) {
+                        queue.remove(entry.getKey());
+                        removed++;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if (removed > 0) {
+            db.commit();
+        }
+        return removed;
+    }
+
+    /**
+     * Clear all items from the queue.
+     */
+    @Override
+    public void clear() {
+        queue.clear();
+        db.commit();
+    }
+
+    /**
      * Close the database.
      */
     @Override

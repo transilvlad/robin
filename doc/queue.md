@@ -5,7 +5,7 @@ Robin supports multiple queue persistence backends for storing messages that cou
 
 ## Supported Backends
 
-### MapDB (Default)
+### MapDB (Default for Production)
 MapDB is a lightweight, file-based embedded database. It is the default backend and requires no external dependencies.
 
 **Configuration:**
@@ -20,7 +20,7 @@ MapDB is a lightweight, file-based embedded database. It is the default backend 
 ```
 
 ### MariaDB
-MariaDB provides a robust SQL-based queue with transaction support.
+MariaDB provides a robust SQL-based queue with transaction support and LONGBLOB storage for serialized objects.
 
 **Configuration:**
 ```json5
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS queue (
 ```
 
 ### PostgreSQL
-PostgreSQL provides enterprise-grade queue persistence with ACID compliance.
+PostgreSQL provides enterprise-grade queue persistence with ACID compliance and BYTEA storage for serialized objects.
 
 **Configuration:**
 ```json5
@@ -71,15 +71,28 @@ CREATE TABLE IF NOT EXISTS queue (
 );
 ```
 
+### InMemory (Default for Tests)
+An in-memory queue database is used when all persistence backends are disabled. This is the default for test environments and provides no persistence across restarts.
+
+**Configuration:**
+```json5
+{
+  queueMapDB: { enabled: false },
+  queueMariaDB: { enabled: false },
+  queuePgSQL: { enabled: false }
+}
+```
+
 ## Backend Selection Priority
 
-The queue backend is selected in the following priority order when no file parameter is provided:
-1. **MapDB** - if `queueMapDB.enabled` is `true`
-2. **MariaDB** - if `queueMariaDB.enabled` is `true` (and `queueMapDB.enabled` is `false`)
-3. **PostgreSQL** - if `queuePgSQL.enabled` is `true` (and `queueMapDB.enabled` and `queueMariaDB.enabled` are `false`)
-4. **MapDB** - fallback default if no backend is enabled
+The queue backend is selected based on which backend is enabled, in the following priority order:
 
-**Note:** If a file parameter is explicitly provided (used in tests), MapDB will be used with that file regardless of configuration.
+1. **MapDB** - if `queueMapDB.enabled` is `true` (default for production)
+2. **MariaDB** - if `queueMariaDB.enabled` is `true` (and MapDB is disabled)
+3. **PostgreSQL** - if `queuePgSQL.enabled` is `true` (and MapDB and MariaDB are disabled)
+4. **InMemory** - fallback when all backends are disabled (default for tests)
+
+**Note:** Only one backend should be enabled at a time. If multiple backends are enabled, the selection follows the priority order above.
 
 ## Configuration Options
 
@@ -121,7 +134,7 @@ All backends share these common queue configuration options in `queue.json5`:
 
 ## Example Configurations
 
-### Example 1: MapDB (Default)
+### Example 1: MapDB (Production Default)
 ```json5
 {
   queueInitialDelay: 10,
@@ -181,4 +194,38 @@ All backends share these common queue configuration options in `queue.json5`:
 }
 ```
 
-**Note:** Only enable one backend at a time. If multiple backends are enabled, the selection priority will be: MapDB → MariaDB → PostgreSQL.
+### Example 4: InMemory (Test Configuration)
+```json5
+{
+  queueInitialDelay: 10,
+  queueInterval: 30,
+  maxDequeuePerTick: 10,
+  concurrencyScale: 32,
+
+  queueMapDB: { enabled: false },
+  queueMariaDB: { enabled: false },
+  queuePgSQL: { enabled: false }
+}
+```
+
+## Implementation Details
+
+### Architecture
+All queue backends implement the `QueueDatabase` interface, providing:
+- FIFO queue operations (enqueue, dequeue, peek)
+- Size and empty checks
+- Snapshot for read-only inspection
+- Item removal by index or UID
+- Clear all items
+
+### SQL Backends
+MariaDB and PostgreSQL backends extend `AbstractSQLQueueDatabase`, which provides:
+- Automatic table creation on initialization
+- PreparedStatement usage to prevent SQL injection
+- Java object serialization for queue items
+- Connection management and error handling
+
+### Selection Logic
+The `QueueFactory` class handles backend selection based on configuration. Production code uses `PersistentQueue.getInstance()` which delegates to the factory for backend selection. Test code with all backends disabled automatically uses the in-memory implementation.
+
+**Note:** The InMemory backend is automatically selected when all persistence backends are disabled, making it ideal for unit tests and development environments where persistence is not needed.
