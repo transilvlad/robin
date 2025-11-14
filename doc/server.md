@@ -8,6 +8,56 @@ Configuration
 -------------
 Server core configuration lives in `server.json5`.
 
+Configuration Reload
+--------------------
+Configuration can be reloaded without restarting the server via the metrics API.
+
+**Config Viewer UI**: Access the configuration viewer at `http://localhost:8080/config` to:
+- View current `properties.json5` and `server.json5` configurations in formatted JSON
+- Trigger immediate configuration reload with a button click
+- See real-time reload status and error messages
+
+**Reload Endpoint**: Trigger configuration reload via API:
+
+    POST http://localhost:8080/config/reload
+
+This endpoint triggers immediate reload of `properties.json5` and `server.json5` configurations.
+The reload operation uses the existing single-threaded scheduler ensuring thread-safe, serialized updates.
+Authentication is required if metrics endpoint authentication is enabled.
+
+**Terminal Examples**:
+
+Using `curl` (no authentication):
+```bash
+curl -X POST http://localhost:8080/config/reload
+```
+
+Using `curl` with authentication:
+```bash
+curl -X POST http://localhost:8080/config/reload -u username:password
+```
+
+Using PowerShell:
+```powershell
+Invoke-WebRequest -Uri http://localhost:8080/config/reload -Method POST
+```
+
+Using PowerShell with authentication:
+```powershell
+$credentials = Get-Credential
+Invoke-WebRequest -Uri http://localhost:8080/config/reload -Method POST -Credential $credentials
+```
+
+Success response:
+```json
+{"status":"OK", "message":"Configuration reloaded successfully"}
+```
+
+Error response:
+```json
+{"status":"ERROR", "message":"Failed to reload configuration: <error details>"}
+```
+
 External files (auto‑loaded if present in same directory):
 - `storage.json5` Email storage options.
 - `users.json5` Local test users (disabled when Dovecot auth enabled).
@@ -157,8 +207,9 @@ Example `server.json5` (core listeners & feature flags):
     }
 
 **Metrics Authentication**: Configure `metricsUsername` and `metricsPassword` to enable HTTP Basic Authentication for the metrics endpoint. 
-When both values are non-empty, all endpoints except `/health` will require authentication.
+When both values are non-empty, all endpoints (including `/config` and `/config/reload`) except `/health` will require authentication.
 Leave empty to disable authentication.
+
 
 **API Authentication**: Configure `apiUsername` and `apiPassword` to enable HTTP Basic Authentication for the API endpoint.
 When both values are non-empty, all endpoints except `/health` will require authentication.

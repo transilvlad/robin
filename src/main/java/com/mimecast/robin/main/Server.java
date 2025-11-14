@@ -11,7 +11,6 @@ import com.mimecast.robin.storage.StorageCleaner;
 import com.mimecast.robin.util.VaultClient;
 import com.mimecast.robin.util.VaultClientFactory;
 import com.mimecast.robin.util.VaultMagicProvider;
-import sun.misc.Signal;
 
 import javax.naming.ConfigurationException;
 import java.io.IOException;
@@ -63,7 +62,6 @@ public class Server extends Foundation {
     public static void run(String path) throws ConfigurationException {
         init(path); // Initialize foundation configuration.
         registerShutdownHook(); // Register shutdown hook for graceful termination.
-        registerConfigReloadSignal(path); // Register SIGHUP handler for config reload.
         loadKeystore(); // Load SSL keystore.
 
         ServerConfig serverConfig = Config.getServer();
@@ -129,7 +127,8 @@ public class Server extends Foundation {
 
         // Start the metrics endpoint for monitoring.
         try {
-            new RobinMetricsEndpoint().start(Config.getServer().getMetrics());
+            RobinMetricsEndpoint metricsEndpoint = new RobinMetricsEndpoint();
+            metricsEndpoint.start(Config.getServer().getMetrics());
             SmtpMetrics.initialize();
         } catch (IOException e) {
             log.error("Unable to start monitoring endpoint: {}", e.getMessage());
@@ -205,32 +204,6 @@ public class Server extends Foundation {
 
             log.info("Shutdown complete.");
         }));
-    }
-
-    /**
-     * Registers a SIGHUP signal handler to reload configuration on demand.
-     * When SIGHUP is received, the server will reload properties and server configuration.
-     *
-     * @param path The directory path containing the configuration files.
-     */
-    private static void registerConfigReloadSignal(String path) {
-        try {
-            Signal.handle(new Signal("HUP"), signal -> {
-                log.info("Received SIGHUP signal, reloading configuration...");
-                try {
-                    Config.initProperties(Paths.get(path, "properties.json5").toString());
-                    Config.initServer(Paths.get(path, "server.json5").toString());
-                    log.info("Configuration reloaded successfully");
-                } catch (IOException e) {
-                    log.error("Failed to reload configuration: {}", e.getMessage());
-                }
-            });
-            log.info("SIGHUP signal handler registered for configuration reload");
-        } catch (IllegalArgumentException e) {
-            log.warn("SIGHUP signal not supported on this platform: {}", e.getMessage());
-        } catch (Exception e) {
-            log.error("Failed to register SIGHUP signal handler: {}", e.getMessage());
-        }
     }
 
     /**

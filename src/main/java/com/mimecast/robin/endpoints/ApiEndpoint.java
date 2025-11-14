@@ -146,7 +146,7 @@ public class ApiEndpoint {
         log.info("Store available at http://localhost:{}/store/", apiPort);
         log.info("Health available at http://localhost:{}/health", apiPort);
         if (auth.isAuthEnabled()) {
-            log.info("Authentication is enabled for API endpoint");
+            log.info("Authentication is enabled");
         }
     }
 

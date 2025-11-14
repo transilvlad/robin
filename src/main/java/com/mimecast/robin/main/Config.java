@@ -71,6 +71,12 @@ public class Config {
     private static final Map<String, ScheduledFuture<?>> scheduledFutures = new ConcurrentHashMap<>();
 
     /**
+     * Paths to configuration files for reload operations.
+     */
+    private static String propertiesPath;
+    private static String serverPath;
+
+    /**
      * Init properties.
      * <p>
      *
@@ -78,6 +84,7 @@ public class Config {
      * @throws IOException Unable to read file.
      */
     public static void initProperties(String path) throws IOException {
+        propertiesPath = path;
         properties = new Properties(path);
         if (!scheduledFutures.containsKey("properties")) {
             BasicConfig propertiesAutoReload = properties.getPropertiesAutoReload();
@@ -118,6 +125,7 @@ public class Config {
      * @throws IOException Unable to read file.
      */
     public static void initServer(String path) throws IOException {
+        serverPath = path;
         server = new ServerConfig(path);
         if (!scheduledFutures.containsKey("server")) {
             BasicConfig serverAutoReload = properties.getServerAutoReload();
@@ -159,5 +167,44 @@ public class Config {
      */
     public static void initClient(String path) throws IOException {
         client = new ClientConfig(path);
+    }
+
+    /**
+     * Triggers an immediate reload of configuration.
+     * This method executes the scheduled reload tasks immediately via the executor.
+     * Thread-safe and suitable for external trigger points like API endpoints.
+     */
+    public static void triggerReload() {
+        // Execute properties reload if scheduled.
+        if (scheduledFutures.containsKey("properties") && propertiesPath != null) {
+            try {
+                scheduler.submit(() -> {
+                    try {
+                        properties = new Properties(propertiesPath);
+                        log.debug("Reloaded properties via trigger");
+                    } catch (IOException e) {
+                        log.error("Failed to reload properties via trigger: {}", e.getMessage());
+                    }
+                }).get(10, TimeUnit.SECONDS);
+            } catch (TimeoutException | InterruptedException | ExecutionException e) {
+                log.warn("Properties reload trigger timed out or interrupted: {}", e.getMessage());
+            }
+        }
+
+        // Execute server reload if scheduled.
+        if (scheduledFutures.containsKey("server") && serverPath != null) {
+            try {
+                scheduler.submit(() -> {
+                    try {
+                        server = new ServerConfig(serverPath);
+                        log.debug("Reloaded server config via trigger");
+                    } catch (IOException e) {
+                        log.error("Failed to reload server config via trigger: {}", e.getMessage());
+                    }
+                }).get(10, TimeUnit.SECONDS);
+            } catch (TimeoutException | InterruptedException | ExecutionException e) {
+                log.warn("Server reload trigger timed out or interrupted: {}", e.getMessage());
+            }
+        }
     }
 }

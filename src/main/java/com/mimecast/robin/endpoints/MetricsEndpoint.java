@@ -60,23 +60,13 @@ public class MetricsEndpoint {
         MetricsRegistry.register(prometheusRegistry, graphiteRegistry);
         bindJvmMetrics();
 
-        int metricsPort = config.getPort(8080);
-        server = HttpServer.create(new InetSocketAddress(metricsPort), 10);
+       server = HttpServer.create(new InetSocketAddress(config.getPort(8080)), 10);
         createContexts();
         shutdownHooks();
 
         new Thread(server::start).start();
-        log.info("Landing available at http://localhost:{}/", metricsPort);
-        log.info("UI available at http://localhost:{}/metrics", metricsPort);
-        log.info("Graphite data available at http://localhost:{}/graphite", metricsPort);
-        log.info("Prometheus data available at http://localhost:{}/prometheus", metricsPort);
-        log.info("Environment variable available at http://localhost:{}/env", metricsPort);
-        log.info("System properties available at http://localhost:{}/sysprops", metricsPort);
-        log.info("Threads dump available at http://localhost:{}/threads", metricsPort);
-        log.info("Heap dump available at http://localhost:{}/heapdump", metricsPort);
-        log.info("Health available at http://localhost:{}/health", metricsPort);
         if (auth.isAuthEnabled()) {
-            log.info("HTTP Basic Authentication is enabled for metrics endpoint");
+            log.info("Authentication is enabled");
         }
     }
 
@@ -100,15 +90,38 @@ public class MetricsEndpoint {
      * Creates and registers HTTP context handlers for all supported endpoints.
      */
     protected void createContexts() {
+        int port = server.getAddress().getPort();
+
+        // Landing page.
         server.createContext("/", this::handleLandingPage);
-        server.createContext("/metrics", this::handleMetricsUi);
-        server.createContext("/graphite", this::handleGraphite);
-        server.createContext("/prometheus", this::handlePrometheus);
+        log.info("Landing available at http://localhost:{}/", port);
+
+        // Environment and system endpoints.
         server.createContext("/env", this::handleEnv);
+        log.info("Environment variable available at http://localhost:{}/env", port);
+
         server.createContext("/sysprops", this::handleSysProps);
+        log.info("System properties available at http://localhost:{}/sysprops", port);
+
         server.createContext("/threads", this::handleThreads);
+        log.info("Threads dump available at http://localhost:{}/threads", port);
+
         server.createContext("/heapdump", this::handleHeapDump);
+        log.info("Heap dump available at http://localhost:{}/heapdump", port);
+
+        // Metrics endpoints.
+        server.createContext("/metrics", this::handleMetricsUi);
+        log.info("UI available at http://localhost:{}/metrics", port);
+
+        server.createContext("/graphite", this::handleGraphite);
+        log.info("Graphite data available at http://localhost:{}/graphite", port);
+
+        server.createContext("/prometheus", this::handlePrometheus);
+        log.info("Prometheus data available at http://localhost:{}/prometheus", port);
+
+        // Health endpoint.
         server.createContext("/health", this::handleHealth);
+        log.info("Health available at http://localhost:{}/health", port);
     }
 
     /**
@@ -117,7 +130,7 @@ public class MetricsEndpoint {
      * @param exchange The HTTP exchange object.
      * @throws IOException If an I/O error occurs.
      */
-    private void handleLandingPage(HttpExchange exchange) throws IOException {
+    protected void handleLandingPage(HttpExchange exchange) throws IOException {
         log.debug("Handling metrics landing page: method={}, uri={}, remote={}",
                 exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
         if (!auth.isAuthenticated(exchange)) {
@@ -139,7 +152,7 @@ public class MetricsEndpoint {
      * @param exchange The HTTP exchange object.
      * @throws IOException If an I/O error occurs.
      */
-    private void handleMetricsUi(HttpExchange exchange) throws IOException {
+    protected void handleMetricsUi(HttpExchange exchange) throws IOException {
         log.debug("Handling /metrics UI: method={}, uri={}, remote={}",
                 exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
         if (!auth.isAuthenticated(exchange)) {
@@ -161,7 +174,7 @@ public class MetricsEndpoint {
      * @param exchange The HTTP exchange object.
      * @throws IOException If an I/O error occurs.
      */
-    private void handleGraphite(HttpExchange exchange) throws IOException {
+    protected void handleGraphite(HttpExchange exchange) throws IOException {
         log.trace("Handling /graphite: method={}, uri={}, remote={}",
                 exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
         if (!auth.isAuthenticated(exchange)) {
@@ -182,7 +195,7 @@ public class MetricsEndpoint {
      * @param exchange The HTTP exchange object.
      * @throws IOException If an I/O error occurs.
      */
-    private void handlePrometheus(HttpExchange exchange) throws IOException {
+    protected void handlePrometheus(HttpExchange exchange) throws IOException {
         log.debug("Handling /prometheus: method={}, uri={}, remote={}",
                 exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
         if (!auth.isAuthenticated(exchange)) {
@@ -199,7 +212,7 @@ public class MetricsEndpoint {
      * @param exchange The HTTP exchange object.
      * @throws IOException If an I/O error occurs.
      */
-    private void handleEnv(HttpExchange exchange) throws IOException {
+    protected void handleEnv(HttpExchange exchange) throws IOException {
         log.debug("Handling /env: method={}, uri={}, remote={}",
                 exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
         if (!auth.isAuthenticated(exchange)) {
@@ -218,7 +231,7 @@ public class MetricsEndpoint {
      * @param exchange The HTTP exchange object.
      * @throws IOException If an I/O error occurs.
      */
-    private void handleSysProps(HttpExchange exchange) throws IOException {
+    protected void handleSysProps(HttpExchange exchange) throws IOException {
         log.debug("Handling /sysprops: method={}, uri={}, remote={}",
                 exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
         if (!auth.isAuthenticated(exchange)) {
@@ -237,7 +250,7 @@ public class MetricsEndpoint {
      * @param exchange The HTTP exchange object.
      * @throws IOException If an I/O error occurs.
      */
-    private void handleThreads(HttpExchange exchange) throws IOException {
+    protected void handleThreads(HttpExchange exchange) throws IOException {
         log.debug("Handling /threads: method={}, uri={}, remote={}",
                 exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
         if (!auth.isAuthenticated(exchange)) {
@@ -254,7 +267,7 @@ public class MetricsEndpoint {
      * @param exchange The HTTP exchange object.
      * @throws IOException If an I/O error occurs.
      */
-    private void handleHeapDump(HttpExchange exchange) throws IOException {
+    protected void handleHeapDump(HttpExchange exchange) throws IOException {
         log.debug("Handling /heapdump: method={}, uri={}, remote={}",
                 exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
         if (!auth.isAuthenticated(exchange)) {
