@@ -60,11 +60,12 @@ class MainTest {
         assertEquals("java -jar mta-sts.jar", logs.get(0));
         assertEquals(" Robin MTA-STS client tool", logs.get(1));
         assertEquals("", logs.get(2));
-        assertEquals("usage:   [-d <arg>] [-f <arg>] [-j] [-m <arg>]\n" +
-                " -d,--domain <arg>   Domain\n" +
-                " -f,--file <arg>     Write policy details to JSON file\n" +
-                " -j,--json           Show policy details as JSON\n" +
-                " -m,--mx <arg>       MX to match against policy MX masks\n", logs.get(3).replaceAll("\r\n", "\n"));
+        assertEquals(" usage:    [-d <arg>] [-f <arg>] [-j] [-m <arg>]\n\n" +
+                "      Options                       Description            \n" +
+                " -d, --domain <arg>     Domain                             \n" +
+                " -m, --mx <arg>         MX to match against policy MX masks\n" +
+                " -j, --json             Show policy details as JSON        \n" +
+                " -f, --file <arg>       Write policy details to JSON file  \n\n", logs.get(3).replaceAll("\r\n", "\n"));
         assertEquals("", logs.get(4));
     }
 
@@ -75,11 +76,12 @@ class MainTest {
         assertEquals("java -jar mta-sts.jar", logs.get(0));
         assertEquals(" Robin MTA-STS client tool", logs.get(1));
         assertEquals("", logs.get(2));
-        assertEquals("usage:   [-d <arg>] [-f <arg>] [-j] [-m <arg>]\n" +
-                " -d,--domain <arg>   Domain\n" +
-                " -f,--file <arg>     Write policy details to JSON file\n" +
-                " -j,--json           Show policy details as JSON\n" +
-                " -m,--mx <arg>       MX to match against policy MX masks\n", logs.get(3).replaceAll("\r\n", "\n"));
+        assertEquals(" usage:    [-d <arg>] [-f <arg>] [-j] [-m <arg>]\n\n" +
+                "      Options                       Description            \n" +
+                " -d, --domain <arg>     Domain                             \n" +
+                " -m, --mx <arg>         MX to match against policy MX masks\n" +
+                " -j, --json             Show policy details as JSON        \n" +
+                " -f, --file <arg>       Write policy details to JSON file  \n\n", logs.get(3).replaceAll("\r\n", "\n"));
         assertEquals("", logs.get(4));
     }
 
@@ -95,11 +97,12 @@ class MainTest {
         assertEquals("java -jar mta-sts.jar", logs.get(0));
         assertEquals(" Robin MTA-STS client tool", logs.get(1));
         assertEquals("", logs.get(2));
-        assertEquals("usage:   [-d <arg>] [-f <arg>] [-j] [-m <arg>]\n" +
-                " -d,--domain <arg>   Domain\n" +
-                " -f,--file <arg>     Write policy details to JSON file\n" +
-                " -j,--json           Show policy details as JSON\n" +
-                " -m,--mx <arg>       MX to match against policy MX masks\n", logs.get(3).replaceAll("\r\n", "\n"));
+        assertEquals(" usage:    [-d <arg>] [-f <arg>] [-j] [-m <arg>]\n\n" +
+                "      Options                       Description            \n" +
+                " -d, --domain <arg>     Domain                             \n" +
+                " -m, --mx <arg>         MX to match against policy MX masks\n" +
+                " -j, --json             Show policy details as JSON        \n" +
+                " -f, --file <arg>       Write policy details to JSON file  \n\n", logs.get(3).replaceAll("\r\n", "\n"));
         assertEquals("", logs.get(4));
     }
 

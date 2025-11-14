@@ -4,14 +4,12 @@ import com.mimecast.robin.main.ClientCLI;
 import com.mimecast.robin.main.ServerCLI;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
+import org.apache.commons.cli.help.HelpFormatter;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.config.Configurator;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
@@ -126,15 +124,26 @@ public class Main {
         log(" " + DESCRIPTION);
         log("");
 
-        StringWriter out = new StringWriter();
-        PrintWriter pw = new PrintWriter(out);
+        // Capture System.out to get help output
+        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+        java.io.PrintStream ps = new java.io.PrintStream(baos);
+        java.io.PrintStream oldOut = System.out;
+        System.setOut(ps);
 
-        HelpFormatter formatter = new HelpFormatter();
-        formatter.printHelp(pw, 80, " ", "", options, formatter.getLeftPadding(), formatter.getDescPadding(), "", true);
+        try {
+            HelpFormatter formatter = HelpFormatter.builder()
+                .setShowSince(false)
+                .get();
+            formatter.printHelp(" ", "", options, "", true);
+            System.out.flush();
+        } catch (java.io.IOException e) {
+            // Should not happen with ByteArrayOutputStream
+            throw new RuntimeException(e);
+        } finally {
+            System.setOut(oldOut);
+        }
 
-        pw.flush();
-
-        log(out.toString());
+        log(baos.toString());
         log("");
     }
 
