@@ -192,6 +192,127 @@ public class QueuePgSQL<T extends Serializable> implements QueueDatabase<T> {
     }
 
     /**
+     * Remove an item from the queue by index (0-based).
+     */
+    @Override
+    public boolean removeByIndex(int index) {
+        if (index < 0) {
+            return false;
+        }
+        
+        String selectSQL = "SELECT id FROM " + tableName + " ORDER BY id LIMIT 1 OFFSET ?";
+        String deleteSQL = "DELETE FROM " + tableName + " WHERE id = ?";
+        
+        try (PreparedStatement selectStmt = connection.prepareStatement(selectSQL)) {
+            selectStmt.setInt(1, index);
+            try (ResultSet rs = selectStmt.executeQuery()) {
+                if (rs.next()) {
+                    long id = rs.getLong("id");
+                    try (PreparedStatement deleteStmt = connection.prepareStatement(deleteSQL)) {
+                        deleteStmt.setLong(1, id);
+                        return deleteStmt.executeUpdate() > 0;
+                    }
+                }
+            }
+            return false;
+        } catch (SQLException e) {
+            log.error("Failed to remove by index: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to remove by index", e);
+        }
+    }
+
+    /**
+     * Remove items from the queue by indices (0-based).
+     */
+    @Override
+    public int removeByIndices(List<Integer> indices) {
+        if (indices == null || indices.isEmpty()) {
+            return 0;
+        }
+        
+        int removed = 0;
+        List<Integer> sortedIndices = new ArrayList<>(indices);
+        sortedIndices.sort(Integer::compareTo);
+        
+        for (int i = sortedIndices.size() - 1; i >= 0; i--) {
+            if (removeByIndex(sortedIndices.get(i))) {
+                removed++;
+            }
+        }
+        return removed;
+    }
+
+    /**
+     * Remove an item from the queue by UID (for RelaySession).
+     */
+    @Override
+    public boolean removeByUID(String uid) {
+        if (uid == null) {
+            return false;
+        }
+        
+        String selectSQL = "SELECT id, data FROM " + tableName + " ORDER BY id";
+        String deleteSQL = "DELETE FROM " + tableName + " WHERE id = ?";
+        
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(selectSQL)) {
+            
+            while (rs.next()) {
+                long id = rs.getLong("id");
+                byte[] data = rs.getBytes("data");
+                T item = deserialize(data);
+                
+                if (item instanceof RelaySession) {
+                    RelaySession relaySession = (RelaySession) item;
+                    if (uid.equals(relaySession.getSession().getUID())) {
+                        try (PreparedStatement deleteStmt = connection.prepareStatement(deleteSQL)) {
+                            deleteStmt.setLong(1, id);
+                            return deleteStmt.executeUpdate() > 0;
+                        }
+                    }
+                }
+            }
+            return false;
+        } catch (SQLException e) {
+            log.error("Failed to remove by UID: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to remove by UID", e);
+        }
+    }
+
+    /**
+     * Remove items from the queue by UIDs (for RelaySession).
+     */
+    @Override
+    public int removeByUIDs(List<String> uids) {
+        if (uids == null || uids.isEmpty()) {
+            return 0;
+        }
+        
+        int removed = 0;
+        for (String uid : uids) {
+            if (removeByUID(uid)) {
+                removed++;
+            }
+        }
+        return removed;
+    }
+
+    /**
+     * Clear all items from the queue.
+     */
+    @Override
+    public void clear() {
+        String sql = "DELETE FROM " + tableName;
+        
+        try (Statement stmt = connection.createStatement()) {
+            stmt.executeUpdate(sql);
+        } catch (SQLException e) {
+            log.error("Failed to clear queue: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to clear queue", e);
+        }
+    }
+
+    /**
      * Close the database connection.
      */
     @Override

@@ -284,7 +284,7 @@ public class ApiEndpoint {
             QueueFiles.persistEnvelopeFiles(relaySession);
 
             // Enqueue for later relay.
-            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
+            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance();
             queue.enqueue(relaySession);
             long size = queue.size();
             log.info("Relay session queued: protocol={}, mailbox={}, queueSize={}", protocolOverride, mailboxOverride, size);
@@ -316,7 +316,7 @@ public class ApiEndpoint {
         }
 
         try {
-            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE);
+            PersistentQueue<RelaySession> queue = PersistentQueue.getInstance();
             List<RelaySession> items = queue.snapshot();
 
             // Load HTML template from resources.

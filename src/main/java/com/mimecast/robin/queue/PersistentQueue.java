@@ -24,15 +24,36 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
 
     // Singleton instances map.
     private static final Map<String, PersistentQueue<RelaySession>> instances = new HashMap<>();
+    private static final String CONFIG_BASED_KEY = "__config_based__";
 
     /**
-     * Get a singleton instance of PersistentQueue for the given file and queue name.
+     * Get a singleton instance of PersistentQueue using configuration-based backend selection.
+     * <p>This method should be used in production code where backend selection is based on configuration.
      *
-     * @param file The file to store the database.
+     * @return The PersistentQueue instance.
+     */
+    @SuppressWarnings("unchecked")
+    public static PersistentQueue<RelaySession> getInstance() {
+        if (!instances.containsKey(CONFIG_BASED_KEY)) {
+            instances.put(CONFIG_BASED_KEY, new PersistentQueue<>(null));
+        }
+
+        return instances.get(CONFIG_BASED_KEY);
+    }
+
+    /**
+     * Get a singleton instance of PersistentQueue for the given file.
+     * <p>This method should be used in tests where a specific temp file is provided.
+     *
+     * @param file The file to store the database (for MapDB).
      * @return The PersistentQueue instance.
      */
     @SuppressWarnings("unchecked")
     public static PersistentQueue<RelaySession> getInstance(File file) {
+        if (file == null) {
+            return getInstance();
+        }
+
         String instanceKey = file.getAbsolutePath();
 
         if (!instances.containsKey(instanceKey)) {
@@ -103,13 +124,15 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
      */
     @Override
     public void close() {
-        instances.remove(file.getAbsolutePath());
+        String instanceKey = file != null ? file.getAbsolutePath() : CONFIG_BASED_KEY;
+        instances.remove(instanceKey);
         try {
             database.close();
         } catch (Exception e) {
             // Log the error but don't propagate it to maintain close() contract.
             // This is especially important for MapDB WAL files on Windows.
-            log.error("Error closing queue database for file {}: {}", file.getAbsolutePath(), e.getMessage());
+            String fileInfo = file != null ? file.getAbsolutePath() : "config-based";
+            log.error("Error closing queue database for {}: {}", fileInfo, e.getMessage());
         }
     }
 }

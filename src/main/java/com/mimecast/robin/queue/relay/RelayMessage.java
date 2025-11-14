@@ -111,7 +111,7 @@ public class RelayMessage {
                 QueueFiles.persistEnvelopeFiles(relaySession);
 
                 // Enqueue for retry.
-                PersistentQueue.getInstance(RelayQueueCron.QUEUE_FILE)
+                PersistentQueue.getInstance()
                         .enqueue(relaySession);
             }
         }

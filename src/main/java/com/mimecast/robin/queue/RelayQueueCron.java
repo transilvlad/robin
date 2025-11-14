@@ -4,7 +4,6 @@ import com.mimecast.robin.main.Config;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.File;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -21,9 +20,6 @@ import java.util.concurrent.TimeUnit;
  */
 public class RelayQueueCron {
     private static final Logger log = LogManager.getLogger(RelayQueueCron.class);
-
-    // Queue file from config.
-    public static final File QUEUE_FILE = new File(Config.getServer().getQueue().getStringProperty("queueFile", "/tmp/robinRelayQueue.db"));
 
     // Scheduler configuration (seconds).
     private static final int INITIAL_DELAY_SECONDS = Math.toIntExact(Config.getServer().getQueue().getLongProperty("queueInitialDelay", 10L));
@@ -48,10 +44,10 @@ public class RelayQueueCron {
             return; // Already running.
         }
 
-        queue = PersistentQueue.getInstance(QUEUE_FILE);
+        queue = PersistentQueue.getInstance();
         long initialQueueSize = queue.size();
-        log.info("RelayQueueCron starting: queueFile={}, initialDelaySeconds={}, periodSeconds={}, initialQueueSize={}, maxDequeuePerTick={}",
-                QUEUE_FILE.getAbsolutePath(), INITIAL_DELAY_SECONDS, PERIOD_SECONDS, initialQueueSize, MAX_DEQUEUE_PER_TICK);
+        log.info("RelayQueueCron starting: initialDelaySeconds={}, periodSeconds={}, initialQueueSize={}, maxDequeuePerTick={}",
+                INITIAL_DELAY_SECONDS, PERIOD_SECONDS, initialQueueSize, MAX_DEQUEUE_PER_TICK);
 
         scheduler = Executors.newScheduledThreadPool(1);
 
@@ -86,7 +82,7 @@ public class RelayQueueCron {
             } finally {
                 if (queue != null) {
                     queue.close();
-                    log.debug("Queue closed: {}", QUEUE_FILE.getAbsolutePath());
+                    log.debug("Queue closed");
                 }
             }
         }));
@@ -96,7 +92,7 @@ public class RelayQueueCron {
      * Get current queue size.
      */
     public static long getQueueSize() {
-        PersistentQueue<RelaySession> q = queue != null ? queue : PersistentQueue.getInstance(QUEUE_FILE);
+        PersistentQueue<RelaySession> q = queue != null ? queue : PersistentQueue.getInstance();
         return q.size();
     }
 
@@ -105,7 +101,7 @@ public class RelayQueueCron {
      */
     public static Map<Integer, Long> getRetryHistogram() {
         Map<Integer, Long> histogram = new HashMap<>();
-        PersistentQueue<RelaySession> q = queue != null ? queue : PersistentQueue.getInstance(QUEUE_FILE);
+        PersistentQueue<RelaySession> q = queue != null ? queue : PersistentQueue.getInstance();
         for (RelaySession s : q.snapshot()) {
             int retry = s.getRetryCount();
             histogram.put(retry, histogram.getOrDefault(retry, 0L) + 1L);
