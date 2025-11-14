@@ -626,7 +626,7 @@ Multiple chaos headers can be present in the same email to test different scenar
 
 **Bypass AVStorageProcessor:**
 
-    X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor:false
+    X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor
 
 This bypasses the antivirus scanning processor and continues processing.
 
@@ -634,11 +634,12 @@ This bypasses the antivirus scanning processor and continues processing.
 
     X-Robin-Chaos: DovecotLdaClient; recipient=tony@example.com; result="1:storage full"
 
-This simulates a storage failure for the specified recipient with exit code `1` and error message `storage full`.
+This simulates a storage failure for the specified recipient with exit code `1` and error message `storage full`. 
+Note: Quotes are required around values containing colons.
 
 **Test multiple scenarios:**
 
-    X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor:false
+    X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor
     X-Robin-Chaos: DovecotLdaClient; recipient=user1@example.com; result="0:success"
     X-Robin-Chaos: DovecotLdaClient; recipient=user2@example.com; result="1:quota exceeded"
 

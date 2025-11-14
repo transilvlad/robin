@@ -98,7 +98,7 @@ Multiple chaos headers can be present in the same email to test different scenar
 
 **Bypass AVStorageProcessor:**
 ```
-X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor:false
+X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor
 ```
 
 This bypasses the call to AVStorageProcessor and continues processing without virus scanning.
@@ -112,4 +112,4 @@ This bypasses the actual Dovecot LDA call for the specified recipient and return
 - Exit code: `1` (failure)
 - Error message: `"storage full"`
 
-The result parameter format is: `"exitCode:errorMessage"`
+The result parameter format is: `"exitCode:errorMessage"`. The quotes are required to preserve the colon in the value.

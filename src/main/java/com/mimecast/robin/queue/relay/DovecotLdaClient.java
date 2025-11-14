@@ -179,6 +179,7 @@ public class DovecotLdaClient {
                 
                 if (recipientParam != null && resultParam != null && recipientParam.equalsIgnoreCase(recipient)) {
                     // Parse result parameter: "exitCode:errorMessage"
+                    // The result should be quoted in the header to preserve the colon.
                     String[] parts = resultParam.split(":", 2);
                     int exitCode = Integer.parseInt(parts[0]);
                     String error = parts.length > 1 ? parts[1] : "";
