@@ -290,7 +290,7 @@ class MetricsCronTest {
         assertTrue(result.length > 1);
 
         // First byte should be field number 3, wire type 0 (varint)
-        assertEquals((3 << 3), result[0] & 0xFF);
+        assertEquals((3 << 3) | 0, result[0] & 0xFF);
     }
 
     @Test
