@@ -8,6 +8,8 @@ import java.io.Serializable;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.util.Date;
+import java.util.Objects;
+import java.util.UUID;
 
 /**
  * Relay session.
@@ -20,7 +22,7 @@ public class RelaySession implements Serializable {
      * Unique identifier for this relay session.
      * This is final and cannot be changed, unlike the session UID which can be duplicated.
      */
-    private final String uid;
+    private final String uid = UUID.randomUUID().toString();
 
     /**
      * Session.
@@ -45,7 +47,7 @@ public class RelaySession implements Serializable {
     /**
      * Session creation time (epoch seconds).
      */
-    private long createTime = 0;
+    private final long createTime = Instant.now().getEpochSecond();
 
     /**
      * Last retry bump time (epoch seconds).
@@ -56,9 +58,7 @@ public class RelaySession implements Serializable {
      * Constructs a new DovecotSession instance.
      */
     public RelaySession(Session session) {
-        this.uid = java.util.UUID.randomUUID().toString();
         this.session = session;
-        this.createTime = Instant.now().getEpochSecond();
     }
 
     /**
@@ -132,6 +132,15 @@ public class RelaySession implements Serializable {
     }
 
     /**
+     * Gets create time in epoch seconds.
+     *
+     * @return Long.
+     */
+    public long getCreateTime() {
+        return createTime;
+    }
+
+    /**
      * Gets last retry time in epoch seconds.
      *
      * @return Long.
@@ -176,7 +185,7 @@ public class RelaySession implements Serializable {
      */
     @Override
     public boolean equals(Object obj) {
-        return obj instanceof RelaySession && uid.equals(((RelaySession) obj).getUID());
+        return obj instanceof RelaySession && Objects.equals(uid, ((RelaySession) obj).getUID());
     }
 
     /**
@@ -186,6 +195,6 @@ public class RelaySession implements Serializable {
      */
     @Override
     public int hashCode() {
-        return uid.hashCode();
+        return uid != null ? uid.hashCode() : 0;
     }
 }

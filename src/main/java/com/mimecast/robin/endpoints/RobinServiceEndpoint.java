@@ -82,41 +82,6 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
     }
 
     /**
-     * Handles requests for the application's health status with Robin-specific stats.
-     * <p>Provides a JSON response with status, uptime, listeners, queue, scheduler, and metrics cron information.
-     *
-     * @param exchange The HTTP exchange object.
-     * @throws IOException If an I/O error occurs.
-     */
-    @Override
-    protected void handleHealth(HttpExchange exchange) throws IOException {
-        if (!auth.isAuthenticated(exchange)) {
-            log.debug("Handling /health: method={}, uri={}, remote={}",
-                    exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
-
-            Duration uptime = Duration.ofMillis(System.currentTimeMillis() - startTime);
-            String uptimeString = String.format("%dd %dh %dm %ds",
-                    uptime.toDays(),
-                    uptime.toHoursPart(),
-                    uptime.toMinutesPart(),
-                    uptime.toSecondsPart());
-
-            // Final health JSON response.
-            String response = String.format("{\"status\":\"UP\", \"uptime\":\"%s\", \"listeners\":%s, \"queue\":%s, \"scheduler\":%s, \"metricsCron\":%s}",
-                    uptimeString,
-                    getListenersJson(), // Listener stats.
-                    getQueueJson(), // Queue stats and retry histogram.
-                    getSchedulerJson(), // Scheduler config and cron stats.
-                    getMetricsCronJson() // Metrics cron stats.
-            );
-
-            sendResponse(exchange, 200, "application/json; charset=utf-8", response);
-        } else {
-            super.handleHealth(exchange);
-        }
-    }
-
-    /**
      * Generates JSON representation of SMTP listener statistics.
      *
      * @return JSON array string containing listener thread pool information.
@@ -219,6 +184,79 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
         } catch (Exception e) {
             log.error("Failed to generate config viewer: {}", e.getMessage());
             sendResponse(exchange, 500, "text/plain; charset=utf-8", "Internal Server Error");
+        }
+    }
+
+    /**
+     * Handles POST requests to reload server configuration.
+     * Thread-safe using synchronized block to serialize reload operations.
+     * Configuration changes apply immediately without server restart.
+     *
+     * @param exchange The HTTP exchange object.
+     * @throws IOException If an I/O error occurs.
+     */
+    private void handleConfigReload(HttpExchange exchange) throws IOException {
+        log.debug("Handling /config/reload: method={}, uri={}, remote={}",
+                exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
+
+        if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendResponse(exchange, 405, "text/plain; charset=utf-8", "Method Not Allowed");
+            return;
+        }
+
+        if (!auth.isAuthenticated(exchange)) {
+            auth.sendAuthRequired(exchange);
+            return;
+        }
+
+        try {
+            synchronized (CONFIG_RELOAD_LOCK) {
+                log.info("Configuration reload triggered via API");
+                Config.triggerReload();
+                log.info("Configuration reloaded successfully");
+            }
+
+            String response = "{\"status\":\"OK\", \"message\":\"Configuration reloaded successfully\"}";
+            sendResponse(exchange, 200, "application/json; charset=utf-8", response);
+        } catch (Exception e) {
+            log.error("Failed to reload configuration: {}", e.getMessage());
+            String errorResponse = String.format("{\"status\":\"ERROR\", \"message\":\"Failed to reload configuration: %s\"}", e.getMessage());
+            sendResponse(exchange, 500, "application/json; charset=utf-8", errorResponse);
+        }
+    }
+
+    /**
+     * Handles requests for the application's health status with Robin-specific stats.
+     * <p>Provides a JSON response with status, uptime, listeners, queue, scheduler, and metrics cron information.
+     *
+     * @param exchange The HTTP exchange object.
+     * @throws IOException If an I/O error occurs.
+     */
+    @Override
+    protected void handleHealth(HttpExchange exchange) throws IOException {
+        if (auth.isAuthenticated(exchange)) {
+            log.debug("Handling /health: method={}, uri={}, remote={}",
+                    exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
+
+            Duration uptime = Duration.ofMillis(System.currentTimeMillis() - startTime);
+            String uptimeString = String.format("%dd %dh %dm %ds",
+                    uptime.toDays(),
+                    uptime.toHoursPart(),
+                    uptime.toMinutesPart(),
+                    uptime.toSecondsPart());
+
+            // Final health JSON response.
+            String response = String.format("{\"status\":\"UP\", \"uptime\":\"%s\", \"listeners\":%s, \"queue\":%s, \"scheduler\":%s, \"metricsCron\":%s}",
+                    uptimeString,
+                    getListenersJson(), // Listener stats.
+                    getQueueJson(), // Queue stats and retry histogram.
+                    getSchedulerJson(), // Scheduler config and cron stats.
+                    getMetricsCronJson() // Metrics cron stats.
+            );
+
+            sendResponse(exchange, 200, "application/json; charset=utf-8", response);
+        } else {
+            super.handleHealth(exchange);
         }
     }
 
@@ -326,44 +364,6 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;")
                 .replace("'", "&#39;");
-    }
-
-    /**
-     * Handles POST requests to reload server configuration.
-     * Thread-safe using synchronized block to serialize reload operations.
-     * Configuration changes apply immediately without server restart.
-     *
-     * @param exchange The HTTP exchange object.
-     * @throws IOException If an I/O error occurs.
-     */
-    private void handleConfigReload(HttpExchange exchange) throws IOException {
-        log.debug("Handling /config/reload: method={}, uri={}, remote={}",
-                exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
-
-        if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
-            sendResponse(exchange, 405, "text/plain; charset=utf-8", "Method Not Allowed");
-            return;
-        }
-
-        if (!auth.isAuthenticated(exchange)) {
-            auth.sendAuthRequired(exchange);
-            return;
-        }
-
-        try {
-            synchronized (CONFIG_RELOAD_LOCK) {
-                log.info("Configuration reload triggered via API");
-                Config.triggerReload();
-                log.info("Configuration reloaded successfully");
-            }
-
-            String response = "{\"status\":\"OK\", \"message\":\"Configuration reloaded successfully\"}";
-            sendResponse(exchange, 200, "application/json; charset=utf-8", response);
-        } catch (Exception e) {
-            log.error("Failed to reload configuration: {}", e.getMessage());
-            String errorResponse = String.format("{\"status\":\"ERROR\", \"message\":\"Failed to reload configuration: %s\"}", e.getMessage());
-            sendResponse(exchange, 500, "application/json; charset=utf-8", errorResponse);
-        }
     }
 }
 
