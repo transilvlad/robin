@@ -36,6 +36,9 @@ public class MessageEnvelope implements Serializable, Cloneable {
     // Blackholed status - true if email should be accepted but not saved.
     private boolean blackholed = false;
 
+    // Proxy connection - transient, not serialized.
+    private transient Object proxyConnection = null;
+
     // Set MimeConfig.
     private MimeConfig mime = null;
 
@@ -695,6 +698,27 @@ public class MessageEnvelope implements Serializable, Cloneable {
      */
     public MessageEnvelope setBlackholed(boolean blackholed) {
         this.blackholed = blackholed;
+        return this;
+    }
+
+    /**
+     * Gets proxy connection.
+     *
+     * @return Proxy connection object.
+     */
+    public Object getProxyConnection() {
+        return proxyConnection;
+    }
+
+    /**
+     * Sets proxy connection.
+     * <p>This field is transient and will not be serialized.
+     *
+     * @param proxyConnection Proxy connection object.
+     * @return MessageEnvelope instance.
+     */
+    public MessageEnvelope setProxyConnection(Object proxyConnection) {
+        this.proxyConnection = proxyConnection;
         return this;
     }
 

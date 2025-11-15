@@ -73,6 +73,7 @@ External files (auto‑loaded if present in same directory):
 - `rspamd.json5` Rspamd integration for spam/phishing detection.
 - `blocklist.json5` IP blocklist configuration.
 - `blackhole.json5` Blackhole mode configuration.
+- `proxy.json5` Proxy mode configuration.
 
 Example `server.json5` (core listeners & feature flags):
 
@@ -587,3 +588,30 @@ Below are concise examples for each auxiliary config file.
       response: "250 Message accepted and will be processed"
     }
 
+
+`proxy.json5` – Proxy mode configuration:
+
+    {
+      // Enable proxy mode.
+      enabled: false,
+
+      // List of proxy rules.
+      // Only the FIRST matching rule will proxy the email.
+      rules: [
+        {
+          // Matching patterns (regex)
+          rcpt: ".*@proxy-destination\\.example\\.com",
+          
+          // Proxy destination
+          host: "relay.example.com",
+          port: 25,
+          protocol: "esmtp",  // smtp, esmtp, or lmtp
+          tls: false,
+          
+          // Action for non-matching recipients
+          action: "none"  // accept, reject, or none
+        }
+      ]
+    }
+
+See [Proxy Documentation](proxy.md) for detailed configuration and examples.
