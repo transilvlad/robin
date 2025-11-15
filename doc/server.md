@@ -74,6 +74,7 @@ External files (auto‑loaded if present in same directory):
 - See [Scan Results](scanners.md) for aggregating and accessing scanner results.
 - `blocklist.json5` IP blocklist configuration.
 - `blackhole.json5` Blackhole mode configuration.
+- `proxy.json5` Proxy mode configuration.
 
 Example `server.json5` (core listeners & feature flags):
 
@@ -594,6 +595,42 @@ Below are concise examples for each auxiliary config file.
     }
 
 
+`proxy.json5` – Proxy mode configuration:
+
+    {
+      // Enable proxy mode.
+      enabled: false,
+
+      // List of proxy rules.
+      // Only the FIRST matching rule will proxy the email.
+      // Connections are REUSED across multiple envelopes for performance.
+      rules: [
+        {
+          // Matching patterns (regex)
+          rcpt: ".*@proxy-destination\\.example\\.com",
+
+          // Proxy destination (hosts is an array for failover support)
+          hosts: ["relay.example.com", "backup-relay.example.com"],
+          port: 25,
+          protocol: "esmtp",  // smtp, esmtp, or lmtp
+          tls: false,
+
+          // Direction filtering (optional, default: both)
+          direction: "both",  // both, inbound, or outbound
+
+          // Authentication (optional)
+          authUsername: "user",
+          authPassword: "pass",
+          authMechanism: "PLAIN",
+
+          // Action for non-matching recipients
+          action: "none"  // accept, reject, or none
+        }
+      ]
+    }
+
+See [Proxy Documentation](proxy.md) for detailed configuration and examples.
+
 Chaos Headers
 -------------
 
@@ -646,4 +683,3 @@ This simulates a storage failure for the specified recipient with exit code `1` 
     X-Robin-Chaos: DovecotLdaClient; recipient=user2@example.com; exitCode=1; message="quota exceeded"
 
 See [magic.md](magic.md) for complete chaos headers documentation.
-
