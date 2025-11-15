@@ -1,0 +1,82 @@
+{
+  // Enable or disable proxy functionality (default: false).
+  // When enabled, emails matching the configured rules will be proxied
+  // to another SMTP/ESMTP/LMTP server instead of being stored locally.
+  enabled: false,
+
+  // List of proxy rules.
+  // Each rule can contain one or more conditions (ip, ehlo, mail, rcpt).
+  // All conditions within a single rule must match for the rule to apply (AND logic).
+  // Only the FIRST matching rule will proxy the email (subsequent matches are ignored).
+  // All patterns are regular expressions.
+  // If a pattern is not specified, it matches anything for that field.
+  //
+  // Each rule must also specify the proxy destination:
+  // - host: The SMTP server hostname or IP address
+  // - port: The SMTP server port (default: 25)
+  // - protocol: The protocol to use (smtp, esmtp, lmtp) (default: esmtp)
+  // - tls: Whether to use TLS (true/false) (default: false)
+  // - action: What to do with non-matching recipients (accept, reject, none) (default: none)
+  //   * accept: Accept non-matching recipients locally
+  //   * reject: Reject non-matching recipients
+  //   * none: Continue with normal recipient processing
+  rules: [
+    // Example 1: Proxy all emails to a specific recipient domain
+    // {
+    //   rcpt: ".*@proxy-destination\\.example\\.com",
+    //   host: "relay.example.com",
+    //   port: 25,
+    //   protocol: "esmtp",
+    //   tls: false,
+    //   action: "none"
+    // },
+
+    // Example 2: Proxy emails from a specific IP range
+    // {
+    //   ip: "192\\.168\\.1\\..*",
+    //   host: "internal-relay.example.com",
+    //   port: 587,
+    //   protocol: "esmtp",
+    //   tls: true,
+    //   action: "reject"
+    // },
+
+    // Example 3: Proxy based on sender and recipient combination
+    // {
+    //   mail: ".*@partner\\.example\\.com",
+    //   rcpt: ".*@customer\\.example\\.com",
+    //   host: "partner-relay.example.com",
+    //   port: 25,
+    //   protocol: "lmtp",
+    //   tls: false,
+    //   action: "accept"
+    // },
+
+    // Example 4: Complex rule with multiple conditions
+    // All conditions must match for this rule to apply
+    // {
+    //   ip: "10\\.0\\..*",
+    //   ehlo: ".*\\.internal\\.com",
+    //   mail: ".*@source\\.example\\.com",
+    //   rcpt: ".*@destination\\.example\\.com",
+    //   host: "secure-relay.example.com",
+    //   port: 465,
+    //   protocol: "esmtp",
+    //   tls: true,
+    //   action: "none"
+    // }
+  ]
+
+  // Notes:
+  // - When a recipient matches a proxy rule, a proxy connection is established on first match
+  // - The proxy connection sends MAIL FROM and each matching RCPT TO to the remote server
+  // - The email data is streamed to the proxy server after storage processors accept it
+  // - The proxy connection is closed after DATA transmission completes
+  // - If the proxy server rejects the connection before the first recipient,
+  //   all subsequent recipients are rejected with that error
+  // - Only the FIRST matching rule will proxy; additional matches are logged as warnings
+  // - The "action" parameter controls what happens with non-matching recipients:
+  //   * "accept": Non-matching recipients are accepted and stored locally
+  //   * "reject": Non-matching recipients are rejected
+  //   * "none": Continue with normal recipient validation (dovecot auth, scenarios, etc.)
+}
