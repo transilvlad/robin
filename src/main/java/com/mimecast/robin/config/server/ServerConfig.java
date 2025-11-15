@@ -48,6 +48,7 @@ public class ServerConfig extends ConfigFoundation {
         CONFIG_FILENAMES.put("rspamd", "rspamd.json5");
         CONFIG_FILENAMES.put("blocklist", "blocklist.json5");
         CONFIG_FILENAMES.put("blackhole", "blackhole.json5");
+        CONFIG_FILENAMES.put("proxy", "proxy.json5");
     }
 
     /**
@@ -311,6 +312,21 @@ public class ServerConfig extends ConfigFoundation {
         }
         // Return default config if not defined.
         return new BlackholeConfig(null);
+    }
+
+    /**
+     * Gets proxy configuration.
+     *
+     * @return ProxyConfig instance.
+     */
+    public ProxyConfig getProxy() {
+        loadExternalIfAbsent("proxy", Map.class);
+
+        if (map.containsKey("proxy")) {
+            return new ProxyConfig(getMapProperty("proxy"));
+        }
+        // Return default config if not defined.
+        return new ProxyConfig(null);
     }
 
     /**

@@ -83,6 +83,13 @@ public class ServerData extends ServerProcessor {
      * @throws IOException Unable to communicate.
      */
     private boolean ascii() throws IOException {
+        // Check if envelope has a proxy connection.
+        if (!connection.getSession().getEnvelopes().isEmpty() && 
+            connection.getSession().getEnvelopes().getLast().getProxyConnection() instanceof com.mimecast.robin.smtp.ProxyEmailDelivery) {
+            // Proxy mode - stream email to proxy server.
+            return handleProxyData();
+        }
+        
         // Check if envelope is blackholed.
         if (!connection.getSession().getEnvelopes().isEmpty() && connection.getSession().getEnvelopes().getLast().isBlackholed()) {
             // Blackholed email - read data but don't store or call webhooks.
@@ -125,6 +132,72 @@ public class ServerData extends ServerProcessor {
         }
 
         return true;
+    }
+
+    /**
+     * Handles proxying email data to another SMTP server.
+     * <p>Streams the received email to the proxy connection after storage processors accept it.
+     *
+     * @return Boolean indicating success.
+     * @throws IOException Unable to communicate.
+     */
+    private boolean handleProxyData() throws IOException {
+        if (connection.getSession().getEnvelopes().isEmpty()) {
+            connection.write(String.format(SmtpResponses.NO_VALID_RECIPIENTS_554, connection.getSession().getUID()));
+            return false;
+        }
+
+        com.mimecast.robin.smtp.ProxyEmailDelivery proxyDelivery = 
+            (com.mimecast.robin.smtp.ProxyEmailDelivery) connection.getSession().getEnvelopes().getLast().getProxyConnection();
+
+        if (proxyDelivery == null || !proxyDelivery.isConnected()) {
+            connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+            return false;
+        }
+
+        // Read and temporarily store the email for proxy transmission.
+        try {
+            if (!asciiRead("eml")) {
+                return false;
+            }
+        } catch (LimitExceededException e) {
+            connection.write(String.format(SmtpResponses.MESSAGE_SIZE_LIMIT_EXCEEDED_552, connection.getSession().getUID()));
+            proxyDelivery.close();
+            return false;
+        }
+
+        // Call RAW webhook after successful storage.
+        if (!callRawWebhook()) {
+            proxyDelivery.close();
+            return false;
+        }
+
+        // Stream the email to the proxy server via DATA command.
+        try {
+            boolean proxySuccess = proxyDelivery.sendData();
+            
+            // Close the proxy connection after DATA is complete.
+            proxyDelivery.close();
+            connection.getSession().getEnvelopes().getLast().setProxyConnection(null);
+
+            if (proxySuccess) {
+                // Return success to the original client.
+                connection.write(String.format(SmtpResponses.RECEIVED_OK_250, connection.getSession().getUID()));
+                log.info("Email successfully proxied to remote server");
+                return true;
+            } else {
+                // Proxy failed, return error to client.
+                connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+                log.error("Proxy server rejected email");
+                return false;
+            }
+        } catch (IOException e) {
+            log.error("Failed to proxy email data: {}", e.getMessage());
+            proxyDelivery.close();
+            connection.getSession().getEnvelopes().getLast().setProxyConnection(null);
+            connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+            return false;
+        }
     }
 
     /**
