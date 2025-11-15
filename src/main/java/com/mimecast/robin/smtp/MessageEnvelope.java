@@ -71,6 +71,9 @@ public class MessageEnvelope implements Serializable, Cloneable {
     // Assertions to be made against transaction.
     private AssertConfig assertConfig;
 
+    // Scan results from security scanners (Rspamd, ClamAV, etc.)
+    private List<Map<String, Object>> scanResults = Collections.synchronizedList(new ArrayList<>());
+
     /**
      * Constructs a new MessageEnvelope instance.
      */
@@ -699,6 +702,31 @@ public class MessageEnvelope implements Serializable, Cloneable {
     }
 
     /**
+     * Gets scan results from security scanners.
+     * <p>This list is thread-safe and contains scan results from various security scanners
+     * such as Rspamd (spam/phishing) and ClamAV (virus scanning).
+     *
+     * @return Thread-safe list of scan results.
+     */
+    public List<Map<String, Object>> getScanResults() {
+        return scanResults;
+    }
+
+    /**
+     * Adds a scan result to the list.
+     * <p>This method is thread-safe.
+     *
+     * @param scanResult The scan result to add.
+     * @return MessageEnvelope instance.
+     */
+    public MessageEnvelope addScanResult(Map<String, Object> scanResult) {
+        if (scanResult != null && !scanResult.isEmpty()) {
+            this.scanResults.add(scanResult);
+        }
+        return this;
+    }
+
+    /**
      * Creates a copy of this MessageEnvelope.
      * <p>Creates a new instance with all fields copied from this envelope.
      * <p>Note: date and msgId from the original are preserved in the clone.
@@ -721,6 +749,14 @@ public class MessageEnvelope implements Serializable, Cloneable {
 
             cloned.headers.clear();
             cloned.headers.putAll(this.headers);
+
+            // Deep copy scanResults
+            cloned.scanResults = Collections.synchronizedList(new ArrayList<>());
+            synchronized (this.scanResults) {
+                for (Map<String, Object> scanResult : this.scanResults) {
+                    cloned.scanResults.add(new HashMap<>(scanResult));
+                }
+            }
 
             // Deep copy byte array if present.
             if (this.bytes != null) {
