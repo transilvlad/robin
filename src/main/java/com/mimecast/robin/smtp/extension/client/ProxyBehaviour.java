@@ -2,8 +2,6 @@ package com.mimecast.robin.smtp.extension.client;
 
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 
@@ -14,13 +12,7 @@ import java.io.IOException;
  * for individual RCPT calls before accepting the DATA command.
  * <p>Unlike DefaultBehaviour, it does NOT automatically execute the data method.
  */
-public class ProxyBehaviour implements Behaviour {
-    protected static final Logger log = LogManager.getLogger(ProxyBehaviour.class);
-
-    /**
-     * Connection.
-     */
-    Connection connection;
+public class ProxyBehaviour extends DefaultBehaviour {
 
     /**
      * Envelope being proxied.
@@ -43,7 +35,7 @@ public class ProxyBehaviour implements Behaviour {
 
     /**
      * Executes delivery up to MAIL FROM.
-     * <p>Does NOT execute DATA - that must be called separately via processData().
+     * <p>Does NOT execute DATA - that must be called separately via sendData().
      *
      * @param connection Connection instance.
      * @throws IOException Unable to communicate.
@@ -57,55 +49,7 @@ public class ProxyBehaviour implements Behaviour {
         if (!auth()) return;
         
         // Send MAIL FROM for the envelope.
-        sendMail();
-    }
-
-    /**
-     * Executes EHLO.
-     *
-     * @return Boolean.
-     * @throws IOException Unable to communicate.
-     */
-    boolean ehlo() throws IOException {
-        // HELO/LHLO/EHLO
-        if (connection.getSession().getHelo() != null ||
-                connection.getSession().getLhlo() != null ||
-                connection.getSession().getEhlo() != null) {
-            return process("ehlo", connection);
-        }
-
-        return false;
-    }
-
-    /**
-     * Executes STARTTLS.
-     *
-     * @return Boolean.
-     * @throws IOException Unable to communicate.
-     */
-    boolean startTls() throws IOException {
-        return !process("starttls", connection) || !connection.getSession().isStartTls() || ehlo();
-    }
-
-    /**
-     * Executes AUTH.
-     *
-     * @return Boolean.
-     * @throws IOException Unable to communicate.
-     */
-    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    boolean auth() throws IOException {
-        // Authenticate if configured.
-        if (connection.getSession().isAuth()) {
-            if (!process("auth", connection)) return false;
-
-            // Start TLS if specifically configured to do after AUTH.
-            if (connection.getSession().isAuthBeforeTls()) {
-                return startTls();
-            }
-        }
-
-        return true;
+        mail();
     }
 
     /**
@@ -113,7 +57,7 @@ public class ProxyBehaviour implements Behaviour {
      *
      * @throws IOException Unable to communicate.
      */
-    void sendMail() throws IOException {
+    void mail() throws IOException {
         if (!mailSent) {
             // Ensure envelope is in session for ClientMail to process.
             if (!connection.getSession().getEnvelopes().contains(envelope)) {
@@ -128,14 +72,14 @@ public class ProxyBehaviour implements Behaviour {
     }
 
     /**
-     * Executes RCPT TO for a single recipient.
+     * Sends RCPT TO for a single recipient.
      * <p>This is called by ServerRcpt for each matching recipient.
      *
      * @param recipient The recipient address.
      * @return The SMTP response from the proxy server.
      * @throws IOException Unable to communicate.
      */
-    public String processRcpt(String recipient) throws IOException {
+    public String sendRcpt(String recipient) throws IOException {
         if (!mailSent) {
             throw new IOException("Cannot send RCPT before MAIL FROM");
         }
@@ -159,13 +103,13 @@ public class ProxyBehaviour implements Behaviour {
     }
 
     /**
-     * Executes DATA command and streams the email.
+     * Sends DATA command and streams the email.
      * <p>This is called by ServerData when ready to send the message.
      *
      * @return Boolean indicating success.
      * @throws IOException Unable to communicate.
      */
-    public boolean processData() throws IOException {
+    public boolean sendData() throws IOException {
         if (!mailSent) {
             throw new IOException("Cannot send DATA before MAIL FROM");
         }
@@ -174,25 +118,11 @@ public class ProxyBehaviour implements Behaviour {
     }
 
     /**
-     * Executes QUIT.
+     * Sends QUIT command.
      *
      * @throws IOException Unable to communicate.
      */
-    public void quit() throws IOException {
-        process("quit", connection);
-    }
-
-    /**
-     * Processes extension.
-     *
-     * @param extension  String.
-     * @param connection Connection instance.
-     * @return Boolean.
-     * @throws IOException Unable to communicate.
-     */
-    boolean process(String extension, Connection connection) throws IOException {
-        java.util.Optional<com.mimecast.robin.smtp.extension.Extension> opt = 
-            com.mimecast.robin.main.Extensions.getExtension(extension);
-        return opt.isPresent() && opt.get().getClient().process(connection);
+    public void sendQuit() throws IOException {
+        quit();
     }
 }

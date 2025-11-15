@@ -1,6 +1,5 @@
 package com.mimecast.robin.smtp;
 
-import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.connection.SmtpException;
 import com.mimecast.robin.smtp.extension.client.ProxyBehaviour;
 import com.mimecast.robin.smtp.session.Session;
@@ -12,16 +11,11 @@ import java.io.IOException;
 /**
  * Proxy email delivery class.
  * <p>This class is designed for a single envelope proxy connection.
- * <p>It wraps a Connection and ProxyBehaviour to enable step-by-step SMTP exchange
+ * <p>It extends EmailDelivery to enable step-by-step SMTP exchange
  * for proxying individual recipients and data.
  */
-public class ProxyEmailDelivery {
+public class ProxyEmailDelivery extends EmailDelivery {
     private static final Logger log = LogManager.getLogger(ProxyEmailDelivery.class);
-
-    /**
-     * Connection instance.
-     */
-    private final Connection connection;
 
     /**
      * ProxyBehaviour instance.
@@ -40,7 +34,7 @@ public class ProxyEmailDelivery {
      * @param envelope MessageEnvelope instance to proxy.
      */
     public ProxyEmailDelivery(Session session, MessageEnvelope envelope) {
-        this.connection = new Connection(session);
+        super(session);
         this.behaviour = new ProxyBehaviour(envelope);
     }
 
@@ -87,7 +81,7 @@ public class ProxyEmailDelivery {
         if (!connected) {
             throw new IOException("Cannot send RCPT: not connected");
         }
-        return behaviour.processRcpt(recipient);
+        return behaviour.sendRcpt(recipient);
     }
 
     /**
@@ -100,7 +94,7 @@ public class ProxyEmailDelivery {
         if (!connected) {
             throw new IOException("Cannot send DATA: not connected");
         }
-        return behaviour.processData();
+        return behaviour.sendData();
     }
 
     /**
@@ -109,7 +103,8 @@ public class ProxyEmailDelivery {
     public void close() {
         if (connected) {
             try {
-                behaviour.quit();
+                // Call quit method from ProxyBehaviour which calls the parent's quit
+                behaviour.sendQuit();
             } catch (IOException e) {
                 log.debug("Error sending QUIT: {}", e.getMessage());
             }
@@ -117,15 +112,6 @@ public class ProxyEmailDelivery {
         connection.close();
         connected = false;
         log.debug("Proxy connection closed");
-    }
-
-    /**
-     * Gets the connection instance.
-     *
-     * @return Connection instance.
-     */
-    public Connection getConnection() {
-        return connection;
     }
 
     /**
@@ -137,3 +123,5 @@ public class ProxyEmailDelivery {
         return connected;
     }
 }
+
+
