@@ -31,11 +31,6 @@ import java.util.List;
 public class RelayDequeue {
     private static final Logger log = LogManager.getLogger(RelayDequeue.class);
 
-    /**
-     * Maximum number of retry attempts before generating bounce messages.
-     */
-    private static final int MAX_RETRY_COUNT = 30;
-
     private final PersistentQueue<RelaySession> queue;
 
     /**
@@ -258,7 +253,7 @@ public class RelayDequeue {
             return;
         }
 
-        if (relaySession.getRetryCount() < MAX_RETRY_COUNT) {
+        if (relaySession.getRetryCount() < relaySession.getMaxRetryCount()) {
             retrySession(relaySession);
         } else if (Config.getServer().getRelay().getBooleanProperty("bounce", true)) {
             generateBounces(relaySession);

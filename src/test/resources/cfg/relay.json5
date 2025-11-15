@@ -25,5 +25,8 @@
   tls: false,
 
   // Bounce email if relay fails.
-  bounce: true
+  bounce: true,
+
+  // Retry count for outbound relay (Default: 30).
+  maxRetryCount: 30
 }

@@ -31,5 +31,8 @@
   // Behaviour on email delivery failure: "retry" (default) or "bounce".
   // "retry" will attempt to redeliver later, "bounce" will send a bounce message to the sender.
   // If all retries fail it will still result in a bounce.
-  failureBehaviour: "retry"
+  failureBehaviour: "retry",
+
+  // Retry count for outbound relay (Default: 10).
+  maxRetryCount: 10
 }
