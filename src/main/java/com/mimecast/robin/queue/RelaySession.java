@@ -45,6 +45,11 @@ public class RelaySession implements Serializable {
     private int retryCount = 0;
 
     /**
+     * Maximum retry count for this session.
+     */
+    private int maxRetryCount;
+
+    /**
      * Session creation time (epoch seconds).
      */
     private final long createTime = Instant.now().getEpochSecond();
@@ -55,10 +60,15 @@ public class RelaySession implements Serializable {
     private long lastRetryTime = 0;
 
     /**
-     * Constructs a new DovecotSession instance.
+     * Constructs a new RelaySession instance.
      */
     public RelaySession(Session session) {
         this.session = session;
+
+        // Default to relay config value.
+        this.maxRetryCount = Math.toIntExact(
+            Config.getServer().getRelay().getLongProperty("maxRetryCount", 30L)
+        );
     }
 
     /**
@@ -89,13 +99,29 @@ public class RelaySession implements Serializable {
     }
 
     /**
-     * Sets protocol.
+     * Gets maximum retry count for this session.
+     *
+     * @return Maximum retry count.
+     */
+    public int getMaxRetryCount() {
+        return maxRetryCount;
+    }
+
+    /**
+     * Sets protocol and updates maxRetryCount if DOVECOT-LDA.
      *
      * @param protocol Protocol.
      * @return Self.
      */
     public RelaySession setProtocol(String protocol) {
         this.protocol = protocol;
+
+        if ("dovecot-lda".equalsIgnoreCase(protocol)) {
+            // Update maxRetryCount from dovecot config.
+            this.maxRetryCount = Math.toIntExact(
+                Config.getServer().getDovecot().getLongProperty("maxRetryCount", 10L)
+            );
+        }
         return this;
     }
 

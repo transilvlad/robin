@@ -33,7 +33,6 @@ import java.util.stream.Collectors;
 /**
  * CLI runnable.
  */
-@SuppressWarnings({"squid:S106","squid:S1192","squid:S3776"})
 public class Main {
 
     /**
@@ -192,11 +191,11 @@ public class Main {
                     cert.put("type",  certificate.getType());
                     cert.put("version",  certificate.getVersion());
 
-                    cert.put("subjectDName: ", certificate.getSubjectDN().getName());
+                    cert.put("subjectDName: ", certificate.getSubjectX500Principal().getName());
                     cert.put("subjectAlternativeNames", certificate.getSubjectAlternativeNames());
                     cert.put("subjectKeyIdentifier", new String(Hex.encodeHex(certificate.getExtensionValue("2.5.29.14"))));
 
-                    cert.put("issuerDName", certificate.getIssuerDN().getName());
+                    cert.put("issuerDName", certificate.getIssuerX500Principal().getName());
                     cert.put("issuerKeyIdentifier", new String(Hex.encodeHex(certificate.getExtensionValue("2.5.29.19"))));
                     chain.add(cert);
                 } catch (CertificateParsingException e) {
