@@ -26,7 +26,6 @@ import java.util.Optional;
  * @see ServerCLI
  * @see ClientCLI
  */
-@SuppressWarnings("squid:S106")
 public class Main {
 
     /**
