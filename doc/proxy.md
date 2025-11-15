@@ -364,9 +364,9 @@ Client behaviour for proxy connections.
 
 Methods:
 - `process(connection)`: Executes EHLO, STARTTLS, AUTH, MAIL FROM
-- `processRcpt(recipient)`: Sends single RCPT TO
-- `processData()`: Sends DATA command and streams email
-- `quit()`: Closes connection
+- `sendRcpt(recipient)`: Sends single RCPT TO
+- `sendData()`: Sends DATA command and streams email
+- `sendQuit()`: Closes connection
 
 ### ProxyEmailDelivery
 Wrapper for proxy email delivery.
