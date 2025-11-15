@@ -180,13 +180,19 @@ public class DovecotLdaClient {
                 if (recipientParam != null && resultParam != null && recipientParam.equalsIgnoreCase(recipient)) {
                     // Parse result parameter: "exitCode:errorMessage"
                     // The result should be quoted in the header to preserve the colon.
-                    String[] parts = resultParam.split(":", 2);
-                    int exitCode = Integer.parseInt(parts[0]);
-                    String error = parts.length > 1 ? parts[1] : "";
-                    
-                    log.warn("Chaos header bypassing Dovecot LDA call for recipient: {} with result: exitCode={} error={}", 
-                             recipient, exitCode, error);
-                    return Pair.of(exitCode, error);
+                    try {
+                        String[] parts = resultParam.split(":", 2);
+                        int exitCode = Integer.parseInt(parts[0]);
+                        String error = parts.length > 1 ? parts[1] : "";
+                        
+                        log.warn("Chaos header bypassing Dovecot LDA call for recipient: {} with result: exitCode={} error={}", 
+                                 recipient, exitCode, error);
+                        return Pair.of(exitCode, error);
+                    } catch (NumberFormatException e) {
+                        log.warn("Invalid chaos header result format for recipient: {} - result parameter '{}' does not start with a valid integer. Ignoring chaos header.", 
+                                 recipient, resultParam);
+                        // Continue with normal LDA call if chaos header is malformed.
+                    }
                 }
             }
         }

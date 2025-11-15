@@ -139,7 +139,7 @@ class ChaosHeadersTest {
     @DisplayName("Get by value with null returns empty list")
     void getByValueWithNull() throws IOException {
         writeEmailWithHeaders(
-                "X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor:false"
+                "X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor"
         );
 
         try (EmailParser parser = new EmailParser(tempEmailFile.getAbsolutePath()).parse()) {
@@ -154,7 +154,7 @@ class ChaosHeadersTest {
     @DisplayName("Get by value is case insensitive")
     void getByValueCaseInsensitive() throws IOException {
         writeEmailWithHeaders(
-                "X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor:false"
+                "X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor"
         );
 
         try (EmailParser parser = new EmailParser(tempEmailFile.getAbsolutePath()).parse()) {
@@ -174,7 +174,7 @@ class ChaosHeadersTest {
     @DisplayName("Get by value returns empty list for non-matching value")
     void getByValueNonMatching() throws IOException {
         writeEmailWithHeaders(
-                "X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor:false"
+                "X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor"
         );
 
         try (EmailParser parser = new EmailParser(tempEmailFile.getAbsolutePath()).parse()) {

@@ -240,8 +240,9 @@ public class LocalStorageClient implements StorageClient {
         
         String processorClassName = processor.getClass().getSimpleName();
         
-        // Check for chaos headers matching this processor class.
-        for (MimeHeader header : chaosHeaders.getByValue(processorClassName)) {
+        // Check for chaos headers matching LocalStorageClient.
+        // Format: X-Robin-Chaos: LocalStorageClient; call=ProcessorClassName
+        for (MimeHeader header : chaosHeaders.getByValue("LocalStorageClient")) {
             String callParam = header.getParameter("call");
             
             // The call parameter should match the processor class name to bypass.
