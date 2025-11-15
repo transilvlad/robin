@@ -102,7 +102,7 @@ class ChaosHeadersIntegrationTest {
             // Write content to the stream
             client.getStream().write("From: test@example.com\r\n".getBytes(StandardCharsets.UTF_8));
             client.getStream().write("To: recipient@example.com\r\n".getBytes(StandardCharsets.UTF_8));
-            client.getStream().write("Subject: Test\r\n\r\n".getBytes(StandardCharsets.UTF_8));
+            client.getStream().write("Subject: Test\r\n".getBytes(StandardCharsets.UTF_8));
             client.getStream().write("X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor\r\n".getBytes(StandardCharsets.UTF_8));
             client.getStream().write("\r\nTest body\r\n".getBytes(StandardCharsets.UTF_8));
 
