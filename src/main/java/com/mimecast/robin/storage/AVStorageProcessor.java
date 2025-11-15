@@ -14,6 +14,9 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Storage processor for antivirus scanning using ClamAV.
@@ -76,6 +79,18 @@ public class AVStorageProcessor implements StorageProcessor {
 
         if (clamAVClient.isInfected(file)) {
             log.warn("Virus found in {}: {}", partInfo, clamAVClient.getViruses());
+            
+            // Save virus detection to scan results
+            Map<String, Collection<String>> viruses = clamAVClient.getViruses();
+            if (viruses != null && !viruses.isEmpty()) {
+                Map<String, Object> clamavResult = new HashMap<>();
+                clamavResult.put("scanner", "clamav");
+                clamavResult.put("infected", true);
+                clamavResult.put("viruses", viruses);
+                clamavResult.put("part", partInfo);
+                connection.getSession().getEnvelopes().getLast().addScanResult(clamavResult);
+            }
+            
             String onVirus = clamAVConfig.getStringProperty("onVirus", "reject");
             SmtpMetrics.incrementEmailVirusRejection();
 
