@@ -16,19 +16,22 @@ The `MessageEnvelope` class now supports aggregating scan results from multiple 
 ### Accessing Scan Results
 
 ```java
-MessageEnvelope envelope = connection.getSession().getEnvelopes().getLast();
-List<Map<String, Object>> scanResults = envelope.getScanResults();
+List<MessageEnvelope> envelopes = connection.getSession().getEnvelopes();
+if (!envelopes.isEmpty()) {
+    MessageEnvelope envelope = envelopes.getLast();
+    List<Map<String, Object>> scanResults = envelope.getScanResults();
 
-// Check if any scanner detected malware
-boolean hasMalware = scanResults.stream()
-    .anyMatch(r -> Boolean.TRUE.equals(r.get("infected")));
+    // Check if any scanner detected malware
+    boolean hasMalware = scanResults.stream()
+        .anyMatch(r -> Boolean.TRUE.equals(r.get("infected")));
 
-// Get Rspamd spam score
-Double spamScore = scanResults.stream()
-    .filter(r -> "rspamd".equals(r.get("scanner")))
-    .findFirst()
-    .map(r -> (Double) r.get("score"))
-    .orElse(0.0);
+    // Get Rspamd spam score
+    Double spamScore = scanResults.stream()
+        .filter(r -> "rspamd".equals(r.get("scanner")))
+        .findFirst()
+        .map(r -> (Double) r.get("score"))
+        .orElse(0.0);
+}
 ```
 
 ### Scan Result Format
