@@ -12,6 +12,8 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Storage processor for spam scanning using Rspamd.
@@ -41,8 +43,18 @@ public class SpamStorageProcessor implements StorageProcessor {
                     .setDmarcScanEnabled(rspamdConfig.isDmarcScanEnabled());
 
             // Scan the email and retrieve the score
-            rspamdClient.scanFile(emailFile);
+            Map<String, Object> scanResult = rspamdClient.scanFile(emailFile);
             double score = rspamdClient.getScore();
+            
+            // Save scan results to envelope
+            if (!scanResult.isEmpty()) {
+                Map<String, Object> rspamdResult = new HashMap<>(scanResult);
+                rspamdResult.put("scanner", "rspamd");
+                var envelopes = connection.getSession().getEnvelopes();
+                if (!envelopes.isEmpty()) {
+                    envelopes.getLast().addScanResult(rspamdResult);
+                }
+            }
             
             // Get thresholds with defaults
             double discardThreshold = rspamdConfig.getDiscardThreshold();

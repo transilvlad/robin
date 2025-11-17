@@ -71,6 +71,7 @@ External files (auto‑loaded if present in same directory):
 - `vault.json5` HashiCorp Vault integration settings for secrets management.
 - `clamav.json5` ClamAV integration for virus scanning.
 - `rspamd.json5` Rspamd integration for spam/phishing detection.
+- See [Scan Results](scanners.md) for aggregating and accessing scanner results.
 - `blocklist.json5` IP blocklist configuration.
 - `blackhole.json5` Blackhole mode configuration.
 
