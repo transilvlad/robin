@@ -754,7 +754,20 @@ public class MessageEnvelope implements Serializable, Cloneable {
             cloned.scanResults = Collections.synchronizedList(new ArrayList<>());
             synchronized (this.scanResults) {
                 for (Map<String, Object> scanResult : this.scanResults) {
-                    cloned.scanResults.add(new HashMap<>(scanResult));
+                    Map<String, Object> clonedResult = new HashMap<>();
+                    for (Map.Entry<String, Object> entry : scanResult.entrySet()) {
+                        Object value = entry.getValue();
+                        if (value instanceof Map) {
+                            // Shallow copy of nested map
+                            clonedResult.put(entry.getKey(), new HashMap<>((Map<?, ?>) value));
+                        } else if (value instanceof Collection) {
+                            // Shallow copy of nested collection
+                            clonedResult.put(entry.getKey(), new ArrayList<>((Collection<?>) value));
+                        } else {
+                            clonedResult.put(entry.getKey(), value);
+                        }
+                    }
+                    cloned.scanResults.add(clonedResult);
                 }
             }
 
