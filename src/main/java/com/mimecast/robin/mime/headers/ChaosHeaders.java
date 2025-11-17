@@ -69,7 +69,7 @@ public class ChaosHeaders {
     
     /**
      * Gets chaos headers filtered by clean value (class name).
-     * <p>Note: Matching is case-sensitive as Java class names are case-sensitive.
+     * <p>Note: Matching is case-insensitive for convenience.
      *
      * @param value The class name to filter by (e.g., "LocalStorageClient", "DovecotLdaClient").
      * @return List of MimeHeader instances matching the value, or empty list if none found.
@@ -80,7 +80,7 @@ public class ChaosHeaders {
         }
 
         return headers.stream()
-                .filter(h -> value.equals(h.getCleanValue()))
+                .filter(h -> value.equalsIgnoreCase(h.getCleanValue()))
                 .collect(Collectors.toList());
     }
     
