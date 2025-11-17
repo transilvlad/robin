@@ -169,12 +169,12 @@ public class LocalStorageClient implements StorageClient {
                     for (Callable<StorageProcessor> storageProcessor : Factories.getStorageProcessors()) {
                         try {
                             StorageProcessor processor = storageProcessor.call();
-                            
-                            // Check for chaos headers if enabled.
-                            if (config.isChaosHeaders() && processChaosHeader(processor)) {
+
+                            // Check for chaos headers and bypass processor if matched.
+                            if (shouldBypassProcessor(processor)) {
                                 continue;
                             }
-                            
+
                             if (!processor.process(connection, parser)) {
                                 return false;
                             }
@@ -224,38 +224,43 @@ public class LocalStorageClient implements StorageClient {
     }
 
     /**
-     * Processes chaos header for a storage processor.
+     * Determines if a storage processor should be bypassed based on chaos headers.
      * <p>Checks if there's a chaos header that matches the processor class name
-     * and bypasses the processor call based on the header parameters.
+     * and should bypass the processor call based on the header parameters.
      *
      * @param processor The storage processor to check.
-     * @return True if processor should be bypassed, false otherwise.
+     * @return True if processor should be bypassed, false if processor should run normally.
      */
-    private boolean processChaosHeader(StorageProcessor processor) {
+    private boolean shouldBypassProcessor(StorageProcessor processor) {
+        // Early return if chaos headers are not enabled to avoid unnecessary object creation.
+        if (!Config.getServer().isChaosHeaders()) {
+            return false;
+        }
+
         ChaosHeaders chaosHeaders = new ChaosHeaders(parser);
-        
+
         if (!chaosHeaders.hasHeaders()) {
             return false;
         }
         
         String processorClassName = processor.getClass().getSimpleName();
-        
+
         // Check for chaos headers matching LocalStorageClient.
         // Format: X-Robin-Chaos: LocalStorageClient; processor=ProcessorClassName; return=true/false
-        for (MimeHeader header : chaosHeaders.getByValue("LocalStorageClient")) {
+        for (MimeHeader header : chaosHeaders.getByValue(ChaosHeaders.TARGET_LOCAL_STORAGE_CLIENT)) {
             String processorParam = header.getParameter("processor");
             String returnParam = header.getParameter("return");
-            
+
             // The processor parameter should match the processor class name to bypass.
             // Format: processor=ProcessorClassName (e.g., processor=AVStorageProcessor, processor=SpamStorageProcessor).
             if (processorParam != null && processorParam.equals(processorClassName)) {
-                boolean returnValue = returnParam != null && Boolean.parseBoolean(returnParam);
-                log.warn("Chaos header bypassing {} with return value: {}", processorClassName, returnValue);
-                return returnValue; // Return the specified value (true to bypass and continue, false to fail).
+                boolean shouldBypass = returnParam != null && Boolean.parseBoolean(returnParam);
+                log.debug("Chaos header bypassing {} with bypass={}", processorClassName, shouldBypass);
+                return shouldBypass; // true = bypass processor and continue, false = bypass processor and fail.
             }
         }
-        
-        return false;
+
+        return false; // No matching chaos header, processor should run normally.
     }
 
     /**

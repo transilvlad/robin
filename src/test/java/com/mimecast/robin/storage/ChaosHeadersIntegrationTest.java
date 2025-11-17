@@ -81,16 +81,12 @@ class ChaosHeadersIntegrationTest {
     @Test
     @DisplayName("LocalStorageClient processes chaos headers when enabled")
     void localStorageClientProcessesChaosHeaders() throws Exception {
-        // Enable chaos headers in configuration
+        // Verify chaos headers are enabled in test configuration
         ServerConfig config = Config.getServer();
-        boolean originalValue = config.isChaosHeaders();
-        
+        assertTrue(config.isChaosHeaders(), "Chaos headers should be enabled in test configuration");
+
         try {
-            // Note: We can't easily modify the config at runtime, so this test
-            // verifies that the chaos headers functionality exists and compiles.
-            // The actual bypass behavior is tested in unit tests.
-            
-            // Create an email with chaos header
+            // Create an email with chaos header that bypasses AVStorageProcessor
             writeEmailWithChaosHeader(
                     "X-Robin-Chaos: LocalStorageClient; processor=AVStorageProcessor; return=true"
             );
@@ -99,25 +95,28 @@ class ChaosHeadersIntegrationTest {
                     .setConnection(connection)
                     .setExtension("eml");
 
-            // Write content to the stream
+            // Write content to the stream including chaos header
             client.getStream().write("From: test@example.com\r\n".getBytes(StandardCharsets.UTF_8));
             client.getStream().write("To: recipient@example.com\r\n".getBytes(StandardCharsets.UTF_8));
-            client.getStream().write("Subject: Test\r\n".getBytes(StandardCharsets.UTF_8));
+            client.getStream().write("Subject: Test with chaos header\r\n".getBytes(StandardCharsets.UTF_8));
             client.getStream().write("X-Robin-Chaos: LocalStorageClient; processor=AVStorageProcessor; return=true\r\n".getBytes(StandardCharsets.UTF_8));
             client.getStream().write("\r\nTest body\r\n".getBytes(StandardCharsets.UTF_8));
 
-            // The save() method should complete successfully
-            // In a real scenario with chaos headers enabled, it would bypass AVStorageProcessor
+            // The save() method should complete successfully.
+            // With chaos headers enabled, AVStorageProcessor will be bypassed and return true.
             boolean result = client.save();
-            assertTrue(result, "Save should succeed");
+            assertTrue(result, "Save should succeed with chaos header bypassing AVStorageProcessor");
+
+            // Verify the file was created
+            File savedFile = new File(client.getFile());
+            assertTrue(savedFile.exists(), "Email file should be saved to disk");
 
             // Cleanup
-            File savedFile = new File(client.getFile());
             if (savedFile.exists()) {
                 savedFile.delete();
             }
         } finally {
-            // Note: Can't easily restore config, but it should be fine for test isolation
+            // Config is loaded from test resources and doesn't need restoration
         }
     }
 

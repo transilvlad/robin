@@ -26,11 +26,21 @@ import java.util.stream.Collectors;
  * @see MimeHeader
  */
 public class ChaosHeaders {
-    
+
     /**
      * Header name for chaos testing.
      */
     public static final String HEADER_NAME = "X-Robin-Chaos";
+
+    /**
+     * Target class name for LocalStorageClient chaos headers.
+     */
+    public static final String TARGET_LOCAL_STORAGE_CLIENT = "LocalStorageClient";
+
+    /**
+     * Target class name for DovecotLdaClient chaos headers.
+     */
+    public static final String TARGET_DOVECOT_LDA_CLIENT = "DovecotLdaClient";
     
     /**
      * List of chaos headers found in the email.
@@ -59,7 +69,8 @@ public class ChaosHeaders {
     
     /**
      * Gets chaos headers filtered by clean value (class name).
-     * 
+     * <p>Note: Matching is case-sensitive as Java class names are case-sensitive.
+     *
      * @param value The class name to filter by (e.g., "LocalStorageClient", "DovecotLdaClient").
      * @return List of MimeHeader instances matching the value, or empty list if none found.
      */
@@ -67,9 +78,9 @@ public class ChaosHeaders {
         if (value == null) {
             return new ArrayList<>();
         }
-        
+
         return headers.stream()
-                .filter(h -> value.equalsIgnoreCase(h.getCleanValue()))
+                .filter(h -> value.equals(h.getCleanValue()))
                 .collect(Collectors.toList());
     }
     

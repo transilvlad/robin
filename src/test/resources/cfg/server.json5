@@ -168,5 +168,10 @@
   // Users allowed to authorize to the server.
   // This feature should be used for testing only.
   // This is disabled by default for security reasons.
-  usersEnabled: true // See users.json5 for user definitions.
+  usersEnabled: true, // See users.json5 for user definitions.
+
+  // Chaos headers for testing exception scenarios.
+  // WARNING: Do NOT enable in production. This feature allows bypassing normal processing
+  // and is intended strictly for development and testing purposes.
+  chaosHeaders: true
 }

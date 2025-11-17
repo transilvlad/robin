@@ -109,7 +109,7 @@ class ChaosHeadersTest {
 
     @Test
     @DisplayName("Handle email with no chaos headers")
-    void handleNoChaoHeaders() throws IOException {
+    void handleNoChaosHeaders() throws IOException {
         writeEmailWithHeaders(
                 "From: sender@example.com",
                 "To: recipient@example.com",
