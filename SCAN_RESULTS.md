@@ -8,7 +8,7 @@ The `MessageEnvelope` class now supports aggregating scan results from multiple 
 
 - **Thread-safe storage**: Uses `Collections.synchronizedList()` for concurrent access
 - **Multiple scanner support**: Aggregates results from Rspamd, ClamAV, and potentially other scanners
-- **Proper cloning**: Deep copy of scan results when cloning envelopes
+- **Proper cloning**: Shallow copy of scan results when cloning envelopes (nested collections are not deep copied)
 - **Null-safe**: Automatically filters out null or empty scan results
 
 ## Usage
