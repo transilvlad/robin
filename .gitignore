@@ -7,3 +7,4 @@ store/
 target/
 store/
 *.class
+.claude/
