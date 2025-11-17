@@ -88,7 +88,10 @@ public class AVStorageProcessor implements StorageProcessor {
                 clamavResult.put("infected", true);
                 clamavResult.put("viruses", viruses);
                 clamavResult.put("part", partInfo);
-                connection.getSession().getEnvelopes().getLast().addScanResult(clamavResult);
+                var envelopes = connection.getSession().getEnvelopes();
+                if (!envelopes.isEmpty()) {
+                    envelopes.getLast().addScanResult(clamavResult);
+                }
             }
             
             String onVirus = clamAVConfig.getStringProperty("onVirus", "reject");
