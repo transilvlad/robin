@@ -175,22 +175,21 @@ public class DovecotLdaClient {
         if (Config.getServer().isChaosHeaders() && chaosHeaders != null && chaosHeaders.hasHeaders()) {
             for (MimeHeader header : chaosHeaders.getByValue("DovecotLdaClient")) {
                 String recipientParam = header.getParameter("recipient");
-                String resultParam = header.getParameter("result");
+                String exitCodeParam = header.getParameter("exitCode");
+                String messageParam = header.getParameter("message");
                 
-                if (recipientParam != null && resultParam != null && recipientParam.equalsIgnoreCase(recipient)) {
-                    // Parse result parameter: "exitCode:errorMessage"
-                    // The result should be quoted in the header to preserve the colon.
+                if (recipientParam != null && exitCodeParam != null && recipientParam.equalsIgnoreCase(recipient)) {
+                    // Parse exit code and message parameters.
                     try {
-                        String[] parts = resultParam.split(":", 2);
-                        int exitCode = Integer.parseInt(parts[0]);
-                        String error = parts.length > 1 ? parts[1] : "";
+                        int exitCode = Integer.parseInt(exitCodeParam);
+                        String error = messageParam != null ? messageParam : "";
                         
                         log.warn("Chaos header bypassing Dovecot LDA call for recipient: {} with result: exitCode={} error={}", 
                                  recipient, exitCode, error);
                         return Pair.of(exitCode, error);
                     } catch (NumberFormatException e) {
-                        log.warn("Invalid chaos header result format for recipient: {} - result parameter '{}' does not start with a valid integer. Ignoring chaos header.", 
-                                 recipient, resultParam);
+                        log.warn("Invalid chaos header exitCode format for recipient: {} - exitCode parameter '{}' is not a valid integer. Ignoring chaos header.", 
+                                 recipient, exitCodeParam);
                         // Continue with normal LDA call if chaos header is malformed.
                     }
                 }

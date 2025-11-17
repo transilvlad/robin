@@ -98,20 +98,20 @@ Multiple chaos headers can be present in the same email to test different scenar
 
 **Bypass any storage processor:**
 ```
-X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor
-X-Robin-Chaos: LocalStorageClient; call=SpamStorageProcessor
-X-Robin-Chaos: LocalStorageClient; call=LocalStorageProcessor
+X-Robin-Chaos: LocalStorageClient; processor=AVStorageProcessor; return=true
+X-Robin-Chaos: LocalStorageClient; processor=SpamStorageProcessor; return=false
+X-Robin-Chaos: LocalStorageClient; processor=LocalStorageProcessor; return=true
 ```
 
-This bypasses the call to the specified storage processor. The `call` parameter should match the processor class name (e.g., `AVStorageProcessor` for virus scanning, `SpamStorageProcessor` for spam scanning, `LocalStorageProcessor` for local mailbox storage, `DovecotStorageProcessor` for Dovecot LDA delivery).
+This bypasses the call to the specified storage processor. The `processor` parameter should match the processor class name (e.g., `AVStorageProcessor` for virus scanning, `SpamStorageProcessor` for spam scanning, `LocalStorageProcessor` for local mailbox storage, `DovecotStorageProcessor` for Dovecot LDA delivery). The `return` parameter specifies what value to return from the bypass (`true` to continue processing, `false` to stop with error).
 
 **Simulate Dovecot LDA failure:**
 ```
-X-Robin-Chaos: DovecotLdaClient; recipient=tony@example.com; result="1:storage full"
+X-Robin-Chaos: DovecotLdaClient; recipient=tony@example.com; exitCode=1; message="storage full"
 ```
 
-This bypasses the actual Dovecot LDA call for the specified recipient and returns the predefined result pair:
+This bypasses the actual Dovecot LDA call for the specified recipient and returns the predefined result:
 - Exit code: `1` (failure)
 - Error message: `"storage full"`
 
-The result parameter format is: `"exitCode:errorMessage"`. The quotes are required to preserve the colon in the value.
+The `exitCode` parameter is an integer and the `message` parameter contains the error message. Quotes are optional for the message parameter unless it contains special characters.

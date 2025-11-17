@@ -626,24 +626,23 @@ Multiple chaos headers can be present in the same email to test different scenar
 
 **Bypass any storage processor:**
 
-    X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor
-    X-Robin-Chaos: LocalStorageClient; call=SpamStorageProcessor
-    X-Robin-Chaos: LocalStorageClient; call=LocalStorageProcessor
+    X-Robin-Chaos: LocalStorageClient; processor=AVStorageProcessor; return=true
+    X-Robin-Chaos: LocalStorageClient; processor=SpamStorageProcessor; return=false
+    X-Robin-Chaos: LocalStorageClient; processor=LocalStorageProcessor; return=true
 
-This bypasses the specified storage processor. The `call` parameter should match the processor class name (e.g., `AVStorageProcessor`, `SpamStorageProcessor`, `LocalStorageProcessor`, `DovecotStorageProcessor`).
+This bypasses the specified storage processor. The `processor` parameter should match the processor class name (e.g., `AVStorageProcessor`, `SpamStorageProcessor`, `LocalStorageProcessor`, `DovecotStorageProcessor`). The `return` parameter specifies what value to return (`true` to continue, `false` to fail).
 
 **Simulate Dovecot LDA storage failure:**
 
-    X-Robin-Chaos: DovecotLdaClient; recipient=tony@example.com; result="1:storage full"
+    X-Robin-Chaos: DovecotLdaClient; recipient=tony@example.com; exitCode=1; message="storage full"
 
-This simulates a storage failure for the specified recipient with exit code `1` and error message `storage full`. 
-Note: Quotes are required around values containing colons.
+This simulates a storage failure for the specified recipient with exit code `1` and error message `storage full`.
 
 **Test multiple scenarios:**
 
-    X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor
-    X-Robin-Chaos: DovecotLdaClient; recipient=user1@example.com; result="0:success"
-    X-Robin-Chaos: DovecotLdaClient; recipient=user2@example.com; result="1:quota exceeded"
+    X-Robin-Chaos: LocalStorageClient; processor=AVStorageProcessor; return=true
+    X-Robin-Chaos: DovecotLdaClient; recipient=user1@example.com; exitCode=0; message="success"
+    X-Robin-Chaos: DovecotLdaClient; recipient=user2@example.com; exitCode=1; message="quota exceeded"
 
 See [magic.md](magic.md) for complete chaos headers documentation.
 

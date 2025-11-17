@@ -51,7 +51,7 @@ class ChaosHeadersIntegrationTest {
     void chaosHeadersAreParsedWhenEnabled() throws IOException {
         // Create an email with chaos header
         writeEmailWithChaosHeader(
-                "X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor"
+                "X-Robin-Chaos: LocalStorageClient; processor=AVStorageProcessor; return=true"
         );
 
         // Parse the email
@@ -67,7 +67,7 @@ class ChaosHeadersIntegrationTest {
     void chaosHeadersWithMultipleParametersAreParsed() throws IOException {
         // Create an email with chaos header
         writeEmailWithChaosHeader(
-                "X-Robin-Chaos: DovecotLdaClient; recipient=tony@example.com; result=\"1:storage full\""
+                "X-Robin-Chaos: DovecotLdaClient; recipient=tony@example.com; exitCode=1; message=\"storage full\""
         );
 
         // Parse the email
@@ -92,7 +92,7 @@ class ChaosHeadersIntegrationTest {
             
             // Create an email with chaos header
             writeEmailWithChaosHeader(
-                    "X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor"
+                    "X-Robin-Chaos: LocalStorageClient; processor=AVStorageProcessor; return=true"
             );
 
             LocalStorageClient client = new LocalStorageClient()
@@ -103,7 +103,7 @@ class ChaosHeadersIntegrationTest {
             client.getStream().write("From: test@example.com\r\n".getBytes(StandardCharsets.UTF_8));
             client.getStream().write("To: recipient@example.com\r\n".getBytes(StandardCharsets.UTF_8));
             client.getStream().write("Subject: Test\r\n".getBytes(StandardCharsets.UTF_8));
-            client.getStream().write("X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor\r\n".getBytes(StandardCharsets.UTF_8));
+            client.getStream().write("X-Robin-Chaos: LocalStorageClient; processor=AVStorageProcessor; return=true\r\n".getBytes(StandardCharsets.UTF_8));
             client.getStream().write("\r\nTest body\r\n".getBytes(StandardCharsets.UTF_8));
 
             // The save() method should complete successfully

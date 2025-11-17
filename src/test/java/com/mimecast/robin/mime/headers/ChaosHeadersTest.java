@@ -30,7 +30,7 @@ class ChaosHeadersTest {
     @DisplayName("Parse single chaos header successfully")
     void parseSingleChaosHeader() throws IOException {
         writeEmailWithHeaders(
-                "X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor"
+                "X-Robin-Chaos: LocalStorageClient; processor=AVStorageProcessor; return=true"
         );
 
         try (EmailParser parser = new EmailParser(tempEmailFile.getAbsolutePath()).parse()) {
@@ -44,7 +44,8 @@ class ChaosHeadersTest {
 
             MimeHeader header = localHeaders.get(0);
             assertEquals("LocalStorageClient", header.getCleanValue(), "Clean value should be LocalStorageClient");
-            assertEquals("AVStorageProcessor", header.getParameter("call"), "Call parameter should be AVStorageProcessor");
+            assertEquals("AVStorageProcessor", header.getParameter("processor"), "Processor parameter should be AVStorageProcessor");
+            assertEquals("true", header.getParameter("return"), "Return parameter should be true");
         }
     }
 
@@ -52,8 +53,8 @@ class ChaosHeadersTest {
     @DisplayName("Parse multiple chaos headers")
     void parseMultipleChaosHeaders() throws IOException {
         writeEmailWithHeaders(
-                "X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor",
-                "X-Robin-Chaos: DovecotLdaClient; recipient=tony@example.com; result=\"1:storage full\""
+                "X-Robin-Chaos: LocalStorageClient; processor=AVStorageProcessor; return=true",
+                "X-Robin-Chaos: DovecotLdaClient; recipient=tony@example.com; exitCode=1; message=\"storage full\""
         );
 
         try (EmailParser parser = new EmailParser(tempEmailFile.getAbsolutePath()).parse()) {
@@ -70,10 +71,8 @@ class ChaosHeadersTest {
 
             MimeHeader dovecotHeader = dovecotHeaders.get(0);
             assertEquals("tony@example.com", dovecotHeader.getParameter("recipient"), "Recipient parameter should match");
-            // Note: The quoted value should preserve the colon.
-            String result = dovecotHeader.getParameter("result");
-            assertNotNull(result, "Result parameter should not be null");
-            assertTrue(result.contains(":"), "Result parameter should contain colon");
+            assertEquals("1", dovecotHeader.getParameter("exitCode"), "ExitCode parameter should be 1");
+            assertEquals("storage full", dovecotHeader.getParameter("message"), "Message parameter should match");
         }
     }
 
@@ -81,8 +80,8 @@ class ChaosHeadersTest {
     @DisplayName("Parse multiple chaos headers with same value")
     void parseMultipleSameValueChaosHeaders() throws IOException {
         writeEmailWithHeaders(
-                "X-Robin-Chaos: DovecotLdaClient; recipient=user1@example.com; result=\"0:success\"",
-                "X-Robin-Chaos: DovecotLdaClient; recipient=user2@example.com; result=\"1:quota exceeded\""
+                "X-Robin-Chaos: DovecotLdaClient; recipient=user1@example.com; exitCode=0; message=\"success\"",
+                "X-Robin-Chaos: DovecotLdaClient; recipient=user2@example.com; exitCode=1; message=\"quota exceeded\""
         );
 
         try (EmailParser parser = new EmailParser(tempEmailFile.getAbsolutePath()).parse()) {
@@ -97,12 +96,14 @@ class ChaosHeadersTest {
             // Verify first header
             MimeHeader header1 = dovecotHeaders.get(0);
             assertEquals("user1@example.com", header1.getParameter("recipient"), "First recipient should match");
-            assertEquals("0:success", header1.getParameter("result"), "First result should match");
+            assertEquals("0", header1.getParameter("exitCode"), "First exitCode should be 0");
+            assertEquals("success", header1.getParameter("message"), "First message should be success");
 
             // Verify second header
             MimeHeader header2 = dovecotHeaders.get(1);
             assertEquals("user2@example.com", header2.getParameter("recipient"), "Second recipient should match");
-            assertEquals("1:quota exceeded", header2.getParameter("result"), "Second result should match");
+            assertEquals("1", header2.getParameter("exitCode"), "Second exitCode should be 1");
+            assertEquals("quota exceeded", header2.getParameter("message"), "Second message should match");
         }
     }
 
@@ -139,7 +140,7 @@ class ChaosHeadersTest {
     @DisplayName("Get by value with null returns empty list")
     void getByValueWithNull() throws IOException {
         writeEmailWithHeaders(
-                "X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor"
+                "X-Robin-Chaos: LocalStorageClient; processor=AVStorageProcessor; return=true"
         );
 
         try (EmailParser parser = new EmailParser(tempEmailFile.getAbsolutePath()).parse()) {
@@ -154,7 +155,7 @@ class ChaosHeadersTest {
     @DisplayName("Get by value is case insensitive")
     void getByValueCaseInsensitive() throws IOException {
         writeEmailWithHeaders(
-                "X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor"
+                "X-Robin-Chaos: LocalStorageClient; processor=AVStorageProcessor; return=true"
         );
 
         try (EmailParser parser = new EmailParser(tempEmailFile.getAbsolutePath()).parse()) {
@@ -174,7 +175,7 @@ class ChaosHeadersTest {
     @DisplayName("Get by value returns empty list for non-matching value")
     void getByValueNonMatching() throws IOException {
         writeEmailWithHeaders(
-                "X-Robin-Chaos: LocalStorageClient; call=AVStorageProcessor"
+                "X-Robin-Chaos: LocalStorageClient; processor=AVStorageProcessor; return=true"
         );
 
         try (EmailParser parser = new EmailParser(tempEmailFile.getAbsolutePath()).parse()) {
