@@ -62,6 +62,18 @@ public class MimeHeaders {
     }
 
     /**
+     * Gets all headers by name.
+     *
+     * @param name Header name.
+     * @return List of MimeHeader instances with the given name.
+     */
+    public List<MimeHeader> getAll(String name) {
+        return headers.stream()
+                .filter(h -> h.getName().equalsIgnoreCase(name))
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Gets header by starts with partial name.
      *
      * @param name Header name.

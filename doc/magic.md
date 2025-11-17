@@ -73,4 +73,45 @@ Magic eml headers
 The following headers will enable additional functionalities within the Robin server component upon receipt.
 
 - `X-Robin-Filename` - If a value is present and valid filename, this will be used to rename the stored eml file.
-- `X-Robin-Relay` - If a value is present and valid server name and optional port number emai will be relayed to it post receipt.
+- `X-Robin-Relay` - If a value is present and valid server name and optional port number email will be relayed to it post receipt.
+- `X-Robin-Chaos` - If present and chaos headers are enabled, allows bypassing normal processing for testing exception scenarios.
+
+
+Magic chaos headers
+===================
+
+The `X-Robin-Chaos` header allows testing exception scenarios by bypassing normal processing and returning predefined results.
+
+**WARNING:** This feature is intended for testing purposes only. Do NOT enable in production environments.
+
+To enable chaos headers, set `chaosHeaders: true` in `server.json5`.
+
+The header value format is: `ClassName; param1=value1; param2=value2`
+
+Where:
+- `ClassName` - The implementation class where the action occurs (e.g., `LocalStorageClient`, `DovecotLdaClient`).
+- Parameters define the bypass behavior specific to each implementation.
+
+Multiple chaos headers can be present in the same email to test different scenarios.
+
+### Implementation examples
+
+**Bypass any storage processor:**
+```
+X-Robin-Chaos: LocalStorageClient; processor=AVStorageProcessor; return=true
+X-Robin-Chaos: LocalStorageClient; processor=SpamStorageProcessor; return=false
+X-Robin-Chaos: LocalStorageClient; processor=LocalStorageProcessor; return=true
+```
+
+This bypasses the call to the specified storage processor. The `processor` parameter should match the processor class name (e.g., `AVStorageProcessor` for virus scanning, `SpamStorageProcessor` for spam scanning, `LocalStorageProcessor` for local mailbox storage, `DovecotStorageProcessor` for Dovecot LDA delivery). The `return` parameter specifies what value to return from the bypass (`true` to continue processing, `false` to stop with error).
+
+**Simulate Dovecot LDA failure:**
+```
+X-Robin-Chaos: DovecotLdaClient; recipient=tony@example.com; exitCode=1; message="storage full"
+```
+
+This bypasses the actual Dovecot LDA call for the specified recipient and returns the predefined result:
+- Exit code: `1` (failure)
+- Error message: `"storage full"`
+
+The `exitCode` parameter is an integer and the `message` parameter contains the error message. Quotes are optional for the message parameter unless it contains special characters.
