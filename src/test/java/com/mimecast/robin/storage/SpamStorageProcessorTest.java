@@ -168,15 +168,21 @@ class SpamStorageProcessorTest {
     }
 
     @Test
-    void testGetScanResultsReturnsThreadSafeList() {
+    void testGetScanResultsReturnsUnmodifiableList() {
         MessageEnvelope envelope = new MessageEnvelope();
+        
+        // Add a scan result using the proper method
+        envelope.addScanResult(Map.of("scanner", "test"));
+        
         List<Map<String, Object>> scanResults = envelope.getScanResults();
         
-        // Verify we can add to the list
-        scanResults.add(Map.of("scanner", "test"));
-        assertEquals(1, envelope.getScanResults().size());
+        // Verify the list is unmodifiable
+        assertThrows(UnsupportedOperationException.class, () -> {
+            scanResults.add(Map.of("scanner", "test2"));
+        });
         
-        // Verify it's the same list instance
-        assertSame(scanResults, envelope.getScanResults());
+        // Verify we can read from it
+        assertEquals(1, scanResults.size());
+        assertEquals("test", scanResults.get(0).get("scanner"));
     }
 }

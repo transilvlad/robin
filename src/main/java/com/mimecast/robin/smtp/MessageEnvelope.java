@@ -706,7 +706,7 @@ public class MessageEnvelope implements Serializable, Cloneable {
      * <p>This list is thread-safe and contains scan results from various security scanners
      * such as Rspamd (spam/phishing) and ClamAV (virus scanning).
      *
-     * @return Thread-safe list of scan results.
+     * @return Unmodifiable view of the scan results list.
      */
     public List<Map<String, Object>> getScanResults() {
         return Collections.unmodifiableList(scanResults);

@@ -107,6 +107,16 @@ public class AVStorageProcessor implements StorageProcessor {
 
         } else {
             log.info("AV scan clean for {}", partInfo);
+            
+            // Save clean scan result to scan results
+            Map<String, Object> clamavResult = new HashMap<>();
+            clamavResult.put("scanner", "clamav");
+            clamavResult.put("infected", false);
+            clamavResult.put("part", partInfo);
+            var envelopes = connection.getSession().getEnvelopes();
+            if (!envelopes.isEmpty()) {
+                envelopes.getLast().addScanResult(clamavResult);
+            }
         }
 
         return true;

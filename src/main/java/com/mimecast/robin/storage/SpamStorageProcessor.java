@@ -50,7 +50,10 @@ public class SpamStorageProcessor implements StorageProcessor {
             if (!scanResult.isEmpty()) {
                 Map<String, Object> rspamdResult = new HashMap<>(scanResult);
                 rspamdResult.put("scanner", "rspamd");
-                connection.getSession().getEnvelopes().getLast().addScanResult(rspamdResult);
+                var envelopes = connection.getSession().getEnvelopes();
+                if (!envelopes.isEmpty()) {
+                    envelopes.getLast().addScanResult(rspamdResult);
+                }
             }
             
             // Get thresholds with defaults
