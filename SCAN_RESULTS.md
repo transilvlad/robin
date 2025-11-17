@@ -46,14 +46,6 @@ Double spamScore = scanResults.stream()
 }
 ```
 
-#### ClamAV Scan Result (Clean)
-```json
-{
-  "scanner": "clamav",
-  "infected": false,
-  "part": "RAW"
-}
-```
 
 #### ClamAV Scan Result (Infected)
 ```json
