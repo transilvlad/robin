@@ -273,3 +273,11 @@ mvn javadoc:javadoc
 ```
 
 **Critical**: Always use Java 21. The project will not build with earlier versions.
+
+**Other guidelines**:
+- Always use punctuation and proper grammar in your comments and documentation.
+- Always update relevant documentation when making changes to the codebase.
+- Do not remove random code comments unless they are irrelevant or incorrect.
+- Do not add comments that state the obvious or do not provide additional context.
+- Do not add comments in the code about what you changed and why unless explicitly requested.
+- When generating documentation, ensure it is clear, concise, and relevant to the code it describes.
