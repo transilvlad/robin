@@ -145,6 +145,7 @@ public class ServerRcpt extends ServerMail {
                 ProxyEmailDelivery proxyDelivery = establishProxyConnection(connection, rule);
                 connection.getSession().getEnvelopes().getLast().setProxyConnection(proxyDelivery);
                 log.info("Established proxy connection for first matching recipient");
+                proxyConnectionObj = proxyDelivery;
             } catch (SmtpException e) {
                 log.error("SMTP error establishing proxy connection: {}", e.getMessage());
                 String errorResponse = String.format("451 4.4.1 Proxy connection failed [%s]", connection.getSession().getUID());
@@ -159,30 +160,28 @@ public class ServerRcpt extends ServerMail {
                 connection.write(errorResponse);
                 return false;
             }
-            
-            // Re-get the connection object after setting it
-            proxyConnectionObj = connection.getSession().getEnvelopes().getLast().getProxyConnection();
         }
         
-        // Check if it's an error string from previous failed connection
+        // Check if it's an error string from previous failed connection.
         if (proxyConnectionObj instanceof String) {
+            String proxyError = (String) proxyConnectionObj;
             // Connection failed earlier, reject with stored error.
-            connection.write((String) proxyConnectionObj);
+            connection.write(proxyError);
             return false;
         }
         
-        // Must be a ProxyEmailDelivery at this point
+        // Must be a ProxyEmailDelivery at this point.
         if (!(proxyConnectionObj instanceof ProxyEmailDelivery)) {
             log.error("Unexpected proxy connection type: {}", proxyConnectionObj.getClass().getName());
             connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
             return false;
         }
         
-        ProxyEmailDelivery proxyDelivery = (ProxyEmailDelivery) proxyConnectionObj;
+        ProxyEmailDelivery proxyConnection = (ProxyEmailDelivery) proxyConnectionObj;
 
         // Send RCPT TO to proxy server.
         try {
-            String proxyResponse = proxyDelivery.sendRcpt(getAddress().getAddress());
+            String proxyResponse = proxyConnection.sendRcpt(getAddress().getAddress());
             log.debug("Proxy RCPT response: {}", proxyResponse);
             
             // Add recipient to local envelope for tracking.

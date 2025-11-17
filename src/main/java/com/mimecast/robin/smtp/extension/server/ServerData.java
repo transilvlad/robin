@@ -4,6 +4,7 @@ import com.mimecast.robin.config.server.ScenarioConfig;
 import com.mimecast.robin.config.server.WebhookConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
+import com.mimecast.robin.smtp.ProxyEmailDelivery;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
@@ -85,7 +86,7 @@ public class ServerData extends ServerProcessor {
     private boolean ascii() throws IOException {
         // Check if envelope has a proxy connection.
         if (!connection.getSession().getEnvelopes().isEmpty() && 
-            connection.getSession().getEnvelopes().getLast().getProxyConnection() instanceof com.mimecast.robin.smtp.ProxyEmailDelivery) {
+            connection.getSession().getEnvelopes().getLast().getProxyConnection() instanceof ProxyEmailDelivery) {
             // Proxy mode - stream email to proxy server.
             return handleProxyData();
         }
@@ -147,8 +148,8 @@ public class ServerData extends ServerProcessor {
             return false;
         }
 
-        com.mimecast.robin.smtp.ProxyEmailDelivery proxyDelivery = 
-            (com.mimecast.robin.smtp.ProxyEmailDelivery) connection.getSession().getEnvelopes().getLast().getProxyConnection();
+        ProxyEmailDelivery proxyDelivery = 
+            (ProxyEmailDelivery) connection.getSession().getEnvelopes().getLast().getProxyConnection();
 
         if (proxyDelivery == null || !proxyDelivery.isConnected()) {
             connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
