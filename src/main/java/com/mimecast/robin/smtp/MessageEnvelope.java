@@ -709,7 +709,7 @@ public class MessageEnvelope implements Serializable, Cloneable {
      * @return Thread-safe list of scan results.
      */
     public List<Map<String, Object>> getScanResults() {
-        return scanResults;
+        return Collections.unmodifiableList(scanResults);
     }
 
     /**
