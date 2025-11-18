@@ -12,69 +12,87 @@
   // If a pattern is not specified, it matches anything for that field.
   //
   // Each rule must also specify the proxy destination:
-  // - host: The SMTP server hostname or IP address
+  // - hosts: List of SMTP server hostnames or IP addresses (REQUIRED)
   // - port: The SMTP server port (default: 25)
   // - protocol: The protocol to use (smtp, esmtp, lmtp) (default: esmtp)
   // - tls: Whether to use TLS (true/false) (default: false)
+  // - direction: Connection direction to match (both, inbound, outbound) (default: both)
+  //   * both: Match both inbound and outbound connections
+  //   * inbound: Only match inbound connections (receiving mail)
+  //   * outbound: Only match outbound connections (sending mail)
   // - action: What to do with non-matching recipients (accept, reject, none) (default: none)
   //   * accept: Accept non-matching recipients locally
   //   * reject: Reject non-matching recipients
   //   * none: Continue with normal recipient processing
+  // - authUsername: Username for SMTP authentication (optional)
+  // - authPassword: Password for SMTP authentication (optional)
+  // - authMechanism: Authentication mechanism to use (default: PLAIN)
   rules: [
     // Example 1: Proxy all emails to a specific recipient domain
     // {
     //   rcpt: ".*@proxy-destination\\.example\\.com",
-    //   host: "relay.example.com",
+    //   hosts: ["relay.example.com"],
     //   port: 25,
     //   protocol: "esmtp",
     //   tls: false,
+    //   direction: "both",
     //   action: "none"
     // },
 
-    // Example 2: Proxy emails from a specific IP range
+    // Example 2: Proxy inbound emails with authentication and failover
     // {
     //   ip: "192\\.168\\.1\\..*",
-    //   host: "internal-relay.example.com",
+    //   hosts: ["relay1.example.com", "relay2.example.com"],
     //   port: 587,
     //   protocol: "esmtp",
     //   tls: true,
+    //   direction: "inbound",
+    //   authUsername: "relay-user",
+    //   authPassword: "relay-password",
+    //   authMechanism: "PLAIN",
     //   action: "reject"
     // },
 
-    // Example 3: Proxy based on sender and recipient combination
+    // Example 3: Proxy outbound emails to specific partner
     // {
     //   mail: ".*@partner\\.example\\.com",
     //   rcpt: ".*@customer\\.example\\.com",
-    //   host: "partner-relay.example.com",
+    //   hosts: ["partner-relay.example.com"],
     //   port: 25,
     //   protocol: "lmtp",
     //   tls: false,
+    //   direction: "outbound",
     //   action: "accept"
     // },
 
-    // Example 4: Complex rule with multiple conditions
+    // Example 4: Complex rule with multiple conditions and multiple hosts
     // All conditions must match for this rule to apply
     // {
     //   ip: "10\\.0\\..*",
     //   ehlo: ".*\\.internal\\.com",
     //   mail: ".*@source\\.example\\.com",
     //   rcpt: ".*@destination\\.example\\.com",
-    //   host: "secure-relay.example.com",
+    //   hosts: ["primary-relay.example.com", "backup-relay.example.com"],
     //   port: 465,
     //   protocol: "esmtp",
     //   tls: true,
+    //   direction: "both",
+    //   authUsername: "secure-user",
+    //   authPassword: "secure-password",
     //   action: "none"
     // }
   ]
 
   // Notes:
-  // - When a recipient matches a proxy rule, a proxy connection is established on first match
-  // - The proxy connection sends MAIL FROM and each matching RCPT TO to the remote server
-  // - The email data is streamed to the proxy server after storage processors accept it
-  // - The proxy connection is closed after DATA transmission completes
-  // - If the proxy server rejects the connection before the first recipient,
-  //   all subsequent recipients are rejected with that error
+  // - Proxy connections are REUSED across multiple envelopes in the same session
+  // - When a recipient matches a proxy rule, a connection is retrieved or established
+  // - The same connection can proxy multiple messages without reconnecting
+  // - Connections are closed only when the session ends (not after each envelope)
+  // - This improves performance by avoiding repeated connection establishment
+  // - If the proxy server rejects the connection, subsequent matching uses are also rejected
   // - Only the FIRST matching rule will proxy; additional matches are logged as warnings
+  // - The "hosts" list supports multiple destinations for failover/load balancing
+  // - The "direction" parameter filters rules based on connection type (inbound/outbound)
   // - The "action" parameter controls what happens with non-matching recipients:
   //   * "accept": Non-matching recipients are accepted and stored locally
   //   * "reject": Non-matching recipients are rejected

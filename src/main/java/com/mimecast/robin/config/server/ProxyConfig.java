@@ -1,5 +1,6 @@
 package com.mimecast.robin.config.server;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -12,6 +13,7 @@ import java.util.Map;
  */
 public class ProxyConfig {
     private final Map<String, Object> map;
+    private List<ProxyRule> rules;
 
     /**
      * Constructs a new ProxyConfig instance.
@@ -20,6 +22,7 @@ public class ProxyConfig {
      */
     public ProxyConfig(Map<String, Object> map) {
         this.map = map != null ? map : Collections.emptyMap();
+        this.rules = null; // Lazy initialization.
     }
 
     /**
@@ -32,19 +35,35 @@ public class ProxyConfig {
     }
 
     /**
-     * Get the list of proxy rule entries.
-     * Each entry is a map containing:
-     * - Regex patterns for "ip", "ehlo", "mail", and "rcpt" (like blackhole)
-     * - Relay destination: "host", "port", "protocol", "tls"
-     * - Action for non-matching recipients: "action" (accept, reject, none)
+     * Get the list of proxy rules.
+     * <p>Rules are parsed from the configuration map on first access
+     * and cached for subsequent calls.
      *
-     * @return List of rule entries.
+     * @return List of ProxyRule instances.
      */
     @SuppressWarnings("unchecked")
-    public List<Map<String, Object>> getRules() {
-        if (map.containsKey("rules")) {
-            return (List<Map<String, Object>>) map.get("rules");
+    public List<ProxyRule> getRules() {
+        if (rules == null) {
+            rules = new ArrayList<>();
+            if (map.containsKey("rules")) {
+                Object rulesObj = map.get("rules");
+                if (rulesObj instanceof List) {
+                    List<Map<String, Object>> ruleMaps = (List<Map<String, Object>>) rulesObj;
+                    for (Map<String, Object> ruleMap : ruleMaps) {
+                        // Skip null entries
+                        if (ruleMap == null) {
+                            continue;
+                        }
+                        try {
+                            rules.add(new ProxyRule(ruleMap));
+                        } catch (IllegalArgumentException e) {
+                            // Skip invalid rules.
+                            // Logging would be done by ProxyRule constructor if needed.
+                        }
+                    }
+                }
+            }
         }
-        return Collections.emptyList();
+        return Collections.unmodifiableList(rules);
     }
 }

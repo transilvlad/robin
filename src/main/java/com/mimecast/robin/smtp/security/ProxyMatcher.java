@@ -1,11 +1,12 @@
 package com.mimecast.robin.smtp.security;
 
 import com.mimecast.robin.config.server.ProxyConfig;
+import com.mimecast.robin.config.server.ProxyRule;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -21,31 +22,55 @@ public class ProxyMatcher {
     /**
      * Finds the first matching proxy rule for the given connection/envelope.
      * <p>This method creates a new matcher instance on each call to support config auto-reload.
+     * <p>If multiple rules match, only the first match is returned and warnings are logged
+     * for subsequent matches.
      *
-     * @param ip     The IP address (can be null).
-     * @param ehlo   The EHLO/HELO domain (can be null).
-     * @param mail   The MAIL FROM address (can be null).
-     * @param rcpt   The RCPT TO address (can be null).
-     * @param config The proxy configuration.
+     * @param ip        The IP address (can be null).
+     * @param ehlo      The EHLO/HELO domain (can be null).
+     * @param mail      The MAIL FROM address (can be null).
+     * @param rcpt      The RCPT TO address (can be null).
+     * @param isInbound true if the session is inbound, false if outbound.
+     * @param config    The proxy configuration.
      * @return Optional containing the first matching rule, or empty if no match.
      */
-    public static Optional<Map<String, Object>> findMatchingRule(String ip, String ehlo, String mail, String rcpt, ProxyConfig config) {
+    public static Optional<ProxyRule> findMatchingRule(String ip, String ehlo, String mail, String rcpt,
+                                                        boolean isInbound, ProxyConfig config) {
         // If proxy is not enabled, don't proxy anything.
         if (!config.isEnabled()) {
             return Optional.empty();
         }
 
-        List<Map<String, Object>> rules = config.getRules();
+        List<ProxyRule> rules = config.getRules();
         if (rules == null || rules.isEmpty()) {
             return Optional.empty();
         }
 
-        // Check each rule and return the first match.
-        for (Map<String, Object> rule : rules) {
-            if (matchesRule(ip, ehlo, mail, rcpt, rule)) {
-                log.info("Proxy match - IP: {}, EHLO: {}, MAIL: {}, RCPT: {}", ip, ehlo, mail, rcpt);
-                return Optional.of(rule);
+        // Track all matching rules to log warnings for additional matches.
+        List<ProxyRule> matchingRules = new ArrayList<>();
+
+        // Check each rule and collect all matches.
+        for (ProxyRule rule : rules) {
+            if (matchesRule(ip, ehlo, mail, rcpt, isInbound, rule)) {
+                matchingRules.add(rule);
             }
+        }
+
+        // If we have matches, return the first and log warnings for others.
+        if (!matchingRules.isEmpty()) {
+            ProxyRule firstMatch = matchingRules.get(0);
+            log.info("Proxy match - IP: {}, EHLO: {}, MAIL: {}, RCPT: {}, Host: {}, Direction: {}",
+                ip, ehlo, mail, rcpt, firstMatch.getHost(), isInbound ? "inbound" : "outbound");
+
+            // Warn about additional matches that will be ignored.
+            if (matchingRules.size() > 1) {
+                for (int i = 1; i < matchingRules.size(); i++) {
+                    ProxyRule ignored = matchingRules.get(i);
+                    log.warn("Additional proxy rule match ignored (only first match is used) - Host: {}, Port: {}",
+                        ignored.getHost(), ignored.getPort());
+                }
+            }
+
+            return Optional.of(firstMatch);
         }
 
         return Optional.empty();
@@ -55,31 +80,37 @@ public class ProxyMatcher {
      * Checks if the provided values match a single rule.
      * All specified patterns in the rule must match for the rule to match.
      *
-     * @param ip   The IP address.
-     * @param ehlo The EHLO/HELO domain.
-     * @param mail The MAIL FROM address.
-     * @param rcpt The RCPT TO address.
-     * @param rule The rule to match against.
+     * @param ip        The IP address.
+     * @param ehlo      The EHLO/HELO domain.
+     * @param mail      The MAIL FROM address.
+     * @param rcpt      The RCPT TO address.
+     * @param isInbound true if the session is inbound, false if outbound.
+     * @param rule      The rule to match against.
      * @return true if all patterns in the rule match, false otherwise.
      */
-    private static boolean matchesRule(String ip, String ehlo, String mail, String rcpt, Map<String, Object> rule) {
+    private static boolean matchesRule(String ip, String ehlo, String mail, String rcpt, boolean isInbound, ProxyRule rule) {
+        // Check direction first.
+        if (!rule.matchesDirection(isInbound)) {
+            return false;
+        }
+
         // Check IP pattern if specified.
-        if (rule.containsKey("ip") && !matchesPattern(ip, (String) rule.get("ip"))) {
+        if (!matchesPattern(ip, rule.getIp())) {
             return false;
         }
 
         // Check EHLO pattern if specified.
-        if (rule.containsKey("ehlo") && !matchesPattern(ehlo, (String) rule.get("ehlo"))) {
+        if (!matchesPattern(ehlo, rule.getEhlo())) {
             return false;
         }
 
         // Check MAIL pattern if specified.
-        if (rule.containsKey("mail") && !matchesPattern(mail, (String) rule.get("mail"))) {
+        if (!matchesPattern(mail, rule.getMail())) {
             return false;
         }
 
         // Check RCPT pattern if specified.
-        if (rule.containsKey("rcpt") && !matchesPattern(rcpt, (String) rule.get("rcpt"))) {
+        if (!matchesPattern(rcpt, rule.getRcpt())) {
             return false;
         }
 
@@ -99,7 +130,7 @@ public class ProxyMatcher {
         if (pattern == null || pattern.isEmpty()) {
             return true;
         }
-        
+
         // If we have a pattern but value is null, no match.
         if (value == null) {
             return false;
@@ -111,87 +142,5 @@ public class ProxyMatcher {
             log.warn("Invalid regex pattern: {}", pattern, e);
             return false;
         }
-    }
-
-    /**
-     * Gets the action for non-matching recipients from a proxy rule.
-     *
-     * @param rule The proxy rule.
-     * @return The action string (accept, reject, or none). Default is "none".
-     */
-    public static String getAction(Map<String, Object> rule) {
-        if (rule.containsKey("action")) {
-            String action = (String) rule.get("action");
-            if ("accept".equalsIgnoreCase(action) || "reject".equalsIgnoreCase(action) || "none".equalsIgnoreCase(action)) {
-                return action.toLowerCase();
-            }
-        }
-        return "none";
-    }
-
-    /**
-     * Gets the host from a proxy rule.
-     *
-     * @param rule The proxy rule.
-     * @return The host string, or "localhost" if not specified.
-     */
-    public static String getHost(Map<String, Object> rule) {
-        return rule.containsKey("host") ? (String) rule.get("host") : "localhost";
-    }
-
-    /**
-     * Gets the port from a proxy rule.
-     *
-     * @param rule The proxy rule.
-     * @return The port number, or 25 if not specified.
-     */
-    public static int getPort(Map<String, Object> rule) {
-        if (rule.containsKey("port")) {
-            Object port = rule.get("port");
-            if (port instanceof Number) {
-                return ((Number) port).intValue();
-            } else if (port instanceof String) {
-                try {
-                    return Integer.parseInt((String) port);
-                } catch (NumberFormatException e) {
-                    log.warn("Invalid port number: {}", port);
-                }
-            }
-        }
-        return 25;
-    }
-
-    /**
-     * Gets the protocol from a proxy rule.
-     *
-     * @param rule The proxy rule.
-     * @return The protocol string (smtp, esmtp, lmtp), or "esmtp" if not specified.
-     */
-    public static String getProtocol(Map<String, Object> rule) {
-        if (rule.containsKey("protocol")) {
-            String protocol = (String) rule.get("protocol");
-            if (protocol != null && !protocol.isEmpty()) {
-                return protocol.toLowerCase();
-            }
-        }
-        return "esmtp";
-    }
-
-    /**
-     * Gets the TLS setting from a proxy rule.
-     *
-     * @param rule The proxy rule.
-     * @return true if TLS should be used, false otherwise.
-     */
-    public static boolean isTls(Map<String, Object> rule) {
-        if (rule.containsKey("tls")) {
-            Object tls = rule.get("tls");
-            if (tls instanceof Boolean) {
-                return (Boolean) tls;
-            } else if (tls instanceof String) {
-                return Boolean.parseBoolean((String) tls);
-            }
-        }
-        return false;
     }
 }

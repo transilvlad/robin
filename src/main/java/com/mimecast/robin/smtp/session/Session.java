@@ -245,6 +245,14 @@ public class Session implements Serializable, Cloneable {
     private List<MessageEnvelope> envelopes = new ArrayList<>();
 
     /**
+     * Map of proxy connections by rule.
+     * <p>Stores proxy connections for reuse across multiple envelopes.
+     * <p>Key: ProxyRule, Value: ProxyEmailDelivery
+     * <p>This is transient and not serialized.
+     */
+    private transient Map<Object, Object> proxyConnections = new HashMap<>();
+
+    /**
      * SessionTransactionList instance.
      */
     private SessionTransactionList sessionTransactionList = new SessionTransactionList();
@@ -1154,6 +1162,52 @@ public class Session implements Serializable, Cloneable {
     public Session clearEnvelopes() {
         envelopes.clear();
         return this;
+    }
+
+    /**
+     * Gets proxy connection for a given rule.
+     * <p>Returns null if no connection exists for this rule.
+     *
+     * @param rule ProxyRule instance.
+     * @return ProxyEmailDelivery instance or null.
+     */
+    public Object getProxyConnection(Object rule) {
+        return proxyConnections.get(rule);
+    }
+
+    /**
+     * Sets proxy connection for a given rule.
+     * <p>Stores the connection for reuse across multiple envelopes.
+     *
+     * @param rule       ProxyRule instance.
+     * @param connection ProxyEmailDelivery instance.
+     * @return Self.
+     */
+    public Session setProxyConnection(Object rule, Object connection) {
+        proxyConnections.put(rule, connection);
+        return this;
+    }
+
+    /**
+     * Gets all proxy connections.
+     *
+     * @return Map of ProxyRule to ProxyEmailDelivery.
+     */
+    public Map<Object, Object> getProxyConnections() {
+        return proxyConnections;
+    }
+
+    /**
+     * Closes and clears all proxy connections.
+     * <p>Should be called when the session ends.
+     */
+    public void closeProxyConnections() {
+        for (Object connection : proxyConnections.values()) {
+            if (connection instanceof com.mimecast.robin.smtp.ProxyEmailDelivery) {
+                ((com.mimecast.robin.smtp.ProxyEmailDelivery) connection).close();
+            }
+        }
+        proxyConnections.clear();
     }
 
     /**

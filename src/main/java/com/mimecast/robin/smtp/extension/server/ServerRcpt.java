@@ -1,5 +1,6 @@
 package com.mimecast.robin.smtp.extension.server;
 
+import com.mimecast.robin.config.server.ProxyRule;
 import com.mimecast.robin.config.server.ScenarioConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.sasl.DovecotUserLookupNative;
@@ -43,17 +44,17 @@ public class ServerRcpt extends ServerMail {
     public boolean process(Connection connection, Verb verb) throws IOException {
         super.process(connection, verb);
 
+        // Get MAIL FROM for matching logic (extracted to avoid duplication).
+        String mailFrom = getMailFrom(connection);
+
         // Check for proxy rule match first (only first matching rule proxies).
-        Optional<Map<String, Object>> proxyRule = Optional.empty();
-        if (!connection.getSession().getEnvelopes().isEmpty()) {
-            String mailFrom = connection.getSession().getEnvelopes().getLast().getMail();
-            proxyRule = ProxyMatcher.findMatchingRule(
-                connection.getSession().getFriendAddr(),
-                connection.getSession().getEhlo(),
-                mailFrom,
-                getAddress().getAddress(),
-                Config.getServer().getProxy());
-        }
+        Optional<ProxyRule> proxyRule = ProxyMatcher.findMatchingRule(
+            connection.getSession().getFriendAddr(),
+            connection.getSession().getEhlo(),
+            mailFrom,
+            getAddress().getAddress(),
+            connection.getSession().isInbound(),
+            Config.getServer().getProxy());
 
         // If proxy rule matches, handle proxy connection.
         if (proxyRule.isPresent()) {
@@ -61,16 +62,12 @@ public class ServerRcpt extends ServerMail {
         }
 
         // Check if this specific recipient should be blackholed.
-        boolean blackholedRecipient = false;
-        if (!connection.getSession().getEnvelopes().isEmpty()) {
-            String mailFrom = connection.getSession().getEnvelopes().getLast().getMail();
-            blackholedRecipient = BlackholeMatcher.shouldBlackhole(
-                connection.getSession().getFriendAddr(),
-                connection.getSession().getEhlo(),
-                mailFrom,
-                getAddress().getAddress(),
-                Config.getServer().getBlackholeConfig());
-        }
+        boolean blackholedRecipient = BlackholeMatcher.shouldBlackhole(
+            connection.getSession().getFriendAddr(),
+            connection.getSession().getEhlo(),
+            mailFrom,
+            getAddress().getAddress(),
+            Config.getServer().getBlackholeConfig());
 
         // When receiving inbound email.
         if (connection.getSession().isInbound()) {
@@ -123,6 +120,20 @@ public class ServerRcpt extends ServerMail {
     }
 
     /**
+     * Gets MAIL FROM address from the current envelope.
+     * <p>Helper method to avoid code duplication in proxy and blackhole checks.
+     *
+     * @param connection Connection instance.
+     * @return MAIL FROM address or null if no envelope exists.
+     */
+    private String getMailFrom(Connection connection) {
+        if (!connection.getSession().getEnvelopes().isEmpty()) {
+            return connection.getSession().getEnvelopes().getLast().getMail();
+        }
+        return null;
+    }
+
+    /**
      * Handles a recipient that matches a proxy rule.
      *
      * @param connection Connection instance.
@@ -130,38 +141,41 @@ public class ServerRcpt extends ServerMail {
      * @return Boolean indicating success.
      * @throws IOException Unable to communicate.
      */
-    private boolean handleProxyRecipient(Connection connection, Map<String, Object> rule) throws IOException {
+    private boolean handleProxyRecipient(Connection connection, ProxyRule rule) throws IOException {
         if (connection.getSession().getEnvelopes().isEmpty()) {
             log.warn("No envelope available for proxy recipient");
             connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
             return false;
         }
 
-        Object proxyConnectionObj = connection.getSession().getEnvelopes().getLast().getProxyConnection();
-        
-        // If this is the first recipient match, establish proxy connection.
+        // Get or create proxy connection from session (for connection reuse).
+        Object proxyConnectionObj = connection.getSession().getProxyConnection(rule);
+
+        // If no connection exists for this rule, establish new connection.
         if (proxyConnectionObj == null) {
             try {
                 ProxyEmailDelivery proxyDelivery = establishProxyConnection(connection, rule);
-                connection.getSession().getEnvelopes().getLast().setProxyConnection(proxyDelivery);
-                log.info("Established proxy connection for first matching recipient");
+                connection.getSession().setProxyConnection(rule, proxyDelivery);
+                log.info("Established new proxy connection for rule - Host: {}", rule.getHost());
                 proxyConnectionObj = proxyDelivery;
             } catch (SmtpException e) {
                 log.error("SMTP error establishing proxy connection: {}", e.getMessage());
                 String errorResponse = String.format("451 4.4.1 Proxy connection failed [%s]", connection.getSession().getUID());
-                connection.getSession().getEnvelopes().getLast().setProxyConnection(errorResponse);
+                connection.getSession().setProxyConnection(rule, errorResponse);
                 connection.write(errorResponse);
                 return false;
             } catch (IOException e) {
                 log.error("Failed to establish proxy connection: {}", e.getMessage());
-                // If connection fails before first recipient, reject all subsequent recipients with this error.
+                // Store error in session to avoid retry storms.
                 String errorResponse = String.format("451 4.4.1 Proxy connection failed [%s]", connection.getSession().getUID());
-                connection.getSession().getEnvelopes().getLast().setProxyConnection(errorResponse);
+                connection.getSession().setProxyConnection(rule, errorResponse);
                 connection.write(errorResponse);
                 return false;
             }
+        } else {
+            log.debug("Reusing existing proxy connection for rule - Host: {}", rule.getHost());
         }
-        
+
         // Check if it's an error string from previous failed connection.
         if (proxyConnectionObj instanceof String) {
             String proxyError = (String) proxyConnectionObj;
@@ -169,15 +183,20 @@ public class ServerRcpt extends ServerMail {
             connection.write(proxyError);
             return false;
         }
-        
+
         // Must be a ProxyEmailDelivery at this point.
         if (!(proxyConnectionObj instanceof ProxyEmailDelivery)) {
             log.error("Unexpected proxy connection type: {}", proxyConnectionObj.getClass().getName());
             connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
             return false;
         }
-        
+
         ProxyEmailDelivery proxyConnection = (ProxyEmailDelivery) proxyConnectionObj;
+
+        // Prepare connection for this envelope if it's a new envelope.
+        if (!connection.getSession().getEnvelopes().isEmpty()) {
+            proxyConnection.prepareForEnvelope(connection.getSession().getEnvelopes().getLast());
+        }
 
         // Send RCPT TO to proxy server.
         try {
@@ -207,33 +226,41 @@ public class ServerRcpt extends ServerMail {
      * @throws IOException   Unable to communicate.
      * @throws SmtpException SMTP error.
      */
-    private ProxyEmailDelivery establishProxyConnection(Connection connection, Map<String, Object> rule) 
+    private ProxyEmailDelivery establishProxyConnection(Connection connection, ProxyRule rule)
             throws IOException, SmtpException {
         // Create proxy session.
         Session proxySession = new Session();
         proxySession.setDirection(EmailDirection.OUTBOUND);
-        proxySession.setMx(java.util.Collections.singletonList(ProxyMatcher.getHost(rule)));
-        proxySession.setPort(ProxyMatcher.getPort(rule));
-        
+        proxySession.setMx(java.util.Collections.singletonList(rule.getHost()));
+        proxySession.setPort(rule.getPort());
+
         // Set protocol-specific parameters.
-        String protocol = ProxyMatcher.getProtocol(rule);
+        String protocol = rule.getProtocol();
         if ("lmtp".equalsIgnoreCase(protocol)) {
             proxySession.setLhlo(Config.getServer().getHostname());
         } else {
             proxySession.setEhlo(Config.getServer().getHostname());
         }
-        
+
         // Set TLS if configured.
-        if (ProxyMatcher.isTls(rule)) {
+        if (rule.isTls()) {
             proxySession.setStartTls(true);
+        }
+
+        // Set authentication if configured.
+        if (rule.hasAuth()) {
+            proxySession.setAuth(true);
+            proxySession.setUsername(rule.getAuthUsername());
+            proxySession.setPassword(rule.getAuthPassword());
         }
 
         // Create proxy delivery and connect.
         ProxyEmailDelivery proxyDelivery = new ProxyEmailDelivery(
             proxySession,
-            connection.getSession().getEnvelopes().getLast()
+            connection.getSession().getEnvelopes().getLast(),
+            rule
         );
-        
+
         try {
             proxyDelivery.connect();
         } catch (SmtpException e) {
@@ -241,7 +268,7 @@ public class ServerRcpt extends ServerMail {
         } catch (IOException e) {
             throw new IOException("Failed to establish proxy connection: " + e.getMessage(), e);
         }
-        
+
         return proxyDelivery;
     }
 
