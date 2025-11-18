@@ -4,6 +4,7 @@ import com.mimecast.robin.config.server.ScenarioConfig;
 import com.mimecast.robin.config.server.WebhookConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
+import com.mimecast.robin.smtp.ProxyEmailDelivery;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
@@ -83,6 +84,12 @@ public class ServerData extends ServerProcessor {
      * @throws IOException Unable to communicate.
      */
     private boolean ascii() throws IOException {
+        // Check if this envelope should be proxied (check session for active proxy connections).
+        if (!connection.getSession().getEnvelopes().isEmpty() && hasActiveProxyConnection()) {
+            // Proxy mode - stream email to proxy server.
+            return handleProxyData();
+        }
+        
         // Check if envelope is blackholed.
         if (!connection.getSession().getEnvelopes().isEmpty() && connection.getSession().getEnvelopes().getLast().isBlackholed()) {
             // Blackholed email - read data but don't store or call webhooks.
@@ -125,6 +132,106 @@ public class ServerData extends ServerProcessor {
         }
 
         return true;
+    }
+
+    /**
+     * Checks if there is an active proxy connection for the current envelope.
+     *
+     * @return true if proxy connection exists and is active.
+     */
+    private boolean hasActiveProxyConnection() {
+        // Check all proxy connections in session for active ProxyEmailDelivery instances.
+        for (Object conn : connection.getSession().getProxyConnections().values()) {
+            if (conn instanceof ProxyEmailDelivery) {
+                ProxyEmailDelivery delivery = (ProxyEmailDelivery) conn;
+                if (delivery.isConnected()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Gets the active proxy connection for the current envelope.
+     *
+     * @return ProxyEmailDelivery instance or null if none active.
+     */
+    private ProxyEmailDelivery getActiveProxyConnection() {
+        for (Object conn : connection.getSession().getProxyConnections().values()) {
+            if (conn instanceof ProxyEmailDelivery) {
+                ProxyEmailDelivery delivery = (ProxyEmailDelivery) conn;
+                if (delivery.isConnected() && delivery.isForCurrentEnvelope(
+                        connection.getSession().getEnvelopes().getLast())) {
+                    return delivery;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Handles proxying email data to another SMTP server.
+     * <p>Streams the received email to the proxy connection after storage processors accept it.
+     * <p>Connection remains open for reuse with subsequent envelopes.
+     *
+     * @return Boolean indicating success.
+     * @throws IOException Unable to communicate.
+     */
+    private boolean handleProxyData() throws IOException {
+        if (connection.getSession().getEnvelopes().isEmpty()) {
+            connection.write(String.format(SmtpResponses.NO_VALID_RECIPIENTS_554, connection.getSession().getUID()));
+            return false;
+        }
+
+        ProxyEmailDelivery proxyDelivery = getActiveProxyConnection();
+
+        if (proxyDelivery == null || !proxyDelivery.isConnected()) {
+            connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+            return false;
+        }
+
+        // Read and temporarily store the email for proxy transmission.
+        try {
+            if (!asciiRead("eml")) {
+                return false;
+            }
+        } catch (LimitExceededException e) {
+            connection.write(String.format(SmtpResponses.MESSAGE_SIZE_LIMIT_EXCEEDED_552, connection.getSession().getUID()));
+            // Don't close - connection may be reused for next envelope.
+            return false;
+        }
+
+        // Call RAW webhook after successful storage.
+        if (!callRawWebhook()) {
+            // Don't close - connection may be reused for next envelope.
+            return false;
+        }
+
+        // Stream the email to the proxy server via DATA command.
+        try {
+            boolean proxySuccess = proxyDelivery.sendData();
+
+            // DO NOT close the connection - it will be reused for subsequent envelopes.
+            // Connection is closed only when session ends (in EmailReceipt finally block).
+
+            if (proxySuccess) {
+                // Return success to the original client.
+                connection.write(String.format(SmtpResponses.RECEIVED_OK_250, connection.getSession().getUID()));
+                log.info("Email successfully proxied to remote server (connection remains open for reuse)");
+                return true;
+            } else {
+                // Proxy failed, return error to client.
+                connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+                log.error("Proxy server rejected email");
+                return false;
+            }
+        } catch (IOException e) {
+            log.error("Failed to proxy email data: {}", e.getMessage());
+            // Don't close - let session cleanup handle it.
+            connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+            return false;
+        }
     }
 
     /**
