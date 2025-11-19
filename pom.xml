@@ -14,7 +14,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <javamail.version>1.6.2</javamail.version>
         <guava.version>33.5.0-jre</guava.version>
-        <okhttp.version>5.3.1</okhttp.version>
+        <okhttp.version>5.3.2</okhttp.version>
         <micrometer.version>1.16.0</micrometer.version>
         <log4j.version>2.25.2</log4j.version>
         <junit.version>6.0.1</junit.version>
