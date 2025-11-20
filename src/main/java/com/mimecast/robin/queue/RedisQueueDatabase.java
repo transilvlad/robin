@@ -22,6 +22,11 @@ import java.util.*;
 public class RedisQueueDatabase<T extends Serializable> implements QueueDatabase<T> {
 
     private static final Logger log = LogManager.getLogger(RedisQueueDatabase.class);
+    
+    // Placeholder prefixes for atomic remove operations
+    private static final String REMOVE_PLACEHOLDER_PREFIX = "__ROBIN_REMOVE__";
+    private static final String REMOVE_UID_PLACEHOLDER_PREFIX = "__ROBIN_REMOVE_UID__";
+    private static final String REMOVE_UIDS_PLACEHOLDER_PREFIX = "__ROBIN_REMOVE_UIDS__";
 
     private JedisPool jedisPool;
     private final String host;
@@ -207,7 +212,7 @@ public class RedisQueueDatabase<T extends Serializable> implements QueueDatabase
             }
 
             // Use a unique placeholder to mark and remove the item
-            String placeholder = "__ROBIN_REMOVE__" + UUID.randomUUID();
+            String placeholder = REMOVE_PLACEHOLDER_PREFIX + UUID.randomUUID();
             jedis.lset(queueKey.getBytes(), redisIndex, placeholder.getBytes());
             jedis.lrem(queueKey.getBytes(), 1, placeholder.getBytes());
 
@@ -264,7 +269,7 @@ public class RedisQueueDatabase<T extends Serializable> implements QueueDatabase
                 if (item instanceof RelaySession relaySession) {
                     if (uid.equals(relaySession.getUID())) {
                         // Use a unique placeholder to mark and remove the item
-                        String placeholder = "__ROBIN_REMOVE_UID__" + UUID.randomUUID();
+                        String placeholder = REMOVE_UID_PLACEHOLDER_PREFIX + UUID.randomUUID();
                         jedis.lset(queueKey.getBytes(), i, placeholder.getBytes());
                         jedis.lrem(queueKey.getBytes(), 1, placeholder.getBytes());
                         return true;
@@ -309,7 +314,7 @@ public class RedisQueueDatabase<T extends Serializable> implements QueueDatabase
             // Remove in reverse order to avoid index shifting
             for (int i = indicesToRemove.size() - 1; i >= 0; i--) {
                 int index = indicesToRemove.get(i);
-                String placeholder = "__ROBIN_REMOVE_UIDS__" + UUID.randomUUID();
+                String placeholder = REMOVE_UIDS_PLACEHOLDER_PREFIX + UUID.randomUUID();
                 jedis.lset(queueKey.getBytes(), index, placeholder.getBytes());
                 jedis.lrem(queueKey.getBytes(), 1, placeholder.getBytes());
                 removed++;
