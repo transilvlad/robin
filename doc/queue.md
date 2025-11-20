@@ -19,6 +19,27 @@ MapDB is a lightweight, file-based embedded database. It is the default backend 
 }
 ```
 
+### Redis
+Redis provides high-performance in-memory queue persistence with optional disk persistence. Fully compatible with AWS Elasticache for Redis and standard Redis instances. Uses Redis LIST operations for FIFO queue behavior with Java serialization.
+
+**Configuration:**
+```json5
+{
+  queueRedis: {
+    enabled: true,
+    host: "localhost",
+    port: 6379,
+    queueKey: "robin:queue"
+  }
+}
+```
+
+**Compatibility:**
+- Works with standard Redis (version 5.0+)
+- Compatible with AWS Elasticache for Redis
+- Compatible with Azure Cache for Redis
+- No Redis password authentication required (configure via connection string if needed)
+
 ### MariaDB
 MariaDB provides a robust SQL-based queue with transaction support and LONGBLOB storage for serialized objects.
 
@@ -88,9 +109,10 @@ An in-memory queue database is used when all persistence backends are disabled. 
 The queue backend is selected based on which backend is enabled, in the following priority order:
 
 1. **MapDB** - if `queueMapDB.enabled` is `true` (default for production)
-2. **MariaDB** - if `queueMariaDB.enabled` is `true` (and MapDB is disabled)
-3. **PostgreSQL** - if `queuePgSQL.enabled` is `true` (and MapDB and MariaDB are disabled)
-4. **InMemory** - fallback when all backends are disabled (default for tests)
+2. **Redis** - if `queueRedis.enabled` is `true` (and MapDB is disabled)
+3. **MariaDB** - if `queueMariaDB.enabled` is `true` (and MapDB and Redis are disabled)
+4. **PostgreSQL** - if `queuePgSQL.enabled` is `true` (and MapDB, Redis, and MariaDB are disabled)
+5. **InMemory** - fallback when all backends are disabled (default for tests)
 
 **Note:** Only one backend should be enabled at a time. If multiple backends are enabled, the selection follows the priority order above.
 
@@ -112,6 +134,14 @@ All backends share these common queue configuration options in `queue.json5`:
 | `queueMapDB.enabled` | Boolean | `true` | Enable MapDB backend |
 | `queueMapDB.queueFile` | String | `/usr/local/robin/relayQueue.db` | File path for MapDB backend |
 | `queueMapDB.concurrencyScale` | Integer | 32 | MapDB-specific concurrency configuration |
+
+### Redis Options
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `queueRedis.enabled` | Boolean | `false` | Enable Redis backend |
+| `queueRedis.host` | String | `localhost` | Redis server hostname |
+| `queueRedis.port` | Integer | `6379` | Redis server port |
+| `queueRedis.queueKey` | String | `robin:queue` | Redis key name for the queue LIST |
 
 ### MariaDB Options
 | Option | Type | Default | Description |
@@ -148,7 +178,47 @@ All backends share these common queue configuration options in `queue.json5`:
 }
 ```
 
-### Example 2: PostgreSQL Backend
+### Example 2: Redis Backend
+```json5
+{
+  queueInitialDelay: 10,
+  queueInterval: 30,
+  maxDequeuePerTick: 10,
+
+  queueMapDB: {
+    enabled: false
+  },
+
+  queueRedis: {
+    enabled: true,
+    host: "redis.example.com",
+    port: 6379,
+    queueKey: "robin:relay:queue"
+  }
+}
+```
+
+### Example 3: Redis with AWS Elasticache
+```json5
+{
+  queueInitialDelay: 10,
+  queueInterval: 30,
+  maxDequeuePerTick: 10,
+
+  queueMapDB: {
+    enabled: false
+  },
+
+  queueRedis: {
+    enabled: true,
+    host: "my-elasticache-cluster.abc123.0001.use1.cache.amazonaws.com",
+    port: 6379,
+    queueKey: "robin:queue"
+  }
+}
+```
+
+### Example 4: PostgreSQL Backend
 ```json5
 {
   queueInitialDelay: 10,
@@ -169,7 +239,7 @@ All backends share these common queue configuration options in `queue.json5`:
 }
 ```
 
-### Example 3: MariaDB Backend
+### Example 5: MariaDB Backend
 ```json5
 {
   queueInitialDelay: 10,
@@ -190,7 +260,7 @@ All backends share these common queue configuration options in `queue.json5`:
 }
 ```
 
-### Example 4: InMemory (Test Configuration)
+### Example 6: InMemory (Test Configuration)
 ```json5
 {
   queueInitialDelay: 10,
@@ -199,6 +269,7 @@ All backends share these common queue configuration options in `queue.json5`:
   concurrencyScale: 32,
 
   queueMapDB: { enabled: false },
+  queueRedis: { enabled: false },
   queueMariaDB: { enabled: false },
   queuePgSQL: { enabled: false }
 }
@@ -213,6 +284,14 @@ All queue backends implement the `QueueDatabase` interface, providing:
 - Snapshot for read-only inspection
 - Item removal by index or UID
 - Clear all items
+
+### Redis Backend
+The Redis backend uses Jedis client library and provides:
+- FIFO queue operations using Redis LIST (LPUSH for enqueue, RPOP for dequeue)
+- Java object serialization for queue items
+- Connection pooling for high performance
+- Compatible with AWS Elasticache and standard Redis instances
+- Configurable queue key for multi-tenant scenarios
 
 ### SQL Backends
 MariaDB and PostgreSQL backends extend `SQLQueueDatabase`, which provides:
