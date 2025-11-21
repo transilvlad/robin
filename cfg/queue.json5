@@ -23,8 +23,11 @@
   // Compatible with AWS Elasticache and standard Redis instances.
   queueRedis: {
     enabled: false,
+    // Redis server hostname or IP address.
     host: "localhost",
+    // Redis server port (default: 6379).
     port: 6379,
+    // Redis key name for the queue LIST.
     queueKey: "robin:queue"
   },
 

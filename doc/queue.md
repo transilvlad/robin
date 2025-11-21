@@ -271,6 +271,7 @@ All backends share these common queue configuration options in `queue.json5`:
     enabled: false
   },
 
+  // Redis backend disabled - will fall back to InMemory queue backend
   queueRedis: {
     enabled: false,
     host: "localhost",
