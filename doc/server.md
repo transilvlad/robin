@@ -75,6 +75,7 @@ External files (auto‑loaded if present in same directory):
 - `blocklist.json5` IP blocklist configuration.
 - `blackhole.json5` Blackhole mode configuration.
 - `proxy.json5` Proxy mode configuration.
+- `bots.json5` Email infrastructure analysis bots configuration. See [Bots](bots.md) for details.
 
 Example `server.json5` (core listeners & feature flags):
 
