@@ -1,12 +1,16 @@
 package com.mimecast.robin.storage;
 
+import com.mimecast.robin.bots.BotFactory;
+import com.mimecast.robin.bots.BotProcessor;
 import com.mimecast.robin.config.server.ServerConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
+import com.mimecast.robin.main.Server;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.headers.ChaosHeaders;
 import com.mimecast.robin.mime.headers.MimeHeader;
 import com.mimecast.robin.queue.relay.RelayMessage;
+import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.util.PathUtils;
 import org.apache.commons.io.output.NullOutputStream;
@@ -20,8 +24,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Local storage client implementation.
@@ -184,6 +191,9 @@ public class LocalStorageClient implements StorageClient {
                         }
                     }
 
+                    // Process bot addresses if any
+                    processBotAddresses(connection, parser);
+
                     // Relay email if X-Robin-Relay or relay configuration or direction outbound enabled.
                     relay();
                 }
@@ -261,6 +271,57 @@ public class LocalStorageClient implements StorageClient {
         }
 
         return false; // No matching chaos header, processor should run normally.
+    }
+
+    /**
+     * Processes bot addresses by submitting them to the bot thread pool.
+     * <p>Each bot address is processed in a separate thread to avoid blocking.
+     *
+     * @param connection  Connection instance.
+     * @param emailParser Parsed email instance.
+     */
+    private void processBotAddresses(Connection connection, EmailParser emailParser) {
+        if (connection.getSession().getEnvelopes().isEmpty()) {
+            return;
+        }
+
+        MessageEnvelope envelope = connection.getSession().getEnvelopes().getLast();
+        if (!envelope.hasBotAddresses()) {
+            return;
+        }
+
+        // Get bot executor service
+        ExecutorService botExecutor = Server.getBotExecutor();
+        if (botExecutor == null) {
+            log.warn("Bot executor not initialized, skipping bot processing");
+            return;
+        }
+
+        // Process each bot address
+        Map<String, List<String>> botAddresses = envelope.getBotAddresses();
+        for (Map.Entry<String, List<String>> entry : botAddresses.entrySet()) {
+            String address = entry.getKey();
+            List<String> botNames = entry.getValue();
+
+            for (String botName : botNames) {
+                Optional<BotProcessor> botOpt = BotFactory.getBot(botName);
+                if (botOpt.isPresent()) {
+                    BotProcessor bot = botOpt.get();
+                    // Submit bot processing to thread pool
+                    botExecutor.submit(() -> {
+                        try {
+                            bot.process(connection, emailParser, address);
+                        } catch (Exception e) {
+                            log.error("Error processing bot {} for address {}: {}",
+                                    botName, address, e.getMessage(), e);
+                        }
+                    });
+                    log.info("Submitted bot {} for processing address: {}", botName, address);
+                } else {
+                    log.warn("Bot {} not found in factory for address: {}", botName, address);
+                }
+            }
+        }
     }
 
     /**

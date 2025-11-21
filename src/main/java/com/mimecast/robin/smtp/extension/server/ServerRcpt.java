@@ -47,6 +47,9 @@ public class ServerRcpt extends ServerMail {
         // Get MAIL FROM for matching logic (extracted to avoid duplication).
         String mailFrom = getMailFrom(connection);
 
+        // Check for bot address match and record it
+        checkBotAddress(connection);
+
         // Check for proxy rule match first (only first matching rule proxies).
         Optional<ProxyRule> proxyRule = ProxyMatcher.findMatchingRule(
             connection.getSession().getFriendAddr(),
@@ -281,6 +284,73 @@ public class ServerRcpt extends ServerMail {
     public ServerRcpt setRecipientsLimit(int limit) {
         this.recipientsLimit = limit;
         return this;
+    }
+
+    /**
+     * Checks if the recipient address matches any bot patterns and records matches.
+     * <p>Bot addresses are matched against configured patterns with domain and IP restrictions.
+     * <p>If a match is found, the bot address and bot name are recorded in the envelope.
+     *
+     * @param connection Connection instance.
+     * @throws IOException RCPT address parsing problem.
+     */
+    private void checkBotAddress(Connection connection) throws IOException {
+        if (connection.getSession().getEnvelopes().isEmpty()) {
+            return;
+        }
+
+        String recipientAddress = getAddress().getAddress();
+        if (recipientAddress == null || recipientAddress.isEmpty()) {
+            return;
+        }
+
+        // Get bot configuration
+        var botConfig = Config.getServer().getBots();
+        var botDefinitions = botConfig.getBots();
+
+        if (botDefinitions.isEmpty()) {
+            return; // No bots configured
+        }
+
+        // Extract domain from recipient address
+        String domain = null;
+        String[] parts = recipientAddress.split("@");
+        if (parts.length == 2) {
+            domain = parts[1];
+        }
+
+        // Get remote IP
+        String remoteIp = connection.getSession().getFriendAddr();
+
+        // Check each bot definition
+        for (var botDef : botDefinitions) {
+            // Check if address matches pattern
+            if (!botDef.matchesAddress(recipientAddress)) {
+                continue;
+            }
+
+            // Check domain restrictions
+            if (!botDef.isDomainAllowed(domain)) {
+                log.debug("Bot address {} matched pattern but domain {} not allowed",
+                        recipientAddress, domain);
+                continue;
+            }
+
+            // Check IP restrictions
+            if (!botDef.isIpAllowed(remoteIp)) {
+                log.debug("Bot address {} matched pattern but IP {} not allowed",
+                        recipientAddress, remoteIp);
+                continue;
+            }
+
+            // All checks passed - record the bot address
+            String botName = botDef.getBotName();
+            connection.getSession().getEnvelopes().getLast()
+                    .addBotAddress(recipientAddress, botName);
+
+            log.info("Bot address matched: {} -> bot: {} from IP: {}",
+                    recipientAddress, botName, remoteIp);
+        }
     }
 
     /**

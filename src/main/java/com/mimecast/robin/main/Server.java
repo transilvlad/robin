@@ -52,6 +52,13 @@ public class Server extends Foundation {
      */
     private static ExecutorService listenerExecutor;
 
+    /**
+     * Executor service for processing bot requests.
+     * <p>Bots analyze incoming emails and generate automated responses.
+     * <p>Using a cached thread pool that creates threads on demand and reuses idle threads.
+     */
+    private static ExecutorService botExecutor;
+
 
     /**
      * Initializes and starts the Robin SMTP server.
@@ -101,6 +108,10 @@ public class Server extends Foundation {
         }
 
         startup(); // Start prerequisite services.
+
+        // Initialize bot executor service
+        botExecutor = Executors.newCachedThreadPool();
+        log.info("Bot processing thread pool initialized");
 
         // Start listeners in the thread pool.
         if (!listeners.isEmpty()) {
@@ -202,6 +213,20 @@ public class Server extends Foundation {
                 }
             }
 
+            // Shutdown the bot executor service.
+            if (botExecutor != null) {
+                botExecutor.shutdown();
+                try {
+                    if (!botExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
+                        log.warn("Bot executor did not terminate in time, forcing shutdown");
+                        botExecutor.shutdownNow();
+                    }
+                } catch (InterruptedException e) {
+                    botExecutor.shutdownNow();
+                    Thread.currentThread().interrupt();
+                }
+            }
+
             log.info("Shutdown complete.");
         }));
     }
@@ -242,5 +267,14 @@ public class Server extends Foundation {
      */
     public static List<SmtpListener> getListeners() {
         return listeners;
+    }
+
+    /**
+     * Gets the bot processing executor service.
+     *
+     * @return ExecutorService for bot processing, or null if not initialized.
+     */
+    public static ExecutorService getBotExecutor() {
+        return botExecutor;
     }
 }

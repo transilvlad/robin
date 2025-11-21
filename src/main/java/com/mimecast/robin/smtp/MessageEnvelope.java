@@ -36,6 +36,9 @@ public class MessageEnvelope implements Serializable, Cloneable {
     // Blackholed status - true if email should be accepted but not saved.
     private boolean blackholed = false;
 
+    // Bot addresses - recipients that matched bot patterns with their bot names
+    private final Map<String, List<String>> botAddresses = new HashMap<>();
+
     // Set MimeConfig.
     private MimeConfig mime = null;
 
@@ -727,6 +730,48 @@ public class MessageEnvelope implements Serializable, Cloneable {
     }
 
     /**
+     * Adds a bot address with its associated bot name.
+     *
+     * @param address Email address that matched a bot pattern.
+     * @param botName Name of the bot to process this address.
+     * @return MessageEnvelope instance.
+     */
+    public MessageEnvelope addBotAddress(String address, String botName) {
+        if (address != null && !address.isEmpty() && botName != null && !botName.isEmpty()) {
+            botAddresses.computeIfAbsent(address, k -> new ArrayList<>()).add(botName);
+        }
+        return this;
+    }
+
+    /**
+     * Gets the map of bot addresses to bot names.
+     *
+     * @return Unmodifiable map of bot addresses.
+     */
+    public Map<String, List<String>> getBotAddresses() {
+        return Collections.unmodifiableMap(botAddresses);
+    }
+
+    /**
+     * Checks if the given address is a bot address.
+     *
+     * @param address Email address to check.
+     * @return true if address is a bot address.
+     */
+    public boolean isBotAddress(String address) {
+        return address != null && botAddresses.containsKey(address);
+    }
+
+    /**
+     * Checks if this envelope has any bot addresses.
+     *
+     * @return true if envelope has bot addresses.
+     */
+    public boolean hasBotAddresses() {
+        return !botAddresses.isEmpty();
+    }
+
+    /**
      * Creates a copy of this MessageEnvelope.
      * <p>Creates a new instance with all fields copied from this envelope.
      * <p>Note: date and msgId from the original are preserved in the clone.
@@ -749,6 +794,12 @@ public class MessageEnvelope implements Serializable, Cloneable {
 
             cloned.headers.clear();
             cloned.headers.putAll(this.headers);
+
+            // Deep copy botAddresses
+            cloned.botAddresses.clear();
+            for (Map.Entry<String, List<String>> entry : this.botAddresses.entrySet()) {
+                cloned.botAddresses.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+            }
 
             // Deep copy scanResults
             cloned.scanResults = Collections.synchronizedList(new ArrayList<>());
