@@ -307,10 +307,18 @@ public class LocalStorageClient implements StorageClient {
                 Optional<BotProcessor> botOpt = BotFactory.getBot(botName);
                 if (botOpt.isPresent()) {
                     BotProcessor bot = botOpt.get();
+                    
+                    // Clone the session to avoid race conditions
+                    // The bot processing happens asynchronously and the original connection/session
+                    // may be cleaned up or modified by the time the bot processes it.
+                    // We create a new connection with the cloned session for thread safety.
+                    com.mimecast.robin.smtp.session.Session sessionClone = connection.getSession().clone();
+                    Connection connectionCopy = new Connection(sessionClone);
+                    
                     // Submit bot processing to thread pool
                     botExecutor.submit(() -> {
                         try {
-                            bot.process(connection, emailParser, address);
+                            bot.process(connectionCopy, emailParser, address);
                         } catch (Exception e) {
                             log.error("Error processing bot {} for address {}: {}",
                                     botName, address, e.getMessage(), e);

@@ -3,9 +3,9 @@ package com.mimecast.robin.bots;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Factory for creating and managing bot processor instances.
@@ -17,8 +17,9 @@ public class BotFactory {
 
     /**
      * Map of bot name to bot processor instance.
+     * <p>Using ConcurrentHashMap for thread-safe read/write operations.
      */
-    private static final Map<String, BotProcessor> bots = new HashMap<>();
+    private static final Map<String, BotProcessor> bots = new ConcurrentHashMap<>();
 
     /**
      * Static initializer to register all available bots.
@@ -36,10 +37,11 @@ public class BotFactory {
 
     /**
      * Registers a bot processor with the factory.
+     * <p>Thread-safe thanks to ConcurrentHashMap.
      *
      * @param bot Bot processor to register.
      */
-    public static synchronized void registerBot(BotProcessor bot) {
+    public static void registerBot(BotProcessor bot) {
         if (bot != null && bot.getName() != null && !bot.getName().isEmpty()) {
             bots.put(bot.getName().toLowerCase(), bot);
             log.info("Registered bot: {}", bot.getName());
