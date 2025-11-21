@@ -60,6 +60,12 @@ public class BotConfig extends BasicConfig {
     @SuppressWarnings("unchecked")
     public List<BotDefinition> getBots() {
         List<BotDefinition> definitions = new ArrayList<>();
+        
+        // Handle null map gracefully
+        if (getMap() == null) {
+            return definitions;
+        }
+        
         List<Map<String, Object>> bots = (List<Map<String, Object>>) getListProperty("bots");
         
         if (bots != null) {
