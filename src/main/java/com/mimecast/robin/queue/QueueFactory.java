@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
  * <p>Selects the appropriate queue backend based on enabled flag in priority order:
  * <ol>
  *   <li>MapDB - if {@code queueMapDB.enabled} is true (default for production)</li>
+ *   <li>Redis - if {@code queueRedis.enabled} is true</li>
  *   <li>MariaDB - if {@code queueMariaDB.enabled} is true</li>
  *   <li>PostgreSQL - if {@code queuePgSQL.enabled} is true</li>
  *   <li>InMemory - fallback when all backends are disabled (default for tests)</li>
@@ -34,6 +35,7 @@ public class QueueFactory {
      * <p>Backend selection is determined by the enabled flags in the queue configuration:
      * <ul>
      *   <li>If {@code queueMapDB.enabled} is true, returns MapDB implementation</li>
+     *   <li>Else if {@code queueRedis.enabled} is true, returns Redis implementation</li>
      *   <li>Else if {@code queueMariaDB.enabled} is true, returns MariaDB implementation</li>
      *   <li>Else if {@code queuePgSQL.enabled} is true, returns PostgreSQL implementation</li>
      *   <li>Else returns InMemory implementation (no persistence)</li>
@@ -54,6 +56,17 @@ public class QueueFactory {
                 int concurrencyScale = Math.toIntExact(mapDBConfig.getLongProperty("concurrencyScale", 32L));
                 log.info("Using MapDB queue backend with config file: {}", queueFile);
                 database = new MapDBQueueDatabase<>(new java.io.File(queueFile), concurrencyScale);
+                database.initialize();
+                return database;
+            }
+        }
+
+        // Check for Redis configuration and enabled flag
+        if (queueConfig.getMap().containsKey("queueRedis")) {
+            BasicConfig redisConfig = new BasicConfig(queueConfig.getMapProperty("queueRedis"));
+            if (redisConfig.getBooleanProperty("enabled", false)) {
+                log.info("Using Redis queue backend");
+                database = new RedisQueueDatabase<>();
                 database.initialize();
                 return database;
             }
