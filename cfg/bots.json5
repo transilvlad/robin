@@ -10,7 +10,7 @@
       // - robotSession@example.com
       // - robotSession+token@example.com
       // - robotSession+token+reply+user@domain.com@example.com (with reply address)
-      addressPattern: "^robotSession(\\+[^@]+)?@example\\.com$",
+      addressPattern: "^robotSession(\\+.+)?@example\\.com$",
       
       // List of domains that are allowed to trigger this bot.
       // Empty list means all domains are allowed.
