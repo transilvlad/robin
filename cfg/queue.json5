@@ -18,8 +18,21 @@
     concurrencyScale: 32
   },
 
+  // Redis backend configuration.
+  // If enabled and queueMapDB is disabled, Redis will be used for queue persistence.
+  // Compatible with AWS Elasticache and standard Redis instances.
+  queueRedis: {
+    enabled: false,
+    // Redis server hostname or IP address.
+    host: "localhost",
+    // Redis server port (default: 6379).
+    port: 6379,
+    // Redis key name for the queue LIST.
+    queueKey: "robin:queue"
+  },
+
   // MariaDB backend configuration.
-  // If enabled and queueMapDB is disabled, MariaDB will be used for queue persistence.
+  // If enabled and queueMapDB and queueRedis are disabled, MariaDB will be used for queue persistence.
   queueMariaDB: {
     enabled: false,
     jdbcUrl: "jdbc:mariadb://localhost:3306/robin",
@@ -29,7 +42,7 @@
   },
 
   // PostgreSQL backend configuration.
-  // If enabled and queueMapDB and queueMariaDB are disabled, PostgreSQL will be used for queue persistence.
+  // If enabled and queueMapDB, queueRedis, and queueMariaDB are disabled, PostgreSQL will be used for queue persistence.
   queuePgSQL: {
     enabled: false,
     jdbcUrl: "jdbc:postgresql://localhost:5432/robin",

@@ -13,6 +13,11 @@
     enabled: false
   },
 
+  // Redis backend configuration (disabled for tests).
+  queueRedis: {
+    enabled: false
+  },
+
   // MariaDB backend configuration (disabled for tests).
   queueMariaDB: {
     enabled: false

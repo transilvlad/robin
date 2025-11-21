@@ -260,7 +260,28 @@ All backends share these common queue configuration options in `queue.json5`:
 }
 ```
 
-### Example 6: InMemory (Test Configuration)
+### Example 6: Redis (Test/Inactive Configuration)
+```json5
+{
+  queueInitialDelay: 10,
+  queueInterval: 30,
+  maxDequeuePerTick: 10,
+
+  queueMapDB: {
+    enabled: false
+  },
+
+  // Redis backend disabled - will fall back to InMemory queue backend
+  queueRedis: {
+    enabled: false,
+    host: "localhost",
+    port: 6379,
+    queueKey: "robin:queue"
+  }
+}
+```
+
+### Example 7: InMemory (Test Configuration)
 ```json5
 {
   queueInitialDelay: 10,
