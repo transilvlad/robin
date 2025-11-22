@@ -27,6 +27,7 @@ com.mimecast.robin.mx.assets
 com.mimecast.robin.mx.cache
 com.mimecast.robin.mx.client
 com.mimecast.robin.mx.config
+com.mimecast.robin.mx.dane
 com.mimecast.robin.mx.exception
 com.mimecast.robin.mx.stream
 com.mimecast.robin.mx.util
