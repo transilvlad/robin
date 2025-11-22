@@ -4,7 +4,6 @@ import com.mimecast.robin.config.server.ServerConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.mime.EmailParser;
-import com.mimecast.robin.mime.headers.ChaosHeaders;
 import com.mimecast.robin.mime.headers.MimeHeader;
 import com.mimecast.robin.queue.relay.RelayMessage;
 import com.mimecast.robin.smtp.connection.Connection;
@@ -170,11 +169,6 @@ public class LocalStorageClient implements StorageClient {
                         try {
                             StorageProcessor processor = storageProcessor.call();
 
-                            // Check for chaos headers and bypass processor if matched.
-                            if (shouldBypassProcessor(processor)) {
-                                continue;
-                            }
-
                             if (!processor.process(connection, parser)) {
                                 return false;
                             }
@@ -223,45 +217,6 @@ public class LocalStorageClient implements StorageClient {
         }
     }
 
-    /**
-     * Determines if a storage processor should be bypassed based on chaos headers.
-     * <p>Checks if there's a chaos header that matches the processor class name
-     * and should bypass the processor call based on the header parameters.
-     *
-     * @param processor The storage processor to check.
-     * @return True if processor should be bypassed, false if processor should run normally.
-     */
-    private boolean shouldBypassProcessor(StorageProcessor processor) {
-        // Early return if chaos headers are not enabled to avoid unnecessary object creation.
-        if (!Config.getServer().isChaosHeaders()) {
-            return false;
-        }
-
-        ChaosHeaders chaosHeaders = new ChaosHeaders(parser);
-
-        if (!chaosHeaders.hasHeaders()) {
-            return false;
-        }
-        
-        String processorClassName = processor.getClass().getSimpleName();
-
-        // Check for chaos headers matching LocalStorageClient.
-        // Format: X-Robin-Chaos: LocalStorageClient; processor=ProcessorClassName; return=true/false
-        for (MimeHeader header : chaosHeaders.getByValue(ChaosHeaders.TARGET_LOCAL_STORAGE_CLIENT)) {
-            String processorParam = header.getParameter("processor");
-            String returnParam = header.getParameter("return");
-
-            // The processor parameter should match the processor class name to bypass.
-            // Format: processor=ProcessorClassName (e.g., processor=AVStorageProcessor, processor=SpamStorageProcessor).
-            if (processorParam != null && processorParam.equals(processorClassName)) {
-                boolean shouldBypass = returnParam != null && Boolean.parseBoolean(returnParam);
-                log.debug("Chaos header bypassing {} with bypass={}", processorClassName, shouldBypass);
-                return shouldBypass; // true = bypass processor and continue, false = bypass processor and fail.
-            }
-        }
-
-        return false; // No matching chaos header, processor should run normally.
-    }
 
     /**
      * Relay email to another server by header or config.

@@ -74,36 +74,40 @@ The following headers will enable additional functionalities within the Robin se
 
 - `X-Robin-Filename` - If a value is present and valid filename, this will be used to rename the stored eml file.
 - `X-Robin-Relay` - If a value is present and valid server name and optional port number email will be relayed to it post receipt.
-- `X-Robin-Chaos` - If present and chaos headers are enabled, allows bypassing normal processing for testing exception scenarios.
+- `X-Robin-Chaos` - If present and chaos headers are enabled, allows forcing specific return values for testing exception scenarios.
 
 
-Magic chaos headers
-===================
+X-Robin-Chaos header
+--------------------
 
-The `X-Robin-Chaos` header allows testing exception scenarios by bypassing normal processing and returning predefined results.
+The `X-Robin-Chaos` header allows testing exception scenarios by forcing storage processors to return predefined results without performing their normal processing logic. This enables comprehensive testing of error handling, retry mechanisms, and failure scenarios without requiring actual service failures.
+
+When a chaos header matches a storage processor or client, the component is still instantiated and can perform initialization or logging, but it returns the forced value immediately before executing its main logic. This approach maintains system integrity while allowing controlled testing of error conditions.
 
 **WARNING:** This feature is intended for testing purposes only. Do NOT enable in production environments.
 
-To enable chaos headers, set `chaosHeaders: true` in `server.json5`.
+**Configuration**: Enable chaos headers by setting `chaosHeaders: true` in the root level of `server.json5`.
 
 The header value format is: `ClassName; param1=value1; param2=value2`
 
 Where:
 - `ClassName` - The implementation class where the action occurs (e.g., `LocalStorageClient`, `DovecotLdaClient`).
-- Parameters define the bypass behavior specific to each implementation.
+- Parameters define the forced behavior specific to each implementation.
 
 Multiple chaos headers can be present in the same email to test different scenarios.
 
-### Implementation examples
+**Examples:**
 
-**Bypass any storage processor:**
+**Force any storage processor to return a specific value:**
 ```
 X-Robin-Chaos: LocalStorageClient; processor=AVStorageProcessor; return=true
 X-Robin-Chaos: LocalStorageClient; processor=SpamStorageProcessor; return=false
 X-Robin-Chaos: LocalStorageClient; processor=LocalStorageProcessor; return=true
 ```
 
-This bypasses the call to the specified storage processor. The `processor` parameter should match the processor class name (e.g., `AVStorageProcessor` for virus scanning, `SpamStorageProcessor` for spam scanning, `LocalStorageProcessor` for local mailbox storage, `DovecotStorageProcessor` for Dovecot LDA delivery). The `return` parameter specifies what value to return from the bypass (`true` to continue processing, `false` to stop with error).
+This forces the specified storage processor to return the predefined value without performing its normal processing logic. The `processor` parameter should match the processor class name (e.g., `AVStorageProcessor` for virus scanning, `SpamStorageProcessor` for spam scanning, `LocalStorageProcessor` for local mailbox storage, `DovecotStorageProcessor` for Dovecot LDA delivery). The `return` parameter specifies the forced return value (`true` to continue processing, `false` to stop with error).
+
+**Important:** The processor is still called and can perform initialization or logging, but it returns the forced value immediately before executing its main logic.
 
 **Simulate Dovecot LDA failure:**
 ```

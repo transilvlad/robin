@@ -25,7 +25,7 @@ import java.util.List;
 /**
  * Dovecot storage processor for mailbox storage.
  */
-public class DovecotStorageProcessor implements StorageProcessor {
+public class DovecotStorageProcessor extends AbstractStorageProcessor {
     private static final Logger log = LogManager.getLogger(DovecotStorageProcessor.class);
 
     /**
@@ -37,7 +37,7 @@ public class DovecotStorageProcessor implements StorageProcessor {
      * @throws IOException If an I/O error occurs during processing.
      */
     @Override
-    public boolean process(Connection connection, EmailParser emailParser) throws IOException {
+    protected boolean processInternal(Connection connection, EmailParser emailParser) throws IOException {
         ServerConfig config = Config.getServer();
 
         if (connection.getSession().getEnvelopes().isEmpty()) {

@@ -8,22 +8,27 @@ import java.util.stream.Collectors;
 
 /**
  * Chaos headers container for testing exception scenarios.
- * 
+ *
  * <p>This class provides access to X-Robin-Chaos headers from parsed emails.
- * The chaos headers feature allows testing of exception scenarios by bypassing
- * normal processing and returning predefined results.
- * 
+ * The chaos headers feature allows testing of exception scenarios by forcing
+ * storage processors to return predefined results without performing their
+ * normal processing logic.
+ *
  * <p>The value format is: {@code ClassName; param1=value1; param2=value2}
  * where ClassName represents the implementation class where the action occurs.
- * 
+ *
  * <p>Example usage:
  * <pre>
  * ChaosHeaders chaosHeaders = new ChaosHeaders(emailParser);
  * List&lt;MimeHeader&gt; ldaHeaders = chaosHeaders.getByValue("DovecotLdaClient");
  * </pre>
- * 
+ *
+ * <p><strong>WARNING:</strong> This feature is intended for testing purposes only.
+ * Do NOT enable in production environments. See documentation for configuration details.
+ *
  * @see EmailParser
  * @see MimeHeader
+ * @see com.mimecast.robin.storage.StorageProcessor#getForcedReturnValue(EmailParser)
  */
 public class ChaosHeaders {
 

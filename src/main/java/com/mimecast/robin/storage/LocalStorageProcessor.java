@@ -21,7 +21,7 @@ import java.util.List;
  * Local storage processor for mailbox storage.
  * <p>Copies emails from tmp storage to recipient-specific mailbox folders.
  */
-public class LocalStorageProcessor implements StorageProcessor {
+public class LocalStorageProcessor extends AbstractStorageProcessor {
     private static final Logger log = LogManager.getLogger(LocalStorageProcessor.class);
 
     /**
@@ -33,7 +33,7 @@ public class LocalStorageProcessor implements StorageProcessor {
      * @throws IOException If an I/O error occurs during processing.
      */
     @Override
-    public boolean process(Connection connection, EmailParser emailParser) throws IOException {
+    protected boolean processInternal(Connection connection, EmailParser emailParser) throws IOException {
         ServerConfig config = Config.getServer();
 
         // Check if local mailbox storage is enabled.

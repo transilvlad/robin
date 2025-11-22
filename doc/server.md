@@ -634,9 +634,9 @@ See [Proxy Documentation](proxy.md) for detailed configuration and examples.
 Chaos Headers
 -------------
 
-The chaos headers feature allows testing exception scenarios by bypassing normal processing and returning predefined results.
+The chaos headers feature allows testing exception scenarios by forcing storage processors to return predefined results.
 
-**WARNING:** This feature is intended for testing purposes only. Do NOT enable in production environments as it allows bypassing normal processing flows.
+**WARNING:** This feature is intended for testing purposes only. Do NOT enable in production environments as it allows forcing specific return values without normal validation.
 
 ### Configuration
 
@@ -656,19 +656,21 @@ Add `X-Robin-Chaos` headers to test emails with the format:
 
 Where:
 - `ClassName` - The implementation class where the action occurs.
-- Parameters define the bypass behavior.
+- Parameters define the forced behavior.
 
 Multiple chaos headers can be present in the same email to test different scenarios.
 
 ### Examples
 
-**Bypass any storage processor:**
+**Force any storage processor to return a specific value:**
 
     X-Robin-Chaos: LocalStorageClient; processor=AVStorageProcessor; return=true
     X-Robin-Chaos: LocalStorageClient; processor=SpamStorageProcessor; return=false
     X-Robin-Chaos: LocalStorageClient; processor=LocalStorageProcessor; return=true
 
-This bypasses the specified storage processor. The `processor` parameter should match the processor class name (e.g., `AVStorageProcessor`, `SpamStorageProcessor`, `LocalStorageProcessor`, `DovecotStorageProcessor`). The `return` parameter specifies what value to return (`true` to continue, `false` to fail).
+This forces the specified storage processor to return the predefined value without performing its normal processing logic. The `processor` parameter should match the processor class name (e.g., `AVStorageProcessor`, `SpamStorageProcessor`, `LocalStorageProcessor`, `DovecotStorageProcessor`). The `return` parameter specifies the forced return value (`true` to continue, `false` to fail).
+
+**Important:** The processor is still called and can perform initialization or logging, but it returns the forced value immediately before executing its main logic.
 
 **Simulate Dovecot LDA storage failure:**
 

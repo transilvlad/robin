@@ -86,7 +86,7 @@ class ChaosHeadersIntegrationTest {
         assertTrue(config.isChaosHeaders(), "Chaos headers should be enabled in test configuration");
 
         try {
-            // Create an email with chaos header that bypasses AVStorageProcessor
+            // Create an email with chaos header that forces AVStorageProcessor to return true
             writeEmailWithChaosHeader(
                     "X-Robin-Chaos: LocalStorageClient; processor=AVStorageProcessor; return=true"
             );
@@ -103,9 +103,9 @@ class ChaosHeadersIntegrationTest {
             client.getStream().write("\r\nTest body\r\n".getBytes(StandardCharsets.UTF_8));
 
             // The save() method should complete successfully.
-            // With chaos headers enabled, AVStorageProcessor will be bypassed and return true.
+            // With chaos headers enabled, AVStorageProcessor will be called but forced to return true.
             boolean result = client.save();
-            assertTrue(result, "Save should succeed with chaos header bypassing AVStorageProcessor");
+            assertTrue(result, "Save should succeed with chaos header forcing AVStorageProcessor to return true");
 
             // Verify the file was created
             File savedFile = new File(client.getFile());

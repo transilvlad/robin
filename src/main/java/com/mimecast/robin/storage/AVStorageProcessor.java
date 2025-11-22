@@ -21,7 +21,7 @@ import java.util.Map;
 /**
  * Storage processor for antivirus scanning using ClamAV.
  */
-public class AVStorageProcessor implements StorageProcessor {
+public class AVStorageProcessor extends AbstractStorageProcessor {
     private static final Logger log = LogManager.getLogger(AVStorageProcessor.class);
 
     /**
@@ -33,7 +33,7 @@ public class AVStorageProcessor implements StorageProcessor {
      * @throws IOException If an I/O error occurs during processing.
      */
     @Override
-    public boolean process(Connection connection, EmailParser emailParser) throws IOException {
+    protected boolean processInternal(Connection connection, EmailParser emailParser) throws IOException {
         BasicConfig clamAVConfig = Config.getServer().getClamAV();
 
         if (clamAVConfig.getBooleanProperty("enabled")) {

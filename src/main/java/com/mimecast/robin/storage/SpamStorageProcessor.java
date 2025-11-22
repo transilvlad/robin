@@ -18,7 +18,7 @@ import java.util.Map;
 /**
  * Storage processor for spam scanning using Rspamd.
  */
-public class SpamStorageProcessor implements StorageProcessor {
+public class SpamStorageProcessor extends AbstractStorageProcessor {
     private static final Logger log = LogManager.getLogger(SpamStorageProcessor.class);
 
     /**
@@ -30,7 +30,7 @@ public class SpamStorageProcessor implements StorageProcessor {
      * @throws IOException If an I/O error occurs during processing.
      */
     @Override
-    public boolean process(Connection connection, EmailParser emailParser) throws IOException {
+    protected boolean processInternal(Connection connection, EmailParser emailParser) throws IOException {
         RspamdConfig rspamdConfig = Config.getServer().getRspamd();
         if (rspamdConfig.isEnabled()) {
             File emailFile = new File(connection.getSession().getEnvelopes().getLast().getFile());
