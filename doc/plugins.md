@@ -23,12 +23,28 @@ Factories
 The following components may be added/replaced:
 
 - **Behaviour** - Provides the behaviour logic for the SMTP client. *See: DefaultBehaviour.java*
-    
+
         Factories.setBehaviour(Behaviour::new)
 
 - **Session** - SMTP Session data container. *See: Session.java*
 
         Factories.setSession(Session::new)
+
+- **StorageClient** - Custom email storage implementation. *See: LocalStorageClient.java*
+
+        Factories.setStorageClient(CustomStorageClient::new)
+
+- **StorageProcessor** - Add email storage processors (virus scan, spam check, Dovecot LDA). *See: AVStorageProcessor.java, SpamStorageProcessor.java*
+
+        Factories.addStorageProcessor(CustomStorageProcessor::new)
+
+- **QueueDatabase** - Custom queue backend for relay queue. *See: QueueDatabase.java*
+
+        Factories.setQueueDatabase(CustomQueueDatabase::new)
+
+- **ExternalClient** - Add external assertion clients for testing. *See: RequestExternalClient.java*
+
+        Factories.putExternalClient("custom", CustomExternalClient::new)
 
 - **TLSSocket** - TLS implementation. *See: DefaultTLSSocket.java*
 
