@@ -8,6 +8,7 @@ import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.parts.TextMimePart;
 import com.mimecast.robin.mx.SessionRouting;
 import com.mimecast.robin.queue.PersistentQueue;
+import com.mimecast.robin.queue.QueueFiles;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
@@ -19,7 +20,6 @@ import org.apache.logging.log4j.Logger;
 
 import javax.mail.internet.AddressException;
 import javax.mail.internet.InternetAddress;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -314,15 +314,18 @@ public class SessionBot implements BotProcessor {
                     )
                     .writeTo(emailStream);
 
-            // Persist email to disk before queueing
-            persistEmailToDisk(emailStream, routedSession.getUID());
-
-            // Set the email stream on the envelope for relay
-            envelope.setStream(new ByteArrayInputStream(emailStream.toByteArray()));
+            // Write email to .eml file in store folder
+            String emlFilePath = writeEmailToStore(emailStream, routedSession.getUID());
+            
+            // Set the file path on the envelope (not the stream)
+            envelope.setFile(emlFilePath);
 
             // Create relay session and queue
             RelaySession relaySession = new RelaySession(routedSession);
             relaySession.setProtocol("ESMTP");
+
+            // Persist envelope files to queue folder
+            QueueFiles.persistEnvelopeFiles(relaySession);
 
             // Queue for delivery
             PersistentQueue.getInstance().enqueue(relaySession);
@@ -335,15 +338,16 @@ public class SessionBot implements BotProcessor {
     }
 
     /**
-     * Persists the email to disk before queueing.
+     * Writes the email to an .eml file in the store folder.
      *
      * @param emailStream The email content stream.
      * @param sessionUid  The session UID for filename.
+     * @return The absolute path to the written .eml file.
      * @throws IOException If an I/O error occurs.
      */
-    private void persistEmailToDisk(ByteArrayOutputStream emailStream, String sessionUid) throws IOException {
+    private String writeEmailToStore(ByteArrayOutputStream emailStream, String sessionUid) throws IOException {
         String basePath = Config.getServer().getStorage().getStringProperty("path", "/tmp/store");
-        Path storePath = Paths.get(basePath, "bots");
+        Path storePath = Paths.get(basePath);
         Files.createDirectories(storePath);
 
         // Create unique filename using thread-safe DateTimeFormatter
@@ -355,8 +359,10 @@ public class SessionBot implements BotProcessor {
         // Write email to disk
         try (FileOutputStream fos = new FileOutputStream(emailFile.toFile())) {
             emailStream.writeTo(fos);
-            log.debug("Persisted bot response email to: {}", emailFile);
+            log.debug("Wrote bot response email to store: {}", emailFile);
         }
+        
+        return emailFile.toString();
     }
 
     @Override
