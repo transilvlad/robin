@@ -7,6 +7,7 @@ com.mimecast.robin.assertion.client.humio
 com.mimecast.robin.assertion.client.imap
 com.mimecast.robin.assertion.client.logs
 com.mimecast.robin.assertion.client.request
+com.mimecast.robin.bots
 com.mimecast.robin.config
 com.mimecast.robin.config.assertion
 com.mimecast.robin.config.assertion.external
