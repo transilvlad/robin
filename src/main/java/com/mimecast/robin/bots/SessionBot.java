@@ -27,8 +27,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -213,6 +213,7 @@ public class SessionBot implements BotProcessor {
 
     /**
      * Creates the text summary for the email body.
+     * <p>The complete session data will be attached as a JSON file by the queueResponse method.
      *
      * @param session Original SMTP session.
      * @return Text summary of the session.
@@ -222,7 +223,7 @@ public class SessionBot implements BotProcessor {
         body.append("SMTP Session Analysis Report\n");
         body.append("============================\n\n");
         body.append("Session UID: ").append(session.getUID()).append("\n");
-        body.append("Date: ").append(new java.util.Date()).append("\n\n");
+        body.append("Date: ").append(LocalDateTime.now()).append("\n\n");
 
         body.append("Connection Information:\n");
         body.append("-----------------------\n");
@@ -345,9 +346,10 @@ public class SessionBot implements BotProcessor {
         Path storePath = Paths.get(basePath, "bots");
         Files.createDirectories(storePath);
 
-        // Create unique filename
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd-HHmmss-SSS");
-        String filename = String.format("%s-%s.eml", sdf.format(new Date()), sessionUid);
+        // Create unique filename using thread-safe DateTimeFormatter
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS");
+        String timestamp = LocalDateTime.now().format(formatter);
+        String filename = String.format("%s-%s.eml", timestamp, sessionUid);
         Path emailFile = storePath.resolve(filename);
 
         // Write email to disk
