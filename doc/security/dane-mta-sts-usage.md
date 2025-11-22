@@ -516,10 +516,10 @@ Key log messages:
 
 ## See Also
 
-- [Bots Documentation](bots.md) - Email analysis bot includes DANE/MTA-STS checks
-- [MTA-STS Library Documentation](lib/mta-sts/lib.md) - Detailed MTA-STS library usage
-- [DANE Package JavaDoc](../src/main/java/com/mimecast/robin/mx/dane/package-info.java)
-- [Security Package JavaDoc](../src/main/java/com/mimecast/robin/smtp/security/package-info.java)
+- [Bots Documentation](../features/bots.md) - Email analysis bot includes DANE/MTA-STS checks
+- [MTA-STS Library Documentation](../lib/mta-sts/lib.md) - Detailed MTA-STS library usage
+- [DANE Package JavaDoc](../../src/main/java/com/mimecast/robin/mx/dane/package-info.java)
+- [Security Package JavaDoc](../../src/main/java/com/mimecast/robin/smtp/security/package-info.java)
 
 ## References
 

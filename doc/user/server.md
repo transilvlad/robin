@@ -71,11 +71,11 @@ External files (auto‑loaded if present in same directory):
 - `vault.json5` HashiCorp Vault integration settings for secrets management.
 - `clamav.json5` ClamAV integration for virus scanning.
 - `rspamd.json5` Rspamd integration for spam/phishing detection.
-- See [Scan Results](scanners.md) for aggregating and accessing scanner results.
+- See [Scan Results](../features/scanners.md) for aggregating and accessing scanner results.
 - `blocklist.json5` IP blocklist configuration.
 - `blackhole.json5` Blackhole mode configuration.
 - `proxy.json5` Proxy mode configuration.
-- `bots.json5` Email infrastructure analysis bots configuration. See [Bots](bots.md) for details.
+- `bots.json5` Email infrastructure analysis bots configuration. See [Bots](../features/bots.md) for details.
 
 Example `server.json5` (core listeners & feature flags):
 
@@ -630,7 +630,7 @@ Below are concise examples for each auxiliary config file.
       ]
     }
 
-See [Proxy Documentation](proxy.md) for detailed configuration and examples.
+See [Proxy Documentation](../features/proxy.md) for detailed configuration and examples.
 
 Chaos Headers
 -------------
@@ -685,4 +685,4 @@ This simulates a storage failure for the specified recipient with exit code `1` 
     X-Robin-Chaos: DovecotLdaClient; recipient=user1@example.com; exitCode=0; message="success"
     X-Robin-Chaos: DovecotLdaClient; recipient=user2@example.com; exitCode=1; message="quota exceeded"
 
-See [magic.md](magic.md) for complete chaos headers documentation.
+See [magic.md](../features/magic.md) for complete chaos headers documentation.

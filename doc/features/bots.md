@@ -496,7 +496,7 @@ with smtplib.SMTP('mail.example.com', 25) as server:
 
 ## Related Documentation
 
-- [Server Configuration](server.md)
+- [Server Configuration](../user/server.md)
 - [Health Endpoints](endpoints.md)
 - [Queue Management](queue.md)
 - [Webhooks](webhooks.md)

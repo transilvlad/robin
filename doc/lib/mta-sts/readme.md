@@ -30,7 +30,7 @@ but in the ABNF you see: `sts-policy-term          = LF / CRLF`
 Usage
 -----
 - [Library usage](lib.md)
-- [CLI usage](../cli.md)
+- [CLI usage](../../user/cli.md)
 
 - RFC Excerpts
 ------------

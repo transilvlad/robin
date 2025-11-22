@@ -516,4 +516,4 @@ echo "Health Check" | mail -s "SMTP Health" \
 ## See Also
 
 - [Bots Configuration Guide](bots.md) - Complete bot configuration documentation
-- [DANE and MTA-STS](dane-mta-sts.md) - Security policy implementation details
+- [DANE and MTA-STS](../security/dane-mta-sts-usage.md) - Security policy implementation details
