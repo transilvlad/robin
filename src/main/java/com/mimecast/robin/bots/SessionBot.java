@@ -351,9 +351,9 @@ public class SessionBot implements BotProcessor {
         Files.createDirectories(storePath);
 
         // Create unique filename using thread-safe DateTimeFormatter
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS");
-        String timestamp = LocalDateTime.now().format(formatter);
-        String filename = String.format("%s-%s.eml", timestamp, sessionUid);
+        String filename = String.format("%s-%s.eml", 
+                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS")), 
+                sessionUid);
         Path emailFile = storePath.resolve(filename);
 
         // Write email to disk

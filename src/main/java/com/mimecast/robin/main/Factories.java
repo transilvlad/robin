@@ -4,8 +4,8 @@ import com.mimecast.robin.annotation.Plugin;
 import com.mimecast.robin.assertion.client.ExternalClient;
 import com.mimecast.robin.assertion.client.imap.ImapExternalClient;
 import com.mimecast.robin.assertion.client.logs.LogsExternalClient;
-import com.mimecast.robin.bots.BotFactory;
 import com.mimecast.robin.bots.BotProcessor;
+import com.mimecast.robin.bots.SessionBot;
 import com.mimecast.robin.config.BasicConfig;
 import com.mimecast.robin.queue.QueueDatabase;
 import com.mimecast.robin.queue.QueueFactory;
@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Factories for pluggable components.
@@ -105,6 +106,20 @@ public class Factories {
         put("logs", LogsExternalClient::new);
         put("imap", ImapExternalClient::new);
     }};
+
+    /**
+     * Bot processors.
+     * <p>Map of bot name to bot processor instance.
+     * <p>Using ConcurrentHashMap for thread-safe read/write operations.
+     */
+    private static final Map<String, BotProcessor> bots = new ConcurrentHashMap<>();
+
+    /**
+     * Static initializer to register all available bots.
+     */
+    static {
+        registerBot(new SessionBot());
+    }
 
     /**
      * Protected constructor.
@@ -337,12 +352,18 @@ public class Factories {
     }
 
     /**
-     * Registers a bot processor with the bot factory.
+     * Registers a bot processor.
+     * <p>Thread-safe thanks to ConcurrentHashMap.
      *
      * @param bot Bot processor to register.
      */
     public static void registerBot(BotProcessor bot) {
-        BotFactory.registerBot(bot);
+        if (bot != null && bot.getName() != null && !bot.getName().isEmpty()) {
+            bots.put(bot.getName().toLowerCase(), bot);
+            log.info("Registered bot: {}", bot.getName());
+        } else {
+            log.warn("Attempted to register invalid bot (null or empty name)");
+        }
     }
 
     /**
@@ -352,7 +373,10 @@ public class Factories {
      * @return Optional containing the bot processor if found.
      */
     public static Optional<BotProcessor> getBot(String name) {
-        return BotFactory.getBot(name);
+        if (name == null || name.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(bots.get(name.toLowerCase()));
     }
 
     /**
@@ -362,7 +386,16 @@ public class Factories {
      * @return true if bot is registered.
      */
     public static boolean hasBot(String name) {
-        return BotFactory.hasBot(name);
+        return name != null && !name.isEmpty() && bots.containsKey(name.toLowerCase());
+    }
+
+    /**
+     * Gets all registered bot names.
+     *
+     * @return Array of bot names.
+     */
+    public static String[] getBotNames() {
+        return bots.keySet().toArray(new String[0]);
     }
 
     /**

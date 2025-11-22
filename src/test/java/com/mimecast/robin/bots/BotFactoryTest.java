@@ -1,5 +1,6 @@
 package com.mimecast.robin.bots;
 
+import com.mimecast.robin.main.Factories;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
@@ -7,20 +8,20 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Unit tests for BotFactory.
+ * Unit tests for bot management in Factories.
  */
 class BotFactoryTest {
 
     @Test
     void testSessionBotIsRegistered() {
-        assertTrue(BotFactory.hasBot("session"));
-        assertTrue(BotFactory.hasBot("Session")); // Case insensitive
-        assertTrue(BotFactory.hasBot("SESSION"));
+        assertTrue(Factories.hasBot("session"));
+        assertTrue(Factories.hasBot("Session")); // Case insensitive
+        assertTrue(Factories.hasBot("SESSION"));
     }
 
     @Test
     void testGetSessionBot() {
-        Optional<BotProcessor> botOpt = BotFactory.getBot("session");
+        Optional<BotProcessor> botOpt = Factories.getBot("session");
         assertTrue(botOpt.isPresent());
 
         BotProcessor bot = botOpt.get();
@@ -31,35 +32,35 @@ class BotFactoryTest {
 
     @Test
     void testGetNonExistentBot() {
-        Optional<BotProcessor> botOpt = BotFactory.getBot("nonexistent");
+        Optional<BotProcessor> botOpt = Factories.getBot("nonexistent");
         assertFalse(botOpt.isPresent());
     }
 
     @Test
     void testGetBotWithNullName() {
-        Optional<BotProcessor> botOpt = BotFactory.getBot(null);
+        Optional<BotProcessor> botOpt = Factories.getBot(null);
         assertFalse(botOpt.isPresent());
     }
 
     @Test
     void testGetBotWithEmptyName() {
-        Optional<BotProcessor> botOpt = BotFactory.getBot("");
+        Optional<BotProcessor> botOpt = Factories.getBot("");
         assertFalse(botOpt.isPresent());
     }
 
     @Test
     void testHasBotWithNullName() {
-        assertFalse(BotFactory.hasBot(null));
+        assertFalse(Factories.hasBot(null));
     }
 
     @Test
     void testHasBotWithEmptyName() {
-        assertFalse(BotFactory.hasBot(""));
+        assertFalse(Factories.hasBot(""));
     }
 
     @Test
     void testGetBotNames() {
-        String[] botNames = BotFactory.getBotNames();
+        String[] botNames = Factories.getBotNames();
         assertNotNull(botNames);
         assertTrue(botNames.length > 0);
 

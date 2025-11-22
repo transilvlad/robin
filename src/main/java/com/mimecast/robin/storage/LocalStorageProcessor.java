@@ -130,7 +130,7 @@ public class LocalStorageProcessor implements StorageProcessor {
                 connection.getSession().getEnvelopes().getLast();
 
         for (String recipient : recipients) {
-            // Skip bot addresses - they are handled by bot processors
+            // Skip bot addresses - they are handled by bot processors.
             if (envelope != null && envelope.isBotAddress(recipient)) {
                 log.debug("Skipping storage for bot address: {}", recipient);
                 continue;
