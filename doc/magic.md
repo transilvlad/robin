@@ -77,6 +77,42 @@ The following headers will enable additional functionalities within the Robin se
 - `X-Robin-Chaos` - If present and chaos headers are enabled, allows forcing specific return values for testing exception scenarios.
 
 
+X-Robin-Filename header
+------------------------
+
+The `X-Robin-Filename` header allows you to control the filename used when storing emails to disk. When present, the server will rename the saved email file to match the header value instead of using the default naming pattern (`yyyyMMdd.{UID}.eml`).
+
+This feature is useful for organizing test emails with meaningful names, making it easier to locate and review specific test cases in the storage directory. The header value should contain only a valid filename (without path separators). If a file with the same name already exists, it will be deleted before renaming.
+
+**Configuration**: This feature can be disabled by setting `disableRenameHeader: true` in the `storage` section of `server.json5`.
+
+**Example:**
+```
+X-Robin-Filename: test-case-auth-failure.eml
+```
+
+This will save the email as `test-case-auth-failure.eml` in the storage directory instead of the default timestamped filename.
+
+
+X-Robin-Relay header
+--------------------
+
+The `X-Robin-Relay` header instructs the server to relay the received email to another SMTP server after processing. This is useful for creating email forwarding chains, testing relay scenarios, or integrating with external mail systems.
+
+The header value should contain a hostname or IP address, optionally followed by a colon and port number. The server will queue the email for relay delivery after completing all storage processors. The relay connection supports SMTP, ESMTP, and LMTP protocols with TLS and authentication if configured.
+
+**Configuration**: This feature can be disabled by setting `disableRelayHeader: true` in the `relay` section of `server.json5`. Additional relay behavior can be configured for inbound/outbound messages independently.
+
+**Examples:**
+```
+X-Robin-Relay: mail.example.com
+X-Robin-Relay: 192.168.1.100:2525
+X-Robin-Relay: smtp.relay.com:587
+```
+
+The email will be queued for delivery to the specified server. If the relay fails, the message will be retried according to the queue configuration settings.
+
+
 X-Robin-Chaos header
 --------------------
 
