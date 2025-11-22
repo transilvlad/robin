@@ -29,6 +29,15 @@
         "10.0.0.0/8"
       ],
       
+      // List of valid tokens that can be used to authenticate bot requests.
+      // Tokens are extracted from addresses like: robotSession+token@example.com
+      // If tokens list is provided, the bot address must contain a matching token.
+      // Empty list means no token validation is required.
+      tokens: [
+        // "secretToken123",
+        // "validToken456"
+      ],
+      
       // Name of the bot implementation to use from the factory.
       // Currently supported: "session"
       botName: "session"

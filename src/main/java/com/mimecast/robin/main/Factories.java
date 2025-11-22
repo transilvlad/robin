@@ -4,6 +4,8 @@ import com.mimecast.robin.annotation.Plugin;
 import com.mimecast.robin.assertion.client.ExternalClient;
 import com.mimecast.robin.assertion.client.imap.ImapExternalClient;
 import com.mimecast.robin.assertion.client.logs.LogsExternalClient;
+import com.mimecast.robin.bots.BotFactory;
+import com.mimecast.robin.bots.BotProcessor;
 import com.mimecast.robin.config.BasicConfig;
 import com.mimecast.robin.queue.QueueDatabase;
 import com.mimecast.robin.queue.QueueFactory;
@@ -28,6 +30,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 
 /**
@@ -331,6 +334,35 @@ public class Factories {
      */
     public static List<String> getExternalKeys() {
         return new ArrayList<>(externalClients.keySet());
+    }
+
+    /**
+     * Registers a bot processor with the bot factory.
+     *
+     * @param bot Bot processor to register.
+     */
+    public static void registerBot(BotProcessor bot) {
+        BotFactory.registerBot(bot);
+    }
+
+    /**
+     * Gets a bot processor by name.
+     *
+     * @param name Bot name (case-insensitive).
+     * @return Optional containing the bot processor if found.
+     */
+    public static Optional<BotProcessor> getBot(String name) {
+        return BotFactory.getBot(name);
+    }
+
+    /**
+     * Checks if a bot is registered.
+     *
+     * @param name Bot name (case-insensitive).
+     * @return true if bot is registered.
+     */
+    public static boolean hasBot(String name) {
+        return BotFactory.hasBot(name);
     }
 
     /**

@@ -148,6 +148,18 @@ public class BotConfig extends BasicConfig {
         }
 
         /**
+         * Gets the list of valid tokens for authentication.
+         * <p>If tokens list is provided, the bot address must contain a matching token.
+         *
+         * @return List of token strings.
+         */
+        @SuppressWarnings("unchecked")
+        public List<String> getTokens() {
+            List<String> tokens = (List<String>) getListProperty("tokens");
+            return tokens != null ? tokens : new ArrayList<>();
+        }
+
+        /**
          * Gets the bot name for factory lookup.
          *
          * @return Bot name string.
@@ -167,6 +179,42 @@ public class BotConfig extends BasicConfig {
                 return false;
             }
             return compiledPattern.matcher(address).matches();
+        }
+
+        /**
+         * Checks if the bot address contains a valid token.
+         * <p>If no tokens are configured, any address is allowed.
+         * <p>Token is extracted from addresses like: robotSession+token@example.com
+         *
+         * @param address Bot address to check.
+         * @return true if token is valid or no tokens are configured.
+         */
+        public boolean hasValidToken(String address) {
+            List<String> tokens = getTokens();
+            if (tokens.isEmpty()) {
+                return true; // No token restriction
+            }
+            if (address == null || address.isEmpty()) {
+                return false;
+            }
+            
+            // Extract token from address (format: prefix+token@domain or prefix+token+reply+...@domain)
+            int plusIndex = address.indexOf('+');
+            int atIndex = address.indexOf('@');
+            if (plusIndex != -1 && atIndex != -1 && plusIndex < atIndex) {
+                String tokenPart = address.substring(plusIndex + 1, atIndex);
+                // Handle formats like token+reply+...
+                int nextPlusIndex = tokenPart.indexOf('+');
+                if (nextPlusIndex != -1) {
+                    tokenPart = tokenPart.substring(0, nextPlusIndex);
+                }
+                
+                // Check if extracted token matches any configured token
+                final String extractedToken = tokenPart;
+                return tokens.stream().anyMatch(token -> token.equals(extractedToken));
+            }
+            
+            return false;
         }
 
         /**

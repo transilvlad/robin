@@ -71,7 +71,7 @@ Documentation
 - [Prometheus Remote Write](doc/prometheus.md) - Prometheus Remote Write implementation.
 - [ClamAV Integration](doc/clamav.md) - ClamAV virus scanning integration.
 - [Rspamd Integration](doc/rspamd.md) - Rspamd spam/phishing detection integration.
-- [Email Analysis Bots](doc/bots.md) - Automated email infrastructure analysis with reply bots.
+- [Email Analysis Bots](doc/bots.md) - Email and infrastructure analysis bots.
 
 ### Secrets
 - [Secrets, magic and Local Secrets File](doc/secrets.md)

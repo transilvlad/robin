@@ -1,6 +1,5 @@
 package com.mimecast.robin.storage;
 
-import com.mimecast.robin.bots.BotFactory;
 import com.mimecast.robin.bots.BotProcessor;
 import com.mimecast.robin.config.server.ServerConfig;
 import com.mimecast.robin.main.Config;
@@ -12,6 +11,7 @@ import com.mimecast.robin.mime.headers.MimeHeader;
 import com.mimecast.robin.queue.relay.RelayMessage;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
+import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.util.PathUtils;
 import org.apache.commons.io.output.NullOutputStream;
 import org.apache.commons.lang3.StringUtils;
@@ -304,7 +304,7 @@ public class LocalStorageClient implements StorageClient {
             List<String> botNames = entry.getValue();
 
             for (String botName : botNames) {
-                Optional<BotProcessor> botOpt = BotFactory.getBot(botName);
+                Optional<BotProcessor> botOpt = Factories.getBot(botName);
                 if (botOpt.isPresent()) {
                     BotProcessor bot = botOpt.get();
                     
@@ -312,7 +312,7 @@ public class LocalStorageClient implements StorageClient {
                     // The bot processing happens asynchronously and the original connection/session
                     // may be cleaned up or modified by the time the bot processes it.
                     // We create a new connection with the cloned session for thread safety.
-                    com.mimecast.robin.smtp.session.Session sessionClone = connection.getSession().clone();
+                    Session sessionClone = connection.getSession().clone();
                     Connection connectionCopy = new Connection(sessionClone);
                     
                     // Submit bot processing to thread pool

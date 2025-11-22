@@ -343,6 +343,13 @@ public class ServerRcpt extends ServerMail {
                 continue;
             }
 
+            // Check token validation
+            if (!botDef.hasValidToken(recipientAddress)) {
+                log.debug("Bot address {} matched pattern but does not have valid token",
+                        recipientAddress);
+                continue;
+            }
+
             // All checks passed - record the bot address
             String botName = botDef.getBotName();
             connection.getSession().getEnvelopes().getLast()

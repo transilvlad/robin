@@ -3,7 +3,10 @@ package com.mimecast.robin.bots;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mimecast.robin.main.Config;
+import com.mimecast.robin.mime.EmailBuilder;
 import com.mimecast.robin.mime.EmailParser;
+import com.mimecast.robin.mime.parts.TextMimePart;
+import com.mimecast.robin.mx.SessionRouting;
 import com.mimecast.robin.queue.PersistentQueue;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.smtp.MessageEnvelope;
@@ -15,8 +18,15 @@ import org.apache.logging.log4j.Logger;
 
 import javax.mail.internet.AddressException;
 import javax.mail.internet.InternetAddress;
-import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -179,6 +189,31 @@ public class SessionBot implements BotProcessor {
     }
 
     /**
+     * Strips token and reply address from bot address.
+     * <p>Converts robotSession+token+reply+user@domain.com@example.com to robotSession@example.com
+     *
+     * @param botAddress Bot address to strip.
+     * @return Stripped bot address.
+     */
+    private String stripBotAddress(String botAddress) {
+        if (botAddress == null || !botAddress.contains("+")) {
+            return botAddress;
+        }
+        
+        // Extract base address and domain
+        int firstPlusIndex = botAddress.indexOf('+');
+        int atIndex = botAddress.lastIndexOf('@');
+        
+        if (firstPlusIndex != -1 && atIndex != -1 && firstPlusIndex < atIndex) {
+            String prefix = botAddress.substring(0, firstPlusIndex);
+            String domain = botAddress.substring(atIndex);
+            return prefix + domain;
+        }
+        
+        return botAddress;
+    }
+
+    /**
      * Creates the response email with session JSON.
      *
      * @param session     Original SMTP session.
@@ -191,12 +226,12 @@ public class SessionBot implements BotProcessor {
                                                  String replyTo, String sessionJson) {
         MessageEnvelope envelope = new MessageEnvelope();
 
-        // Set envelope addresses
-        envelope.setMail(botAddress);
+        // Set envelope addresses - strip token and reply address from bot address
+        envelope.setMail(stripBotAddress(botAddress));
         envelope.setRcpt(replyTo);
 
         // Set subject
-        envelope.setSubject("SMTP Session Analysis - " + session.getUID());
+        envelope.setSubject("Robin Session BOT - " + session.getUID());
 
         // Create email body with both text summary and JSON
         StringBuilder body = new StringBuilder();
@@ -258,33 +293,90 @@ public class SessionBot implements BotProcessor {
      * @param replyTo  Recipient address.
      */
     private void queueResponse(MessageEnvelope envelope, String replyTo) {
-        // Create outbound session for delivery
-        Session outboundSession = new Session();
-        outboundSession.setDirection(EmailDirection.OUTBOUND);
-        outboundSession.setEhlo(Config.getServer().getHostname());
+        try {
+            // Create outbound session for delivery
+            Session outboundSession = new Session();
+            outboundSession.setDirection(EmailDirection.OUTBOUND);
+            outboundSession.setEhlo(Config.getServer().getHostname());
 
-        // Parse domain from reply address
-        String[] parts = replyTo.split("@");
-        if (parts.length == 2) {
-            // Set MX to the domain - the relay will look up MX records
-            outboundSession.setMx(java.util.Collections.singletonList(parts[1]));
+            // Add envelope to session
+            outboundSession.getEnvelopes().add(envelope);
+
+            // Use SessionRouting to resolve MX records for the recipient domain
+            SessionRouting routing = new SessionRouting(outboundSession);
+            var routedSessions = routing.getSessions();
+            
+            if (routedSessions.isEmpty()) {
+                log.warn("No MX routes found for recipient: {}", replyTo);
+                return;
+            }
+
+            // Use the first routed session (primary MX)
+            Session routedSession = routedSessions.get(0);
+
+            // Build email using EmailBuilder with text body and JSON attachment
+            String sessionJson = envelope.getMessage();
+            
+            // Extract text summary from message (everything before the JSON section)
+            String textSummary = sessionJson;
+            int jsonStartIndex = sessionJson.indexOf("Complete Session Data (JSON):");
+            if (jsonStartIndex != -1) {
+                textSummary = sessionJson.substring(0, jsonStartIndex).trim();
+                // Extract just the JSON part
+                int jsonDataIndex = sessionJson.indexOf("============================", jsonStartIndex);
+                if (jsonDataIndex != -1) {
+                    sessionJson = sessionJson.substring(jsonDataIndex + 28).trim(); // Skip separator
+                }
+            }
+
+            // Build MIME email with EmailBuilder
+            ByteArrayOutputStream emailStream = new ByteArrayOutputStream();
+            new EmailBuilder(routedSession, envelope)
+                    .addHeader("Subject", envelope.getSubject())
+                    .addHeader("To", replyTo)
+                    .addHeader("From", envelope.getMail())
+                    .addPart(new TextMimePart(textSummary.getBytes(StandardCharsets.UTF_8))
+                            .addHeader("Content-Type", "text/plain; charset=\"UTF-8\"")
+                            .addHeader("Content-Transfer-Encoding", "7bit")
+                    )
+                    .addPart(new TextMimePart(sessionJson.getBytes(StandardCharsets.UTF_8))
+                            .addHeader("Content-Type", "application/json; charset=\"UTF-8\"; name=\"session.json\"")
+                            .addHeader("Content-Transfer-Encoding", "7bit")
+                            .addHeader("Content-Disposition", "attachment; filename=\"session.json\"")
+                    )
+                    .writeTo(emailStream);
+
+            // Persist email to disk before queueing
+            String basePath = Config.getServer().getStorage().getStringProperty("path", "/tmp/store");
+            Path storePath = Paths.get(basePath, "bots");
+            Files.createDirectories(storePath);
+
+            // Create unique filename
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd-HHmmss-SSS");
+            String filename = String.format("%s-%s.eml", sdf.format(new Date()), routedSession.getUID());
+            Path emailFile = storePath.resolve(filename);
+
+            // Write email to disk
+            try (FileOutputStream fos = new FileOutputStream(emailFile.toFile())) {
+                emailStream.writeTo(fos);
+                log.debug("Persisted bot response email to: {}", emailFile);
+            }
+
+            // Set the email stream on the envelope for relay
+            envelope.setStream(new java.io.ByteArrayInputStream(emailStream.toByteArray()));
+
+            // Create relay session and queue
+            RelaySession relaySession = new RelaySession(routedSession);
+            relaySession.setProtocol("ESMTP");
+
+            // Queue for delivery
+            PersistentQueue.getInstance().enqueue(relaySession);
+
+            log.info("Queued session bot response for delivery to: {} (persisted: {})", replyTo, emailFile);
+            
+        } catch (IOException e) {
+            log.error("Failed to queue session bot response: {}", e.getMessage(), e);
         }
-
-        // Add envelope to session
-        outboundSession.getEnvelopes().add(envelope);
-
-        // Create relay session and queue
-        RelaySession relaySession = new RelaySession(outboundSession);
-        relaySession.setProtocol("ESMTP");
-
-        // Build email content as stream
-        String emailContent = envelope.buildHeaders() + "\r\n" + envelope.getMessage();
-        envelope.setStream(new ByteArrayInputStream(emailContent.getBytes(StandardCharsets.UTF_8)));
-
-        // Queue for delivery
-        PersistentQueue.getInstance().enqueue(relaySession);
-
-        log.debug("Queued session bot response for delivery to: {}", replyTo);
     }
 
     @Override
