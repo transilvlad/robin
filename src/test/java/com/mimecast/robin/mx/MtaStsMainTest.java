@@ -20,7 +20,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class MainTest {
+class MtaStsMainTest {
 
     private static LocalHttpsServer localHttpsServer;
 
@@ -55,7 +55,7 @@ class MainTest {
 
     @Test
     void nullArgs() throws InstantiationException {
-        List<String> logs = MainMock.main(null, localHttpsServer.getPort());
+        List<String> logs = MtaStsMainMock.main(null, localHttpsServer.getPort());
 
         assertEquals("java -jar mta-sts.jar", logs.get(0));
         assertEquals(" Robin MTA-STS client tool", logs.get(1));
@@ -71,7 +71,7 @@ class MainTest {
 
     @Test
     void noArgs() throws InstantiationException {
-        List<String> logs = MainMock.main(new String[0], localHttpsServer.getPort());
+        List<String> logs = MtaStsMainMock.main(new String[0], localHttpsServer.getPort());
 
         assertEquals("java -jar mta-sts.jar", logs.get(0));
         assertEquals(" Robin MTA-STS client tool", logs.get(1));
@@ -92,7 +92,7 @@ class MainTest {
         argv.add("-b");
         argv.add("Bad");
 
-        List<String> logs = MainMock.main(argv.toArray(new String[0]), localHttpsServer.getPort());
+        List<String> logs = MtaStsMainMock.main(argv.toArray(new String[0]), localHttpsServer.getPort());
 
         assertEquals("java -jar mta-sts.jar", logs.get(0));
         assertEquals(" Robin MTA-STS client tool", logs.get(1));
@@ -116,7 +116,7 @@ class MainTest {
         argv.add("service-alpha-inbound-a.mimecast.com");
         argv.add("-j");
 
-        List<String> logs = MainMock.main(argv.toArray(new String[0]), localHttpsServer.getPort());
+        List<String> logs = MtaStsMainMock.main(argv.toArray(new String[0]), localHttpsServer.getPort());
 
         assertEquals("Match MX", logs.get(0));
         assertEquals("MX:\t\tservice-alpha-inbound-a.mimecast.com", logs.get(2));
@@ -169,7 +169,7 @@ class MainTest {
         argv.add("--mx");
         argv.add("service-alpha-inbound-a.mimecast.com");
 
-        List<String> logs = MainMock.main(argv.toArray(new String[0]), localHttpsServer.getPort());
+        List<String> logs = MtaStsMainMock.main(argv.toArray(new String[0]), localHttpsServer.getPort());
 
         assertEquals("Match MX", logs.get(0));
         assertEquals("MX:\t\tservice-alpha-inbound-a.mimecast.com", logs.get(2));

@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
 /**
  * CLI runnable.
  */
-public class Main {
+public class MtaStsMain {
 
     /**
      * StrictTransportSecurity instance.
@@ -62,7 +62,7 @@ public class Main {
             return;
         }
 
-        new Main(args);
+        new MtaStsMain(args);
     }
 
     /**
@@ -70,7 +70,7 @@ public class Main {
      *
      * @param args String array.
      */
-    Main(String[] args) {
+    MtaStsMain(String[] args) {
         // Disable logging.
         Configurator.setAllLevels(LogManager.getRootLogger().getName(), Level.OFF);
 
@@ -251,7 +251,7 @@ public class Main {
         log(" Robin MTA-STS client tool");
         log("");
 
-        // Capture System.out to get help output
+        // Capture System.out to get help output.
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PrintStream ps = new PrintStream(baos);
         PrintStream oldOut = System.out;
@@ -264,7 +264,7 @@ public class Main {
             formatter.printHelp(" ", "", options, "", true);
             System.out.flush();
         } catch (java.io.IOException e) {
-            // Should not happen with ByteArrayOutputStream
+            // Should not happen with ByteArrayOutputStream.
             throw new RuntimeException(e);
         } finally {
             System.setOut(oldOut);

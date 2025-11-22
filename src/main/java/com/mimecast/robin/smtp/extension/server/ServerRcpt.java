@@ -46,8 +46,18 @@ public class ServerRcpt extends ServerMail {
         // Get MAIL FROM for matching logic (extracted to avoid duplication).
         String mailFrom = getMailFrom(connection);
 
-        // Check for bot address match and record it
-        checkBotAddress(connection);
+        // Check for blackhole first to avoid processing bot addresses that will be blackholed.
+        boolean blackholedRecipient = BlackholeMatcher.shouldBlackhole(
+                connection.getSession().getFriendAddr(),
+                connection.getSession().getEhlo(),
+                mailFrom,
+                getAddress().getAddress(),
+                Config.getServer().getBlackholeConfig());
+
+        // Check for bot address match and record it (skip if blackholed).
+        if (!blackholedRecipient) {
+            checkBotAddress(connection);
+        }
 
         // Check for proxy rule match first (only first matching rule proxies).
         Optional<ProxyRule> proxyRule = ProxyMatcher.findMatchingRule(
@@ -62,14 +72,6 @@ public class ServerRcpt extends ServerMail {
         if (proxyRule.isPresent()) {
             return handleProxyRecipient(connection, proxyRule.get());
         }
-
-        // Check if this specific recipient should be blackholed.
-        boolean blackholedRecipient = BlackholeMatcher.shouldBlackhole(
-                connection.getSession().getFriendAddr(),
-                connection.getSession().getEhlo(),
-                mailFrom,
-                getAddress().getAddress(),
-                Config.getServer().getBlackholeConfig());
 
         // When receiving inbound email.
         if (connection.getSession().isInbound()) {
@@ -263,53 +265,32 @@ public class ServerRcpt extends ServerMail {
             return;
         }
 
-        // Get bot configuration
+        // Get bot configuration.
         var botConfig = Config.getServer().getBots();
         var botDefinitions = botConfig.getBots();
 
         if (botDefinitions.isEmpty()) {
-            return; // No bots configured
+            return; // No bots configured.
         }
 
-        // Extract domain from recipient address
-        String domain = null;
-        String[] parts = recipientAddress.split("@");
-        if (parts.length == 2) {
-            domain = parts[1];
-        }
-
-        // Get remote IP
+        // Get remote IP.
         String remoteIp = connection.getSession().getFriendAddr();
 
-        // Check each bot definition
+        // Check each bot definition.
         for (var botDef : botDefinitions) {
-            // Check if address matches pattern
+            // Check if address matches pattern.
             if (!botDef.matchesAddress(recipientAddress)) {
                 continue;
             }
 
-            // Check domain restrictions
-            if (!botDef.isDomainAllowed(domain)) {
-                log.debug("Bot address {} matched pattern but domain {} not allowed",
-                        recipientAddress, domain);
-                continue;
-            }
-
-            // Check IP restrictions
-            if (!botDef.isIpAllowed(remoteIp)) {
-                log.debug("Bot address {} matched pattern but IP {} not allowed",
+            // Check authorization (IP or token).
+            if (!botDef.isAuthorized(recipientAddress, remoteIp)) {
+                log.debug("Bot address {} matched pattern but not authorized (IP: {})",
                         recipientAddress, remoteIp);
                 continue;
             }
 
-            // Check token validation
-            if (!botDef.hasValidToken(recipientAddress)) {
-                log.debug("Bot address {} matched pattern but does not have valid token",
-                        recipientAddress);
-                continue;
-            }
-
-            // All checks passed - record the bot address
+            // All checks passed - record the bot address.
             String botName = botDef.getBotName();
             connection.getSession().getEnvelopes().getLast()
                     .addBotAddress(recipientAddress, botName);

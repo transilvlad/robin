@@ -18,11 +18,12 @@ class MainTest {
         assertEquals(Main.USAGE, logs.get(0));
         assertEquals(" " + Main.DESCRIPTION, logs.get(1));
         assertEquals("", logs.get(2));
-        assertEquals(" usage:    [--client] [--mtasts] [--server]\n\n" +
+        assertEquals(" usage:    [--client] [--dane] [--mtasts] [--server]\n\n" +
                 " Options           Description     \n" +
                 " --client     Run as client        \n" +
                 " --server     Run as server        \n" +
-                " --mtasts     Run as MTA-STS client\n\n", logs.get(3).replaceAll("\r", ""));
+                " --mtasts     Run as MTA-STS client\n" +
+                " --dane       Run as DANE client   \n\n", logs.get(3).replaceAll("\r", ""));
         assertEquals("", logs.get(4));
     }
 
@@ -33,11 +34,12 @@ class MainTest {
         assertEquals(Main.USAGE, logs.get(0));
         assertEquals(" " + Main.DESCRIPTION, logs.get(1));
         assertEquals("", logs.get(2));
-        assertEquals(" usage:    [--client] [--mtasts] [--server]\n\n" +
+        assertEquals(" usage:    [--client] [--dane] [--mtasts] [--server]\n\n" +
                 " Options           Description     \n" +
                 " --client     Run as client        \n" +
                 " --server     Run as server        \n" +
-                " --mtasts     Run as MTA-STS client\n\n", logs.get(3).replaceAll("\r", ""));
+                " --mtasts     Run as MTA-STS client\n" +
+                " --dane       Run as DANE client   \n\n", logs.get(3).replaceAll("\r", ""));
         assertEquals("", logs.get(4));
     }
 

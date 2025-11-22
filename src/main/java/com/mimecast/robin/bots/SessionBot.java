@@ -48,8 +48,10 @@ import java.util.regex.Pattern;
  * <ul>
  *   <li>robotSession@example.com - replies to From or envelope sender</li>
  *   <li>robotSession+token@example.com - same as above with token</li>
- *   <li>robotSession+token+reply+user@domain.com@example.com - replies to user@domain.com</li>
+ *   <li>robotSession+token+user+domain.com@example.com - replies to user@domain.com</li>
  * </ul>
+ * <p>In the sieve format, the reply address is encoded with + instead of @.
+ * <br>Example: robotSession+abc+admin+internal.com@robin.local → replies to admin@internal.com
  */
 public class SessionBot implements BotProcessor {
     private static final Logger log = LogManager.getLogger(SessionBot.class);
@@ -64,13 +66,18 @@ public class SessionBot implements BotProcessor {
 
     /**
      * Pattern to extract reply address from sieve format.
-     * Matches: robotSession+token+reply+user@domain.com@example.com
-     * Group 1: token
-     * Group 2: user@domain.com (reply address)
+     * <p>Format: robotSession+token+user+domain.com@botdomain.com
+     * <p>Everything after the second + and before the final @ is the reply address,
+     * <br>with the first + in that section converted to @.
+     * <p>Examples:
+     * <ul>
+     *   <li>robotSession+abc+admin+internal.com@robin.local → admin@internal.com</li>
+     *   <li>robotSession+abc+user+example.org@robin.local → user@example.org</li>
+     * </ul>
+     * Group 1: Everything after first + (optional token + reply address)
      */
     private static final Pattern REPLY_SIEVE_PATTERN = Pattern.compile(
-            "^[^+]+(?:\\+([^+]+))?\\+reply\\+([^@]+@[^@]+)@.+$",
-            Pattern.CASE_INSENSITIVE
+            "^[^+]+\\+(.+)@[^@]+$"
     );
 
     @Override
@@ -79,7 +86,7 @@ public class SessionBot implements BotProcessor {
             log.info("Processing session bot for address: {} from session UID: {}",
                     botAddress, connection.getSession().getUID());
 
-            // Determine reply address
+            // Determine reply address.
             String replyTo = determineReplyAddress(connection, emailParser, botAddress);
             if (replyTo == null || replyTo.isEmpty()) {
                 log.warn("Could not determine reply address for bot request from session UID: {}",
@@ -87,7 +94,7 @@ public class SessionBot implements BotProcessor {
                 return;
             }
 
-            // Create and queue response email
+            // Create and queue response email.
             queueResponse(connection.getSession(), botAddress, replyTo);
 
             log.info("Successfully queued session bot response to: {} from session UID: {}",
@@ -103,56 +110,66 @@ public class SessionBot implements BotProcessor {
      * Determines the reply address based on the sieve address, headers, or envelope.
      * <p>Priority order:
      * <ol>
-     *   <li>Sieve reply address (robotSession+token+reply+user@domain.com@example.com)</li>
-     *   <li>Reply-To header from parsed email</li>
-     *   <li>From header from parsed email</li>
+     *   <li>Sieve reply address (robotSession+token+user+domain.com@example.com)</li>
+     *   <li>Reply-To header from envelope (extracted before parser closed)</li>
+     *   <li>From header from envelope (extracted before parser closed)</li>
      *   <li>Envelope MAIL FROM</li>
      * </ol>
      *
      * @param connection  SMTP connection.
-     * @param emailParser Parsed email (may be null).
+     * @param emailParser Parsed email (may be null - bots run async after parser is closed).
      * @param botAddress  The bot address that was matched.
      * @return Reply address or null if none found.
      */
     private String determineReplyAddress(Connection connection, EmailParser emailParser, String botAddress) {
-        // Check for sieve reply address
+        // Check for sieve reply address embedded in bot address.
+        // Format: robot+token+user+domain.com@botdomain.com
+        // The part after second + becomes user@domain.com (+ converted to @)
         Matcher matcher = REPLY_SIEVE_PATTERN.matcher(botAddress);
         if (matcher.matches()) {
-            String replyAddress = matcher.group(2);
-            if (replyAddress != null && !replyAddress.isEmpty()) {
-                log.debug("Using sieve reply address: {}", replyAddress);
-                return replyAddress;
+            String afterFirstPlus = matcher.group(1);
+            // Check if there's a second + (indicating reply address)
+            int secondPlusIndex = afterFirstPlus.indexOf('+');
+            if (secondPlusIndex >= 0 && secondPlusIndex < afterFirstPlus.length() - 1) {
+                // Everything after the second + is the reply address with + instead of @
+                String replyPart = afterFirstPlus.substring(secondPlusIndex + 1);
+                // Convert first + to @ to form the email address
+                int firstPlusInReply = replyPart.indexOf('+');
+                if (firstPlusInReply >= 0) {
+                    String replyAddress = replyPart.substring(0, firstPlusInReply) + "@" +
+                            replyPart.substring(firstPlusInReply + 1);
+                    log.debug("Using sieve reply address: {}", replyAddress);
+                    return replyAddress;
+                }
             }
         }
 
-        // Check parsed email headers
-        if (emailParser != null) {
-            // Try Reply-To header first
-            Optional<com.mimecast.robin.mime.headers.MimeHeader> replyToHeader = 
-                    emailParser.getHeaders().get("Reply-To");
-            if (replyToHeader.isPresent()) {
-                String cleanedReplyTo = extractEmailAddress(replyToHeader.get().getValue());
+        // Check envelope headers (extracted from parser before it was closed).
+        if (!connection.getSession().getEnvelopes().isEmpty()) {
+            MessageEnvelope envelope = connection.getSession().getEnvelopes().getLast();
+
+            // Try Reply-To header first.
+            String replyTo = envelope.getHeaders().get("X-Parsed-Reply-To");
+            if (replyTo != null && !replyTo.isEmpty()) {
+                String cleanedReplyTo = extractEmailAddress(replyTo);
                 if (cleanedReplyTo != null) {
-                    log.debug("Using Reply-To header: {}", cleanedReplyTo);
+                    log.debug("Using Reply-To header from envelope: {}", cleanedReplyTo);
                     return cleanedReplyTo;
                 }
             }
 
-            // Try From header
-            Optional<com.mimecast.robin.mime.headers.MimeHeader> fromHeader = 
-                    emailParser.getHeaders().get("From");
-            if (fromHeader.isPresent()) {
-                String cleanedFrom = extractEmailAddress(fromHeader.get().getValue());
+            // Try From header.
+            String from = envelope.getHeaders().get("X-Parsed-From");
+            if (from != null && !from.isEmpty()) {
+                String cleanedFrom = extractEmailAddress(from);
                 if (cleanedFrom != null) {
-                    log.debug("Using From header: {}", cleanedFrom);
+                    log.debug("Using From header from envelope: {}", cleanedFrom);
                     return cleanedFrom;
                 }
             }
-        }
 
-        // Fall back to envelope MAIL FROM
-        if (!connection.getSession().getEnvelopes().isEmpty()) {
-            String mailFrom = connection.getSession().getEnvelopes().getLast().getMail();
+            // Fall back to envelope MAIL FROM.
+            String mailFrom = envelope.getMail();
             if (mailFrom != null && !mailFrom.isEmpty()) {
                 log.debug("Using envelope MAIL FROM: {}", mailFrom);
                 return mailFrom;
@@ -174,7 +191,7 @@ public class SessionBot implements BotProcessor {
             InternetAddress address = new InternetAddress(headerValue);
             return address.getAddress();
         } catch (AddressException e) {
-            // Try simple extraction if parsing fails
+            // Try simple extraction if parsing fails.
             if (headerValue.contains("<") && headerValue.contains(">")) {
                 int start = headerValue.indexOf('<') + 1;
                 int end = headerValue.indexOf('>');
@@ -198,7 +215,7 @@ public class SessionBot implements BotProcessor {
             return botAddress;
         }
         
-        // Extract base address and domain
+        // Extract base address and domain.
         int firstPlusIndex = botAddress.indexOf('+');
         int atIndex = botAddress.lastIndexOf('@');
         
@@ -267,25 +284,25 @@ public class SessionBot implements BotProcessor {
      */
     private void queueResponse(Session session, String botAddress, String replyTo) {
         try {
-            // Create text summary
+            // Create text summary.
             String textSummary = createTextSummary(session);
             
-            // Generate session JSON with exclusion strategy
+            // Generate session JSON with exclusion strategy.
             String sessionJson = GSON.toJson(session);
 
-            // Create envelope for response
+            // Create envelope for response.
             MessageEnvelope envelope = new MessageEnvelope();
             envelope.setMail(stripBotAddress(botAddress));
             envelope.setRcpt(replyTo);
             envelope.setSubject("Robin Session BOT - " + session.getUID());
 
-            // Create outbound session for delivery
+            // Create outbound session for delivery.
             Session outboundSession = new Session();
             outboundSession.setDirection(EmailDirection.OUTBOUND);
             outboundSession.setEhlo(Config.getServer().getHostname());
             outboundSession.getEnvelopes().add(envelope);
 
-            // Use SessionRouting to resolve MX records for the recipient domain
+            // Use SessionRouting to resolve MX records for the recipient domain.
             SessionRouting routing = new SessionRouting(outboundSession);
             var routedSessions = routing.getSessions();
             
@@ -294,10 +311,10 @@ public class SessionBot implements BotProcessor {
                 return;
             }
 
-            // Use the first routed session (primary MX)
+            // Use the first routed session (primary MX).
             Session routedSession = routedSessions.get(0);
 
-            // Build MIME email with EmailBuilder
+            // Build MIME email with EmailBuilder.
             ByteArrayOutputStream emailStream = new ByteArrayOutputStream();
             new EmailBuilder(routedSession, envelope)
                     .addHeader("Subject", envelope.getSubject())
@@ -314,20 +331,20 @@ public class SessionBot implements BotProcessor {
                     )
                     .writeTo(emailStream);
 
-            // Write email to .eml file in store folder
+            // Write email to .eml file in store folder.
             String emlFilePath = writeEmailToStore(emailStream, routedSession.getUID());
             
-            // Set the file path on the envelope (not the stream)
+            // Set the file path on the envelope (not the stream).
             envelope.setFile(emlFilePath);
 
-            // Create relay session and queue
+            // Create relay session and queue.
             RelaySession relaySession = new RelaySession(routedSession);
             relaySession.setProtocol("ESMTP");
 
-            // Persist envelope files to queue folder
+            // Persist envelope files to queue folder.
             QueueFiles.persistEnvelopeFiles(relaySession);
 
-            // Queue for delivery
+            // Queue for delivery.
             PersistentQueue.getInstance().enqueue(relaySession);
 
             log.info("Queued session bot response for delivery to: {}", replyTo);
@@ -350,13 +367,13 @@ public class SessionBot implements BotProcessor {
         Path storePath = Paths.get(basePath);
         Files.createDirectories(storePath);
 
-        // Create unique filename using thread-safe DateTimeFormatter
+        // Create unique filename using thread-safe DateTimeFormatter.
         String filename = String.format("%s-%s.eml", 
                 LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS")), 
                 sessionUid);
         Path emailFile = storePath.resolve(filename);
 
-        // Write email to disk
+        // Write email to disk.
         try (FileOutputStream fos = new FileOutputStream(emailFile.toFile())) {
             emailStream.writeTo(fos);
             log.debug("Wrote bot response email to store: {}", emailFile);

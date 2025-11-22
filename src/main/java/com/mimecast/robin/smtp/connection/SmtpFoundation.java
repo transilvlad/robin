@@ -3,6 +3,7 @@ package com.mimecast.robin.smtp.connection;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.smtp.io.LineInputStream;
 import com.mimecast.robin.smtp.io.SlowOutputStream;
+import com.mimecast.robin.smtp.security.SecurityPolicy;
 import com.mimecast.robin.util.Random;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -230,10 +231,10 @@ public abstract class SmtpFoundation {
 
                 // Write previous EOL if any
                 out.write(eol);
-                // Get current EOL and store
+                // Get current EOL and store.
                 eol = getEol(read);
 
-                // Write line without EOL
+                // Write line without EOL.
                 out.write(trimBytes(read, eol.length));
             }
         } catch (IOException e) {
@@ -263,7 +264,7 @@ public abstract class SmtpFoundation {
         }
 
         return (total.length == 5 && total[0] == 13 && total[1] == 10 && total[2] == 46 && total[3] == 13 && total[4] == 10) ||
-                // For non compliant cases
+                // For non compliant cases.
                 (total.length == 3 && total[0] == 10 && total[1] == 46 && total[2] == 10) ||
                 (total.length == 3 && total[0] == 13 && total[1] == 46 && total[2] == 13);
     }
@@ -445,6 +446,9 @@ public abstract class SmtpFoundation {
 
     /**
      * Enable encryption for the given socket.
+     * <p>If a security policy is set in the session, it will be enforced during TLS negotiation.
+     * <br>DANE policies require certificate validation against TLSA records.
+     * <br>MTA-STS policies require standard PKI validation.
      *
      * @param client True if in client mode.
      * @throws SmtpException SMTP delivery exception.
@@ -455,12 +459,23 @@ public abstract class SmtpFoundation {
                     .setSocket(socket)
                     .setProtocols(protocols)
                     .setCiphers(ciphers)
+                    .setSecurityPolicy(getSecurityPolicy())
                     .startTLS(client);
         } catch (Exception e) {
             log.info("Error in {} TLS negociation: {}", (client ? "client" : "server"), e.getMessage());
             close();
             throw new SmtpException(e.getMessage());
         }
+    }
+
+    /**
+     * Gets security policy from session (if this is a Connection).
+     * <p>Default implementation returns null. Connection overrides this.
+     *
+     * @return SecurityPolicy or null.
+     */
+    protected SecurityPolicy getSecurityPolicy() {
+        return null;
     }
 
     /**

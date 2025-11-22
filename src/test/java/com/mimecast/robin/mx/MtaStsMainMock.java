@@ -14,7 +14,7 @@ import java.util.List;
  * @author "Vlad Marian" <vmarian@mimecast.com>
  * @link <a href="http://mimecast.com">Mimecast</a>
  */
-final class MainMock extends Main {
+final class MtaStsMainMock extends MtaStsMain {
 
     /**
      * Logs list.
@@ -31,7 +31,7 @@ final class MainMock extends Main {
     public static List<String> main(String[] args, int port) throws InstantiationException {
         strictTransportSecurity = new StrictTransportSecurity(new XBillDnsRecordClient(), new LocalHttpsPolicyClient(new PermissiveTrustManager(), port), new MemoryPolicyCache());
 
-        MainMock main = new MainMock(args);
+        MtaStsMainMock main = new MtaStsMainMock(args);
         return main.getLogs();
     }
 
@@ -40,7 +40,7 @@ final class MainMock extends Main {
      *
      * @param args String array.
      */
-    private MainMock(String[] args) {
+    private MtaStsMainMock(String[] args) {
         super(args);
     }
 

@@ -32,13 +32,13 @@ public abstract class AbstractStorageProcessor implements StorageProcessor {
     @Override
     public final boolean process(Connection connection, EmailParser emailParser) throws IOException {
         // Check for chaos headers that force a specific return value.
-        return getForcedReturnValue(emailParser).orElseGet(() -> {
-            try {
-                return processInternal(connection, emailParser);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
+        var forcedValue = getForcedReturnValue(emailParser);
+        if (forcedValue.isPresent()) {
+            return forcedValue.get();
+        }
+
+        // No forced value, proceed with normal processing.
+        return processInternal(connection, emailParser);
     }
 
     /**

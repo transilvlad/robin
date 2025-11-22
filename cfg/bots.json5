@@ -1,7 +1,7 @@
 {
   // Email infrastructure analysis bots configuration.
   // Bots automatically reply with diagnostic information about email infrastructure.
-  
+
   // List of bot definitions
   bots: [
     {
@@ -11,46 +11,66 @@
       // - robotSession+token@example.com
       // - robotSession+token+reply+user@domain.com@example.com (with reply address)
       addressPattern: "^robotSession(\\+.+)?@example\\.com$",
-      
-      // List of domains that are allowed to trigger this bot.
-      // Empty list means all domains are allowed.
-      domains: [
-        "example.com",
-        "test.com"
-      ],
-      
-      // List of IP addresses or CIDR blocks allowed to trigger this bot.
-      // This prevents abuse by restricting who can use the bot.
-      // Empty list means all IPs are allowed.
+
+      // IP-based authorization (optional)
+      // If empty, IP authorization is disabled
+      // Supports individual IPs and CIDR notation
       allowedIps: [
         "127.0.0.1",
         "::1",
         "192.168.1.0/24",
         "10.0.0.0/8"
       ],
-      
-      // List of valid tokens that can be used to authenticate bot requests.
+
+      // Token-based authorization (alternative to IP)
+      // If empty, token authorization is disabled
       // Tokens are extracted from addresses like: robotSession+token@example.com
-      // If tokens list is provided, the bot address must contain a matching token.
-      // Empty list means no token validation is required.
-      tokens: [
+      // Authorization succeeds if EITHER IP matches OR token is valid
+      allowedTokens: [
         // "secretToken123",
         // "validToken456"
       ],
-      
-      // Name of the bot implementation to use from the factory.
-      // Currently supported: "session"
+
+      // Bot implementation name
+      // Currently supported: "session", "email"
       botName: "session"
+    },
+
+    // Email Analysis Bot - Comprehensive email security and infrastructure analysis
+    {
+      // Regex pattern for email analysis bot addresses.
+      // This pattern matches addresses like:
+      // - robotEmail@example.com
+      // - robotEmail+token@example.com
+      addressPattern: "^robotEmail(\\+.+)?@example\\.com$",
+
+      // IP-based authorization (optional)
+      // Authorization succeeds if EITHER IP matches OR token is valid
+      allowedIps: [
+        "127.0.0.1",
+        "::1",
+        "192.168.1.0/24",
+        "10.0.0.0/8"
+      ],
+
+      // Token-based authorization (alternative to IP)
+      // Tokens provide a way to authorize requests from untrusted IPs
+      allowedTokens: [
+        // "emailBotToken123"
+      ],
+
+      // Bot implementation name
+      // The "email" bot performs comprehensive analysis including:
+      // - DNSBL/RBL checks
+      // - rDNS and FCrDNS validation
+      // - SPF, DKIM, DMARC verification
+      // - MX records and MTA-STS policy
+      // - DANE/TLSA records
+      // - Virus and spam scan results
+      botName: "email"
     }
-    
+
     // You can add more bot definitions here.
     // Each bot can have different address patterns, restrictions, and implementations.
-    // Example:
-    // {
-    //   addressPattern: "^diagnostics@example\\.com$",
-    //   domains: [],
-    //   allowedIps: [],
-    //   botName: "infrastructure"
-    // }
   ]
 }

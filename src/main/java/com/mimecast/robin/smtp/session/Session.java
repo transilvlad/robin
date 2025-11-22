@@ -8,6 +8,7 @@ import com.mimecast.robin.main.Config;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.ProxyEmailDelivery;
 import com.mimecast.robin.smtp.connection.SmtpFoundation;
+import com.mimecast.robin.smtp.security.SecurityPolicy;
 import com.mimecast.robin.smtp.transaction.SessionTransactionList;
 import com.mimecast.robin.util.Magic;
 import org.apache.logging.log4j.LogManager;
@@ -199,6 +200,12 @@ public class Session implements Serializable, Cloneable {
      * TLS result.
      */
     private boolean startTls = false;
+
+    /**
+     * Security policy for this connection (DANE/MTA-STS/Opportunistic).
+     * <p>Determined during MX resolution and enforced during TLS negotiation.
+     */
+    private SecurityPolicy securityPolicy;
 
     /**
      * [Server] Is secure port.
@@ -973,6 +980,29 @@ public class Session implements Serializable, Cloneable {
      */
     public Session setStartTls(boolean startTls) {
         this.startTls = startTls;
+        return this;
+    }
+
+    /**
+     * Gets the security policy for this connection.
+     * <p>The security policy (DANE/MTA-STS/Opportunistic) determines TLS requirements
+     * <br>and certificate validation rules per RFC 7672 and RFC 8461.
+     *
+     * @return SecurityPolicy, or null if not set.
+     */
+    public SecurityPolicy getSecurityPolicy() {
+        return securityPolicy;
+    }
+
+    /**
+     * Sets the security policy for this connection.
+     * <p>Should be set during MX resolution based on DANE TLSA records or MTA-STS policy.
+     *
+     * @param securityPolicy SecurityPolicy to enforce.
+     * @return Self.
+     */
+    public Session setSecurityPolicy(SecurityPolicy securityPolicy) {
+        this.securityPolicy = securityPolicy;
         return this;
     }
 

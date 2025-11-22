@@ -41,6 +41,11 @@ public class DefaultTLSSocket implements TLSSocket {
     private String[] ciphers;
 
     /**
+     * Security policy for this connection (DANE/MTA-STS/Opportunistic).
+     */
+    private SecurityPolicy securityPolicy;
+
+    /**
      * Sets socket.
      *
      * @param socket Socket instance.
@@ -74,9 +79,21 @@ public class DefaultTLSSocket implements TLSSocket {
      */
     @Override
     public TLSSocket setCiphers(String[] ciphers) {
-        if (protocols != null) {
+        if (ciphers != null) {
             this.ciphers = ciphers;
         }
+        return this;
+    }
+
+    /**
+     * Sets security policy for this connection.
+     *
+     * @param securityPolicy SecurityPolicy to enforce.
+     * @return Self.
+     */
+    @Override
+    public TLSSocket setSecurityPolicy(SecurityPolicy securityPolicy) {
+        this.securityPolicy = securityPolicy;
         return this;
     }
 
@@ -94,8 +111,14 @@ public class DefaultTLSSocket implements TLSSocket {
             throw new IOException("Socket not defined");
         }
 
-        // Trust manager.
-        TrustManager[] tm = new TrustManager[]{Factories.getTrustManager()};
+        // Trust manager - use DANE-aware if DANE policy is active.
+        TrustManager[] tm;
+        if (securityPolicy != null && securityPolicy.isDane()) {
+            log.info("Using DANE-aware trust manager for policy: {}", securityPolicy);
+            tm = new TrustManager[]{new DaneTrustManager(securityPolicy)};
+        } else {
+            tm = new TrustManager[]{Factories.getTrustManager()};
+        }
 
         // Key manager X.509.
         KeyManager[] km = null;

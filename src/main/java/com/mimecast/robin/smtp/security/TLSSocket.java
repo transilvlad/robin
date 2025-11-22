@@ -6,7 +6,9 @@ import java.net.Socket;
 import java.security.GeneralSecurityException;
 
 /**
- * TLS socket.
+ * TLS socket with DANE and MTA-STS support.
+ * <p>Provides TLS negotiation with enforcement of security policies per RFC 7672 (DANE)
+ * <br>and RFC 8461 (MTA-STS).
  */
 public interface TLSSocket {
 
@@ -33,6 +35,20 @@ public interface TLSSocket {
      * @return Self.
      */
     TLSSocket setCiphers(String[] ciphers);
+
+    /**
+     * Sets security policy for this connection.
+     * <p>The security policy determines:
+     * <ul>
+     *   <li>Whether TLS is mandatory or opportunistic</li>
+     *   <li>Certificate validation requirements (PKI vs DANE TLSA)</li>
+     *   <li>Failure handling (reject vs fall back)</li>
+     * </ul>
+     *
+     * @param securityPolicy SecurityPolicy to enforce.
+     * @return Self.
+     */
+    TLSSocket setSecurityPolicy(SecurityPolicy securityPolicy);
 
     /**
      * Enable encryption for the given socket.

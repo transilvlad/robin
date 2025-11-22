@@ -18,6 +18,10 @@ class QueueDatabaseFactoryTest {
     void tearDown() {
         if (queue != null) {
             try {
+                // Clear any remaining items before closing
+                while (!queue.isEmpty()) {
+                    queue.dequeue();
+                }
                 queue.close();
             } catch (Exception e) {
                 // Ignore errors during test cleanup.
@@ -33,6 +37,12 @@ class QueueDatabaseFactoryTest {
         queue = PersistentQueue.getInstance();
 
         assertNotNull(queue);
+
+        // Clear queue in case other tests left items (singleton issue)
+        while (!queue.isEmpty()) {
+            queue.dequeue();
+        }
+
         assertTrue(queue.isEmpty());
         assertEquals(0, queue.size());
     }

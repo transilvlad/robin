@@ -9,6 +9,7 @@ import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.smtp.EmailDelivery;
 import com.mimecast.robin.smtp.EmailReceipt;
 import com.mimecast.robin.smtp.io.LineInputStream;
+import com.mimecast.robin.smtp.security.SecurityPolicy;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.util.Sleep;
 import org.apache.commons.lang3.StringUtils;
@@ -157,6 +158,16 @@ public class Connection extends SmtpFoundation {
      */
     public Session getSession() {
         return session;
+    }
+
+    /**
+     * Gets security policy from session for TLS enforcement.
+     *
+     * @return SecurityPolicy or null if not set.
+     */
+    @Override
+    protected SecurityPolicy getSecurityPolicy() {
+        return session != null ? session.getSecurityPolicy() : null;
     }
 
     /**

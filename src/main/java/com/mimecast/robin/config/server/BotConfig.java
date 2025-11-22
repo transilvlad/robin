@@ -15,10 +15,17 @@ import java.util.regex.PatternSyntaxException;
  * <p>Each bot can be configured with:
  * <ul>
  *   <li>Address patterns using regex to match bot addresses</li>
- *   <li>Domain restrictions to limit which domains can trigger the bot</li>
- *   <li>IP address restrictions to prevent abuse</li>
+ *   <li>IP address restrictions to prevent abuse (allowedIps)</li>
+ *   <li>Token-based authentication as alternative to IP restrictions (allowedTokens)</li>
  *   <li>Bot type/name for factory lookup</li>
  * </ul>
+ *
+ * <p><strong>Authorization:</strong> Bots are authorized if either:
+ * <ul>
+ *   <li>The sender IP is in allowedIps list (or allowedIps is empty), OR</li>
+ *   <li>The bot address contains a token from allowedTokens list (or allowedTokens is empty)</li>
+ * </ul>
+ * <p>If both lists are empty, all requests are allowed (use with caution).
  *
  * <p>Example configuration:
  * <pre>{@code
@@ -26,8 +33,8 @@ import java.util.regex.PatternSyntaxException;
  *   "bots": [
  *     {
  *       "addressPattern": "^robot(\\+[^@]+)?@example\\.com$",
- *       "domains": ["example.com"],
  *       "allowedIps": ["127.0.0.1", "::1", "192.168.1.0/24"],
+ *       "allowedTokens": ["secret123", "token456"],
  *       "botName": "session"
  *     }
  *   ]
@@ -61,7 +68,7 @@ public class BotConfig extends BasicConfig {
     public List<BotDefinition> getBots() {
         List<BotDefinition> definitions = new ArrayList<>();
         
-        // Handle null map gracefully
+        // Handle null map gracefully.
         if (getMap() == null) {
             return definitions;
         }
@@ -126,18 +133,8 @@ public class BotConfig extends BasicConfig {
         }
 
         /**
-         * Gets the list of allowed domains.
-         *
-         * @return List of domain strings.
-         */
-        @SuppressWarnings("unchecked")
-        public List<String> getDomains() {
-            List<String> domains = (List<String>) getListProperty("domains");
-            return domains != null ? domains : new ArrayList<>();
-        }
-
-        /**
          * Gets the list of allowed IP addresses or CIDR blocks.
+         * <p>Used for IP-based authorization. If empty, IP check is skipped.
          *
          * @return List of IP address strings.
          */
@@ -148,14 +145,16 @@ public class BotConfig extends BasicConfig {
         }
 
         /**
-         * Gets the list of valid tokens for authentication.
-         * <p>If tokens list is provided, the bot address must contain a matching token.
+         * Gets the list of allowed tokens for authentication.
+         * <p>Used for token-based authorization. Tokens are extracted from bot addresses
+         * <br>like: robotSession+token@example.com
+         * <p>If empty, token check is skipped.
          *
          * @return List of token strings.
          */
         @SuppressWarnings("unchecked")
-        public List<String> getTokens() {
-            List<String> tokens = (List<String>) getListProperty("tokens");
+        public List<String> getAllowedTokens() {
+            List<String> tokens = (List<String>) getListProperty("allowedTokens");
             return tokens != null ? tokens : new ArrayList<>();
         }
 
@@ -182,23 +181,113 @@ public class BotConfig extends BasicConfig {
         }
 
         /**
-         * Checks if the bot address contains a valid token.
-         * <p>If no tokens are configured, any address is allowed.
-         * <p>Token is extracted from addresses like: robotSession+token@example.com
+         * Checks if the bot request is authorized based on IP or token.
+         * <p>Authorization logic:
+         * <ul>
+         *   <li>If both allowedIps and allowedTokens are empty: allow all (NOT recommended for production)</li>
+         *   <li>If only allowedIps is populated: must match IP</li>
+         *   <li>If only allowedTokens is populated: must match token</li>
+         *   <li>If both are populated: must match IP OR token (either is sufficient)</li>
+         * </ul>
+         *
+         * @param address Bot address to check for token.
+         * @param ipAddress IP address to check.
+         * @return true if authorized by IP or token.
+         */
+        public boolean isAuthorized(String address, String ipAddress) {
+            List<String> allowedIps = getAllowedIps();
+            List<String> allowedTokens = getAllowedTokens();
+
+            boolean hasIpRestriction = !allowedIps.isEmpty();
+            boolean hasTokenRestriction = !allowedTokens.isEmpty();
+
+            // If neither restriction is configured, allow all (use with caution).
+            if (!hasIpRestriction && !hasTokenRestriction) {
+                return true;
+            }
+
+            // Check IP authorization (if IP restriction is configured).
+            boolean ipAuthorized = false;
+            if (hasIpRestriction) {
+                ipAuthorized = isIpAllowedInternal(ipAddress, allowedIps);
+            }
+
+            // Check token authorization (if token restriction is configured).
+            boolean tokenAuthorized = false;
+            if (hasTokenRestriction) {
+                tokenAuthorized = hasValidTokenInternal(address, allowedTokens);
+            }
+
+            // If both restrictions are configured, either can authorize.
+            if (hasIpRestriction && hasTokenRestriction) {
+                return ipAuthorized || tokenAuthorized;
+            }
+
+            // If only IP restriction is configured, must pass IP check.
+            if (hasIpRestriction) {
+                return ipAuthorized;
+            }
+
+            // If only token restriction is configured, must pass token check.
+            return tokenAuthorized;
+        }
+
+        /**
+         * Internal method to check if IP is allowed.
+         *
+         * @param ipAddress IP address to check.
+         * @param allowedIps List of allowed IPs.
+         * @return true if IP is allowed or list is empty.
+         */
+        private boolean isIpAllowedInternal(String ipAddress, List<String> allowedIps) {
+            if (allowedIps.isEmpty()) {
+                return true; // No IP restriction.
+            }
+            if (ipAddress == null || ipAddress.isEmpty()) {
+                return false;
+            }
+
+            // Simple implementation - exact match or CIDR prefix match.
+            // For a production system, consider using a proper CIDR library.
+            for (String allowed : allowedIps) {
+                if (allowed.equalsIgnoreCase(ipAddress)) {
+                    return true;
+                }
+                // Basic CIDR check - extract network prefix (without host portion).
+                if (allowed.contains("/")) {
+                    String cidrPrefix = allowed.substring(0, allowed.indexOf("/"));
+                    // Remove trailing .0 or similar host portion to get network prefix.
+                    // For example: 192.168.1.0/24 -> 192.168.1.
+                    // This handles common cases like /24, /16, /8.
+                    int lastDot = cidrPrefix.lastIndexOf('.');
+                    if (lastDot > 0) {
+                        String networkPrefix = cidrPrefix.substring(0, lastDot);
+                        if (ipAddress.startsWith(networkPrefix + ".")) {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        /**
+         * Internal method to check if address contains valid token.
          *
          * @param address Bot address to check.
-         * @return true if token is valid or no tokens are configured.
+         * @param allowedTokens List of allowed tokens.
+         * @return true if token is valid or list is empty.
          */
-        public boolean hasValidToken(String address) {
-            List<String> tokens = getTokens();
-            if (tokens.isEmpty()) {
-                return true; // No token restriction
+        private boolean hasValidTokenInternal(String address, List<String> allowedTokens) {
+            if (allowedTokens.isEmpty()) {
+                return true; // No token restriction.
             }
             if (address == null || address.isEmpty()) {
                 return false;
             }
-            
-            // Extract token from address (format: prefix+token@domain or prefix+token+reply+...@domain)
+
+            // Extract token from address (format: prefix+token@domain or prefix+token+reply+...@domain).
             int plusIndex = address.indexOf('+');
             int atIndex = address.indexOf('@');
             if (plusIndex != -1 && atIndex != -1 && plusIndex < atIndex) {
@@ -208,66 +297,12 @@ public class BotConfig extends BasicConfig {
                 if (nextPlusIndex != -1) {
                     tokenPart = tokenPart.substring(0, nextPlusIndex);
                 }
-                
-                // Check if extracted token matches any configured token
+
+                // Check if extracted token matches any configured token.
                 final String extractedToken = tokenPart;
-                return tokens.stream().anyMatch(token -> token.equals(extractedToken));
+                return allowedTokens.stream().anyMatch(token -> token.equals(extractedToken));
             }
-            
-            return false;
-        }
 
-        /**
-         * Checks if the given domain is in the allowed domains list.
-         * <p>If no domains are configured, all domains are allowed.
-         *
-         * @param domain Domain to check.
-         * @return true if domain is allowed.
-         */
-        public boolean isDomainAllowed(String domain) {
-            List<String> allowedDomains = getDomains();
-            if (allowedDomains.isEmpty()) {
-                return true; // No domain restriction
-            }
-            if (domain == null || domain.isEmpty()) {
-                return false;
-            }
-            return allowedDomains.stream()
-                    .anyMatch(allowed -> domain.equalsIgnoreCase(allowed));
-        }
-
-        /**
-         * Checks if the given IP address is in the allowed IPs list.
-         * <p>If no IPs are configured, all IPs are allowed.
-         * <p>Supports both individual IPs and CIDR notation.
-         *
-         * @param ipAddress IP address to check.
-         * @return true if IP is allowed.
-         */
-        public boolean isIpAllowed(String ipAddress) {
-            List<String> allowedIps = getAllowedIps();
-            if (allowedIps.isEmpty()) {
-                return true; // No IP restriction
-            }
-            if (ipAddress == null || ipAddress.isEmpty()) {
-                return false;
-            }
-            
-            // Simple implementation - exact match or CIDR prefix match
-            // For a production system, consider using a proper CIDR library
-            for (String allowed : allowedIps) {
-                if (allowed.equalsIgnoreCase(ipAddress)) {
-                    return true;
-                }
-                // Basic CIDR check - just prefix matching for simplicity
-                if (allowed.contains("/")) {
-                    String prefix = allowed.substring(0, allowed.indexOf("/"));
-                    if (ipAddress.startsWith(prefix)) {
-                        return true;
-                    }
-                }
-            }
-            
             return false;
         }
     }

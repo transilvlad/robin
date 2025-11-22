@@ -2,6 +2,8 @@ package com.mimecast.robin;
 
 import com.mimecast.robin.main.ClientCLI;
 import com.mimecast.robin.main.ServerCLI;
+import com.mimecast.robin.mx.DaneMain;
+import com.mimecast.robin.mx.MtaStsMain;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.Options;
@@ -86,7 +88,13 @@ public class Main {
             // Run MTA-STS library.
             else if (cmd.hasOption("mtasts")) {
                 purgeArg("--mtasts");
-                com.mimecast.robin.mx.Main.main(args);
+                MtaStsMain.main(args);
+            }
+
+            // Run DANE library.
+            else if (cmd.hasOption("dane")) {
+                purgeArg("--dane");
+                DaneMain.main(args);
             }
 
             // Show usage.
@@ -112,6 +120,7 @@ public class Main {
         options.addOption(null, "client", false, "Run as client");
         options.addOption(null, "server", false, "Run as server");
         options.addOption(null, "mtasts", false, "Run as MTA-STS client");
+        options.addOption(null, "dane", false, "Run as DANE client");
         return options;
     }
 
@@ -125,7 +134,7 @@ public class Main {
         log(" " + DESCRIPTION);
         log("");
 
-        // Capture System.out to get help output
+        // Capture System.out to get help output.
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PrintStream ps = new PrintStream(baos);
         PrintStream oldOut = System.out;
@@ -138,7 +147,7 @@ public class Main {
             formatter.printHelp(" ", "", options, "", true);
             System.out.flush();
         } catch (java.io.IOException e) {
-            // Should not happen with ByteArrayOutputStream
+            // Should not happen with ByteArrayOutputStream.
             throw new RuntimeException(e);
         } finally {
             System.setOut(oldOut);
