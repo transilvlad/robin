@@ -167,7 +167,16 @@ public class LocalStorageClient implements StorageClient {
 
                     // Set email path to current envelope if any.
                     if (!connection.getSession().getEnvelopes().isEmpty()) {
-                        connection.getSession().getEnvelopes().getLast().setFile(getFile());
+                        MessageEnvelope envelope = connection.getSession().getEnvelopes().getLast();
+                        envelope.setFile(getFile());
+
+                        // Extract key headers for bot processing before parser is closed.
+                        // Bots run asynchronously and cannot safely access the parser after it's closed.
+                        Optional<MimeHeader> replyTo = parser.getHeaders().get("Reply-To");
+                        replyTo.ifPresent(header -> envelope.addHeader("X-Parsed-Reply-To", header.getValue()));
+
+                        Optional<MimeHeader> from = parser.getHeaders().get("From");
+                        from.ifPresent(header -> envelope.addHeader("X-Parsed-From", header.getValue()));
                     }
                     log.info("Storage file saved to: {}", getFile());
 
@@ -185,8 +194,10 @@ public class LocalStorageClient implements StorageClient {
                         }
                     }
 
-                    // Process bot addresses if any
-                    processBotAddresses(connection, parser);
+                    // Process bot addresses if any.
+                    // Note: Parser is passed as null to prevent async bots from accessing
+                    // a closed resource. Bots should use envelope headers instead.
+                    processBotAddresses(connection, null);
 
                     // Relay email if X-Robin-Relay or relay configuration or direction outbound enabled.
                     relay();
