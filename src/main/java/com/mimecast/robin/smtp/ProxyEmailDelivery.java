@@ -1,7 +1,5 @@
 package com.mimecast.robin.smtp;
 
-import com.mimecast.robin.config.server.ProxyRule;
-import com.mimecast.robin.smtp.connection.SmtpException;
 import com.mimecast.robin.smtp.extension.client.ProxyBehaviour;
 import com.mimecast.robin.smtp.session.Session;
 import org.apache.logging.log4j.LogManager;
@@ -34,11 +32,6 @@ public class ProxyEmailDelivery extends EmailDelivery {
     private ProxyBehaviour behaviour;
 
     /**
-     * ProxyRule instance.
-     */
-    private final ProxyRule rule;
-
-    /**
      * Current envelope being processed.
      */
     private MessageEnvelope currentEnvelope;
@@ -53,13 +46,11 @@ public class ProxyEmailDelivery extends EmailDelivery {
      *
      * @param session  Session instance for the proxy connection.
      * @param envelope MessageEnvelope instance to proxy.
-     * @param rule     ProxyRule instance with configuration.
      */
-    public ProxyEmailDelivery(Session session, MessageEnvelope envelope, ProxyRule rule) {
+    public ProxyEmailDelivery(Session session, MessageEnvelope envelope) {
         super(session);
         this.currentEnvelope = envelope;
         this.behaviour = new ProxyBehaviour(envelope);
-        this.rule = rule;
     }
 
     /**
@@ -93,10 +84,9 @@ public class ProxyEmailDelivery extends EmailDelivery {
      * <p>If already connected (from previous envelope), skips connection and just sends MAIL FROM.
      *
      * @return Self.
-     * @throws IOException   Unable to communicate.
-     * @throws SmtpException SMTP exchange error.
+     * @throws IOException Unable to communicate.
      */
-    public ProxyEmailDelivery connect() throws IOException, SmtpException {
+    public ProxyEmailDelivery connect() throws IOException {
         // If already connected, just prepare for new envelope.
         if (connected) {
             log.debug("Reusing existing proxy connection");
@@ -119,11 +109,6 @@ public class ProxyEmailDelivery extends EmailDelivery {
             behaviour.process(connection);
             connected = true;
             log.debug("Proxy MAIL FROM sent successfully");
-
-        } catch (SmtpException e) {
-            log.warn("SMTP error in proxy connection: {}", e.getMessage());
-            close();
-            throw e;
 
         } catch (IOException e) {
             log.warn("IO error in proxy connection: {}", e.getMessage());
@@ -168,7 +153,7 @@ public class ProxyEmailDelivery extends EmailDelivery {
     public void close() {
         if (connected) {
             try {
-                // Call quit method from ProxyBehaviour which calls the parent's quit
+                // Call quit method from ProxyBehaviour which calls the parent's quit.
                 behaviour.sendQuit();
             } catch (IOException e) {
                 log.debug("Error sending QUIT: {}", e.getMessage());

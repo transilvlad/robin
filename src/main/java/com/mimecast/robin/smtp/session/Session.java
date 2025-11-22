@@ -3,8 +3,10 @@ package com.mimecast.robin.smtp.session;
 import com.mimecast.robin.config.ConfigMapper;
 import com.mimecast.robin.config.assertion.AssertConfig;
 import com.mimecast.robin.config.client.CaseConfig;
+import com.mimecast.robin.config.server.ProxyRule;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.smtp.MessageEnvelope;
+import com.mimecast.robin.smtp.ProxyEmailDelivery;
 import com.mimecast.robin.smtp.connection.SmtpFoundation;
 import com.mimecast.robin.smtp.transaction.SessionTransactionList;
 import com.mimecast.robin.util.Magic;
@@ -250,7 +252,7 @@ public class Session implements Serializable, Cloneable {
      * <p>Key: ProxyRule, Value: ProxyEmailDelivery
      * <p>This is transient and not serialized.
      */
-    private transient Map<Object, Object> proxyConnections = new HashMap<>();
+    private final transient Map<ProxyRule, ProxyEmailDelivery> proxyConnections = new HashMap<>();
 
     /**
      * SessionTransactionList instance.
@@ -1171,7 +1173,7 @@ public class Session implements Serializable, Cloneable {
      * @param rule ProxyRule instance.
      * @return ProxyEmailDelivery instance or null.
      */
-    public Object getProxyConnection(Object rule) {
+    public ProxyEmailDelivery getProxyConnection(ProxyRule rule) {
         return proxyConnections.get(rule);
     }
 
@@ -1179,12 +1181,12 @@ public class Session implements Serializable, Cloneable {
      * Sets proxy connection for a given rule.
      * <p>Stores the connection for reuse across multiple envelopes.
      *
-     * @param rule       ProxyRule instance.
-     * @param connection ProxyEmailDelivery instance.
+     * @param rule     ProxyRule instance.
+     * @param delivery ProxyEmailDelivery instance.
      * @return Self.
      */
-    public Session setProxyConnection(Object rule, Object connection) {
-        proxyConnections.put(rule, connection);
+    public Session setProxyConnection(ProxyRule rule, ProxyEmailDelivery delivery) {
+        proxyConnections.put(rule, delivery);
         return this;
     }
 
@@ -1193,7 +1195,7 @@ public class Session implements Serializable, Cloneable {
      *
      * @return Map of ProxyRule to ProxyEmailDelivery.
      */
-    public Map<Object, Object> getProxyConnections() {
+    public Map<ProxyRule, ProxyEmailDelivery> getProxyConnections() {
         return proxyConnections;
     }
 
@@ -1202,11 +1204,7 @@ public class Session implements Serializable, Cloneable {
      * <p>Should be called when the session ends.
      */
     public void closeProxyConnections() {
-        for (Object connection : proxyConnections.values()) {
-            if (connection instanceof com.mimecast.robin.smtp.ProxyEmailDelivery) {
-                ((com.mimecast.robin.smtp.ProxyEmailDelivery) connection).close();
-            }
-        }
+        proxyConnections.values().forEach(ProxyEmailDelivery::close);
         proxyConnections.clear();
     }
 
