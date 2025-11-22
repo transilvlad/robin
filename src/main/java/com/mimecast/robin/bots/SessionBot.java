@@ -13,6 +13,7 @@ import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.session.EmailDirection;
 import com.mimecast.robin.smtp.session.Session;
+import com.mimecast.robin.util.GsonExclusionStrategy;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -52,7 +53,14 @@ import java.util.regex.Pattern;
  */
 public class SessionBot implements BotProcessor {
     private static final Logger log = LogManager.getLogger(SessionBot.class);
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    
+    /**
+     * Gson instance for serializing session data with exclusion strategy.
+     */
+    private static final Gson GSON = new GsonBuilder()
+            .addSerializationExclusionStrategy(new GsonExclusionStrategy())
+            .setPrettyPrinting()
+            .create();
 
     /**
      * Pattern to extract reply address from sieve format.
@@ -79,19 +87,8 @@ public class SessionBot implements BotProcessor {
                 return;
             }
 
-            // Generate session JSON
-            String sessionJson = GSON.toJson(connection.getSession());
-
-            // Create response email
-            MessageEnvelope responseEnvelope = createResponseEmail(
-                    connection.getSession(),
-                    botAddress,
-                    replyTo,
-                    sessionJson
-            );
-
-            // Queue for delivery
-            queueResponse(responseEnvelope, replyTo);
+            // Create and queue response email
+            queueResponse(connection.getSession(), botAddress, replyTo);
 
             log.info("Successfully queued session bot response to: {} from session UID: {}",
                     replyTo, connection.getSession().getUID());
@@ -215,31 +212,17 @@ public class SessionBot implements BotProcessor {
     }
 
     /**
-     * Creates the response email with session JSON.
+     * Creates the text summary for the email body.
      *
-     * @param session     Original SMTP session.
-     * @param botAddress  Bot address that received the request.
-     * @param replyTo     Address to send reply to.
-     * @param sessionJson Session data as JSON.
-     * @return Response envelope ready to queue.
+     * @param session Original SMTP session.
+     * @return Text summary of the session.
      */
-    private MessageEnvelope createResponseEmail(Session session, String botAddress,
-                                                 String replyTo, String sessionJson) {
-        MessageEnvelope envelope = new MessageEnvelope();
-
-        // Set envelope addresses - strip token and reply address from bot address
-        envelope.setMail(stripBotAddress(botAddress));
-        envelope.setRcpt(replyTo);
-
-        // Set subject
-        envelope.setSubject("Robin Session BOT - " + session.getUID());
-
-        // Create email body with both text summary and JSON
+    private String createTextSummary(Session session) {
         StringBuilder body = new StringBuilder();
         body.append("SMTP Session Analysis Report\n");
         body.append("============================\n\n");
         body.append("Session UID: ").append(session.getUID()).append("\n");
-        body.append("Date: ").append(envelope.getDate()).append("\n\n");
+        body.append("Date: ").append(new java.util.Date()).append("\n\n");
 
         body.append("Connection Information:\n");
         body.append("-----------------------\n");
@@ -247,16 +230,8 @@ public class SessionBot implements BotProcessor {
         body.append("Remote rDNS: ").append(session.getFriendRdns() != null ? session.getFriendRdns() : "N/A").append("\n");
         body.append("EHLO/HELO: ").append(session.getEhlo()).append("\n");
 
-        if (session.isAuth() && session.getUsername() != null && !session.getUsername().isEmpty()) {
-            body.append("Authenticated: Yes\n");
-            body.append("Username: ").append(session.getUsername()).append("\n");
-        } else {
-            body.append("Authenticated: No\n");
-        }
-
         if (session.isTls()) {
             body.append("TLS: Yes\n");
-            // Note: Protocol and cipher are arrays, not single values
             if (session.getProtocols() != null && session.getProtocols().length > 0) {
                 body.append("TLS Protocols: ").append(String.join(", ", session.getProtocols())).append("\n");
             }
@@ -276,31 +251,37 @@ public class SessionBot implements BotProcessor {
             body.append("RCPT TO: ").append(String.join(", ", originalEnvelope.getRcpts())).append("\n");
         }
 
-        body.append("\n\n");
-        body.append("Complete Session Data (JSON):\n");
-        body.append("============================\n");
-        body.append(sessionJson);
+        body.append("\n");
+        body.append("The complete session data is attached as a JSON file.\n");
 
-        // Set the body
-        envelope.setMessage(body.toString());
-
-        return envelope;
+        return body.toString();
     }
 
     /**
      * Queues the response for delivery.
      *
-     * @param envelope Response envelope.
-     * @param replyTo  Recipient address.
+     * @param session    Original SMTP session to analyze.
+     * @param botAddress Bot address that received the request.
+     * @param replyTo    Recipient address.
      */
-    private void queueResponse(MessageEnvelope envelope, String replyTo) {
+    private void queueResponse(Session session, String botAddress, String replyTo) {
         try {
+            // Create text summary
+            String textSummary = createTextSummary(session);
+            
+            // Generate session JSON with exclusion strategy
+            String sessionJson = GSON.toJson(session);
+
+            // Create envelope for response
+            MessageEnvelope envelope = new MessageEnvelope();
+            envelope.setMail(stripBotAddress(botAddress));
+            envelope.setRcpt(replyTo);
+            envelope.setSubject("Robin Session BOT - " + session.getUID());
+
             // Create outbound session for delivery
             Session outboundSession = new Session();
             outboundSession.setDirection(EmailDirection.OUTBOUND);
             outboundSession.setEhlo(Config.getServer().getHostname());
-
-            // Add envelope to session
             outboundSession.getEnvelopes().add(envelope);
 
             // Use SessionRouting to resolve MX records for the recipient domain
@@ -314,23 +295,6 @@ public class SessionBot implements BotProcessor {
 
             // Use the first routed session (primary MX)
             Session routedSession = routedSessions.get(0);
-
-            // Build email using EmailBuilder with text body and JSON attachment
-            String sessionJson = envelope.getMessage();
-            
-            // Extract text summary from message (everything before the JSON section)
-            String textSummary = sessionJson;
-            String jsonSectionHeader = "Complete Session Data (JSON):";
-            String separator = "============================";
-            int jsonStartIndex = sessionJson.indexOf(jsonSectionHeader);
-            if (jsonStartIndex != -1) {
-                textSummary = sessionJson.substring(0, jsonStartIndex).trim();
-                // Extract just the JSON part
-                int jsonDataIndex = sessionJson.indexOf(separator, jsonStartIndex);
-                if (jsonDataIndex != -1) {
-                    sessionJson = sessionJson.substring(jsonDataIndex + separator.length()).trim();
-                }
-            }
 
             // Build MIME email with EmailBuilder
             ByteArrayOutputStream emailStream = new ByteArrayOutputStream();
@@ -350,20 +314,7 @@ public class SessionBot implements BotProcessor {
                     .writeTo(emailStream);
 
             // Persist email to disk before queueing
-            String basePath = Config.getServer().getStorage().getStringProperty("path", "/tmp/store");
-            Path storePath = Paths.get(basePath, "bots");
-            Files.createDirectories(storePath);
-
-            // Create unique filename
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd-HHmmss-SSS");
-            String filename = String.format("%s-%s.eml", sdf.format(new Date()), routedSession.getUID());
-            Path emailFile = storePath.resolve(filename);
-
-            // Write email to disk
-            try (FileOutputStream fos = new FileOutputStream(emailFile.toFile())) {
-                emailStream.writeTo(fos);
-                log.debug("Persisted bot response email to: {}", emailFile);
-            }
+            persistEmailToDisk(emailStream, routedSession.getUID());
 
             // Set the email stream on the envelope for relay
             envelope.setStream(new ByteArrayInputStream(emailStream.toByteArray()));
@@ -375,10 +326,34 @@ public class SessionBot implements BotProcessor {
             // Queue for delivery
             PersistentQueue.getInstance().enqueue(relaySession);
 
-            log.info("Queued session bot response for delivery to: {} (persisted: {})", replyTo, emailFile);
+            log.info("Queued session bot response for delivery to: {}", replyTo);
             
         } catch (IOException e) {
             log.error("Failed to queue session bot response: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Persists the email to disk before queueing.
+     *
+     * @param emailStream The email content stream.
+     * @param sessionUid  The session UID for filename.
+     * @throws IOException If an I/O error occurs.
+     */
+    private void persistEmailToDisk(ByteArrayOutputStream emailStream, String sessionUid) throws IOException {
+        String basePath = Config.getServer().getStorage().getStringProperty("path", "/tmp/store");
+        Path storePath = Paths.get(basePath, "bots");
+        Files.createDirectories(storePath);
+
+        // Create unique filename
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd-HHmmss-SSS");
+        String filename = String.format("%s-%s.eml", sdf.format(new Date()), sessionUid);
+        Path emailFile = storePath.resolve(filename);
+
+        // Write email to disk
+        try (FileOutputStream fos = new FileOutputStream(emailFile.toFile())) {
+            emailStream.writeTo(fos);
+            log.debug("Persisted bot response email to: {}", emailFile);
         }
     }
 
