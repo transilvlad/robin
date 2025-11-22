@@ -18,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 
 import javax.mail.internet.AddressException;
 import javax.mail.internet.InternetAddress;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -319,13 +320,15 @@ public class SessionBot implements BotProcessor {
             
             // Extract text summary from message (everything before the JSON section)
             String textSummary = sessionJson;
-            int jsonStartIndex = sessionJson.indexOf("Complete Session Data (JSON):");
+            String jsonSectionHeader = "Complete Session Data (JSON):";
+            String separator = "============================";
+            int jsonStartIndex = sessionJson.indexOf(jsonSectionHeader);
             if (jsonStartIndex != -1) {
                 textSummary = sessionJson.substring(0, jsonStartIndex).trim();
                 // Extract just the JSON part
-                int jsonDataIndex = sessionJson.indexOf("============================", jsonStartIndex);
+                int jsonDataIndex = sessionJson.indexOf(separator, jsonStartIndex);
                 if (jsonDataIndex != -1) {
-                    sessionJson = sessionJson.substring(jsonDataIndex + 28).trim(); // Skip separator
+                    sessionJson = sessionJson.substring(jsonDataIndex + separator.length()).trim();
                 }
             }
 
@@ -363,7 +366,7 @@ public class SessionBot implements BotProcessor {
             }
 
             // Set the email stream on the envelope for relay
-            envelope.setStream(new java.io.ByteArrayInputStream(emailStream.toByteArray()));
+            envelope.setStream(new ByteArrayInputStream(emailStream.toByteArray()));
 
             // Create relay session and queue
             RelaySession relaySession = new RelaySession(routedSession);

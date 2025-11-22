@@ -20,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -70,7 +71,7 @@ public class DovecotStorageProcessor implements StorageProcessor {
         List<String> originalRecipients = envelope.getRcpts();
         
         // Filter out bot addresses from recipients
-        List<String> nonBotRecipients = new java.util.ArrayList<>();
+        List<String> nonBotRecipients = new ArrayList<>();
         for (String recipient : originalRecipients) {
             if (!envelope.isBotAddress(recipient)) {
                 nonBotRecipients.add(recipient);
