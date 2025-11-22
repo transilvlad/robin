@@ -126,7 +126,16 @@ public class LocalStorageProcessor extends AbstractStorageProcessor {
         String basePath = config.getStorage().getStringProperty("path", "/tmp/store");
         String inboundFolder = config.getStorage().getStringProperty("inboundFolder", "new");
 
+        MessageEnvelope envelope = connection.getSession().getEnvelopes().isEmpty() ? null :
+                connection.getSession().getEnvelopes().getLast();
+
         for (String recipient : recipients) {
+            // Skip bot addresses - they are handled by bot processors.
+            if (envelope != null && envelope.isBotAddress(recipient)) {
+                log.debug("Skipping storage for bot address: {}", recipient);
+                continue;
+            }
+
             // Parse recipient email to get domain and username.
             String[] splits = recipient.split("@");
             if (splits.length != 2) {

@@ -49,6 +49,7 @@ public class ServerConfig extends ConfigFoundation {
         CONFIG_FILENAMES.put("blocklist", "blocklist.json5");
         CONFIG_FILENAMES.put("blackhole", "blackhole.json5");
         CONFIG_FILENAMES.put("proxy", "proxy.json5");
+        CONFIG_FILENAMES.put("bots", "bots.json5");
     }
 
     /**
@@ -522,6 +523,21 @@ public class ServerConfig extends ConfigFoundation {
             }
         }
         return scenarios;
+    }
+
+    /**
+     * Gets bot configuration.
+     *
+     * @return BotConfig instance.
+     */
+    public BotConfig getBots() {
+        loadExternalIfAbsent("bots", Map.class);
+
+        if (map.containsKey("bots")) {
+            return new BotConfig(getMapProperty("bots"));
+        }
+        // Return default config if not defined.
+        return new BotConfig(null);
     }
 
     /**

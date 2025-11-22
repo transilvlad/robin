@@ -20,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -68,12 +69,28 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
         // Get current envelope and log info.
         MessageEnvelope envelope = connection.getSession().getEnvelopes().getLast();
         List<String> originalRecipients = envelope.getRcpts();
+        
+        // Filter out bot addresses from recipients
+        List<String> nonBotRecipients = new ArrayList<>();
+        for (String recipient : originalRecipients) {
+            if (!envelope.isBotAddress(recipient)) {
+                nonBotRecipients.add(recipient);
+            } else {
+                log.debug("Skipping Dovecot LDA storage for bot address: {}", recipient);
+            }
+        }
+        
+        // If all recipients are bot addresses, skip Dovecot LDA processing
+        if (nonBotRecipients.isEmpty()) {
+            log.debug("All recipients are bot addresses, skipping Dovecot LDA processing");
+            return;
+        }
         String folder = connection.getSession().isInbound() 
                 ? config.getDovecot().getStringProperty("inboxFolder", "INBOX")
                 : config.getDovecot().getStringProperty("sentFolder", "Sent");
         log.info("Invoking Dovecot LDA for sender={} recipients={} outbound={} folder={}",
                 envelope.getMail(),
-                String.join(",", originalRecipients),
+                String.join(",", nonBotRecipients),
                 connection.getSession().isOutbound(),
                 folder);
 

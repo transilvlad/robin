@@ -1,0 +1,56 @@
+{
+  // Email infrastructure analysis bots configuration.
+  // Bots automatically reply with diagnostic information about email infrastructure.
+  
+  // List of bot definitions
+  bots: [
+    {
+      // Regex pattern to match bot addresses.
+      // This pattern matches addresses like:
+      // - robotSession@example.com
+      // - robotSession+token@example.com
+      // - robotSession+token+reply+user@domain.com@example.com (with reply address)
+      addressPattern: "^robotSession(\\+.+)?@example\\.com$",
+      
+      // List of domains that are allowed to trigger this bot.
+      // Empty list means all domains are allowed.
+      domains: [
+        "example.com",
+        "test.com"
+      ],
+      
+      // List of IP addresses or CIDR blocks allowed to trigger this bot.
+      // This prevents abuse by restricting who can use the bot.
+      // Empty list means all IPs are allowed.
+      allowedIps: [
+        "127.0.0.1",
+        "::1",
+        "192.168.1.0/24",
+        "10.0.0.0/8"
+      ],
+      
+      // List of valid tokens that can be used to authenticate bot requests.
+      // Tokens are extracted from addresses like: robotSession+token@example.com
+      // If tokens list is provided, the bot address must contain a matching token.
+      // Empty list means no token validation is required.
+      tokens: [
+        // "secretToken123",
+        // "validToken456"
+      ],
+      
+      // Name of the bot implementation to use from the factory.
+      // Currently supported: "session"
+      botName: "session"
+    }
+    
+    // You can add more bot definitions here.
+    // Each bot can have different address patterns, restrictions, and implementations.
+    // Example:
+    // {
+    //   addressPattern: "^diagnostics@example\\.com$",
+    //   domains: [],
+    //   allowedIps: [],
+    //   botName: "infrastructure"
+    // }
+  ]
+}

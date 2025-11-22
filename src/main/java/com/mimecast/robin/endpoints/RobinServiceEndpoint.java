@@ -151,6 +151,31 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
     }
 
     /**
+     * Generates JSON representation of bot processing thread pool statistics.
+     *
+     * @return JSON object string containing bot pool information.
+     */
+    private String getBotPoolJson() {
+        java.util.concurrent.ExecutorService botExecutor = Server.getBotExecutor();
+        if (botExecutor == null) {
+            return "{\"enabled\":false}";
+        }
+
+        // For CachedThreadPool, we can get basic stats if it's a ThreadPoolExecutor
+        if (botExecutor instanceof java.util.concurrent.ThreadPoolExecutor) {
+            java.util.concurrent.ThreadPoolExecutor tpe = (java.util.concurrent.ThreadPoolExecutor) botExecutor;
+            return String.format("{\"enabled\":true,\"type\":\"cachedThreadPool\",\"poolSize\":%d,\"activeThreads\":%d,\"queueSize\":%d,\"taskCount\":%d,\"completedTaskCount\":%d}",
+                    tpe.getPoolSize(),
+                    tpe.getActiveCount(),
+                    tpe.getQueue().size(),
+                    tpe.getTaskCount(),
+                    tpe.getCompletedTaskCount());
+        }
+
+        return "{\"enabled\":true,\"type\":\"unknown\"}";
+    }
+
+    /**
      * Handles GET requests to display configuration viewer UI.
      * Shows properties and server configuration in formatted JSON with reload button.
      *
@@ -246,12 +271,13 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
                     uptime.toSecondsPart());
 
             // Final health JSON response.
-            String response = String.format("{\"status\":\"UP\", \"uptime\":\"%s\", \"listeners\":%s, \"queue\":%s, \"scheduler\":%s, \"metricsCron\":%s}",
+            String response = String.format("{\"status\":\"UP\", \"uptime\":\"%s\", \"listeners\":%s, \"queue\":%s, \"scheduler\":%s, \"metricsCron\":%s, \"botPool\":%s}",
                     uptimeString,
                     getListenersJson(), // Listener stats.
                     getQueueJson(), // Queue stats and retry histogram.
                     getSchedulerJson(), // Scheduler config and cron stats.
-                    getMetricsCronJson() // Metrics cron stats.
+                    getMetricsCronJson(), // Metrics cron stats.
+                    getBotPoolJson() // Bot processing thread pool stats.
             );
 
             sendResponse(exchange, 200, "application/json; charset=utf-8", response);
