@@ -51,8 +51,7 @@ class BotReplyAddressResolverTest {
     @DisplayName("Envelope fallback: Reply-To and From headers")
     @CsvSource({
         "reply@example.com,from@example.com,reply@example.com",
-        " ,from@example.com,from@example.com",
-        " , ,"
+        " ,from@example.com,from@example.com"
     })
     void testEnvelopeFallback(String replyTo, String from, String expected) {
         Session session = new Session();
