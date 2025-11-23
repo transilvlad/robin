@@ -243,38 +243,69 @@ public class EmailReceipt implements Runnable {
      * @throws IOException Unable to communicate.
      */
     private void process(Verb verb) throws IOException {
-        if (Extensions.isExtension(verb)) {
-            Optional<Extension> opt = Extensions.getExtension(verb);
-            if (opt.isPresent()) {
-                // Call webhook before processing extension.
-                if (!processWebhook(verb)) {
-                    return; // Webhook intercepted processing.
-                }
-
-                ServerProcessor server = opt.get().getServer();
-
-                // Set limit if applicable.
-                if (server instanceof ServerMail) {
-                    ((ServerMail) server).setEnvelopeLimit(config.getEnvelopeLimit());
-                }
-                if (server instanceof ServerRcpt) {
-                    ((ServerRcpt) server).setRecipientsLimit(config.getRecipientsLimit());
-                }
-                if (server instanceof ServerData) {
-                    ((ServerData) server).setEmailSizeLimit(config.getEmailSizeLimit());
-                }
-
-                server.process(connection, verb);
+        // Check for XCLIENT extension separately due to security flag requirement.
+        if ("XCLIENT".equalsIgnoreCase(verb.getKey())) {
+            if (Config.getServer().isXclientEnabled()) {
+                // XCLIENT is enabled, process as normal extension.
+                processExtension(verb);
+            } else {
+                // XCLIENT is disabled, reject the command.
+                handleUnrecognizedCommand();
             }
-        } else {
-            errorLimit--;
-            if (errorLimit == 0) {
-                log.warn("Error limit reached.");
-                return;
-            }
-
-            connection.write(SmtpResponses.UNRECOGNIZED_CMD_500);
+            return;
         }
+        
+        // Process all other extensions.
+        if (Extensions.isExtension(verb)) {
+            processExtension(verb);
+        } else {
+            handleUnrecognizedCommand();
+        }
+    }
+
+    /**
+     * Process an extension by calling webhook and then the server processor.
+     *
+     * @param verb Verb instance.
+     * @throws IOException Unable to communicate.
+     */
+    private void processExtension(Verb verb) throws IOException {
+        Optional<Extension> opt = Extensions.getExtension(verb);
+        if (opt.isPresent()) {
+            // Call webhook before processing extension.
+            if (!processWebhook(verb)) {
+                return; // Webhook intercepted processing.
+            }
+
+            ServerProcessor server = opt.get().getServer();
+
+            // Set limit if applicable.
+            if (server instanceof ServerMail) {
+                ((ServerMail) server).setEnvelopeLimit(config.getEnvelopeLimit());
+            }
+            if (server instanceof ServerRcpt) {
+                ((ServerRcpt) server).setRecipientsLimit(config.getRecipientsLimit());
+            }
+            if (server instanceof ServerData) {
+                ((ServerData) server).setEmailSizeLimit(config.getEmailSizeLimit());
+            }
+
+            server.process(connection, verb);
+        }
+    }
+
+    /**
+     * Handle unrecognized command by incrementing error counter and sending error response.
+     *
+     * @throws IOException Unable to communicate.
+     */
+    private void handleUnrecognizedCommand() throws IOException {
+        errorLimit--;
+        if (errorLimit == 0) {
+            log.warn("Error limit reached.");
+            return;
+        }
+        connection.write(SmtpResponses.UNRECOGNIZED_CMD_500);
     }
 
     /**

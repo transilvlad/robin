@@ -235,7 +235,12 @@ Example `server.json5` (core listeners & feature flags):
       // Chaos headers for testing exception scenarios.
       // WARNING: Do NOT enable in production. This feature allows bypassing normal processing
       // and is intended strictly for development and testing purposes.
-      chaosHeaders: false
+      chaosHeaders: false,
+
+      // Enable XCLIENT extension for development and testing only.
+      // WARNING: Do NOT enable in production. XCLIENT allows clients to forge sender information
+      // and is intended strictly for development and testing purposes.
+      xclientEnabled: false
     }
 
 **Service Authentication**: Configure `serviceUsername` and `servicePassword` to enable HTTP Basic Authentication for the service endpoint. 
@@ -631,6 +636,38 @@ Below are concise examples for each auxiliary config file.
     }
 
 See [Proxy Documentation](../features/proxy.md) for detailed configuration and examples.
+
+XCLIENT Extension
+-----------------
+
+The XCLIENT extension allows SMTP clients to override connection attributes such as the client hostname, IP address, and HELO/EHLO name. This is primarily used by mail proxies and filters that want to preserve the original client information when forwarding mail to another MTA.
+
+**WARNING:** This feature is intended for development and testing purposes only. Do NOT enable in production environments as XCLIENT allows clients to forge sender information, which can be a significant security risk if exposed without proper access controls.
+
+### Configuration
+
+Enable XCLIENT in `server.json5`:
+
+    {
+      // Enable XCLIENT extension for development and testing only.
+      // WARNING: Do NOT enable in production.
+      xclientEnabled: true
+    }
+
+### Security Considerations
+
+- XCLIENT should **only** be enabled in controlled development/testing environments
+- Never enable XCLIENT on production mail servers accessible from the internet
+- If you must use XCLIENT in production, implement strict IP-based access controls
+- Consider using proxy mode or relay configurations as safer alternatives
+
+### Usage
+
+When enabled, clients can use the XCLIENT command to override connection attributes:
+
+    XCLIENT NAME=mail.example.com ADDR=192.0.2.1 HELO=client.example.com
+
+See the [Postfix XCLIENT documentation](http://www.postfix.org/XCLIENT_README.html) for the complete protocol specification.
 
 Chaos Headers
 -------------

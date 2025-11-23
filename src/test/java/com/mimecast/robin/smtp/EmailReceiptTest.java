@@ -134,4 +134,25 @@ class EmailReceiptTest {
         assertTrue(connection.getLine(11).startsWith("554 5.5.1 No valid recipients"), "startsWith(\"554 5.5.1 No valid recipients\")");
         assertEquals("221 2.0.0 Closing connection\r\n", connection.getLine(12));
     }
+
+    @Test
+    void xclientEnabled() throws IOException {
+        // Test that XCLIENT is accepted when enabled (test config has xclientEnabled: true)
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append("EHLO example.com\r\n");
+        stringBuilder.append("XCLIENT helo=test.com name=test.com addr=192.0.2.1\r\n");
+        stringBuilder.append("QUIT\r\n");
+
+        ConnectionMock connection = getConnection(stringBuilder);
+        new EmailReceipt(connection).run();
+
+        connection.parseLines();
+        String output = connection.getOutput();
+        // XCLIENT should be accepted with 220 response when enabled
+        assertTrue(output.contains("220"), "XCLIENT should be accepted with 220 response");
+        // Verify the session was updated by XCLIENT
+        assertEquals("test.com", connection.getSession().getEhlo(), "EHLO should be updated to test.com");
+        assertEquals("test.com", connection.getSession().getFriendRdns(), "Reverse DNS should be updated to test.com");
+        assertEquals("192.0.2.1", connection.getSession().getFriendAddr(), "Address should be updated to 192.0.2.1");
+    }
 }

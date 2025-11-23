@@ -23,6 +23,15 @@
  *     <li>`clamav.json5` ClamAV integration for virus scanning.</li>
  * </ul>
  *
+ * <h3>Development and Testing Features</h3>
+ * <p>Several configuration options are intended strictly for development and testing:
+ * <ul>
+ *     <li><b>xclientEnabled</b> - Enables XCLIENT extension for forging sender information.
+ *         WARNING: Do NOT enable in production.</li>
+ *     <li><b>chaosHeaders</b> - Allows forcing specific processor return values via headers.
+ *         WARNING: Do NOT enable in production.</li>
+ * </ul>
+ *
  * @see com.mimecast.robin.main.Server
  */
 package com.mimecast.robin.config.server;
