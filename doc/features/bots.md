@@ -152,11 +152,15 @@ With this configuration:
 The Session Bot determines where to send the reply using the following priority:
 
 1. **Sieve reply address**: Uses special format to embed reply address in the bot address itself
-   - Format: `robotSession+token+localpart+domain.com@botdomain.com`
+   - Format 1 (without token): `robotSession+localpart+domain.com@botdomain.com`
+   - Format 2 (with token): `robotSession+token+localpart+domain.com@botdomain.com`
    - The reply address is encoded with `+` instead of `@`
-   - Everything after the second `+` is the reply address
-   - The first `+` in that part becomes the `@`
-   - Example: `robotSession+abc+admin+internal.com@example.com` → replies to `admin@internal.com`
+   - Everything after the last pair of `+` symbols is the reply address
+   - The first `+` in the reply part becomes the `@`
+   - Token is optional if the sender IP is authorized
+   - Examples:
+     - `robotSession+admin+internal.com@example.com` → replies to `admin@internal.com`
+     - `robotSession+abc+admin+internal.com@example.com` → replies to `admin@internal.com` (with token)
 2. **Reply-To header**: From the parsed email
 3. **From header**: From the parsed email
 4. **Envelope MAIL FROM**: From the SMTP envelope
@@ -167,12 +171,13 @@ The Session Bot determines where to send the reply using the following priority:
 # Send test email to session bot
 echo "Test email" | mail -s "Session Analysis" robotSession@example.com
 
-# With token
-echo "Test email" | mail -s "Session Analysis" robotSession+mytoken@example.com
-
-# With custom reply address (sieve format)
+# With custom reply address (without token, if IP is authorized)
 echo "Test email" | mail -s "Session Analysis" \
-  robotSession+token+admin+mydomain.com@example.com
+  robotSession+admin+mydomain.com@example.com
+
+# With token and custom reply address
+echo "Test email" | mail -s "Session Analysis" \
+  robotSession+mytoken+admin+mydomain.com@example.com
 ```
 
 ### Email Analysis Bot
@@ -243,7 +248,14 @@ echo "Test email" | mail -s "Session Analysis" \
 **Reply-To Address Resolution**:
 
 The Email Analysis Bot uses the same priority as Session Bot:
-1. Sieve reply address (embedded in bot address using + encoding)
+
+1. **Sieve reply address**: Embedded in bot address using + encoding
+   - Format 1 (without token): `robotEmail+localpart+domain.com@botdomain.com`
+   - Format 2 (with token): `robotEmail+token+localpart+domain.com@botdomain.com`
+   - Token is optional if the sender IP is authorized
+2. **Reply-To header**: From the parsed email
+3. **From header**: From the parsed email
+4. **Envelope MAIL FROM**: From the SMTP envelope
 2. Reply-To header (extracted from envelope)
 3. From header (extracted from envelope)
 4. Envelope MAIL FROM

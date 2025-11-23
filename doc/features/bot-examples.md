@@ -267,26 +267,44 @@ Both bots determine where to send the reply using this priority order:
 
 ### Sieve Reply Address Format
 
-The sieve format allows embedding a custom reply address in the bot address itself.
+The sieve format allows embedding a custom reply address in the bot address itself. The token is optional if the sender IP is authorized.
 
-**Format**: `robot+token+localpart+domain.tld@botdomain.com`
+**Format 1 (without token)**: `robot+localpart+domain.tld@botdomain.com`
+
+**Format 2 (with token)**: `robot+token+localpart+domain.tld@botdomain.com`
 
 The reply address is encoded with `+` instead of `@`:
-- Everything after the second `+` is the reply address
+- Everything after the last pair of `+` symbols is the reply address
 - The first `+` in the reply part becomes the `@`
 
 **Examples**:
 
 | Bot Address | Reply Sent To |
 |-------------|---------------|
-| `robotSession+abc+admin+internal.com@robin.local` | `admin@internal.com` |
-| `robotEmail+token+user+example.org@robin.local` | `user@example.org` |
-| `robotSession+xyz+john.doe+company.net@robin.local` | `john.doe@company.net` |
+| `robotSession+admin+internal.com@robin.local` | `admin@internal.com` |
+| `robotSession+abc+admin+internal.com@robin.local` | `admin@internal.com` (with token) |
+| `robotEmail+user+example.org@robin.local` | `user@example.org` |
+| `robotEmail+token+user+example.org@robin.local` | `user@example.org` (with token) |
+| `robotSession+john.doe+company.net@robin.local` | `john.doe@company.net` |
+| `robot+token@botdomain.com` | *(no reply address extracted)* |
+| `robot+user@botdomain.com` | *(no reply address extracted)* |
+| `robot+token+user@botdomain.com` | *(no reply address extracted)* |
+| `robot+user+sub.domain.com@botdomain.com` | `user@sub.domain.com` |
+| `robot+token+user+sub.domain.com@botdomain.com` | `user@sub.domain.com` |
+| `robot+tok-en_123+user+domain.com@botdomain.com` | `user@domain.com` |
+| `robot+user.name+domain.com@botdomain.com` | `user.name@domain.com` |
+| `robot+1234+user+domain.com@botdomain.com` | `user@domain.com` |
+| `robot+tok-en+user+do-main.com@botdomain.com` | `user@do-main.com` |
 
 ### Usage Example
 
 ```bash
-# Embed custom reply address
+# Without token (if IP is authorized)
+echo "Analysis request" | mail -s "Analysis" \
+  -r "sender@example.com" \
+  "robotEmail+admin+internal.company.com@robin.local"
+
+# With token and custom reply address
 echo "Analysis request" | mail -s "Analysis" \
   -r "sender@example.com" \
   "robotEmail+mytoken+admin+internal.company.com@robin.local"
