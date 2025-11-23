@@ -1,8 +1,7 @@
 package com.mimecast.robin.bots;
 
-import com.mimecast.robin.main.Config;
-import com.mimecast.robin.mime.EmailBuilder;
 import com.mimecast.robin.mime.EmailParser;
+import com.mimecast.robin.mime.parts.MimePart;
 import com.mimecast.robin.mime.parts.TextMimePart;
 import com.mimecast.robin.mx.MXResolver;
 import com.mimecast.robin.mx.StrictMx;
@@ -10,31 +9,19 @@ import com.mimecast.robin.mx.assets.DnsRecord;
 import com.mimecast.robin.mx.client.XBillDnsRecordClient;
 import com.mimecast.robin.mx.dane.DaneChecker;
 import com.mimecast.robin.mx.dane.DaneRecord;
-import com.mimecast.robin.queue.PersistentQueue;
-import com.mimecast.robin.queue.QueueFiles;
-import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.scanners.rbl.RblChecker;
 import com.mimecast.robin.scanners.rbl.RblResult;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
-import com.mimecast.robin.smtp.session.EmailDirection;
 import com.mimecast.robin.smtp.session.Session;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.xbill.DNS.Address;
 
-import java.io.ByteArrayOutputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Email infrastructure analysis bot that performs comprehensive email security checks.
@@ -73,7 +60,7 @@ public class EmailAnalysisBot implements BotProcessor {
                     botAddress, connection.getSession().getUID());
 
             // Determine reply address.
-            String replyTo = determineReplyAddress(connection, botAddress);
+            String replyTo = BotReplyAddressResolver.resolveReplyAddress(connection, botAddress);
             if (replyTo == null || replyTo.isEmpty()) {
                 log.warn("Could not determine reply address for bot request from session UID: {}",
                         connection.getSession().getUID());
@@ -95,88 +82,6 @@ public class EmailAnalysisBot implements BotProcessor {
         }
     }
 
-    /**
-     * Determines the reply address.
-     * <p>Priority order:
-     * <ol>
-     *   <li>Sieve reply address embedded in bot address (robotEmail+token+user+domain.com@botdomain)</li>
-     *   <li>Reply-To header from envelope (extracted before parser closed)</li>
-     *   <li>From header from envelope (extracted before parser closed)</li>
-     *   <li>Envelope MAIL FROM</li>
-     * </ol>
-     *
-     * @param connection SMTP connection.
-     * @param botAddress The bot address that was matched.
-     * @return Reply address or null if none found.
-     */
-    private String determineReplyAddress(Connection connection, String botAddress) {
-        // Check for sieve reply address embedded in bot address.
-        // Format: robot+token+user+domain.com@botdomain.com
-        // The part after second + becomes user@domain.com (+ converted to @)
-        Pattern sievePattern = Pattern.compile("^[^+]+\\+(.+)@[^@]+$");
-        Matcher matcher = sievePattern.matcher(botAddress);
-        if (matcher.matches()) {
-            String afterFirstPlus = matcher.group(1);
-            // Check if there's a second + (indicating reply address)
-            int secondPlusIndex = afterFirstPlus.indexOf('+');
-            if (secondPlusIndex >= 0 && secondPlusIndex < afterFirstPlus.length() - 1) {
-                // Everything after the second + is the reply address with + instead of @
-                String replyPart = afterFirstPlus.substring(secondPlusIndex + 1);
-                // Convert first + to @ to form the email address
-                int firstPlusInReply = replyPart.indexOf('+');
-                if (firstPlusInReply >= 0) {
-                    String replyAddress = replyPart.substring(0, firstPlusInReply) + "@" +
-                            replyPart.substring(firstPlusInReply + 1);
-                    log.debug("Using sieve reply address: {}", replyAddress);
-                    return replyAddress;
-                }
-            }
-        }
-
-        if (!connection.getSession().getEnvelopes().isEmpty()) {
-            MessageEnvelope envelope = connection.getSession().getEnvelopes().getLast();
-
-            // Try Reply-To header first.
-            String replyTo = envelope.getHeaders().get("X-Parsed-Reply-To");
-            if (replyTo != null && !replyTo.isEmpty()) {
-                log.debug("Using Reply-To header from envelope: {}", replyTo);
-                return extractEmailAddress(replyTo);
-            }
-
-            // Try From header.
-            String from = envelope.getHeaders().get("X-Parsed-From");
-            if (from != null && !from.isEmpty()) {
-                log.debug("Using From header from envelope: {}", from);
-                return extractEmailAddress(from);
-            }
-
-            // Fall back to envelope MAIL FROM.
-            String mailFrom = envelope.getMail();
-            if (mailFrom != null && !mailFrom.isEmpty()) {
-                log.debug("Using envelope MAIL FROM: {}", mailFrom);
-                return mailFrom;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Extracts email address from a header value.
-     *
-     * @param headerValue Header value.
-     * @return Extracted email address.
-     */
-    private String extractEmailAddress(String headerValue) {
-        if (headerValue.contains("<") && headerValue.contains(">")) {
-            int start = headerValue.indexOf('<') + 1;
-            int end = headerValue.indexOf('>');
-            if (start > 0 && end > start) {
-                return headerValue.substring(start, end);
-            }
-        }
-        return headerValue.trim();
-    }
 
     /**
      * Generates comprehensive analysis report.
@@ -680,92 +585,27 @@ public class EmailAnalysisBot implements BotProcessor {
      */
     private void queueResponse(Session session, String botAddress, String replyTo, String report) {
         try {
-            // Create envelope for response.
-            MessageEnvelope envelope = new MessageEnvelope();
-            envelope.setMail(stripBotAddress(botAddress));
-            envelope.setRcpt(replyTo);
-            envelope.setSubject("Email Infrastructure Analysis Report - " + session.getUID());
+            // Create MIME part for the report.
+            List<MimePart> parts = new ArrayList<>();
+            parts.add(new TextMimePart(report.getBytes(StandardCharsets.UTF_8))
+                    .addHeader("Content-Type", "text/plain; charset=\"UTF-8\"")
+                    .addHeader("Content-Transfer-Encoding", "8bit")
+            );
 
-            // Create outbound session for delivery.
-            Session outboundSession = new Session();
-            outboundSession.setDirection(EmailDirection.OUTBOUND);
-            outboundSession.setEhlo(Config.getServer().getHostname());
-            outboundSession.getEnvelopes().add(envelope);
-
-            // Build MIME email with report.
-            ByteArrayOutputStream emailStream = new ByteArrayOutputStream();
-            new EmailBuilder(outboundSession, envelope)
-                    .addHeader("Subject", envelope.getSubject())
-                    .addHeader("To", replyTo)
-                    .addHeader("From", envelope.getMail())
-                    .addPart(new TextMimePart(report.getBytes(StandardCharsets.UTF_8))
-                            .addHeader("Content-Type", "text/plain; charset=\"UTF-8\"")
-                            .addHeader("Content-Transfer-Encoding", "8bit")
-                    )
-                    .writeTo(emailStream);
-
-            // Write email to .eml file in store folder.
-            String emlFilePath = writeEmailToStore(emailStream, outboundSession.getUID());
-
-            // Set the file path on the envelope.
-            envelope.setFile(emlFilePath);
-
-            // Create relay session and queue.
-            RelaySession relaySession = new RelaySession(outboundSession);
-            relaySession.setProtocol("ESMTP");
-
-            // Persist envelope files to queue folder.
-            QueueFiles.persistEnvelopeFiles(relaySession);
-
-            // Queue for delivery.
-            PersistentQueue.getInstance().enqueue(relaySession);
+            // Use BotHelper to queue the response.
+            BotHelper.queueBotResponse(
+                    session,
+                    botAddress,
+                    replyTo,
+                    "Robin Email Analysis BOT - " + session.getUID(),
+                    parts
+            );
 
             log.info("Queued email analysis bot response for delivery to: {}", replyTo);
 
         } catch (IOException e) {
             log.error("Failed to queue email analysis bot response: {}", e.getMessage(), e);
         }
-    }
-
-    /**
-     * Strips token from bot address.
-     */
-    private String stripBotAddress(String botAddress) {
-        if (botAddress == null || !botAddress.contains("+")) {
-            return botAddress;
-        }
-
-        int firstPlusIndex = botAddress.indexOf('+');
-        int atIndex = botAddress.lastIndexOf('@');
-
-        if (firstPlusIndex != -1 && atIndex != -1 && firstPlusIndex < atIndex) {
-            String prefix = botAddress.substring(0, firstPlusIndex);
-            String domain = botAddress.substring(atIndex);
-            return prefix + domain;
-        }
-
-        return botAddress;
-    }
-
-    /**
-     * Writes the email to an .eml file in the store folder.
-     */
-    private String writeEmailToStore(ByteArrayOutputStream emailStream, String sessionUid) throws IOException {
-        String basePath = Config.getServer().getStorage().getStringProperty("path", "/tmp/store");
-        Path storePath = Paths.get(basePath);
-        Files.createDirectories(storePath);
-
-        String filename = String.format("%s-%s.eml",
-                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS")),
-                sessionUid);
-        Path emailFile = storePath.resolve(filename);
-
-        try (FileOutputStream fos = new FileOutputStream(emailFile.toFile())) {
-            emailStream.writeTo(fos);
-            log.debug("Wrote bot response email to store: {}", emailFile);
-        }
-
-        return emailFile.toString();
     }
 
     @Override
