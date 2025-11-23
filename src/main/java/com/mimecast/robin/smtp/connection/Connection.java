@@ -102,7 +102,7 @@ public class Connection extends SmtpFoundation {
 
         int retry = session.getRetry() > 0 ? session.getRetry() : 1;
 
-        if (session.getMx().isEmpty()) {
+        if (session.getMx() == null || session.getMx().isEmpty()) {
             throw new SmtpException("No MX to connect to");
         }
 
