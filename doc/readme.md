@@ -9,8 +9,8 @@ Welcome to the Robin MTA documentation. This guide will help you navigate the do
 New to Robin? Start here:
 - [Getting Started Guide](user/getting-started.md) - Installation and quick start
 - [CLI Reference](user/cli.md) - Command-line interface
-- [Server Setup](user/server.md) - Running as SMTP server
-- [Client Usage](user/client.md) - Running as test client
+- [Server configuration](user/server.md) - Running as SMTP server
+- [Client usage](user/client.md) - Running as test client
 
 ### 👤 End Users
 
@@ -123,7 +123,7 @@ java -jar robin.jar --client --case test.json5
 ```bash
 java -jar robin.jar --dane --domain example.com
 ```
-→ See [DANE Library](lib/dane/README.md)
+→ See [DANE Library](lib/dane/readme.md)
 
 **Check MTA-STS**:
 ```bash
@@ -137,13 +137,13 @@ java -jar robin.jar --mtasts --domain example.com
 ```java
 List<DaneRecord> records = DaneChecker.checkDane("mail.example.com");
 ```
-→ See [DANE Library](lib/dane/README.md)
+→ See [DANE Library](lib/dane/readme.md)
 
 **MX Resolution with Security**:
 ```java
 List<SecureMxRecord> mxList = new MXResolver().resolveSecureMx("example.com");
 ```
-→ See [MX Library](lib/mx/README.md)
+→ See [MX Library](lib/mx/readme.md)
 
 **MIME Parsing**:
 ```java
@@ -160,7 +160,3 @@ EmailParser parser = new EmailParser(inputStream);
 ## Contributing
 
 Want to contribute? See [Contributing Guide](../contributing.md)
-
-## License
-
-See LICENSE file in repository root.

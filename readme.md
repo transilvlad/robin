@@ -56,35 +56,36 @@ This project makes use of sample password as needed for testing and demonstratio
 
 Documentation
 -------------
-- [Introduction](doc/introduction.md)
-- [CLI usage](doc/cli.md)
+- [Documentation Index](doc/readme.md)
+- [Getting Started Guide](doc/user/getting-started.md) - Installation and quick start
+- [CLI Reference](doc/user/cli.md)
 
 ### Java SMTP/ESMTP/LMTP Client
-- [Client usage](doc/client.md)
+- [Client usage](doc/user/client.md)
 
 ### Server
-- [Server configuration](doc/server.md)
-- [Queue Persistence](doc/queue.md) - Configurable queue backends (MapDB, MariaDB, PostgreSQL).
-- [HashiCorp Vault](doc/vault.md)
-- [SMTP webhooks](doc/webhooks.md)
-- [Endpoints](doc/endpoints.md) - JVM metrics implementation.
-- [Prometheus Remote Write](doc/prometheus.md) - Prometheus Remote Write implementation.
-- [ClamAV Integration](doc/clamav.md) - ClamAV virus scanning integration.
-- [Rspamd Integration](doc/rspamd.md) - Rspamd spam/phishing detection integration.
-- [Email Analysis Bots](doc/bots.md) - Email and infrastructure analysis bots.
+- [Server configuration](doc/user/server.md)
+- [Queue Persistence](doc/features/queue.md) - Configurable queue backends (MapDB, MariaDB, PostgreSQL).
+- [HashiCorp Vault](doc/features/vault.md)
+- [SMTP webhooks](doc/features/webhooks.md)
+- [Endpoints](doc/features/endpoints.md) - JVM metrics implementation.
+- [Prometheus Remote Write](doc/features/prometheus.md) - Prometheus Remote Write implementation.
+- [ClamAV Integration](doc/features/clamav.md) - ClamAV virus scanning integration.
+- [Rspamd Integration](doc/features/rspamd.md) - Rspamd spam/phishing detection integration.
+- [Email Analysis Bots](doc/features/bots.md) - Email and infrastructure analysis bots.
 
 ### Secrets
-- [Secrets, magic and Local Secrets File](doc/secrets.md)
+- [Secrets, magic and Local Secrets File](doc/features/secrets.md)
 
 ### Testing cases
-- [E/SMTP Cases](doc/case-smtp.md)
-- [HTTP/S Cases](doc/case-http.md)
-- [Magic](doc/magic.md)
-- [MIME](doc/mime.md)
+- [E/SMTP Cases](doc/testing/case-smtp.md)
+- [HTTP/S Cases](doc/testing/case-http.md)
+- [Magic](doc/features/magic.md)
+- [MIME](doc/testing/mime.md)
 
 ### Server Library
-- [Plugins](doc/plugins.md)
-- [Flowchart](doc/flowchart.md)
+- [Plugins](doc/developer/plugin-development.md)
+- [Flowchart](doc/developer/flowchart.md)
 
 ### Libraries
 - [MTA-STS](doc/lib/mta-sts/readme.md) - MTA-STS compliant MX resolver implementation (former MTA-STS library).
