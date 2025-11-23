@@ -14,9 +14,13 @@ import java.nio.file.Paths;
 @Disabled
 public class RspamdClientDebug {
 
+    /**
+     * Scan a file using RspamdClient for debugging purposes.
+     * <p>Adjust the path to another eml file as needed.
+     */
     @Test
     public void scanFile() throws IOException {
-        var path = Paths.get("example.eml");
+        var path = Paths.get("src/test/resources/mime/lipsum.eml");
         var client = new RspamdClient();
         var result = client.scanFile(path.toFile());
         System.out.println("Scan Result: " + prettyPrintJson(result));

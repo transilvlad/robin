@@ -13,6 +13,11 @@ import java.util.List;
 @Disabled
 public class ImapClientDebug {
 
+    /**
+     * Get mailbox messages using ImapClient for debugging purposes.
+     * <p>Adjust the host, port, user, pass, and folder variables as needed.
+     * <p>This is a read-only operation; no messages will be modified or deleted.
+     */
     @Test
     public void getMailbox() {
         String host = "mail.example.com";
