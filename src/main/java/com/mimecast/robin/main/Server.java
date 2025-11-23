@@ -57,8 +57,7 @@ public class Server extends Foundation {
      * <p>Bots analyze incoming emails and generate automated responses.
      * <p>Using a cached thread pool that creates threads on demand and reuses idle threads.
      */
-    private static ExecutorService botExecutor;
-
+    protected static ExecutorService botExecutor;
 
     /**
      * Initializes and starts the Robin SMTP server.
@@ -109,10 +108,6 @@ public class Server extends Foundation {
 
         startup(); // Start prerequisite services.
 
-        // Initialize bot executor service
-        botExecutor = Executors.newCachedThreadPool();
-        log.info("Bot processing thread pool initialized");
-
         // Start listeners in the thread pool.
         if (!listeners.isEmpty()) {
             listenerExecutor = Executors.newFixedThreadPool(listeners.size());
@@ -158,6 +153,10 @@ public class Server extends Foundation {
         } catch (IOException e) {
             log.error("Unable to start API endpoint: {}", e.getMessage());
         }
+
+        // Initialize bot executor service.
+        botExecutor = Executors.newCachedThreadPool();
+        log.info("Bot processing thread pool initialized");
     }
 
     /**
