@@ -54,11 +54,7 @@ public class MXRoute {
      * @return Unmodifiable list of IP addresses.
      */
     public List<String> getIpAddresses() {
-        List<String> ipAddresses = new ArrayList<>();
-        for (MXServer server : this.servers) {
-            ipAddresses.addAll(server.getIpAddresses());
-        }
-        return Collections.unmodifiableList(ipAddresses);
+        return this.servers.stream().flatMap(server -> server.getIpAddresses().stream()).toList();
     }
 
     /**
