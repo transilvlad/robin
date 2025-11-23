@@ -76,6 +76,7 @@ public class LocalStorageClientDebug {
 
         // Run the relay queue cron to process the bot queue immediately.
         // Likely email delivery will fail unless your recipient server is reachable and accepts the email immediately.
+        // In that case it will remain in the queue for retrying later.
         RelayQueueCron.run();
 
         // Close session to delete original email file.
