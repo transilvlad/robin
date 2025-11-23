@@ -235,12 +235,7 @@ echo "Test email" | mail -s "Session Analysis" \
    - Shows certificate usage, selector, and matching type
    - Displays certificate association data
 
-10. **Virus Scan Results**
-    - Reports ClamAV scan results
-    - Lists any detected viruses
-    - Shows clean/infected status
-
-11. **Spam Analysis**
+10. **Spam Analysis**
     - Reports Rspamd spam score and status
     - Lists triggered spam rules with scores
     - Shows detailed symbol breakdown

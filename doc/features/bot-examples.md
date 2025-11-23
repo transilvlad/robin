@@ -366,7 +366,6 @@ echo "Analysis" | mail -s "Secure Analysis" \
 | **MX Records** | ❌ Not included | ✅ All MX hosts |
 | **MTA-STS** | ❌ Not included | ✅ Policy details |
 | **DANE** | ❌ Not included | ✅ TLSA records |
-| **Virus Scan** | ❌ Not included | ✅ ClamAV results |
 | **Spam Score** | ❌ Not included | ✅ Rspamd analysis |
 | **JSON Data** | ✅ Complete session | ❌ Not included |
 
