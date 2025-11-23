@@ -57,7 +57,8 @@ public class SessionRouting {
         // Create relay sessions for each unique resolved MX.
         for (MXRoute route : routes) {
             // Get the primary MX server (lowest priority).
-            if (route.getServers().isEmpty()) {
+            if (route.getServers().isEmpty() || route.getIpAddresses().isEmpty()) {
+                log.warn("No MX servers found for route {}", route.getHash());
                 continue;
             }
 
