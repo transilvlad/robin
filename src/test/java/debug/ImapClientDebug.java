@@ -14,7 +14,7 @@ import java.util.List;
 public class ImapClientDebug {
 
     @Test
-    public void test() {
+    public void getMailbox() {
         String host = "mail.example.com";
         long port = 993L;
         String user = "tony@example.com";

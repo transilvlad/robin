@@ -15,7 +15,7 @@ import java.nio.file.Paths;
 public class RspamdClientDebug {
 
     @Test
-    public void testDebugMode() throws IOException {
+    public void scanFile() throws IOException {
         var path = Paths.get("example.eml");
         var client = new RspamdClient();
         var result = client.scanFile(path.toFile());
