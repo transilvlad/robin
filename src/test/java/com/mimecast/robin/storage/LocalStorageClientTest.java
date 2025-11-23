@@ -63,8 +63,8 @@ class LocalStorageClientTest {
         MessageEnvelope envelope = new MessageEnvelope().addRcpt("tony@example.com");
         connection.getSession().addEnvelope(envelope);
         LocalStorageClient localStorageClient = new LocalStorageClient()
-                .setConnection(new ConnectionMock(Factories.getSession()))
-                .setExtension("eml").setConnection(connection);
+                .setConnection(connection)
+                .setExtension("eml");
 
         String content = "Mime-Version: 1.0\r\n";
         localStorageClient.getStream().write(content.getBytes());
@@ -80,8 +80,8 @@ class LocalStorageClientTest {
         MessageEnvelope envelope = new MessageEnvelope().addRcpt("tony@example.com");
         connection.getSession().addEnvelope(envelope);
         LocalStorageClient localStorageClient = new LocalStorageClient()
-                .setConnection(new ConnectionMock(Factories.getSession()))
-                .setExtension("dat").setConnection(connection);
+                .setConnection(connection)
+                .setExtension("dat");
 
         String content = "Mime-Version: 1.0\r\n" +
                 "X-Robin-Filename: robin.eml\r\n" +
@@ -104,9 +104,9 @@ class LocalStorageClientTest {
         MessageEnvelope envelope = new MessageEnvelope().addRcpt("tony@example.com");
         connection.getSession().addEnvelope(envelope);
 
-        LocalStorageClient localStorageClient = new LocalStorageClientMock(Config.getServer(), Pair.of(param, ""))
-                .setConnection(new ConnectionMock(Factories.getSession()))
-                .setExtension("dat").setConnection(connection);
+        LocalStorageClient localStorageClient = new LocalStorageClient()
+                .setConnection(connection)
+                .setExtension("dat");
 
         String content = "Mime-Version: 1.0\r\n";
         localStorageClient.getStream().write(content.getBytes());
