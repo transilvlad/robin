@@ -77,4 +77,10 @@ class ServerConfigTest {
         assertTrue(blocklistConfig.getEntries().contains("192.168.100.100"), "Should contain test IP");
         assertTrue(blocklistConfig.getEntries().contains("10.0.0.0/8"), "Should contain test CIDR");
     }
+
+    @Test
+    void isXclientEnabled() {
+        // Test config has xclientEnabled set to true for testing
+        assertTrue(Config.getServer().isXclientEnabled(), "XCLIENT should be enabled in test config");
+    }
 }

@@ -445,6 +445,17 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
+     * Is XCLIENT extension enabled.
+     * <p>WARNING: This feature is intended for development and testing purposes only.
+     * Do NOT enable in production environments as XCLIENT allows clients to forge sender information.
+     *
+     * @return Boolean (default: false).
+     */
+    public boolean isXclientEnabled() {
+        return getBooleanProperty("xclientEnabled", false);
+    }
+
+    /**
      * Applies magic replacement to string values in a configuration map.
      *
      * @param config Configuration map to process.

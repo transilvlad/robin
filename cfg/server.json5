@@ -173,5 +173,10 @@
   // Chaos headers for testing exception scenarios.
   // WARNING: Do NOT enable in production. This feature allows bypassing normal processing
   // and is intended strictly for development and testing purposes.
-  chaosHeaders: false
+  chaosHeaders: false,
+
+  // Enable XCLIENT extension for development and testing only.
+  // WARNING: Do NOT enable in production. XCLIENT allows clients to forge sender information
+  // and is intended strictly for development and testing purposes.
+  xclientEnabled: false
 }

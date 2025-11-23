@@ -78,5 +78,16 @@
  *     // Shutdown sequence.
  *     port25.serverShutdown();
  * </pre>
+ *
+ * <h2>XCLIENT Extension:</h2>
+ * <p>The XCLIENT extension can be enabled via the {@code xclientEnabled} flag in server.json5.
+ * This extension allows clients to override connection attributes and is implemented as a plugin.
+ * <p><b>WARNING:</b> XCLIENT is intended for development and testing only. Do NOT enable in production
+ * as it allows clients to forge sender information without authentication.
+ * <p>The server checks the enablement flag before processing XCLIENT commands. When disabled,
+ * XCLIENT commands are rejected with an "Unrecognized command" error.
+ *
+ * @see com.mimecast.robin.annotation.plugin.XclientPlugin
+ * @see com.mimecast.robin.config.server.ServerConfig#isXclientEnabled()
  */
 package com.mimecast.robin.smtp;

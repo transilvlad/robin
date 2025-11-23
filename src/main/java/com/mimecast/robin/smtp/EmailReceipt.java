@@ -243,7 +243,32 @@ public class EmailReceipt implements Runnable {
      * @throws IOException Unable to communicate.
      */
     private void process(Verb verb) throws IOException {
-        if (Extensions.isExtension(verb)) {
+        // Check for XCLIENT extension separately due to security flag requirement.
+        if ("XCLIENT".equalsIgnoreCase(verb.getKey())) {
+            if (Config.getServer().isXclientEnabled()) {
+                // XCLIENT is enabled, process as normal extension.
+                if (Extensions.isExtension(verb)) {
+                    Optional<Extension> opt = Extensions.getExtension(verb);
+                    if (opt.isPresent()) {
+                        // Call webhook before processing extension.
+                        if (!processWebhook(verb)) {
+                            return; // Webhook intercepted processing.
+                        }
+
+                        ServerProcessor server = opt.get().getServer();
+                        server.process(connection, verb);
+                    }
+                }
+            } else {
+                // XCLIENT is disabled, reject the command.
+                errorLimit--;
+                if (errorLimit == 0) {
+                    log.warn("Error limit reached.");
+                    return;
+                }
+                connection.write(SmtpResponses.UNRECOGNIZED_CMD_500);
+            }
+        } else if (Extensions.isExtension(verb)) {
             Optional<Extension> opt = Extensions.getExtension(verb);
             if (opt.isPresent()) {
                 // Call webhook before processing extension.
