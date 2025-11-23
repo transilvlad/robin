@@ -170,10 +170,12 @@ public class RelayDequeue {
         try {
             if ("dovecot-lda".equalsIgnoreCase(relaySession.getProtocol())) {
                 log.debug("Attempting Dovecot LDA delivery");
-                new DovecotLdaClient(relaySession).send();
+                new DovecotLdaClient(relaySession)
+                        .send();
             } else {
                 log.debug("Attempting email delivery");
-                new EmailDelivery(relaySession.getSession()).send();
+                new EmailDelivery(relaySession.getSession())
+                        .send();
             }
         } catch (Exception e) {
             log.error("Delivery failed for session uid={}: {}",
