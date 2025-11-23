@@ -53,7 +53,6 @@ public class LocalStorageClientDebug {
         server.getStorage().getMap().put("enabled", true);
         server.getRelay().getMap().put("enabled", false);
         server.getStorage().getMap().put("autoDelete", true);
-        server.getClamAV().getMap().put("enabled", true);
         server.getRspamd().getMap().put("enabled", true);
         server.getQueue().getMap().put("queueInitialDelay", 0L); // No delay for testing.
         server.getRspamd().getMap().put("rejectThreshold", 250.0); // Avoid SPAM rejection for testing.

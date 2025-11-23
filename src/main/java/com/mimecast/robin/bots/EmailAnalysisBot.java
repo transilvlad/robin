@@ -126,10 +126,7 @@ public class EmailAnalysisBot implements BotProcessor {
         // 9. DANE Check.
         appendDaneCheck(report, session);
 
-        // 10. Virus Scan Results.
-        appendVirusScanResults(report, session);
-
-        // 11. Spam Analysis.
+        // 10. Spam Analysis.
         appendSpamAnalysis(report, session);
 
         report.append("\n").append("=".repeat(70)).append("\n");
@@ -440,48 +437,6 @@ public class EmailAnalysisBot implements BotProcessor {
             report.append("DANE Check: ERROR\n");
             report.append("Error: ").append(e.getMessage()).append("\n");
             log.error("Error checking DANE for {}: {}", domain, e.getMessage());
-        }
-
-        report.append("\n");
-    }
-
-    /**
-     * Append virus scan results from ClamAV.
-     */
-    private void appendVirusScanResults(StringBuilder report, Session session) {
-        report.append("Virus Scan Results (ClamAV)\n");
-        report.append("-".repeat(70)).append("\n");
-
-        if (!session.getEnvelopes().isEmpty()) {
-            MessageEnvelope envelope = session.getEnvelopes().getLast();
-            List<Map<String, Object>> scanResults = envelope.getScanResults();
-
-            boolean clamavFound = false;
-            for (Map<String, Object> result : scanResults) {
-                if ("clamav".equals(result.get("scanner"))) {
-                    clamavFound = true;
-                    Boolean infected = (Boolean) result.get("infected");
-
-                    if (Boolean.TRUE.equals(infected)) {
-                        report.append("Status: INFECTED\n");
-                        Object viruses = result.get("viruses");
-                        if (viruses != null) {
-                            report.append("Viruses Found:\n");
-                            report.append("  ").append(viruses.toString()).append("\n");
-                        }
-                    } else {
-                        report.append("Status: CLEAN\n");
-                        report.append("No viruses detected\n");
-                    }
-                }
-            }
-
-            if (!clamavFound) {
-                report.append("Status: NOT SCANNED\n");
-                report.append("ClamAV scan was not performed\n");
-            }
-        } else {
-            report.append("No scan results available\n");
         }
 
         report.append("\n");
