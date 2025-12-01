@@ -424,13 +424,17 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
-     * Is users enabled.
+     * Gets users configuration.
      *
-     * @return Boolean.
+     * @return UsersConfig instance.
      */
-    public boolean isUsersEnabled() {
-        return !getDovecot().getBooleanProperty("auth") &&
-                getBooleanProperty("usersEnabled", false);
+    public UsersConfig getUsers() {
+        loadExternalIfAbsent("users", Map.class);
+
+        if (map.containsKey("users")) {
+            return new UsersConfig(getMapProperty("users"));
+        }
+        return new UsersConfig(new HashMap<>());
     }
 
     /**
@@ -487,35 +491,6 @@ public class ServerConfig extends ConfigFoundation {
         return processed;
     }
 
-    /**
-     * Gets users list.
-     *
-     * @return Users list.
-     */
-    public List<UserConfig> getUsers() {
-        loadExternalIfAbsent("users", List.class);
-
-        List<UserConfig> users = new ArrayList<>();
-        for (Map<String, String> user : (List<Map<String, String>>) getListProperty("users")) {
-            users.add(new UserConfig(user));
-        }
-        return users;
-    }
-
-    /**
-     * Gets user by username.
-     *
-     * @param find Username to find.
-     * @return Optional of UserConfig.
-     */
-    public Optional<UserConfig> getUser(String find) {
-        for (UserConfig user : getUsers()) {
-            if (user.getName().equals(find)) {
-                return Optional.of(user);
-            }
-        }
-        return Optional.empty();
-    }
 
     /**
      * Gets scenarios map.

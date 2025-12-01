@@ -87,7 +87,7 @@ public class ServerRcpt extends ServerMail {
                     connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
                     return false;
                 }
-            } else if (Config.getServer().isUsersEnabled()) {
+            } else if (Config.getServer().getUsers().isListEnabled()) {
                 // Scenario response.
                 Optional<ScenarioConfig> opt = connection.getScenario();
                 if (opt.isPresent() && opt.get().getRcpt() != null) {

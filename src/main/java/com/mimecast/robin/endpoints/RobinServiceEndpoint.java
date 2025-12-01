@@ -312,8 +312,7 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
         Map<String, ?> webhooks = Config.getServer().getWebhooks().entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getMap()));
         appendConfigSection(extra, "Webhooks Configuration", webhooks);
-        List<Map<String, Object>> users = Config.getServer().getUsers().stream().map(com.mimecast.robin.config.server.UserConfig::getMap).collect(Collectors.toList());
-        appendConfigSection(extra, "Users Configuration", users);
+        appendConfigSection(extra, "Users Configuration", Config.getServer().getUsers().getMap());
         Map<String, ?> scenarios = Config.getServer().getScenarios().entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getMap()));
         appendConfigSection(extra, "Scenarios Configuration", scenarios);

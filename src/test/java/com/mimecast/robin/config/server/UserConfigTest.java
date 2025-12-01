@@ -18,7 +18,7 @@ class UserConfigTest {
     static void before() throws ConfigurationException {
         Foundation.init("src/test/resources/cfg/");
 
-        userConfig = Config.getServer().getUser("tony@example.com").get();
+        userConfig = Config.getServer().getUsers().getUser("tony@example.com").get();
     }
 
     @Test

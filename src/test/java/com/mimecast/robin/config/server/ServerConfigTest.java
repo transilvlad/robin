@@ -53,13 +53,13 @@ class ServerConfigTest {
 
     @Test
     void getUsers() {
-        assertEquals(1, Config.getServer().getUsers().size());
+        assertEquals(1, Config.getServer().getUsers().getList().size());
     }
 
     @Test
     void getUser() {
         // Tested in UserConfigTest.
-        assertTrue(Config.getServer().getUser("tony@example.com").isPresent());
+        assertTrue(Config.getServer().getUsers().getUser("tony@example.com").isPresent());
     }
 
     @Test

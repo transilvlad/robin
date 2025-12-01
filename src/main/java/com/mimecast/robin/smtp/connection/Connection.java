@@ -206,7 +206,7 @@ public class Connection extends SmtpFoundation {
      * @return Optional of UserConfig.
      */
     public Optional<UserConfig> getUser(String username) {
-        return Config.getServer().getUser(username);
+        return Config.getServer().getUsers().getUser(username);
     }
 
     /**

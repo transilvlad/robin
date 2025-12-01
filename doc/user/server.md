@@ -227,11 +227,6 @@ Example `server.json5` (core listeners & feature flags):
         timeoutSeconds: 5
       },
 
-      // Users allowed to authorize to the server.
-      // This feature should be used for testing only.
-      // This is disabled by default for security reasons.
-      usersEnabled: false, // See users.json5 for user definitions.
-
       // Chaos headers for testing exception scenarios.
       // WARNING: Do NOT enable in production. This feature allows bypassing normal processing
       // and is intended strictly for development and testing purposes.
@@ -292,12 +287,21 @@ Below are concise examples for each auxiliary config file.
 
 `users.json5` – Static test users (ignored if `dovecot.auth` is true):
 
-    [
-      {
-        name: "tony@example.com",
-        pass: "giveHerTheRing"
-      }
-    ]
+    {
+      // Enable or disable user list for authentication.
+      // This feature should be used for testing only.
+      // This is disabled by default for security reasons.
+      // User list is ignored if Dovecot authentication is enabled.
+      listEnabled: false,
+
+      // List of users allowed to authenticate to the server.
+      list: [
+        {
+          name: "tony@example.com",
+          pass: "giveHerTheRing"
+        }
+      ]
+    }
 
 `scenarios.json5` – Conditional SMTP verb responses keyed by EHLO/LHLO value:
 
