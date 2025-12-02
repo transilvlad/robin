@@ -65,13 +65,13 @@ public class DovecotLdaClient {
 
         if (!relaySession.getSession().getEnvelopes().isEmpty()) {
             // Read max attempts from dovecot config; default to 1 if not present or invalid.
-            int maxAttempts = Math.toIntExact(Config.getServer().getDovecot().getLongProperty("inlineSaveMaxAttempts", 1L));
+            int maxAttempts = Math.toIntExact(Config.getServer().getDovecot().getInlineSaveMaxAttempts());
             if (maxAttempts < 1) {
                 maxAttempts = 1;
             }
 
             // Get retry delay from config, default to 0 if not present
-            int retryDelay = Math.toIntExact(Config.getServer().getDovecot().getLongProperty("inlineSaveRetryDelay", 0L));
+            int retryDelay = Math.toIntExact(Config.getServer().getDovecot().getInlineSaveRetryDelay());
 
             Pair<Integer, String> result = null;
             if (relaySession.getSession().isInbound()) {

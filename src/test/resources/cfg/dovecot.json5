@@ -2,11 +2,27 @@
   // Enablement.
   auth: false,
 
-  // Path to Dovecot authentication client socket (auth-client for SASL mechanisms).
-  authClientSocket: "/run/dovecot/auth-client",
+  // Which backend to use for auth/userdb lookups: "dovecot" (socket) or "sql".
+  authBackend: "sql",
 
-  // Path to Dovecot userdb lookup socket (auth-userdb for mailbox existence).
-  authUserdbSocket: "/run/dovecot/auth-userdb",
+  // Combined dovecot auth sockets.
+  authSocket: {
+    // Path to Dovecot authentication client socket (auth-client for SASL mechanisms).
+    client: "/run/dovecot/auth-client",
+
+    // Path to Dovecot userdb lookup socket (auth-userdb for mailbox existence).
+    userdb: "/run/dovecot/auth-userdb"
+  },
+
+  // SQL backend configuration used when authBackend == "sql"
+  authSql: {
+    jdbcUrl: "jdbc:postgresql://robin-postgres:5432/robin",
+    user: "robin",
+    password: "robin",
+    // Queries must return the columns expected by the code: password; and for user lookup: home, uid, gid, mail
+    passwordQuery: "SELECT password FROM users WHERE email = ?",
+    userQuery: "SELECT home, uid, gid, maildir AS mail FROM users WHERE email = ?"
+  },
 
   // Save a copy of each email to Dovecot LDA.
   saveToDovecotLda: false,

@@ -17,21 +17,27 @@ Requirements
 
 Configuration (`dovecot.json5`)
 -------------------------------
-```
+```json5
 {
   auth: true,
-  authClientSocket: "/run/dovecot/auth-client",
-  authUserdbSocket: "/run/dovecot/auth-userdb",
+  authBackend: "sql", // or "dovecot"
+  authSocket: {
+    client: "/run/dovecot/auth-client",
+    userdb: "/run/dovecot/auth-userdb"
+  },
   saveToDovecotLda: true,
   ldaBinary: "/usr/libexec/dovecot/dovecot-lda"
 }
 ```
+
+Note: The `authSocket` object groups the Dovecot socket paths. This project no longer preserves legacy per-key compatibility; use the `authSocket` object in your configuration.
 
 User Lookup Example
 -------------------
 ```java
 import com.mimecast.robin.sasl.DovecotUserLookupNative;
 import java.nio.file.Paths;
+
 try (DovecotUserLookupNative lookup = new DovecotUserLookupNative(Paths.get("/run/dovecot/auth-userdb"))) {
     if (lookup.validate("user@example.com", "smtp")) {
         System.out.println("User exists");
@@ -39,6 +45,12 @@ try (DovecotUserLookupNative lookup = new DovecotUserLookupNative(Paths.get("/ru
         System.out.println("Unknown user");
     }
 }
+```
+
+If you want to read the socket from runtime config, use the typed config API:
+```java
+Path userdb = Paths.get(com.mimecast.robin.main.Config.getServer().getDovecot().getAuthSocket().getUserdb());
+try (DovecotUserLookupNative lookup = new DovecotUserLookupNative(userdb)) { ... }
 ```
 
 Authentication Examples
@@ -53,21 +65,10 @@ try (DovecotSaslAuthNative auth = new DovecotSaslAuthNative(Paths.get("/run/dove
 }
 ```
 
-LOGIN (multi-step handled internally):
+Using runtime-config socket path:
 ```java
-try (DovecotSaslAuthNative auth = new DovecotSaslAuthNative(Paths.get("/run/dovecot/auth-client"))) {
-    boolean ok = auth.authenticate("LOGIN", true, "user@example.com", "secret", "smtp", "127.0.0.1", "203.0.113.5");
-    System.out.println(ok ? "Login success" : "Login failed");
-}
-```
-
-Advanced (explicit IDs):
-```java
-long pid = ProcessHandle.current().pid();
-long req = 42;
-try (DovecotSaslAuthNative auth = new DovecotSaslAuthNative(Paths.get("/run/dovecot/auth-client"))) {
-    auth.authenticate("PLAIN", true, "user@example.com", "secret", "smtp", "127.0.0.1", "203.0.113.5", pid, req);
-}
+Path client = Paths.get(com.mimecast.robin.main.Config.getServer().getDovecot().getAuthSocket().getClient());
+try (DovecotSaslAuthNative auth = new DovecotSaslAuthNative(client)) { ... }
 ```
 
 Complete Flow
@@ -77,14 +78,16 @@ import com.mimecast.robin.sasl.*;
 import java.nio.file.Paths;
 
 // 1. Validate recipient/user exists (RCPT stage)
-try (DovecotUserLookupNative lookup = new DovecotUserLookupNative(Paths.get("/run/dovecot/auth-userdb"))) {
+Path userdb = Paths.get(com.mimecast.robin.main.Config.getServer().getDovecot().getAuthSocket().getUserdb());
+try (DovecotUserLookupNative lookup = new DovecotUserLookupNative(userdb)) {
     if (!lookup.validate("user@example.com", "smtp")) {
         System.out.println("Unknown user");
         return;
     }
 }
 // 2. Authenticate (AUTH stage)
-try (DovecotSaslAuthNative auth = new DovecotSaslAuthNative(Paths.get("/run/dovecot/auth-client"))) {
+Path client = Paths.get(com.mimecast.robin.main.Config.getServer().getDovecot().getAuthSocket().getClient());
+try (DovecotSaslAuthNative auth = new DovecotSaslAuthNative(client)) {
     if (auth.authenticate("PLAIN", true, "user@example.com", "userPassword", "smtp", "192.168.1.10", "203.0.113.50")) {
         System.out.println("Authentication successful");
     } else {
@@ -93,36 +96,54 @@ try (DovecotSaslAuthNative auth = new DovecotSaslAuthNative(Paths.get("/run/dove
 }
 ```
 
-Mechanisms
-----------
-- PLAIN: Base64 of `\0username\0password` sent in initial AUTH line.
-- LOGIN: Sends AUTH without `resp`. Dovecot replies with two `CONT` prompts; library handles each and sends username/password automatically.
+y rSQL-based Auth & User Lookup (Robin)
+------------------------------------
 
-Error Handling
---------------
-Both classes return `false` on failure.
-Common causes:
-- Missing or incorrect socket path / permissions
-- Dovecot service not running
-- Invalid credentials (AUTH)
-- Unknown user (lookup)
-- Unsecured channel when policy requires TLS
+Robin supports using an SQL backend as an alternative to Dovecot UNIX domain sockets for
+both user existence lookups (RCPT) and authentication (AUTH). This is controlled via
+`cfg/dovecot.json5` using the `authBackend` key which can be set to either `dovecot` or `sql`.
 
-Implementation Notes
---------------------
-- Use try-with-resources (both implement `AutoCloseable`).
-- Request IDs auto-increment per instance.
-- UTF-8 protocol lines; log output at DEBUG shows traffic.
-- LOGIN flow encapsulated in a single `authenticate()` call.
+Configuration example (`cfg/dovecot.json5`):
+```
+{
+  authBackend: "sql",
+  authSocket: {
+    client: "/run/dovecot/auth-client",
+    userdb: "/run/dovecot/auth-userdb"
+  },
+  authSql: {
+    jdbcUrl: "jdbc:postgresql://robin-postgres:5432/robin",
+    user: "robin",
+    password: "robin",
+    passwordQuery: "SELECT password FROM users WHERE email = ?",
+    userQuery: "SELECT home, uid, gid, maildir AS mail FROM users WHERE email = ?"
+  }
+}
+```
 
-Integration in Robin
---------------------
-- RCPT uses `DovecotUserLookupNative` for mailbox validation.
-- AUTH uses `DovecotSaslAuthNative` for SASL mechanisms.
-- Config differentiates sockets: `authClientSocket` and `authUserdbSocket`.
+Java usage examples
+-------------------
 
-Migration From Previous Version
--------------------------------
-- Old single `authSocket` property replaced by two distinct sockets.
-- User validation removed from `DovecotSaslAuthNative`; now in `DovecotUserLookupNative`.
-- Update configuration and any custom code accordingly.
+SqlUserLookup (RCPT / userdb lookup):
+```java
+import com.mimecast.robin.sasl.SqlUserLookup;
+SqlUserLookup lookup = new SqlUserLookup("jdbc:postgresql://robin-postgres:5432/robin", "robin", "robin", "SELECT home, uid, gid, maildir AS mail FROM users WHERE email = ?");
+Optional<SqlUserLookup.UserRecord> r = lookup.lookup("tony@example.com");
+if (r.isPresent()) System.out.println("Found: " + r.get().email);
+lookup.close();
+```
+
+SqlAuthProvider (AUTH):
+```java
+import com.mimecast.robin.sasl.SqlAuthProvider;
+SqlAuthProvider auth = new SqlAuthProvider("jdbc:postgresql://robin-postgres:5432/robin", "robin", "robin", null);
+boolean ok = auth.authenticate("tony@example.com", "stark");
+System.out.println(ok ? "Auth OK" : "Auth Failed");
+auth.close();
+```
+
+Notes
+-----
+- SqlAuthProvider uses Postgres' `crypt()` function (pgcrypto) to verify passwords server-side.
+- Ensure `pgcrypto` extension is installed and Postgres image is glibc-backed (e.g., `postgres:15`) for SHA512-CRYPT support.
+- SQL backend provides a consolidated storage model and simplifies environments where Dovecot is not used.

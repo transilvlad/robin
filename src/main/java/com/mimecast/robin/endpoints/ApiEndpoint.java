@@ -266,7 +266,7 @@ public class ApiEndpoint extends HttpEndpoint {
             // mailbox parameter is an override for dovecot folder delivery
             // Default to inboxFolder as most queued items are inbound
             String mailboxOverride = query.getOrDefault("mailbox",
-                    Config.getServer().getDovecot().getStringProperty("inboxFolder", "INBOX"));
+                    Config.getServer().getDovecot().getInboxFolder());
             log.debug("/client/queue overrides: protocol={}, mailbox={}", protocolOverride, mailboxOverride);
 
             String body = readBody(exchange.getRequestBody());

@@ -5,11 +5,14 @@
   // Which backend to use for auth/userdb lookups: "dovecot" (socket) or "sql".
   authBackend: "sql",
 
-  // Path to Dovecot authentication client socket (auth-client for SASL mechanisms).
-  authClientSocket: "/run/dovecot/auth-client",
+  // Combined dovecot auth sockets.
+  authSocket: {
+    // Path to Dovecot authentication client socket (auth-client for SASL mechanisms).
+    client: "/run/dovecot/auth-client",
 
-  // Path to Dovecot userdb lookup socket (auth-userdb for mailbox existence).
-  authUserdbSocket: "/run/dovecot/auth-userdb",
+    // Path to Dovecot userdb lookup socket (auth-userdb for mailbox existence).
+    userdb: "/run/dovecot/auth-userdb"
+  },
 
   // SQL backend configuration used when authBackend == "sql"
   authSql: {

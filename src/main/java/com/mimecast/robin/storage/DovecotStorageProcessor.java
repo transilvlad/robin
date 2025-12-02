@@ -1,6 +1,5 @@
 package com.mimecast.robin.storage;
 
-import com.mimecast.robin.config.BasicConfig;
 import com.mimecast.robin.config.server.ServerConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
@@ -8,7 +7,6 @@ import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.headers.ChaosHeaders;
 import com.mimecast.robin.queue.PersistentQueue;
 import com.mimecast.robin.queue.QueueFiles;
-import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.queue.bounce.BounceMessageGenerator;
 import com.mimecast.robin.queue.relay.DovecotLdaClient;
@@ -18,7 +16,6 @@ import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -61,7 +58,7 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
      * @throws IOException If an I/O error occurs during processing.
      */
     protected void saveToDovecotLda(Connection connection, EmailParser emailParser, ServerConfig config) throws IOException {
-        if (!config.getDovecot().getBooleanProperty("saveToDovecotLda")) {
+        if (!config.getDovecot().isSaveToDovecotLda()) {
             log.debug("Dovecot LDA storage disabled by configuration (saveToDovecotLda=false). Skipping mailbox delivery.");
             return;
         }
@@ -86,8 +83,8 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
             return;
         }
         String folder = connection.getSession().isInbound() 
-                ? config.getDovecot().getStringProperty("inboxFolder", "INBOX")
-                : config.getDovecot().getStringProperty("sentFolder", "Sent");
+                ? config.getDovecot().getInboxFolder()
+                : config.getDovecot().getSentFolder();
         log.info("Invoking Dovecot LDA for sender={} recipients={} outbound={} folder={}",
                 envelope.getMail(),
                 String.join(",", nonBotRecipients),
@@ -161,11 +158,10 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
         MessageEnvelope envelope = new MessageEnvelope();
         relaySession.getSession().addEnvelope(envelope);
 
-        BasicConfig dovecotConfig = config.getDovecot();
+        var dovecotConfig = config.getDovecot();
 
         // Queue bounce email.
-        if (dovecotConfig.hasProperty("failureBehaviour") &&
-                dovecotConfig.getStringProperty("failureBehaviour").equalsIgnoreCase("bounce")) {
+        if (dovecotConfig.getFailureBehaviour().equalsIgnoreCase("bounce")) {
 
             BounceMessageGenerator bounce = new BounceMessageGenerator(new RelaySession(connection.getSession().clone()), mailbox);
             envelope.setMail("mailer-daemon@" + config.getHostname())
@@ -180,14 +176,14 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
             relaySession.getSession().setDirection(connection.getSession().getDirection());
             relaySession.setProtocol("dovecot-lda");
             relaySession.setMailbox(connection.getSession().isInbound() 
-                    ? config.getDovecot().getStringProperty("inboxFolder", "INBOX")
-                    : config.getDovecot().getStringProperty("sentFolder", "Sent"));
+                    ? config.getDovecot().getInboxFolder()
+                    : config.getDovecot().getSentFolder());
 
             // Persist any envelope files (no-op for bytes-only envelopes) before enqueue.
             QueueFiles.persistEnvelopeFiles(relaySession);
         }
 
-        log.debug("Enqueuing for action={}", dovecotConfig.getStringProperty("failureBehaviour"));
+        log.debug("Enqueuing for action={}", dovecotConfig.getFailureBehaviour());
 
         // Queue for retry.
         PersistentQueue.getInstance()
@@ -204,9 +200,9 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
     protected DovecotLdaClient getDovecotLdaClientInstance(Connection connection) {
         ServerConfig config = Config.getServer();
         String folder = connection.getSession().isInbound() 
-                ? config.getDovecot().getStringProperty("inboxFolder", "INBOX")
-                : config.getDovecot().getStringProperty("sentFolder", "Sent");
-        
+                ? config.getDovecot().getInboxFolder()
+                : config.getDovecot().getSentFolder();
+
         RelaySession relaySession = new RelaySession(connection.getSession())
                 .setMailbox(folder);
 

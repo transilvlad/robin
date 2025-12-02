@@ -2,6 +2,7 @@ package com.mimecast.robin.config.server;
 
 import com.google.gson.Gson;
 import com.mimecast.robin.config.BasicConfig;
+import com.mimecast.robin.config.DovecotConfig;
 import com.mimecast.robin.config.ConfigFoundation;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.util.Magic;
@@ -382,11 +383,11 @@ public class ServerConfig extends ConfigFoundation {
     /**
      * Gets dovecot config.
      *
-     * @return BasicConfig instance.
+     * @return DovecotConfig instance.
      */
-    public BasicConfig getDovecot() {
+    public DovecotConfig getDovecot() {
         loadExternalIfAbsent("dovecot", Map.class);
-        return new BasicConfig(getMapProperty("dovecot"));
+        return new DovecotConfig(getMapProperty("dovecot"));
     }
 
     /**

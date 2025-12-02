@@ -8,7 +8,6 @@ import com.mimecast.robin.mime.headers.MimeHeader;
 import com.mimecast.robin.mx.SessionRouting;
 import com.mimecast.robin.queue.PersistentQueue;
 import com.mimecast.robin.queue.QueueFiles;
-import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
@@ -81,8 +80,8 @@ public class RelayMessage {
 
         // Get folder from dovecot config based on direction.
         String folder = connection.getSession().isInbound()
-                ? Config.getServer().getDovecot().getStringProperty("inboxFolder", "INBOX")
-                : Config.getServer().getDovecot().getStringProperty("sentFolder", "Sent");
+                ? Config.getServer().getDovecot().getInboxFolder()
+                : Config.getServer().getDovecot().getSentFolder();
 
         // Inbound relay if enabled.
         if (connection.getSession().isInbound() && relayConfig.getBooleanProperty("enabled")) {
