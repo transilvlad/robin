@@ -129,6 +129,11 @@ public final class SmtpResponses {
      */
     public static final String ENVELOPE_LIMIT_EXCEEDED_452 = "452 4.5.3 Envelope limit exceeded [%s]";
 
+    /**
+     * 452 Too many recipients.
+     */
+    public static final String RECIPIENTS_LIMIT_EXCEEDED_452 = "452 4.5.3 Recipients limit exceeded [%s]";
+
     // ========== 5xx Permanent Failure Codes ==========
 
     /**

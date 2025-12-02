@@ -43,6 +43,12 @@ public class ServerRcpt extends ServerMail {
     public boolean process(Connection connection, Verb verb) throws IOException {
         super.process(connection, verb);
 
+        // Check recipients limit before adding new recipient.
+        if (connection.getSession().getEnvelopes().getLast().getRcpts().size() >= recipientsLimit) {
+            connection.write(String.format(SmtpResponses.RECIPIENTS_LIMIT_EXCEEDED_452, connection.getSession().getUID()));
+            return false;
+        }
+
         // Get MAIL FROM for matching logic (extracted to avoid duplication).
         String mailFrom = getMailFrom(connection);
 
