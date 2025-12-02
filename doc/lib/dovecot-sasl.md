@@ -11,7 +11,7 @@ The separation allows lightweight recipient validation (RCPT) without exposing p
 
 Requirements
 ------------
-- Java 16+ (UNIX domain sockets)
+- Java 21+ (UNIX domain sockets)
 - Running Dovecot with `auth-client` and `auth-userdb` listeners
 - Proper filesystem permissions on the sockets
 

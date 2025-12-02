@@ -37,6 +37,7 @@ RUN apk update && apk add --no-cache \
     dovecot-pigeonhole-plugin \
     dovecot-fts-lucene \
     dovecot-pop3d \
+    dovecot-pgsql \
     bash \
     socat \
     openssl

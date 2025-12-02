@@ -14,6 +14,9 @@ services:
       # Dovecot specific volumes
       - ./store/mail:/var/mail
       - ./.dovecot/etc:/etc/dovecot
+      - ./.dovecot/etc/dovecot-sql.conf.ext:/etc/dovecot/dovecot-sql.conf.ext:ro
+    depends_on:
+      - robin-postgres
     ports:
       - "25:25"     # SMTP
       - "587:587"   # SUBMISSION
@@ -24,3 +27,16 @@ services:
       - "4190:4190" # ManageSieve
       - "8080:8080" # Service
       - "8090:8090" # API
+
+  robin-postgres:
+    image: postgres:15
+    container_name: robin-postgres
+    environment:
+      POSTGRES_DB: robin
+      POSTGRES_USER: robin
+      POSTGRES_PASSWORD: robin
+    volumes:
+      - ./store/postgres:/var/lib/postgresql/data
+      - ./.dovecot/db-init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
