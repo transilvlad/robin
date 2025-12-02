@@ -4,6 +4,8 @@ import com.mimecast.robin.config.server.UserConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Extensions;
 import com.mimecast.robin.sasl.DovecotSaslAuthNative;
+import com.mimecast.robin.sasl.SqlAuthProvider;
+import com.mimecast.robin.auth.SqlAuthManager;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.session.EmailDirection;
@@ -74,28 +76,53 @@ public class ServerAuth extends ServerProcessor {
             // Get available users for authentication.
             if (!connection.getSession().getUsername().isEmpty()) {
                 // Check if users are enabled in configuration and try and authenticate if so.
-                if (Config.getServer().getDovecot().getBooleanProperty("auth")) {
-                    try (DovecotSaslAuthNative dovecotSaslAuthNative = new DovecotSaslAuthNative(Path.of(Config.getServer().getDovecot().getStringProperty("authClientSocket")))) {
-                        // Attempt to authenticate against Dovecot.
-                        if (dovecotSaslAuthNative.authenticate(
-                                authVerb.getType(),
-                                connection.getSession().isStartTls(),
-                                connection.getSession().getUsername(),
-                                connection.getSession().getPassword(),
-                                "smtp",
-                                connection.getSession().getAddr(),
-                                connection.getSession().getFriendAddr()
-                        )) {
-                            connection.getSession().setAuth(true);
-                            connection.getSession().setDirection(EmailDirection.OUTBOUND);
-                            connection.write(SmtpResponses.AUTH_SUCCESS_235);
-                            return true;
-                        } else {
-                            connection.write(SmtpResponses.AUTH_FAILED_535);
+                if (Config.getServer().getDovecot().isAuth()) {
+                    String backend = Config.getServer().getDovecot().getAuthBackend();
+                    if ("sql".equalsIgnoreCase(backend)) {
+                        SqlAuthProvider sqlAuth = SqlAuthManager.getAuthProvider();
+                        if (sqlAuth == null) {
+                            log.error("SQL auth requested but SqlAuthManager not initialized");
+                            connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
                             return false;
                         }
-                    } catch (Exception e) {
-                        log.error("Dovecot authentication error: {}", e.getMessage());
+                        try {
+                            if (sqlAuth.authenticate(connection.getSession().getUsername(), connection.getSession().getPassword())) {
+                                connection.getSession().setAuth(true);
+                                connection.getSession().setDirection(EmailDirection.OUTBOUND);
+                                connection.write(SmtpResponses.AUTH_SUCCESS_235);
+                                return true;
+                            } else {
+                                connection.write(SmtpResponses.AUTH_FAILED_535);
+                                return false;
+                            }
+                        } catch (Exception e) {
+                            log.error("SQL authentication error: {}", e.getMessage());
+                            connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+                            return false;
+                        }
+                    } else {
+                        try (DovecotSaslAuthNative dovecotSaslAuthNative = new DovecotSaslAuthNative(Path.of(Config.getServer().getDovecot().getAuthSocket().getClient()))) {
+                            // Attempt to authenticate against Dovecot.
+                            if (dovecotSaslAuthNative.authenticate(
+                                    authVerb.getType(),
+                                    connection.getSession().isStartTls(),
+                                    connection.getSession().getUsername(),
+                                    connection.getSession().getPassword(),
+                                    "smtp",
+                                    connection.getSession().getAddr(),
+                                    connection.getSession().getFriendAddr()
+                            )) {
+                                connection.getSession().setAuth(true);
+                                connection.getSession().setDirection(EmailDirection.OUTBOUND);
+                                connection.write(SmtpResponses.AUTH_SUCCESS_235);
+                                return true;
+                            } else {
+                                connection.write(SmtpResponses.AUTH_FAILED_535);
+                                return false;
+                            }
+                        } catch (Exception e) {
+                            log.error("Dovecot authentication error: {}", e.getMessage());
+                        }
                     }
                 } else if (Config.getServer().getUsers().isListEnabled()) {
                     // Scenario response.

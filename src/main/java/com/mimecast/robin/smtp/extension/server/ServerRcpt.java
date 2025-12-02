@@ -4,6 +4,8 @@ import com.mimecast.robin.config.server.ProxyRule;
 import com.mimecast.robin.config.server.ScenarioConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.sasl.DovecotUserLookupNative;
+import com.mimecast.robin.auth.SqlAuthManager;
+import com.mimecast.robin.sasl.SqlUserLookup;
 import com.mimecast.robin.smtp.ProxyEmailDelivery;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
@@ -82,16 +84,36 @@ public class ServerRcpt extends ServerMail {
         // When receiving inbound email.
         if (connection.getSession().isInbound()) {
             // Check if users are enabled in configuration and try and authenticate if so.
-            if (Config.getServer().getDovecot().getBooleanProperty("auth")) {
-                try (DovecotUserLookupNative dovecotUserLookupNative = new DovecotUserLookupNative(Path.of(Config.getServer().getDovecot().getStringProperty("authUserdbSocket")))) {
-                    if (!dovecotUserLookupNative.validate(new MailVerb(verb).getAddress().getAddress(), "smtp")) {
-                        connection.write(String.format(SmtpResponses.UNKNOWN_MAILBOX_550, connection.getSession().getUID()));
+            if (Config.getServer().getDovecot().isAuth()) {
+                String backend = Config.getServer().getDovecot().getAuthBackend();
+                if ("sql".equalsIgnoreCase(backend)) {
+                    SqlUserLookup lookup = SqlAuthManager.getUserLookup();
+                    if (lookup == null) {
+                        log.error("SQL user lookup requested but SqlAuthManager not initialized");
+                        connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
                         return false;
                     }
-                } catch (Exception e) {
-                    log.error("Dovecot user lookup error: {}", e.getMessage());
-                    connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
-                    return false;
+                    try {
+                        if (lookup.lookup(new MailVerb(verb).getAddress().getAddress()).isEmpty()) {
+                            connection.write(String.format(SmtpResponses.UNKNOWN_MAILBOX_550, connection.getSession().getUID()));
+                            return false;
+                        }
+                    } catch (Exception e) {
+                        log.error("SQL user lookup error: {}", e.getMessage());
+                        connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+                        return false;
+                    }
+                } else {
+                    try (DovecotUserLookupNative dovecotUserLookupNative = new DovecotUserLookupNative(Path.of(Config.getServer().getDovecot().getAuthSocket().getUserdb()))) {
+                        if (!dovecotUserLookupNative.validate(new MailVerb(verb).getAddress().getAddress(), "smtp")) {
+                            connection.write(String.format(SmtpResponses.UNKNOWN_MAILBOX_550, connection.getSession().getUID()));
+                            return false;
+                        }
+                    } catch (Exception e) {
+                        log.error("Dovecot user lookup error: {}", e.getMessage());
+                        connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+                        return false;
+                    }
                 }
             } else if (Config.getServer().getUsers().isListEnabled()) {
                 // Scenario response.

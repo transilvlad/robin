@@ -1,6 +1,8 @@
 package com.mimecast.robin.main;
 
+import com.mimecast.robin.auth.SqlAuthManager;
 import com.mimecast.robin.config.server.ServerConfig;
+import com.mimecast.robin.db.SharedDataSource;
 import com.mimecast.robin.endpoints.ApiEndpoint;
 import com.mimecast.robin.endpoints.RobinServiceEndpoint;
 import com.mimecast.robin.metrics.MetricsCron;
@@ -157,6 +159,21 @@ public class Server extends Foundation {
         // Initialize bot executor service.
         botExecutor = Executors.newCachedThreadPool();
         log.info("Bot processing thread pool initialized");
+
+        ServerConfig serverConfig = Config.getServer();
+
+        // Initialize shared DataSource if SQL auth backend is configured.
+        try {
+            String authBackend = serverConfig.getDovecot().getAuthBackend();
+            if ("sql".equalsIgnoreCase(authBackend)) {
+                // Initialize shared pool (lazy init in SharedDataSource.getDataSource())
+                var ds = SharedDataSource.getDataSource();
+                // Initialize shared Sql providers for auth and user lookup
+                SqlAuthManager.init(ds);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to initialize shared SQL datasource: {}", e.getMessage());
+        }
     }
 
     /**
@@ -224,6 +241,15 @@ public class Server extends Foundation {
                     botExecutor.shutdownNow();
                     Thread.currentThread().interrupt();
                 }
+            }
+
+            // Close shared DataSource if initialized.
+            try {
+                // Close shared SqlAuthManager first
+                try { SqlAuthManager.close(); } catch (Exception ignore) {}
+                 SharedDataSource.close();
+            } catch (Exception e) {
+                log.warn("Error closing shared DataSource: {}", e.getMessage());
             }
 
             log.info("Shutdown complete.");
