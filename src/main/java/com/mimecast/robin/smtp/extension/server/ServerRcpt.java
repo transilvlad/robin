@@ -85,8 +85,7 @@ public class ServerRcpt extends ServerMail {
         if (connection.getSession().isInbound()) {
             // Check if users are enabled in configuration and try and authenticate if so.
             if (Config.getServer().getDovecot().isAuth()) {
-                String backend = Config.getServer().getDovecot().getAuthBackend();
-                if ("sql".equalsIgnoreCase(backend)) {
+                if (Config.getServer().getDovecot().isAuthSqlEnabled()) {
                     SqlUserLookup lookup = SqlAuthManager.getUserLookup();
                     if (lookup == null) {
                         log.error("SQL user lookup requested but SqlAuthManager not initialized");

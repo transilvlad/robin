@@ -78,11 +78,6 @@ public class RelayMessage {
             }
         }
 
-        // Get folder from dovecot config based on direction.
-        String folder = connection.getSession().isInbound()
-                ? Config.getServer().getDovecot().getInboxFolder()
-                : Config.getServer().getDovecot().getSentFolder();
-
         // Inbound relay if enabled.
         if (connection.getSession().isInbound() && relayConfig.getBooleanProperty("enabled")) {
             sessions.add(getRelaySession(relayConfig, connection.getSession().getEnvelopes().getLast()));
@@ -101,10 +96,17 @@ public class RelayMessage {
         if (!sessions.isEmpty()) {
             log.info("Relaying session: {}", sessions.size());
             for (Session session : sessions) {
-                // Wrap into a relay session.
+                // Wrap into a relay session. Folder selection is protocol-specific.
                 RelaySession relaySession = new RelaySession(session)
-                        .setMailbox(folder)
                         .setProtocol("esmtp");
+
+                // Set mailbox folder only for LDA protocol (LMTP handles folder routing based on direction).
+                if ("dovecot-lda".equalsIgnoreCase(relaySession.getProtocol())) {
+                    String folder = connection.getSession().isInbound()
+                            ? Config.getServer().getDovecot().getSaveLda().getInboxFolder()
+                            : Config.getServer().getDovecot().getSaveLda().getSentFolder();
+                    relaySession.setMailbox(folder);
+                }
 
                 // Persist any envelope files to storage/queue before enqueueing.
                 QueueFiles.persistEnvelopeFiles(relaySession);

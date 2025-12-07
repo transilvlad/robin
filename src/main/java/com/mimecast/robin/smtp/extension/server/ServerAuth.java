@@ -76,74 +76,71 @@ public class ServerAuth extends ServerProcessor {
             // Get available users for authentication.
             if (!connection.getSession().getUsername().isEmpty()) {
                 // Check if users are enabled in configuration and try and authenticate if so.
-                if (Config.getServer().getDovecot().isAuth()) {
-                    String backend = Config.getServer().getDovecot().getAuthBackend();
-                    if ("sql".equalsIgnoreCase(backend)) {
-                        SqlAuthProvider sqlAuth = SqlAuthManager.getAuthProvider();
-                        if (sqlAuth == null) {
-                            log.error("SQL auth requested but SqlAuthManager not initialized");
-                            connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
-                            return false;
-                        }
-                        try {
-                            if (sqlAuth.authenticate(connection.getSession().getUsername(), connection.getSession().getPassword())) {
-                                connection.getSession().setAuth(true);
-                                connection.getSession().setDirection(EmailDirection.OUTBOUND);
-                                connection.write(SmtpResponses.AUTH_SUCCESS_235);
-                                return true;
-                            } else {
-                                connection.write(SmtpResponses.AUTH_FAILED_535);
-                                return false;
-                            }
-                        } catch (Exception e) {
-                            log.error("SQL authentication error: {}", e.getMessage());
-                            connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
-                            return false;
-                        }
-                    } else {
-                        try (DovecotSaslAuthNative dovecotSaslAuthNative = new DovecotSaslAuthNative(Path.of(Config.getServer().getDovecot().getAuthSocket().getClient()))) {
-                            // Attempt to authenticate against Dovecot.
-                            if (dovecotSaslAuthNative.authenticate(
-                                    authVerb.getType(),
-                                    connection.getSession().isStartTls(),
-                                    connection.getSession().getUsername(),
-                                    connection.getSession().getPassword(),
-                                    "smtp",
-                                    connection.getSession().getAddr(),
-                                    connection.getSession().getFriendAddr()
-                            )) {
-                                connection.getSession().setAuth(true);
-                                connection.getSession().setDirection(EmailDirection.OUTBOUND);
-                                connection.write(SmtpResponses.AUTH_SUCCESS_235);
-                                return true;
-                            } else {
-                                connection.write(SmtpResponses.AUTH_FAILED_535);
-                                return false;
-                            }
-                        } catch (Exception e) {
-                            log.error("Dovecot authentication error: {}", e.getMessage());
-                        }
+                if (Config.getServer().getDovecot().isAuthSqlEnabled()) {
+                    SqlAuthProvider sqlAuth = SqlAuthManager.getAuthProvider();
+                    if (sqlAuth == null) {
+                        log.error("SQL auth requested but SqlAuthManager not initialized");
+                        connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+                        return false;
                     }
-                } else if (Config.getServer().getUsers().isListEnabled()) {
-                    // Scenario response.
-                    Optional<UserConfig> opt = Config.getServer().getUsers().getUser(connection.getSession().getUsername());
-                    if (opt.isPresent() && opt.get().getPass().equals(connection.getSession().getPassword())) {
-                        connection.getSession().setAuth(true);
-                        connection.getSession().setDirection(EmailDirection.OUTBOUND);
-                        connection.write(SmtpResponses.AUTH_SUCCESS_235);
-                        return true;
-                    } else {
-                        connection.write(SmtpResponses.AUTH_FAILED_535);
+                    try {
+                        if (sqlAuth.authenticate(connection.getSession().getUsername(), connection.getSession().getPassword())) {
+                            connection.getSession().setAuth(true);
+                            connection.getSession().setDirection(EmailDirection.OUTBOUND);
+                            connection.write(SmtpResponses.AUTH_SUCCESS_235);
+                            return true;
+                        } else {
+                            connection.write(SmtpResponses.AUTH_FAILED_535);
+                            return false;
+                        }
+                    } catch (Exception e) {
+                        log.error("SQL authentication error: {}", e.getMessage());
+                        connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
                         return false;
                     }
                 } else {
-                    connection.write(String.format(SmtpResponses.UNKNOWN_MAILBOX_550, connection.getSession().getUID()));
+                    try (DovecotSaslAuthNative dovecotSaslAuthNative = new DovecotSaslAuthNative(Path.of(Config.getServer().getDovecot().getAuthSocket().getClient()))) {
+                        // Attempt to authenticate against Dovecot.
+                        if (dovecotSaslAuthNative.authenticate(
+                                authVerb.getType(),
+                                connection.getSession().isStartTls(),
+                                connection.getSession().getUsername(),
+                                connection.getSession().getPassword(),
+                                "smtp",
+                                connection.getSession().getAddr(),
+                                connection.getSession().getFriendAddr()
+                        )) {
+                            connection.getSession().setAuth(true);
+                            connection.getSession().setDirection(EmailDirection.OUTBOUND);
+                            connection.write(SmtpResponses.AUTH_SUCCESS_235);
+                            return true;
+                        } else {
+                            connection.write(SmtpResponses.AUTH_FAILED_535);
+                            return false;
+                        }
+                    } catch (Exception e) {
+                        log.error("Dovecot authentication error: {}", e.getMessage());
+                    }
+                }
+            } else if (Config.getServer().getUsers().isListEnabled()) {
+                // Scenario response.
+                Optional<UserConfig> opt = Config.getServer().getUsers().getUser(connection.getSession().getUsername());
+                if (opt.isPresent() && opt.get().getPass().equals(connection.getSession().getPassword())) {
+                    connection.getSession().setAuth(true);
+                    connection.getSession().setDirection(EmailDirection.OUTBOUND);
+                    connection.write(SmtpResponses.AUTH_SUCCESS_235);
+                    return true;
+                } else {
+                    connection.write(SmtpResponses.AUTH_FAILED_535);
                     return false;
                 }
             } else {
                 connection.write(String.format(SmtpResponses.UNKNOWN_MAILBOX_550, connection.getSession().getUID()));
                 return false;
             }
+        } else {
+            connection.write(String.format(SmtpResponses.UNKNOWN_MAILBOX_550, connection.getSession().getUID()));
+            return false;
         }
 
         connection.write(SmtpResponses.UNRECOGNIZED_AUTH_504);

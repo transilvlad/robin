@@ -727,3 +727,39 @@ This simulates a storage failure for the specified recipient with exit code `1` 
     X-Robin-Chaos: DovecotLdaClient; recipient=user2@example.com; exitCode=1; message="quota exceeded"
 
 See [magic.md](../features/magic.md) for complete chaos headers documentation.
+
+Mailbox Delivery Backends
+------------------------
+Robin supports two mailbox delivery backends for saving emails:
+- **LDA (Local Delivery Agent):** Requires Robin and Dovecot in the same container, uses UNIX socket and binary. Recommended for local setups.
+- **LMTP (Local Mail Transfer Protocol):** Default backend, uses a configurable LMTP server list, works with SQL auth and does not require Robin and Dovecot in the same container. Recommended for distributed and SQL-backed setups.
+
+Backend selection is automatic: the system checks which backend is enabled (`saveLda.enabled` or `saveLmtp.enabled`). LMTP takes precedence if both are enabled. Backend-specific options are grouped under `saveLda` and `saveLmtp` config objects. Shared options (inline save, failure behaviour, max retry count) are top-level.
+
+Example dovecot.json5 configuration:
+```json5
+{
+  saveLmtp: {
+    enabled: true,
+    servers: ["127.0.0.1"],
+    port: 24,
+    tls: false
+  },
+  saveLda: {
+    enabled: false,
+    ldaBinary: "/usr/libexec/dovecot/dovecot-lda",
+    inboxFolder: "INBOX",
+    sentFolder: "Sent"
+  },
+  inlineSaveMaxAttempts: 2,
+  inlineSaveRetryDelay: 3,
+  failureBehaviour: "retry",
+  maxRetryCount: 10
+}
+```
+
+Operational Requirements
+-----------------------
+- **LDA backend:** Robin and Dovecot must run in the same container or host, with access to the UNIX socket and LDA binary.
+- **LMTP backend:** Robin can deliver to any LMTP server in the configured list, does not require local Dovecot, and is recommended for SQL-backed and distributed setups.
+

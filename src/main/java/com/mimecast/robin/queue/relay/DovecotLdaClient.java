@@ -205,7 +205,7 @@ public class DovecotLdaClient {
         }
         
         List<String> command = new ArrayList<>(Arrays.asList(
-                Config.getServer().getDovecot().getStringProperty("ldaBinary"),
+                Config.getServer().getDovecot().getSaveLda().getLdaBinary(),
                 "-d", recipient,
                 "-p", relaySession.getSession().getEnvelopes().getFirst().getFile()
         ));

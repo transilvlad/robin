@@ -1,54 +1,80 @@
 {
-  // Enablement.
+  // Enable Dovecot authentication and mailbox integration.
   auth: true,
 
-  // Which backend to use for auth/userdb lookups: "dovecot" (socket) or "sql".
-  authBackend: "sql",
-
-  // Combined dovecot auth sockets.
+  // Dovecot UNIX socket authentication and userdb lookup backend.
   authSocket: {
-    // Path to Dovecot authentication client socket (auth-client for SASL mechanisms).
+    // Enable Dovecot socket authentication backend.
+    enabled: false,
+
+    // Path to Dovecot authentication client socket (SASL mechanisms).
     client: "/run/dovecot/auth-client",
 
-    // Path to Dovecot userdb lookup socket (auth-userdb for mailbox existence).
+    // Path to Dovecot userdb lookup socket (mailbox existence).
     userdb: "/run/dovecot/auth-userdb"
   },
 
-  // SQL backend configuration used when authBackend == "sql"
+  // SQL authentication backend configuration.
   authSql: {
+    // Enable SQL authentication backend.
+    enabled: true,
+
     jdbcUrl: "jdbc:postgresql://robin-postgres:5432/robin",
     user: "robin",
     password: "robin",
-    // Queries must return the columns expected by the code: password; and for user lookup: home, uid, gid, mail
+
+    // Query for password verification.
     passwordQuery: "SELECT password FROM users WHERE email = ?",
+
+    // Query for user lookup (returns home, uid, gid, mail).
     userQuery: "SELECT home, uid, gid, maildir AS mail FROM users WHERE email = ?"
   },
 
-  // Save a copy of each email to Dovecot LDA.
-  saveToDovecotLda: false,
+  // LMTP backend configuration (default: enabled, localhost:24).
+  // This backend is recommended for distributed and SQL-backed setups.
+  // Folder routing is handled automatically by Dovecot based on message direction.
+  saveLmtp: {
+    // Enable LMTP delivery backend.
+    enabled: true,
 
-  // How many times to attempt to save an email to Dovecot LDA before giving up.
+    // List of LMTP server addresses (default: localhost).
+    servers: ["127.0.0.1"],
+
+    // LMTP server port (default: 24).
+    port: 24,
+
+    // Enable TLS for LMTP connections (default: false).
+    tls: false
+  },
+
+  // LDA backend configuration (optional).
+  // This backend requires Robin and Dovecot in the same container or host.
+  saveLda: {
+    // Enable LDA delivery backend (default: false).
+    enabled: false,
+
+    // Path to Dovecot LDA binary.
+    ldaBinary: "/usr/libexec/dovecot/dovecot-lda",
+
+    // Folder for inbound email delivery via LDA.
+    inboxFolder: "INBOX",
+
+    // Folder for outbound email delivery via LDA.
+    sentFolder: "Sent"
+  },
+
+  // Shared mailbox delivery options for both backends.
+  // Maximum number of attempts to save an email before giving up.
   inlineSaveMaxAttempts: 2,
 
-  // Delay in seconds between attempts to save an email to Dovecot LDA.
+  // Delay (seconds) between save attempts.
   inlineSaveRetryDelay: 3,
 
-  // Path to Dovecot LDA binary.
-  ldaBinary: "/usr/libexec/dovecot/dovecot-lda",
-
-  // Folder for inbound email delivery via Dovecot LDA.
-  // Dovecot handles folder structure internally (e.g., adds "." prefix and "/new" suffix).
-  inboxFolder: "INBOX",
-
-  // Folder for outbound email delivery via Dovecot LDA.
-  // Dovecot handles folder structure internally (e.g., adds "." prefix and "/new" suffix).
-  sentFolder: "Sent",
-
   // Behaviour on email delivery failure: "retry" (default) or "bounce".
-  // "retry" will attempt to redeliver later, "bounce" will send a bounce message to the sender.
+  // "retry" will attempt to redeliver later; "bounce" will send a bounce message to the sender.
   // If all retries fail it will still result in a bounce.
   failureBehaviour: "retry",
 
-  // Retry count for outbound relay (Default: 10).
+  // Maximum retry count (default: 10).
   maxRetryCount: 10
 }

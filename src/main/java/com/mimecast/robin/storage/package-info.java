@@ -18,13 +18,21 @@
  * <ol>
  *     <li>{@link com.mimecast.robin.storage.AVStorageProcessor} - ClamAV virus scanning</li>
  *     <li>{@link com.mimecast.robin.storage.SpamStorageProcessor} - Rspamd spam/phishing detection</li>
- *     <li>{@link com.mimecast.robin.storage.DovecotStorageProcessor} - Delivery via Dovecot LDA protocol</li>
+ *     <li>{@link com.mimecast.robin.storage.DovecotStorageProcessor} - Delivery via Dovecot LDA or LMTP backend (configurable)</li>
  *     <li>{@link com.mimecast.robin.storage.LocalStorageProcessor} - Write to disk storage</li>
  * </ol>
  *
+ * <p>DovecotStorageProcessor supports two mailbox delivery backends:
+ * <ul>
+ *   <li>LDA (Local Delivery Agent): Requires Robin and Dovecot in the same container, uses UNIX socket and binary.</li>
+ *   <li>LMTP (Local Mail Transfer Protocol): Default, uses a configurable LMTP server list, works with SQL auth and does not require Robin and Dovecot in the same container.</li>
+ * </ul>
+ * Backend selection is automatic: the system checks which backend is enabled (<code>saveLda.enabled</code> or <code>saveLmtp.enabled</code>). LMTP takes precedence if both are enabled.
+ * Backend-specific options are grouped under <code>saveLda</code> and <code>saveLmtp</code> config objects.
+ * Shared options (inline save, failure behaviour, max retry count) are top-level.
+ *
  * <p>Custom processors can be added via plugins using {@code Factories.addStorageProcessor()}.
- * <br>Each processor returns a {@link com.mimecast.robin.storage.StorageProcessorResult} indicating
- * <br>the disposition (ACCEPT, REJECT, QUARANTINE) and any associated message.
+ * <br>Each processor returns a boolean indicating success (true) or failure (false).
  *
  * <p>Storage processors can check for chaos headers to force specific return values for testing.
  * <br>This allows testing exception scenarios without actually triggering them.
@@ -33,6 +41,5 @@
  * <p>Read more on plugins here: {@link com.mimecast.robin.annotation}
  *
  * @see com.mimecast.robin.storage.StorageProcessor
- * @see com.mimecast.robin.storage.StorageProcessorResult
  */
 package com.mimecast.robin.storage;

@@ -2,6 +2,7 @@ package com.mimecast.robin.main;
 
 import com.mimecast.robin.auth.SqlAuthManager;
 import com.mimecast.robin.config.server.ServerConfig;
+import com.mimecast.robin.config.DovecotConfig;
 import com.mimecast.robin.db.SharedDataSource;
 import com.mimecast.robin.endpoints.ApiEndpoint;
 import com.mimecast.robin.endpoints.RobinServiceEndpoint;
@@ -164,8 +165,8 @@ public class Server extends Foundation {
 
         // Initialize shared DataSource if SQL auth backend is configured.
         try {
-            String authBackend = serverConfig.getDovecot().getAuthBackend();
-            if ("sql".equalsIgnoreCase(authBackend)) {
+            DovecotConfig dovecotConfig = serverConfig.getDovecot();
+            if (dovecotConfig.isAuthSqlEnabled()) {
                 // Initialize shared pool (lazy init in SharedDataSource.getDataSource())
                 var ds = SharedDataSource.getDataSource();
                 // Initialize shared Sql providers for auth and user lookup

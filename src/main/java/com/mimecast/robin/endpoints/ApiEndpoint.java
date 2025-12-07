@@ -9,7 +9,6 @@ import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.queue.PersistentQueue;
 import com.mimecast.robin.queue.QueueFiles;
-import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.session.Session;
@@ -33,7 +32,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * API endpoint for case submission and queue management.
@@ -266,7 +264,7 @@ public class ApiEndpoint extends HttpEndpoint {
             // mailbox parameter is an override for dovecot folder delivery
             // Default to inboxFolder as most queued items are inbound
             String mailboxOverride = query.getOrDefault("mailbox",
-                    Config.getServer().getDovecot().getInboxFolder());
+                    Config.getServer().getDovecot().getSaveLda().getInboxFolder());
             log.debug("/client/queue overrides: protocol={}, mailbox={}", protocolOverride, mailboxOverride);
 
             String body = readBody(exchange.getRequestBody());
