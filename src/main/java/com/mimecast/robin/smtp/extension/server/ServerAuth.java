@@ -1,11 +1,11 @@
 package com.mimecast.robin.smtp.extension.server;
 
+import com.mimecast.robin.auth.SqlAuthManager;
 import com.mimecast.robin.config.server.UserConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Extensions;
 import com.mimecast.robin.sasl.DovecotSaslAuthNative;
 import com.mimecast.robin.sasl.SqlAuthProvider;
-import com.mimecast.robin.auth.SqlAuthManager;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.session.EmailDirection;
@@ -98,7 +98,7 @@ public class ServerAuth extends ServerProcessor {
                         connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
                         return false;
                     }
-                } else {
+                } else if (Config.getServer().getDovecot().isAuthSocketEnabled()) {
                     try (DovecotSaslAuthNative dovecotSaslAuthNative = new DovecotSaslAuthNative(Path.of(Config.getServer().getDovecot().getAuthSocket().getClient()))) {
                         // Attempt to authenticate against Dovecot.
                         if (dovecotSaslAuthNative.authenticate(
@@ -121,26 +121,26 @@ public class ServerAuth extends ServerProcessor {
                     } catch (Exception e) {
                         log.error("Dovecot authentication error: {}", e.getMessage());
                     }
-                }
-            } else if (Config.getServer().getUsers().isListEnabled()) {
-                // Scenario response.
-                Optional<UserConfig> opt = Config.getServer().getUsers().getUser(connection.getSession().getUsername());
-                if (opt.isPresent() && opt.get().getPass().equals(connection.getSession().getPassword())) {
-                    connection.getSession().setAuth(true);
-                    connection.getSession().setDirection(EmailDirection.OUTBOUND);
-                    connection.write(SmtpResponses.AUTH_SUCCESS_235);
-                    return true;
+                } else if (Config.getServer().getUsers().isListEnabled()) {
+                    // Scenario response.
+                    Optional<UserConfig> opt = Config.getServer().getUsers().getUser(connection.getSession().getUsername());
+                    if (opt.isPresent() && opt.get().getPass().equals(connection.getSession().getPassword())) {
+                        connection.getSession().setAuth(true);
+                        connection.getSession().setDirection(EmailDirection.OUTBOUND);
+                        connection.write(SmtpResponses.AUTH_SUCCESS_235);
+                        return true;
+                    } else {
+                        connection.write(SmtpResponses.AUTH_FAILED_535);
+                        return false;
+                    }
                 } else {
-                    connection.write(SmtpResponses.AUTH_FAILED_535);
+                    connection.write(String.format(SmtpResponses.UNKNOWN_MAILBOX_550, connection.getSession().getUID()));
                     return false;
                 }
             } else {
                 connection.write(String.format(SmtpResponses.UNKNOWN_MAILBOX_550, connection.getSession().getUID()));
                 return false;
             }
-        } else {
-            connection.write(String.format(SmtpResponses.UNKNOWN_MAILBOX_550, connection.getSession().getUID()));
-            return false;
         }
 
         connection.write(SmtpResponses.UNRECOGNIZED_AUTH_504);
@@ -182,19 +182,23 @@ public class ServerAuth extends ServerProcessor {
         String pass;
 
         if (verb.getCount() > 2) {
-            user = new String(Base64.decodeBase64(verb.getPart(2))); if (Extensions.isExtension(user)) return; // Failsafe to catch unexpected commands.
+            user = new String(Base64.decodeBase64(verb.getPart(2)));
+            if (Extensions.isExtension(user)) return; // Failsafe to catch unexpected commands.
             connection.write(SmtpResponses.AUTH_PASSWORD_334); // Password:
 
             pass = connection.read();
-            pass = new String(Base64.decodeBase64(pass)); if (Extensions.isExtension(pass)) return; // Failsafe to catch unexpected commands.
+            pass = new String(Base64.decodeBase64(pass));
+            if (Extensions.isExtension(pass)) return; // Failsafe to catch unexpected commands.
         } else {
             connection.write(SmtpResponses.AUTH_USERNAME_334); // Username:
             user = connection.read();
-            user = new String(Base64.decodeBase64(user)); if (Extensions.isExtension(user)) return; // Failsafe to catch unexpected commands.
+            user = new String(Base64.decodeBase64(user));
+            if (Extensions.isExtension(user)) return; // Failsafe to catch unexpected commands.
 
             connection.write(SmtpResponses.AUTH_PASSWORD_334); // Password:
             pass = connection.read();
-            pass = new String(Base64.decodeBase64(pass)); if (Extensions.isExtension(pass)) return; // Failsafe to catch unexpected commands.
+            pass = new String(Base64.decodeBase64(pass));
+            if (Extensions.isExtension(pass)) return; // Failsafe to catch unexpected commands.
         }
 
         connection.getSession().setUsername(user);

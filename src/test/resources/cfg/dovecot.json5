@@ -17,7 +17,7 @@
   // SQL authentication backend configuration.
   authSql: {
     // Enable SQL authentication backend.
-    enabled: true,
+    enabled: false,
 
     jdbcUrl: "jdbc:postgresql://robin-postgres:5432/robin",
     user: "robin",
@@ -35,7 +35,7 @@
   // Folder routing is handled automatically by Dovecot based on message direction.
   saveLmtp: {
     // Enable LMTP delivery backend.
-    enabled: true,
+    enabled: false,
 
     // List of LMTP server addresses (default: localhost).
     servers: ["127.0.0.1"],
