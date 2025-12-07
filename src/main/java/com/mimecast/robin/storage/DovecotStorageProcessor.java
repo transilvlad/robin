@@ -1,6 +1,5 @@
 package com.mimecast.robin.storage;
 
-import com.mimecast.robin.config.BasicConfig;
 import com.mimecast.robin.config.server.ServerConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
@@ -11,9 +10,10 @@ import com.mimecast.robin.queue.QueueFiles;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.queue.bounce.BounceMessageGenerator;
 import com.mimecast.robin.queue.relay.DovecotLdaClient;
-import com.mimecast.robin.queue.relay.RelayMessage;
+import com.mimecast.robin.smtp.EmailDelivery;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
+import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
 import com.mimecast.robin.util.Sleep;
 import org.apache.logging.log4j.LogManager;
@@ -22,7 +22,6 @@ import org.apache.logging.log4j.Logger;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * DovecotStorageProcessor delivers emails to user mailboxes using either LDA or LMTP backends.
@@ -121,18 +120,27 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
                     Sleep.nap(retryDelay);
                 }
 
-                // Build LMTP relay config and attempt delivery.
-                BasicConfig relayConfig = new BasicConfig(Map.of(
-                        "mx", servers,
-                        "port", port,
-                        "protocol", "lmtp",
-                        "tls", tls
-                ));
-                RelayMessage relayMessage = new RelayMessage(connection, emailParser).setRelayConfig(relayConfig);
-                relayMessage.relay();
+                // Create a new session for LMTP delivery with mx and port from config.
+                // No MX resolution needed as servers are provided in config.
+                Session lmtpSession = Factories.getSession()
+                        .setUID(connection.getSession().getUID())
+                        .setMx(servers)  // Use servers list directly - no MX resolution needed
+                        .setPort(port)
+                        .setTls(tls)
+                        .setLhlo(Config.getServer().getHostname())
+                        .setDirection(connection.getSession().getDirection());
+
+                // Clone the envelope with only non-bot recipients.
+                MessageEnvelope lmtpEnvelope = envelope.clone();
+                lmtpEnvelope.getRcpts().clear();
+                lmtpEnvelope.getRcpts().addAll(nonBotRecipients);
+                lmtpSession.addEnvelope(lmtpEnvelope);
+
+                // Perform inline LMTP delivery using EmailDelivery.
+                new EmailDelivery(lmtpSession).send();
 
                 // Check transaction results to determine success.
-                var sessionTransactionList = connection.getSession().getSessionTransactionList();
+                var sessionTransactionList = lmtpSession.getSessionTransactionList();
                 var envelopes = sessionTransactionList != null ? sessionTransactionList.getEnvelopes() : null;
                 EnvelopeTransactionList transactionList = (envelopes != null && !envelopes.isEmpty())
                         ? envelopes.getLast()
@@ -309,6 +317,13 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
             // Determine protocol to queue based on enabled backend: LMTP takes precedence.
             if (dovecotConfig.getSaveLmtp().isEnabled()) {
                 relaySession.setProtocol("lmtp");
+                // Set LMTP servers and port directly to avoid MX resolution.
+                var lmtpConfig = dovecotConfig.getSaveLmtp();
+                relaySession.getSession()
+                        .setMx(lmtpConfig.getServers())
+                        .setPort(lmtpConfig.getPort())
+                        .setTls(lmtpConfig.isTls())
+                        .setLhlo(Config.getServer().getHostname());
             } else if (dovecotConfig.getSaveLda().isEnabled()) {
                 relaySession.setProtocol("dovecot-lda");
                 relaySession.setMailbox(connection.getSession().isInbound()

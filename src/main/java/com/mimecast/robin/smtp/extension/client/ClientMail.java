@@ -4,6 +4,7 @@ import com.google.common.base.CharMatcher;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,11 +36,12 @@ public class ClientMail extends ClientProcessor {
         // Construct delivery envelope.
         EnvelopeTransactionList transactionList = new EnvelopeTransactionList();
 
-        // Check if envelope requires SMTPUTF8
+        // Check if envelope requires SMTPUTF8.
         boolean smtpUtf8 = isUTF8(envelope.getMail().getBytes()) || envelope.getRcpts().stream().anyMatch(r -> isUTF8(r.getBytes()));
 
         // Sender.
-        int size = sizeMessage(envelope);
+        // LMTP doesn't support SIZE parameter, so skip it for LMTP connections.
+        int size = StringUtils.isNotBlank(connection.getSession().getLhlo()) ? 0 : sizeMessage(envelope);
         String write = "MAIL FROM:<" + envelope.getMail() + ">" + (size > 0 ? " SIZE=" + size : "") + (smtpUtf8 ? " SMTPUTF8" : "") + envelope.getParams("mail");
         connection.write(write);
 
