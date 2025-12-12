@@ -1,3 +1,11 @@
+# Docker Compose for Robin MTA + Dovecot in a single container
+# This file sets up a combined container for Robin MTA and Dovecot with necessary volumes and ports.
+# It loads the default configuration which can be customized via the cfg/ directory.
+# This has all 3rd party integrations turned off including local mail storage.
+# It will not accept any emails until configured properly.
+# Note: This setup is primarily for developing and testing the Dovecot UNIX sockets and LDA delivery.
+# You need to enable those dovecot integrations plus local users and local storage.
+
 services:
   robin-dovecot:
     container_name: robin-dovecot

@@ -1,3 +1,9 @@
+# Docker Compose for stand alone Robin MTA
+# This file sets up Robin MTA only with necessary volumes and ports.
+# It loads the default configuration which can be customized via the cfg/ directory.
+# This has all 3rd party integrations turned off including local mail storage.
+# It will not accept any emails until configured properly.
+
 services:
   robin-mta:
     container_name: robin-mta
