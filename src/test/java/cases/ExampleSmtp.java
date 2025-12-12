@@ -58,7 +58,7 @@ public class ExampleSmtp {
     @Test
     void dynamicPdf() throws AssertException, IOException {
         new Client()
-                .send("src/test/resources/cases/config/dynamic/dynamic.pdf.json5");
+                .send("src/test/resources/cases/config/dynamic/dynamic-pdf.json5");
     }
 
     /**
