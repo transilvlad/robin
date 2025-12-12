@@ -183,7 +183,7 @@ public class RequestExternalClient extends MatchExternalClient {
                 String responseCT = httpResponse.getHeaders().get("Content-Type");
 
                 // If we requested a Content-Type ensure it matches.
-                if (configCT.length > 0 && (responseCT == null || !responseCT.toLowerCase().startsWith(configCT[0].toLowerCase()))) {
+                if (configCT != null && configCT.length > 0 && (responseCT == null || !responseCT.toLowerCase().startsWith(configCT[0].toLowerCase()))) {
                     log.info("AssertExternal request Content-Type did not verify: {} != {}", configCT[0], responseCT);
                     continue;
                 }
