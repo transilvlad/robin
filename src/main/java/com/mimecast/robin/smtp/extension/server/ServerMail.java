@@ -124,10 +124,18 @@ public class ServerMail extends ServerProcessor {
                 connection.write(opt.get().getMail());
             }
 
-            // Accept all.
+            // Accept all (with validation).
             else {
-                envelope.setMail(getAddress().getAddress());
-                connection.write(String.format(SmtpResponses.SENDER_OK_250, connection.getSession().getUID()));
+                // Validate email address format.
+                try {
+                    InternetAddress addr = getAddress();
+                    addr.validate();
+                    envelope.setMail(addr.getAddress());
+                    connection.write(String.format(SmtpResponses.SENDER_OK_250, connection.getSession().getUID()));
+                } catch (AddressException e) {
+                    connection.write(String.format(SmtpResponses.INVALID_ADDRESS_501 + " [%s]", connection.getSession().getUID()));
+                    return false;
+                }
             }
             ThreadContext.put("cCode", envelope.getMail());
 

@@ -152,6 +152,11 @@ public final class SmtpResponses {
     public static final String INVALID_ARGS_501 = "501 5.5.4 Invalid arguments";
 
     /**
+     * 501 Invalid address format.
+     */
+    public static final String INVALID_ADDRESS_501 = "501 5.1.3 Invalid address format";
+
+    /**
      * 504 Unrecognized authentication mechanism.
      */
     public static final String UNRECOGNIZED_AUTH_504 = "504 5.7.4 Unrecognized authentication mechanism";
