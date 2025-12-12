@@ -256,6 +256,7 @@ public class ServerData extends ServerProcessor {
         }
 
         if (!storageClient.save()) {
+            connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
             return false;
         }
 
