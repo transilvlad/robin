@@ -1,3 +1,6 @@
+# This is the Dockerfile for the combined Robin SMTP and Dovecot IMAP/POP3 servers.
+# The purpose if this is to help development and testing of the Robin integration with Dovecot's UNIX sockets and LDA binary.
+
 # Build stage
 FROM maven:3.9.9-amazoncorretto-21-debian AS build
 
@@ -23,7 +26,7 @@ RUN --mount=type=cache,target=/root/.m2,id=robin-m2 \
 # Production stage
 FROM alpine/java:21-jdk AS production
 
-# Copy supervisord configuration files.
+# Copy supervisord configuration file and init script.
 COPY .dovecot/supervisord.conf /etc/supervisord.conf
 COPY .dovecot/docker-init.sh /usr/local/bin/docker-init.sh
 

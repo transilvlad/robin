@@ -11,7 +11,7 @@ services:
     container_name: robin-dovecot
     build:
       context: ./
-      dockerfile: ./.dovecot/Dockerfile
+      dockerfile: ./.dovecot/robin.Dockerfile
       args:
         INCLUDE_CFG: "false"
     volumes:
