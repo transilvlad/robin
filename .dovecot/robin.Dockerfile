@@ -1,5 +1,7 @@
 # This is the Dockerfile for the combined Robin SMTP and Dovecot IMAP/POP3 servers.
 # The purpose if this is to help development and testing of the Robin integration with Dovecot's UNIX sockets and LDA binary.
+# You need to choose between using SQL or passwd file for user authentication.
+# See .dovecot/etc/conf.d/10-auth.conf for details.
 
 # Build stage
 FROM maven:3.9.9-amazoncorretto-21-debian AS build
