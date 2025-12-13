@@ -43,7 +43,7 @@ services:
     image: clamav/clamav:latest
     container_name: robin-suite-clamav
     volumes:
-      - ./log/clamav:/var/log
+      - ./log/clamav:/var/log/clamav
       - ./store/clamav:/var/lib/clamav
     ports:
       - "3310:3310"

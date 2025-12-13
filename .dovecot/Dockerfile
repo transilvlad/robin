@@ -39,4 +39,4 @@ RUN mkdir -p /run/dovecot \
 EXPOSE 24 110 143 993 4190
 
 # Run init script then start Dovecot in foreground.
-CMD ["/bin/bash", "-c", "/usr/local/bin/docker-init.sh && exec /usr/sbin/dovecot -F"]
+CMD ["/bin/sh", "-c", "/usr/local/bin/docker-init.sh && exec /usr/sbin/dovecot -F"]
