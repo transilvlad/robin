@@ -2,6 +2,13 @@
 
 Welcome to the Robin MTA documentation. This guide will help you navigate the documentation based on your role and needs.
 
+## Full Suite
+
+Complete email infrastructure bundling Robin with Dovecot, PostgreSQL, ClamAV, Rspamd, and Roundcube:
+
+- **[Robin Full Suite](developer/robin-suite.md)** - Architecture, deployment, and configuration
+- **[Full Suite Testing](testing/full-suite.md)** - Integration testing and validation
+
 ## Quick Navigation
 
 ### 🚀 Getting Started
@@ -46,6 +53,7 @@ New to Robin? Start here:
 
 ### 🧪 Testing
 
+- **[Full Suite Testing](testing/full-suite.md)** - Full suite integration testing
 - [SMTP Test Cases](testing/case-smtp.md) - Writing SMTP tests
 - [HTTP Assertions](testing/case-http.md) - External validation
 - [MIME Building](testing/mime.md) - Dynamic MIME construction in test cases
@@ -69,7 +77,8 @@ Robin includes several standalone, reusable libraries:
 
 ### 👨‍💻 Developers
 
-**Architecture & Internals**:
+**Architecture & Deployment**:
+- **[Robin Full Suite](developer/robin-suite.md)** - Complete infrastructure architecture
 - [SMTP Flow Diagrams](developer/flowchart.md) - Visual flow charts
 
 **Extending Robin**:

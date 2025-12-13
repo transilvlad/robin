@@ -2,6 +2,8 @@
 .idea/
 .dovecot/etc/dh.pem
 .dovecot/etc/certs/
+.suite/etc/dovecot/certs/
+.suite/etc/dovecot/dh.pem
 log/
 store/
 target/

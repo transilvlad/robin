@@ -1,0 +1,181 @@
+# Docker Compose Suite for Robin MTA + Dovecot + PostgreSQL + ClamAV + Rspamd + Roundcube
+# This file sets up a complete end-to-end email infrastructure:
+# - Robin MTA (SMTP server)
+# - Dovecot (IMAP/LMTP for mailbox hosting)
+# - PostgreSQL (user database)
+# - ClamAV (virus scanning)
+# - Rspamd (spam detection)
+# - Roundcube (webmail)
+
+services:
+  # PostgreSQL database for Robin, Dovecot and Roundcube storage.
+  robin-suite-postgres:
+    image: postgres:15
+    container_name: robin-suite-postgres
+    environment:
+      POSTGRES_DB: robin
+      POSTGRES_USER: robin
+      POSTGRES_PASSWORD: robin
+    volumes:
+      - ./log/postgres:/var/log
+      - ./store/postgres:/var/lib/postgresql/data
+      - ./.suite/db-init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5433:5432"  # Using 5433 to avoid conflict with local Postgres.
+    networks:
+      - robin-suite
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U robin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ClamAV virus scanner.
+  robin-suite-clamav:
+    image: clamav/clamav:latest
+    container_name: robin-suite-clamav
+    volumes:
+      - ./log/clamav:/var/log
+      - ./store/clamav:/var/lib/clamav
+    ports:
+      - "3310:3310"
+    networks:
+      - robin-suite
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/clamdcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s  # ClamAV needs time to download virus definitions.
+
+  # Rspamd spam/phishing detection.
+  robin-suite-rspamd:
+    image: rspamd/rspamd:latest
+    container_name: robin-suite-rspamd
+    volumes:
+      - ./log/rspamd:/var/log
+      - ./store/rspamd:/var/lib/rspamd
+    ports:
+      - "11333:11333"  # Rspamd normal worker.
+      - "11334:11334"  # Rspamd web UI.
+    networks:
+      - robin-suite
+    healthcheck:
+      test: ["CMD", "rspamadm", "configtest"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # Robin MTA server.
+  robin-suite-robin:
+    container_name: robin-suite-robin
+    build:
+      context: ./
+      dockerfile: ./Dockerfile
+      args:
+        INCLUDE_CFG: "false"
+    volumes:
+      - ./.suite/cfg:/usr/local/robin/cfg
+      - ./log/robin:/var/log
+      - ./store/robin:/usr/local/robin/store
+    depends_on:
+      robin-suite-postgres:
+        condition: service_healthy
+      robin-suite-clamav:
+        condition: service_healthy
+      robin-suite-rspamd:
+        condition: service_healthy
+      robin-suite-dovecot:
+        condition: service_healthy
+    ports:
+      - "2525:25"      # SMTP
+      - "2587:587"     # SUBMISSION
+      - "2465:465"     # SMTPS
+      - "28080:8080"   # Service API
+      - "28090:8090"   # Client API (logs, queue, store)
+    environment:
+      - POSTGRES_HOST=robin-suite-postgres
+      - POSTGRES_DB=robin
+      - POSTGRES_USER=robin
+      - POSTGRES_PASSWORD=robin
+      - CLAMAV_HOST=robin-suite-clamav
+      - CLAMAV_PORT=3310
+      - RSPAMD_HOST=robin-suite-rspamd
+      - RSPAMD_PORT=11333
+      - DOVECOT_HOST=robin-suite-dovecot
+      - DOVECOT_LMTP_PORT=24
+    networks:
+      - robin-suite
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "25"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Dovecot IMAP/LMTP server.
+  robin-suite-dovecot:
+    container_name: robin-suite-dovecot
+    build:
+      context: ./
+      dockerfile: ./.dovecot/Dockerfile
+      args:
+        INCLUDE_CFG: "false"
+    volumes:
+      - ./log/dovecot:/var/log
+      - ./store/dovecot:/var/mail
+      - ./.suite/etc/dovecot:/etc/dovecot
+    depends_on:
+      robin-suite-postgres:
+        condition: service_healthy
+    ports:
+      - "2143:143"     # IMAP
+      - "2993:993"     # IMAPS
+      - "2110:110"     # POP3
+      - "224:24"       # LMTP (for Robin to relay mail to Dovecot)
+    environment:
+      - POSTGRES_HOST=robin-suite-postgres
+      - POSTGRES_DB=robin
+      - POSTGRES_USER=robin
+      - POSTGRES_PASSWORD=robin
+    networks:
+      - robin-suite
+    healthcheck:
+      test: ["CMD", "doveadm", "who"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Roundcube webmail for user access.
+  robin-suite-roundcube:
+    image: roundcube/roundcubemail:latest
+    container_name: robin-suite-roundcube
+    depends_on:
+      robin-suite-postgres:
+        condition: service_healthy
+      robin-suite-dovecot:
+        condition: service_healthy
+    ports:
+      - "8888:80"
+    environment:
+      - ROUNDCUBEMAIL_DB_TYPE=pgsql
+      - ROUNDCUBEMAIL_DB_HOST=robin-suite-postgres
+      - ROUNDCUBEMAIL_DB_PORT=5432
+      - ROUNDCUBEMAIL_DB_USER=robin
+      - ROUNDCUBEMAIL_DB_PASSWORD=robin
+      - ROUNDCUBEMAIL_DB_NAME=roundcube
+      - ROUNDCUBEMAIL_DEFAULT_HOST=robin-suite-dovecot
+      - ROUNDCUBEMAIL_DEFAULT_PORT=143
+      - ROUNDCUBEMAIL_SMTP_SERVER=robin-suite-robin
+      - ROUNDCUBEMAIL_SMTP_PORT=25
+      - ROUNDCUBEMAIL_IMAP_CONN_OPTIONS={"ssl":{"verify_peer":false,"verify_peer_name":false}}
+      - ROUNDCUBEMAIL_UPLOAD_MAX_FILESIZE=10M
+    networks:
+      - robin-suite
+    volumes:
+      - ./log/roundcube:/var/log
+      - ./store/roundcube:/var/roundcube/db
+
+networks:
+  robin-suite:
+    driver: bridge

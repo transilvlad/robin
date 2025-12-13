@@ -27,4 +27,11 @@ Additionally, you may want to update the email store path.
 - Read [cli.md](cli.md) for commandline usage.
 
 
+Robin full suite
+----------------
+
+For a complete email infrastructure with Dovecot, PostgreSQL, ClamAV, Rspamd, and Roundcube,
+see **[Robin Full Suite](../developer/robin-suite.md)**.
+
+
 _Use it wisely!_

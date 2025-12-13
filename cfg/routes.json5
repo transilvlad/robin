@@ -6,6 +6,12 @@
   },
 
   {
+    name: "docker",
+    mx: ["127.0.0.1"],
+    port: 2525
+  },
+
+  {
     name: "com",
     mx: ["example.com"],
     port: 25

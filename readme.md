@@ -42,6 +42,18 @@ Before submitting a merge request please run a comprehensive code quality analys
 Read more [here](contributing.md).
 
 
+Full Suite
+----------
+Complete email infrastructure with Dovecot, PostgreSQL, ClamAV, Rspamd, and Roundcube:
+
+```bash
+docker-compose -f docker-compose.suite.yaml up -d
+```
+
+- **[Robin Full Suite](doc/developer/robin-suite.md)** - Architecture and deployment guide
+- **[Full Suite Testing](doc/testing/full-suite.md)** - Integration testing procedures
+
+
 Disclosure
 ----------
 This project makes use of sample password as needed for testing and demonstration purposes.
