@@ -1,0 +1,11 @@
+{
+  enabled: true,
+  host: "robin-suite-rspamd",
+  port: 11333,
+  timeout: 30,
+  spfScanEnabled: true,
+  dkimScanEnabled: true,
+  dmarcScanEnabled: true,
+  rejectThreshold: 15.0,
+  discardThreshold: 20.0
+}

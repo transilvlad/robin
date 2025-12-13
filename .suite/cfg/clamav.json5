@@ -1,0 +1,8 @@
+{
+  enabled: true,
+  scanAttachments: true,
+  host: "robin-suite-clamav",
+  port: 3310,
+  timeout: 30,
+  onVirus: "reject"
+}

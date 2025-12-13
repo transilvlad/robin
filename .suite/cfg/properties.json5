@@ -1,0 +1,42 @@
+{
+  // Properties configuration for suite testing
+
+  // Path to MTA logs (relative to project root for host-based tests)
+  localLogsDir: "/var/log/",
+
+  // Pattern to match UID out of SMTP responses
+  uidPattern: "\\s\\[([a-z0-9\\-_]+)]",
+
+  // Client RSET command before additional envelopes
+  rsetBetweenEnvelopes: false,
+
+  // Auto reload properties file config
+  propertiesAutoReload: {
+    enabled: false,
+    delaySeconds: 300,
+    intervalSeconds: 300
+  },
+
+  // Auto reload server config
+  serverAutoReload: {
+    enabled: false,
+    delaySeconds: 300,
+    intervalSeconds: 300
+  },
+
+  // Logging config
+  logging: {
+    data: false,
+    textPartBody: false
+  },
+
+  // HTTP Requests configuration
+  request: {
+    connectTimeout: 20,
+    writeTimeout: 20,
+    readTimeout: 90
+  },
+
+  // Enable debug mode for Robin IMAP client
+  imapClientDebug: "false"
+}

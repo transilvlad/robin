@@ -1,0 +1,83 @@
+{
+  // Suite server configuration - simplified for testing
+
+  hostname: "robin-suite-robin",
+  bind: "::",
+
+  smtpPort: 25,
+  securePort: 465,
+  submissionPort: 587,
+
+  smtpConfig: {
+    backlog: 50,
+    minimumPoolSize: 2,
+    maximumPoolSize: 20,
+    threadKeepAliveTime: 120,
+    transactionsLimit: 500,
+    recipientsLimit: 100,
+    envelopeLimit: 100,
+    messageSizeLimit: 10242400,
+    errorLimit: 5
+  },
+
+  secureConfig: {
+    backlog: 50,
+    minimumPoolSize: 2,
+    maximumPoolSize: 20,
+    threadKeepAliveTime: 120,
+    transactionsLimit: 500,
+    recipientsLimit: 100,
+    envelopeLimit: 100,
+    messageSizeLimit: 10242400,
+    errorLimit: 5
+  },
+
+  submissionConfig: {
+    backlog: 50,
+    minimumPoolSize: 2,
+    maximumPoolSize: 20,
+    threadKeepAliveTime: 120,
+    transactionsLimit: 500,
+    recipientsLimit: 100,
+    envelopeLimit: 100,
+    messageSizeLimit: 10242400,
+    errorLimit: 5
+  },
+
+  auth: true,
+  starttls: true,
+  chunking: true,
+
+  keystore: "/usr/local/robin/keystore.jks",
+  keystorepassword: "avengers",
+  truststore: "/opt/java/openjdk/lib/security/cacerts",
+  truststorepassword: "avengers",
+  allowSelfSigned: true,
+
+  service: {
+    port: 8080,
+    authType: "none",
+    authValue: "",
+    allowList: []
+  },
+
+  api: {
+    port: 8090,
+    authType: "none",
+    authValue: "",
+    allowList: []
+  },
+
+  rbl: {
+    enabled: false
+  },
+
+  emailSizeLimit: 10242400,
+  envelopesLimit: 100,
+
+  // Enable chaos headers for testing
+  chaosHeaders: true,
+
+  // Enable XCLIENT for testing
+  xclientEnabled: true
+}

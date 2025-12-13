@@ -1,0 +1,17 @@
+{
+  // Relay/Queue configuration for PostgreSQL backend
+
+  // PostgreSQL connection for relay queue
+  postgres: {
+    jdbcUrl: "jdbc:postgresql://robin-suite-postgres:5432/robin",
+    user: "robin",
+    password: "robin",
+
+    // Connection pool settings
+    minimumIdle: 2,
+    maximumPoolSize: 10,
+    connectionTimeout: 30000,
+    idleTimeout: 600000,
+    maxLifetime: 1800000
+  }
+}

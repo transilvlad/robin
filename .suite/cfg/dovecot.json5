@@ -1,0 +1,44 @@
+{
+  // Dovecot configuration for suite integration testing
+
+  // Enable Dovecot authentication and mailbox integration
+  auth: true,
+
+  // Use SQL authentication backend
+  authSql: {
+    enabled: true,
+    jdbcUrl: "jdbc:postgresql://robin-suite-postgres:5432/robin",
+    user: "robin",
+    password: "robin",
+
+    // Query for password verification
+    passwordQuery: "SELECT password FROM users WHERE email = ?",
+
+    // Query for user lookup (returns home, uid, gid, mail)
+    userQuery: "SELECT home, uid, gid, maildir AS mail FROM users WHERE email = ?"
+  },
+
+  // Disable socket authentication (we're using SQL)
+  authSocket: {
+    enabled: false
+  },
+
+  // Use LMTP backend for email delivery
+  saveLmtp: {
+    enabled: true,
+    servers: ["robin-suite-dovecot"],
+    port: 24,
+    tls: false
+  },
+
+  // Disable LDA backend (we're using LMTP)
+  saveLda: {
+    enabled: false
+  },
+
+  // Delivery options
+  inlineSaveMaxAttempts: 3,
+  inlineSaveRetryDelay: 2,
+  failureBehaviour: "retry",
+  maxRetryCount: 10
+}
