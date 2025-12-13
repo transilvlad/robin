@@ -39,7 +39,7 @@
     protocol: [
       [ "SMTP", "^220" ],
       [ "EHLO", "STARTTLS" ],
-      [ "SHLO", "250 HELP" ],
+      [ "SHLO", "^250-Welcome" ],
       [ "QUIT" ]
     ]
   }

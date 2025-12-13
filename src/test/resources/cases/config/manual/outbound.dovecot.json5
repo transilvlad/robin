@@ -90,7 +90,7 @@
     // Check SMTP responses match regular expressions.
     protocol: [
       [ "SMTP", "^220" ],
-      [ "EHLO", "250-STARTTLS" ],
+      [ "EHLO", "STARTTLS" ],
       [ "SHLO", "^250-Welcome" ],
       [ "QUIT" ]
     ]
