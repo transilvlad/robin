@@ -28,10 +28,9 @@
         // Protocol assertions.
         // Check SMTP responses match regular expressions.
         protocol: [
-          ["MAIL", "250 Sender OK"],
-          ["RCPT", "250 Recipient OK"],
-          ["DATA", "^250"],
-          ["DATA", "Received OK"]
+          ["MAIL", "^250.*Sender OK"],
+          ["RCPT", "^250.*Recipient OK"],
+          ["DATA", "^250.*Received OK"]
         ],
 
         // External assertions.
@@ -51,9 +50,8 @@
             // Folder to check for the email.
             folder: "INBOX",
 
-            // What to check in the email.
+            // Email matching criteria.
             matches: {
-              // Check headers.
               headers: [
                 [ "subject", "Lipsum" ]
               ]

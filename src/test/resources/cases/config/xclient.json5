@@ -1,8 +1,14 @@
 {
   $schema: "../../../../main/resources/schema/case.schema.json",
 
-  retry: 1,
-  delay: 2,
+  // How many times to try and establish a connection to remote server. First counts.
+  retry: 2,
+
+  // Delay between tries.
+  delay: 5,
+
+  // Enable TLS.
+  tls: true,
 
   xclient: {
     name: "example.com",
@@ -10,22 +16,31 @@
     addr: "1.2.3.4"
   },
 
+  // Email envelopes.
   envelopes: [
+    // Envelope one.
     {
+      // Email eml file to transmit.
       file: "src/test/resources/cases/sources/lipsum.eml",
 
+      // Assertions to run against the envelope.
       assertions: {
+
+        // Protocol assertions.
+        // Check SMTP responses match regular expressions.
         protocol: [
-          ["MAIL", "250 Sender OK"],
-          ["RCPT", "250 Recipient OK"],
-          ["DATA", "^250"],
-          ["DATA", "Received OK"]
+          ["MAIL", "^250.*Sender OK"],
+          ["RCPT", "^250.*Recipient OK"],
+          ["DATA", "^250.*Received OK"]
         ]
       }
     }
   ],
 
+  // Assertions to run against the connection.
   assertions: {
+    // Protocol assertions.
+    // Check SMTP responses match regular expressions.
     protocol: [
       [ "SMTP", "^220" ],
       [ "EHLO", "STARTTLS" ],
