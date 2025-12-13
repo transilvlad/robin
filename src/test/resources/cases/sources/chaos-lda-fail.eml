@@ -1,0 +1,13 @@
+MIME-Version: 1.0
+From: <{$MAILFROM}>
+To: <{$RCPTTO}>
+Message-ID: <{$MSGID}{$MAILFROM}>
+Date: {$DATE}
+Subject: Chaos Header Test - LDA Failure
+Content-Type: text/plain; charset=UTF-8
+X-Robin-Chaos: DovecotLdaClient; exitCode=75; message=temporary failure
+
+This email contains a chaos header that forces Dovecot LDA to fail
+with exit code 75 (temporary failure).
+
+This should trigger a retry in the relay queue.

@@ -1,0 +1,13 @@
+MIME-Version: 1.0
+From: <{$MAILFROM}>
+To: <{$RCPTTO}>
+Message-ID: <{$MSGID}{$MAILFROM}>
+Date: {$DATE}
+Subject: Chaos Header Test - Storage Failure
+Content-Type: text/plain; charset=UTF-8
+X-Robin-Chaos: LocalStorageClient; processor=AVStorageProcessor; return=false
+
+This email contains a chaos header that forces AVStorageProcessor to return false,
+simulating a virus detection failure in the storage chain.
+
+This should cause the email to be rejected.

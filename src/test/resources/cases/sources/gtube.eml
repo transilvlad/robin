@@ -1,0 +1,14 @@
+MIME-Version: 1.0
+From: <{$MAILFROM}>
+To: <{$RCPTTO}>
+Message-ID: <{$MSGID}{$MAILFROM}>
+Date: {$DATE}
+Subject: This is the GTUBE spam test
+Content-Type: text/plain; charset=UTF-8
+
+This email contains the GTUBE (Generic Test for Unsolicited Bulk Email) pattern
+which should be detected by Rspamd as spam.
+
+XJS*C4JDBQADN1.NSBN3*2IDNEN*GTUBE-STANDARD-ANTI-UBE-TEST-EMAIL*C.34X
+
+If this email is not rejected, the spam filter is not working correctly.
