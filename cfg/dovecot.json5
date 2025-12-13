@@ -1,6 +1,6 @@
 {
   // Enable Dovecot authentication and mailbox integration.
-  auth: true,
+  auth: false,
 
   // Dovecot UNIX socket authentication and userdb lookup backend.
   authSocket: {
