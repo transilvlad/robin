@@ -166,19 +166,26 @@ public class ImapClient implements AutoCloseable {
      * @return The Message if found, otherwise null.
      */
     public Message fetchEmailByMessageId(String messageId) {
+        log.debug("Searching for Message-ID containing: {}", messageId);
         List<Message> messages = fetchEmails();
+        log.debug("Found {} messages in mailbox", messages.size());
         for (Message message : messages) {
             String[] headers;
             try {
                 headers = message.getHeader("Message-ID");
-                if (headers != null && headers.length > 0 && headers[0].contains(messageId)) {
-                    return message;
+                if (headers != null && headers.length > 0) {
+                    log.debug("Checking Message-ID: {}", headers[0]);
+                    if (headers[0].contains(messageId)) {
+                        log.debug("Found matching message!");
+                        return message;
+                    }
                 }
             } catch (MessagingException e) {
                 log.error("Error retrieving Message-ID header: {}", e.getMessage());
             }
         }
 
+        log.debug("No matching message found");
         return null;
     }
 
