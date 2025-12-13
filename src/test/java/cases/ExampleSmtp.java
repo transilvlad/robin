@@ -26,7 +26,7 @@ public class ExampleSmtp {
     }
 
     /**
-     * JSON example of a basic test that sends an eml file.
+     * JSON example of a basic test that sends an eml file with IMAP verification.
      */
     @Test
     void imapAssertion() throws AssertException, IOException {
