@@ -48,6 +48,14 @@ services:
   robin-postgres:
     image: postgres:15
     container_name: robin-postgres
+    command:
+      - "postgres"
+      - "-c"
+      - "logging_collector=on"
+      - "-c"
+      - "log_directory=/var/log"
+      - "-c"
+      - "log_filename=postgresql-%Y-%m-%d.log"
     environment:
       POSTGRES_DB: robin
       POSTGRES_USER: robin

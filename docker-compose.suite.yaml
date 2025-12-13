@@ -12,6 +12,14 @@ services:
   robin-suite-postgres:
     image: postgres:15
     container_name: robin-suite-postgres
+    command:
+      - "postgres"
+      - "-c"
+      - "logging_collector=on"
+      - "-c"
+      - "log_directory=/var/log"
+      - "-c"
+      - "log_filename=postgresql-%Y-%m-%d.log"
     environment:
       POSTGRES_DB: robin
       POSTGRES_USER: robin
@@ -55,6 +63,7 @@ services:
     volumes:
       - ./log/rspamd:/var/log
       - ./store/rspamd:/var/lib/rspamd
+      - ./.suite/etc/rspamd/local.d:/etc/rspamd/local.d
     ports:
       - "11333:11333"  # Rspamd normal worker.
       - "11334:11334"  # Rspamd web UI.
@@ -174,7 +183,6 @@ services:
       - robin-suite
     volumes:
       - ./log/roundcube:/var/log
-      - ./store/roundcube:/var/roundcube/db
 
 networks:
   robin-suite:
