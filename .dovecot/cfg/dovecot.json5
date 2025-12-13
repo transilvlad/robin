@@ -1,0 +1,35 @@
+{
+  // Enable Dovecot authentication and mailbox integration.
+  auth: true,
+
+  // Use socket authentication backend (same-container).
+  authSocket: {
+    enabled: true,
+    client: "/run/dovecot/auth-client",
+    userdb: "/run/dovecot/auth-userdb"
+  },
+
+  // Disable SQL authentication (we're using sockets).
+  authSql: {
+    enabled: false
+  },
+
+  // Disable LMTP backend (we're using LDA).
+  saveLmtp: {
+    enabled: false
+  },
+
+  // Use LDA backend for email delivery (same-container).
+  saveLda: {
+    enabled: true,
+    ldaBinary: "/usr/libexec/dovecot/dovecot-lda",
+    inboxFolder: "INBOX",
+    sentFolder: "Sent"
+  },
+
+  // Delivery options
+  inlineSaveMaxAttempts: 3,
+  inlineSaveRetryDelay: 2,
+  failureBehaviour: "retry",
+  maxRetryCount: 10
+}

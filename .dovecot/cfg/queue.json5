@@ -1,0 +1,53 @@
+{
+  // Queue cron initial run delay (in seconds).
+  queueInitialDelay: 10,
+
+  // Queue cron processing interval (in seconds).
+  queueInterval: 30,
+
+  // Maximum number of messages to attempt to relay per cron tick.
+  maxDequeuePerTick: 10,
+
+  // MapDB backend configuration.
+  // MapDB is enabled by default for file-based queue persistence.
+  queueMapDB: {
+    enabled: false,
+    // Queue file to use for persisting messages that could not be relayed.
+    queueFile: "/usr/local/robin/relayQueue.db",
+    // Concurrency scale for MapDB (defaults to 32 if not specified).
+    concurrencyScale: 32
+  },
+
+  // Redis backend configuration.
+  // If enabled and queueMapDB is disabled, Redis will be used for queue persistence.
+  // Compatible with AWS Elasticache and standard Redis instances.
+  queueRedis: {
+    enabled: false,
+    // Redis server hostname or IP address.
+    host: "localhost",
+    // Redis server port (default: 6379).
+    port: 6379,
+    // Redis key name for the queue LIST.
+    queueKey: "robin:queue"
+  },
+
+  // MariaDB backend configuration.
+  // If enabled and queueMapDB and queueRedis are disabled, MariaDB will be used for queue persistence.
+  queueMariaDB: {
+    enabled: false,
+    jdbcUrl: "jdbc:mariadb://localhost:3306/robin",
+    username: "robin",
+    password: "your_password_here",
+    tableName: "queue"
+  },
+
+  // PostgreSQL backend configuration.
+  // If enabled and queueMapDB, queueRedis, and queueMariaDB are disabled, PostgreSQL will be used for queue persistence.
+  queuePgSQL: {
+    enabled: true,
+    jdbcUrl: "jdbc:postgresql://robin-postgres:5432/robin",
+    username: "robin",
+    password: "robin",
+    tableName: "queue"
+  }
+}

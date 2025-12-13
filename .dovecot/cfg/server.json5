@@ -1,0 +1,133 @@
+{
+  // Hostname to declare in welcome message.
+  hostname: "docker",
+
+  // Interface the server will bind too (default: ::).
+  bind: "::",
+
+  // Port the server will listen too (default: 25, 0 to disable).
+  smtpPort: 25,
+
+  // Port for secure SMTP via SSL/TLS (default: 465, 0 to disable).
+  securePort: 465,
+
+  // Port for mail submission (default: 587, 0 to disable).
+  submissionPort: 587,
+
+  // SMTP port configuration
+  smtpConfig: {
+    // Number of connections to be allowed in the backlog (default: 25).
+    backlog: 50,
+
+    // Minimum number of threads in the pool.
+    minimumPoolSize: 2,
+
+    // Maximum number of threads in the pool.
+    maximumPoolSize: 20,
+
+    // Time (in seconds) to keep idle threads alive.
+    threadKeepAliveTime: 120,
+
+    // Maximum number of SMTP transactions to process over a connection.
+    transactionsLimit: 305,
+
+    // Maximum number of recipients (emails) allowed per envelope (default: 100).
+    recipientsLimit: 100,
+
+    // Maximum number of envelopes (emails) allowed per connection (default: 100).
+    envelopeLimit: 100,
+
+    // Maximum size of a message in megabytes (default: 10242400).
+    messageSizeLimit: 10242400, // 10 MB
+
+    // Number of SMTP errors to allow before terminating connection (default: 3).
+    errorLimit: 3
+  },
+
+  // Secure SMTP port configuration
+  secureConfig: {
+    backlog: 50,
+    minimumPoolSize: 2,
+    maximumPoolSize: 20,
+    threadKeepAliveTime: 120,
+    transactionsLimit: 500,
+    recipientsLimit: 100,
+    envelopeLimit: 100,
+    messageSizeLimit: 10242400,
+    errorLimit: 5
+  },
+
+  // Submission port configuration
+  submissionConfig: {
+    backlog: 50,
+    minimumPoolSize: 2,
+    maximumPoolSize: 20,
+    threadKeepAliveTime: 120,
+    transactionsLimit: 500,
+    recipientsLimit: 100,
+    envelopeLimit: 100,
+    messageSizeLimit: 10242400,
+    errorLimit: 5
+  },
+
+  // Advertise AUTH support (default: true).
+  auth: true,
+
+  // Advertise STARTTLS support (default: true).
+  starttls: true,
+
+  // Advertise CHUNKING support (default: true).
+  chunking: true,
+
+  // Java keystore (default: /usr/local/keystore.jks).
+  keystore: "/usr/local/robin/keystore.jks",
+
+  // Keystore password or path to password file.
+  keystorepassword: "avengers",
+
+  // Java truststore (default: /usr/local/truststore.jks).
+  truststore: "/opt/java/openjdk/lib/security/cacerts",
+
+  // Truststore password or path to password file.
+  truststorepassword: "avengers",
+
+  // Allow self-signed certificates (default: false).
+  allowSelfSigned: true,
+
+  // Service endpoint configuration.
+  service: {
+    port: 8080,
+    authType: "none",
+    authValue: "",
+    allowList: []
+  },
+
+  // API endpoint configuration.
+  api: {
+    port: 8090,
+    authType: "none",
+    authValue: "",
+    allowList: []
+  },
+
+  // RBL (Realtime Blackhole List) configuration.
+  rbl: {
+    enabled: false
+  },
+
+  // Maximum size in bytes for email messages (default: 10242400, 0 = unlimited).
+  emailSizeLimit: 10242400,
+
+  // Maximum number of envelopes (recipients) per message (default: 100, 0 = unlimited).
+  envelopesLimit: 100,
+
+  // Chaos headers for testing exception scenarios.
+  // WARNING: Do NOT enable in production. This feature allows bypassing normal processing
+  // and is intended strictly for development and testing purposes.
+  chaosHeaders: true,
+
+  // Enable XCLIENT extension for development and testing only.
+  // WARNING: Do NOT enable in production. XCLIENT allows clients to forge sender information
+  // and is intended strictly for development and testing purposes.
+  xclientEnabled: true
+}

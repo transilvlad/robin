@@ -1,0 +1,35 @@
+{
+  // Default MX list and port
+  mx: ["127.0.0.1"],
+  port: 2525,
+
+  // Default TLS enablement
+  tls: true,
+
+  // Default supported protocols and ciphers
+  protocols: [
+    "TLSv1.2", "TLSv1.3"
+  ],
+  ciphers: [
+    "TLS_AES_256_GCM_SHA384",
+    "TLS_CHACHA20_POLY1305_SHA256",
+    "TLS_AES_128_GCM_SHA256",
+    "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+    "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+    "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+    "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+  ],
+
+  // Default EHLO to use
+  ehlo: "example.com",
+
+  // Default sender and recipients
+  mail: "tony@example.com",
+  rcpt: ["pepper@example.com"],
+
+  // Default asserting configuration
+  assertions: {
+    protocolFails: true,
+    verifyFails: true
+  }
+}

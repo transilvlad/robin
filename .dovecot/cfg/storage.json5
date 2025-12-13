@@ -1,0 +1,34 @@
+{
+  // Enable email storage.
+  // If disabled, emails are not stored on disk or scanned or delivered to Dovecot.
+  enabled: true,
+
+  // Auto delete files at connection/session end.
+  // If enabled, files are deleted when the SMTP/IMAP session ends,
+  // however queued items are copied and deleted after successful delivery or bounce.
+  autoDelete: true,
+
+  // Enable local mailbox storage.
+  // If enabled, emails are copied to recipient-specific mailbox folders.
+  localMailbox: false,
+
+  // Disable rename by magic header feature.
+  disableRenameHeader: true,
+
+  // Path to storage folder.
+  path: "/usr/local/robin/store",
+
+  // Folder for inbound emails. Leave empty to disable. Default: new
+  inboundFolder: "new",
+
+  // Folder for outbound emails. Leave empty to disable. Default: .Sent/new
+  outboundFolder: ".Sent/new",
+
+  // Auto clean storage on service start.
+  clean: false,
+
+  // Auto clean delete matching filenames only.
+  patterns: [
+    "^([0-9]{8}\\.)"
+  ]
+}

@@ -1,10 +1,8 @@
 # Docker Compose for Robin MTA + Dovecot in a single container
 # This file sets up a combined container for Robin MTA and Dovecot with necessary volumes and ports.
-# It loads the default configuration which can be customized via the cfg/ directory.
-# This has all 3rd party integrations turned off including local mail storage.
-# It will not accept any emails until configured properly.
-# Note: This setup is primarily for developing and testing the Dovecot UNIX sockets and LDA delivery.
-# You need to enable those dovecot integrations plus local users and local storage.
+# Uses LDA (Local Delivery Agent) + socket authentication for same-container delivery.
+# Configuration in .dovecot/cfg/ directory (mirrors .suite/cfg/ structure).
+# Port mappings align with suite compose (2525, 2143, 28090) for test compatibility.
 
 services:
   robin-dovecot:
@@ -15,26 +13,37 @@ services:
       args:
         INCLUDE_CFG: "false"
     volumes:
-      # Robin specific volumes
-      - ./cfg:/usr/local/robin/cfg
-      - ./log:/var/log
-      - ./store:/usr/local/robin/store
-      # Dovecot specific volumes
-      - ./store/mail:/var/mail
+      # Robin configuration (uses .dovecot/cfg/ for LDA + socket auth)
+      - ./.dovecot/cfg:/usr/local/robin/cfg
+      # Robin logs and storage
+      - ./log/robin:/var/log/robin
+      - ./store/robin:/usr/local/robin/store
+      # Dovecot logs and mail storage
+      - ./log/dovecot:/var/log/dovecot
+      - ./store/dovecot:/var/mail
+      # Dovecot configuration
       - ./.dovecot/etc:/etc/dovecot
       - ./.dovecot/etc/dovecot-sql.conf.ext:/etc/dovecot/dovecot-sql.conf.ext:ro
     depends_on:
-      - robin-postgres
+      robin-postgres:
+        condition: service_healthy
     ports:
-      - "25:25"     # SMTP
-      - "587:587"   # SUBMISSION
-      - "465:465"   # SMTPS
-      - "110:110"   # POP3
-      - "143:143"   # IMAP
-      - "993:993"   # IMAPS
-      - "4190:4190" # ManageSieve
-      - "8080:8080" # Service
-      - "8090:8090" # API
+      - "2525:25"      # SMTP (external 2525 matches suite)
+      - "2587:587"     # SUBMISSION (external 2587 matches suite)
+      - "2465:465"     # SMTPS (external 2465 matches suite)
+      - "2110:110"     # POP3 (external 2110 matches suite)
+      - "2143:143"     # IMAP (external 2143 matches suite)
+      - "2993:993"     # IMAPS (external 2993 matches suite)
+      - "24190:4190"   # ManageSieve (external 24190 matches suite)
+      - "28080:8080"   # Service (external 28080 matches suite)
+      - "28090:8090"   # API (external 28090 matches suite)
+    networks:
+      - robin-dovecot
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "25"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   robin-postgres:
     image: postgres:15
@@ -44,7 +53,19 @@ services:
       POSTGRES_USER: robin
       POSTGRES_PASSWORD: robin
     volumes:
+      - ./log/postgres:/var/log
       - ./store/postgres:/var/lib/postgresql/data
       - ./.dovecot/db-init:/docker-entrypoint-initdb.d:ro
     ports:
       - "5432:5432"
+    networks:
+      - robin-dovecot
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U robin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  robin-dovecot:
+    driver: bridge
