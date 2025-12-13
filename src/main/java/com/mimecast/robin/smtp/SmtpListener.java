@@ -7,7 +7,6 @@ import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.mimecast.robin.smtp.security.BlocklistMatcher;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.ThreadContext;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -118,10 +117,6 @@ public class SmtpListener {
             do {
                 Socket sock = listener.accept();
                 String remoteIp = sock.getInetAddress().getHostAddress();
-
-                ThreadContext.put("aCode", "");
-                ThreadContext.put("bCode", "");
-                ThreadContext.put("cCode", "");
 
                 // Check if the IP is blocked.
                 if (BlocklistMatcher.isBlocked(remoteIp, Config.getServer().getBlocklistConfig())) {

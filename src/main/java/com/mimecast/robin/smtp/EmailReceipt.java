@@ -19,6 +19,7 @@ import com.mimecast.robin.smtp.webhook.WebhookCaller;
 import com.mimecast.robin.smtp.webhook.WebhookResponse;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
 
 import java.io.IOException;
 import java.net.Socket;
@@ -72,6 +73,10 @@ public class EmailReceipt implements Runnable {
      */
     public EmailReceipt(Socket socket, ListenerConfig config, boolean secure, boolean submission) {
         try {
+            ThreadContext.put("aCode", "");
+            ThreadContext.put("bCode", "");
+            ThreadContext.put("cCode", "");
+
             connection = new Connection(socket);
             this.config = config;
             errorLimit = config.getErrorLimit();
@@ -254,7 +259,7 @@ public class EmailReceipt implements Runnable {
             }
             return;
         }
-        
+
         // Process all other extensions.
         if (Extensions.isExtension(verb)) {
             processExtension(verb);
