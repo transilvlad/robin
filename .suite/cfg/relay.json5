@@ -1,17 +1,20 @@
 {
-  // Relay/Queue configuration for PostgreSQL backend
+  // Enable inbound relay (LMTP relay to Dovecot is configured separately).
+  enabled: false,
 
-  // PostgreSQL connection for relay queue
-  postgres: {
-    jdbcUrl: "jdbc:postgresql://robin-suite-postgres:5432/robin",
-    user: "robin",
-    password: "robin",
+  // Enable outbound relay.
+  outboundEnabled: true,
 
-    // Connection pool settings
-    minimumIdle: 2,
-    maximumPoolSize: 10,
-    connectionTimeout: 30000,
-    idleTimeout: 600000,
-    maxLifetime: 1800000
-  }
+  // Enable outbound MX relay.
+  // When enabled, the server will perform MX lookups for recipient domains instead of using inbound relay host.
+  outboundMxEnabled: true,
+
+  // Disable relay by magic header feature.
+  disableRelayHeader: true,
+
+  // Bounce email if relay fails.
+  bounce: true,
+
+  // Retry count for outbound relay (Default: 30).
+  maxRetryCount: 30
 }

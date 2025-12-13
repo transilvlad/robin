@@ -1,6 +1,4 @@
 {
-  // Client configuration for suite testing
-
   // Default MX list and port
   mx: ["127.0.0.1"],
   port: 2525,

@@ -1,11 +1,30 @@
 {
+  // Enable/disable Rspamd scanning.
   enabled: true,
+
+  // Rspamd server host.
   host: "robin-suite-rspamd",
+
+  // Rspamd server port.
   port: 11333,
+
+  // Connection timeout in seconds.
   timeout: 30,
+
+  // Enable SPF scanning.
   spfScanEnabled: true,
+
+  // Enable DKIM scanning.
   dkimScanEnabled: true,
+
+  // Enable DMARC scanning.
   dmarcScanEnabled: true,
+
+  // Spam score threshold for rejecting emails.
+  // Emails with score >= rejectThreshold will be rejected with a 5xx error.
   rejectThreshold: 15.0,
+
+  // Spam score threshold for discarding emails.
+  // Emails with score >= discardThreshold will be silently discarded.
   discardThreshold: 20.0
 }

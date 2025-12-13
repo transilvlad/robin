@@ -1,6 +1,4 @@
 {
-  // Properties configuration for suite testing
-
   // Path to MTA logs (relative to project root for host-based tests)
   localLogsDir: "/var/log/",
 
