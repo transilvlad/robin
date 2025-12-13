@@ -20,7 +20,7 @@ public class RspamdClientDebug {
      */
     @Test
     public void scanFile() throws IOException {
-        var path = Paths.get("src/test/resources/mime/lipsum.eml");
+        var path = Paths.get("src/test/resources/cases/sources/gtube.eml");
         var client = new RspamdClient();
         var result = client.scanFile(path.toFile());
         System.out.println("Scan Result: " + prettyPrintJson(result));

@@ -20,10 +20,10 @@ public class ImapClientDebug {
      */
     @Test
     public void getMailbox() {
-        String host = "mail.example.com";
-        long port = 993L;
-        String user = "tony@example.com";
-        String pass = "giveHerTheRing";
+        String host = "localhost";
+        long port = 2993L;
+        String user = "pepper@example.com";
+        String pass = "potts";
         String folder = "INBOX";
 
         try (ImapClient client = new ImapClient(host, port, user, pass, folder)) {
