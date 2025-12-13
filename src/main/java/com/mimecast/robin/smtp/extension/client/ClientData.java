@@ -187,6 +187,27 @@ public class ClientData extends ClientProcessor {
 
         read = connection.read("250");
 
+        // In LMTP with multiple recipients, we receive one response line per recipient.
+        // Standard SMTP/ESMTP returns a single response for all recipients.
+        // Check if we're using LMTP (LHLO instead of EHLO) and have multiple recipients.
+        boolean isLmtp = connection.getSession().getLhlo() != null && !connection.getSession().getLhlo().isEmpty();
+        int recipientCount = envelope.getRcpts().size();
+
+        if (isLmtp && recipientCount > 1 && read.startsWith("250")) {
+            // Read additional responses for remaining recipients.
+            StringBuilder allResponses = new StringBuilder(read);
+            for (int i = 1; i < recipientCount; i++) {
+                String additionalResponse = connection.read("250");
+                allResponses.append(additionalResponse);
+                if (!additionalResponse.startsWith("250")) {
+                    // If any recipient failed, record failure.
+                    envelopeTransactions.addTransaction(write, write, allResponses.toString(), true);
+                    return false;
+                }
+            }
+            read = allResponses.toString();
+        }
+
         envelopeTransactions.addTransaction(write, write, read, !read.startsWith("250"));
         return read.startsWith("250");
     }
