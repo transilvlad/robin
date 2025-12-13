@@ -13,6 +13,7 @@ import java.io.IOException;
  *
  * <p>Prerequisites: docker-compose -f docker-compose.suite.yaml up -d
  */
+@Tag("integration")
 @TestMethodOrder(MethodOrderer.MethodName.class)
 public class IntegrationTest {
 
