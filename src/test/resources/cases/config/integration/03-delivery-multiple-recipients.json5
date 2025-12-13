@@ -1,0 +1,152 @@
+{
+  $schema: "../../../../../main/resources/schema/case.schema.json",
+
+  // Test: Multi-recipient email delivery with LMTP protocol.
+  // Critical test: LMTP sends one "250" response per recipient after DATA.
+  // This differs from SMTP which sends a single "250" for all recipients.
+  // Validates: Proper LMTP response parsing (ClientData.java:188-212).
+  // Both recipients should receive the email in their mailboxes.
+
+  // How many times to try and establish a connection to remote server. First counts.
+  retry: 2,
+
+  // Delay between tries.
+  delay: 5,
+
+  // Delivery route.
+  route: "docker",
+
+  // Enable TLS.
+  tls: true,
+
+  // Email envelopes.
+  envelopes: [
+    // Envelope one.
+    {
+      mail: "tony@example.com",
+      rcpt: [
+        "pepper@example.com",  // First recipient.
+        "happy@example.com"    // Second recipient.
+      ],
+
+      // Email eml file to transmit.
+      file: "src/test/resources/cases/sources/lipsum.eml",
+
+      // Assertions to run against the envelope.
+      assertions: {
+
+        // Protocol assertions.
+        // Check SMTP responses match regular expressions.
+        protocol: [
+          ["MAIL", "^250.*Sender OK"],
+          ["RCPT", "^250.*Recipient OK"],    // First RCPT accepted
+          ["RCPT", "^250.*Recipient OK"],    // Second RCPT accepted
+          ["DATA", "^250.*Received OK"]      // LMTP will send TWO 250 responses (one per recipient)
+        ],
+
+        // External assertions.
+        external: [
+          {
+            // IMAP assertion: Check first recipient's mailbox.
+            type: "imap",
+            name: "pepper-imap",
+
+            // How long to wait before asserting.
+            wait: 3,
+
+            // Delay between attempts.
+            delay: 2,
+
+            // How many times to retry should no email be found.
+            retry: 5,
+
+            // IMAP server to connect to.
+            host: "127.0.0.1",
+            port: 2143,
+
+            // User credentials.
+            user: "pepper@example.com",
+            pass: "potts",
+
+            // Folder to check for the email.
+            folder: "INBOX",
+
+            // Email matching criteria.
+            matches: {
+              headers: [
+                ["subject", "Lipsum"],
+                ["from", "tony@example.com"]
+              ]
+            }
+          },
+          {
+            // IMAP assertion: Check second recipient's mailbox.
+            type: "imap",
+            name: "happy-imap",
+
+            // How long to wait before asserting.
+            wait: 3,
+
+            // Delay between attempts.
+            delay: 2,
+
+            // How many times to retry should no email be found.
+            retry: 5,
+
+            // IMAP server to connect to.
+            host: "127.0.0.1",
+            port: 2143,
+
+            // User credentials.
+            user: "happy@example.com",
+            pass: "hogan",
+
+            // Folder to check for the email.
+            folder: "INBOX",
+
+            // Email matching criteria.
+            matches: {
+              headers: [
+                ["subject", "Lipsum"],
+                ["from", "tony@example.com"]
+              ]
+            }
+          },
+          {
+            // Assertion type request for pulling logs from the API.
+            type: "request",
+
+            // How long to wait before asserting.
+            wait: 2,
+
+            // Delay between log pulling attempts.
+            delay: 2,
+
+            // How many times to retry should no logs be found or valid.
+            retry: 3,
+
+            // HTTP request details.
+            request: {
+              url: "http://127.0.0.1:28090/logs?q={$transactionUid}",
+              type: "GET"
+            },
+
+            // Verification strings to look for in the response.
+            verify: [ "Dovecot-LDA delivery successful" ]
+          }
+        ]
+      }
+    }
+  ],
+
+  // Assertions to run against the connection.
+  assertions: {
+    // Protocol assertions.
+    // Check SMTP responses match regular expressions.
+    protocol: [
+      [ "SMTP", "^220" ],
+      [ "EHLO", "STARTTLS" ],
+      [ "QUIT" ]
+    ]
+  }
+}

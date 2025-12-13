@@ -1,0 +1,113 @@
+{
+  $schema: "../../../../../main/resources/schema/case.schema.json",
+
+  // Test: End-to-end successful email delivery with IMAP verification.
+  // Flow: SMTP → Rspamd scan → ClamAV scan → Dovecot LMTP → IMAP retrieval.
+  // Validates: Complete delivery pipeline from submission to mailbox access.
+  // This is the core happy-path test for the entire mail system.
+
+  // How many times to try and establish a connection to remote server. First counts.
+  retry: 2,
+
+  // Delay between tries.
+  delay: 5,
+
+  // Delivery route.
+  route: "docker",
+
+  // Enable TLS.
+  tls: true,
+
+  // Email envelopes.
+  envelopes: [
+    // Envelope one.
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+
+      // Email eml file to transmit.
+      file: "src/test/resources/cases/sources/lipsum.eml",
+
+      // Assertions to run against the envelope.
+      assertions: {
+
+        // Protocol assertions.
+        // Check SMTP responses match regular expressions.
+        protocol: [
+          ["MAIL", "^250.*Sender OK"],
+          ["RCPT", "^250.*Recipient OK"],
+          ["DATA", "^250.*Received OK"]
+        ],
+
+        // External assertions.
+        external: [
+          {
+            // IMAP assertion: Check email arrived in recipient's mailbox.
+            // Note: Dovecot may need time to index the email, hence generous retry settings.
+            type: "imap",
+
+            // How long to wait before asserting.
+            wait: 5,
+
+            // Delay between log pulling attempts.
+            delay: 3,
+
+            // How many times to retry should no logs be found or valid.
+            retry: 10,
+
+            // IMAP server to connect to.
+            host: "127.0.0.1",
+            port: 2143,
+
+            // User credentials.
+            user: "pepper@example.com",
+            pass: "potts",
+
+            // Folder to check for the email.
+            folder: "INBOX",
+
+            // Email matching criteria.
+            matches: {
+              headers: [
+                ["subject", "Lipsum"],
+                ["from", "tony@example.com"]
+              ]
+            }
+          },
+          {
+            type: "request",
+
+            // How long to wait before asserting.
+            wait: 0,
+
+            // Delay between log pulling attempts.
+            delay: 2,
+
+            // How many times to retry should no logs be found or valid.,
+            retry: 3,
+
+            // HTTP request details.
+            request: {
+              url: "http://127.0.0.1:28090/logs?q={$transactionUid}",
+              type: "GET"
+            },
+
+            // Verification strings to look for in the response.
+            verify: [ "Dovecot-LDA delivery successful" ]
+          }
+        ]
+      }
+    }
+  ],
+
+  // Assertions to run against the connection.
+  assertions: {
+    // Protocol assertions.
+    // Check SMTP responses match regular expressions.
+    protocol: [
+      [ "SMTP", "^220" ],
+      [ "EHLO", "STARTTLS" ],
+      [ "QUIT" ]
+    ]
+  }
+}

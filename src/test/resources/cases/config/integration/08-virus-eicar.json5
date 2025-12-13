@@ -1,0 +1,82 @@
+{
+  $schema: "../../../../../main/resources/schema/case.schema.json",
+
+  // Test: Virus detection with EICAR test file.
+  // EICAR (European Institute for Computer Antivirus Research) test pattern.
+  // ClamAV should detect the virus signature and reject the email.
+  // Expected: 554 rejection at DATA stage with virus mention.
+
+  // How many times to try and establish a connection to remote server. First counts.
+  retry: 2,
+
+  // Delay between tries.
+  delay: 5,
+
+  // Delivery route.
+  route: "docker",
+
+  // Enable TLS.
+  tls: true,
+
+  // Email envelopes.
+  envelopes: [
+    // Envelope one.
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+
+      // Email eml file to transmit (contains EICAR test pattern).
+      file: "src/test/resources/cases/sources/eicar.eml",
+
+      // Assertions to run against the envelope.
+      assertions: {
+
+        // Protocol assertions.
+        // Check SMTP responses match regular expressions.
+        protocol: [
+          ["MAIL", "^250.*Sender OK"],
+          ["RCPT", "^250.*Recipient OK"],
+          // ClamAV should detect virus and reject.
+          ["DATA", "^554.*[Vv]irus"]  // 554 = transaction failed (virus detected)
+        ],
+
+        // External assertions.
+        external: [
+          {
+            // Assertion type request for pulling logs from the API.
+            type: "request",
+
+            // How long to wait before asserting.
+            wait: 2,
+
+            // Delay between log pulling attempts.
+            delay: 2,
+
+            // How many times to retry should no logs be found or valid.
+            retry: 3,
+
+            // HTTP request details.
+            request: {
+              url: "http://127.0.0.1:28090/logs?q={$transactionUid}",
+              type: "GET"
+            },
+
+            // Verification strings to look for in the response.
+            verify: [ "Virus detected" ]
+          }
+        ]
+      }
+    }
+  ],
+
+  // Assertions to run against the connection.
+  assertions: {
+    // Protocol assertions.
+    // Check SMTP responses match regular expressions.
+    protocol: [
+      [ "SMTP", "^220" ],
+      [ "EHLO", "STARTTLS" ],
+      [ "QUIT" ]
+    ]
+  }
+}

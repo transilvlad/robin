@@ -1,0 +1,85 @@
+{
+  $schema: "../../../../../main/resources/schema/case.schema.json",
+
+  // Test: Chaos engineering for storage processor failure.
+  // Uses X-Robin-Chaos header to force AVStorageProcessor to return false.
+  // This simulates a critical storage error (e.g., virus scanner returning failure).
+  // Expected behavior: Server should reject with 451 (temporary failure).
+  // Critical to test error response is sent (previously caused client hang).
+
+  // How many times to try and establish a connection to remote server. First counts.
+  retry: 2,
+
+  // Delay between tries.
+  delay: 5,
+
+  // Delivery route.
+  route: "docker",
+
+  // Enable TLS.
+  tls: true,
+
+  // Email envelopes.
+  envelopes: [
+    // Envelope one.
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+
+      // Email eml file to transmit.
+      // Contains: X-Robin-Chaos: LocalStorageClient; processor=AVStorageProcessor; return=false
+      file: "src/test/resources/cases/sources/chaos-storage-fail.eml",
+
+      // Assertions to run against the envelope.
+      assertions: {
+
+        // Protocol assertions.
+        // Check SMTP responses match regular expressions.
+        protocol: [
+          ["MAIL", "^250.*Sender OK"],
+          ["RCPT", "^250.*Recipient OK"],
+          // Storage processor failure should result in 451 temporary rejection.
+          // Critical to test error response is sent (previously caused client hang).
+          ["DATA", "^451"]
+        ],
+
+        // External assertions.
+        external: [
+          {
+            // Assertion type request for pulling logs from the API.
+            type: "request",
+
+            // How long to wait before asserting.
+            wait: 2,
+
+            // Delay between log pulling attempts.
+            delay: 2,
+
+            // How many times to retry should no logs be found or valid.
+            retry: 3,
+
+            // HTTP request details.
+            request: {
+              url: "http://127.0.0.1:28090/logs?q={$transactionUid}",
+              type: "GET"
+            },
+
+            // Verification strings to look for in the response.
+            verify: [ "Internal server error" ]
+          }
+        ]
+      }
+    }
+  ],
+
+  // Assertions to run against the connection.
+  assertions: {
+    // Protocol assertions.
+    // Check SMTP responses match regular expressions.
+    protocol: [
+      [ "SMTP", "^220" ],
+      [ "EHLO", "STARTTLS" ],
+      [ "QUIT" ]
+    ]
+  }
+}

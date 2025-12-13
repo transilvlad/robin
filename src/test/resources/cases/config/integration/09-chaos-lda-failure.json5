@@ -1,0 +1,84 @@
+{
+  $schema: "../../../../../main/resources/schema/case.schema.json",
+
+  // Test: Chaos engineering for Dovecot LDA/LMTP delivery failure.
+  // Uses X-Robin-Chaos header to simulate LMTP connection failure.
+  // Expected behavior: Email is accepted (250 OK) but queued for retry.
+  // This tests the fallback queue mechanism when delivery temporarily fails.
+  // Different from test 10: This is recoverable (queued), test 10 is fatal (rejected).
+
+  // How many times to try and establish a connection to remote server. First counts.
+  retry: 2,
+
+  // Delay between tries.
+  delay: 5,
+
+  // Delivery route.
+  route: "docker",
+
+  // Enable TLS.
+  tls: true,
+
+  // Email envelopes.
+  envelopes: [
+    // Envelope one.
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+
+      // Email eml file to transmit (contains X-Robin-Chaos header forcing LMTP failure).
+      file: "src/test/resources/cases/sources/chaos-lda-fail.eml",
+
+      // Assertions to run against the envelope.
+      assertions: {
+
+        // Protocol assertions.
+        // Check SMTP responses match regular expressions.
+        protocol: [
+          ["MAIL", "^250.*Sender OK"],
+          ["RCPT", "^250.*Recipient OK"],
+          // LDA failure results in queueing (250 OK to client).
+          // Email goes to relay queue for later retry.
+          ["DATA", "^250"]
+        ],
+
+        // External assertions.
+        external: [
+          {
+            // Assertion type request for pulling logs from the API.
+            type: "request",
+
+            // How long to wait before asserting.
+            wait: 2,
+
+            // Delay between log pulling attempts.
+            delay: 2,
+
+            // How many times to retry should no logs be found or valid.
+            retry: 3,
+
+            // HTTP request details.
+            request: {
+              url: "http://127.0.0.1:28090/logs?q={$transactionUid}",
+              type: "GET"
+            },
+
+            // Verification strings to look for in the response.
+            verify: [ "Queuing email for relay" ]
+          }
+        ]
+      }
+    }
+  ],
+
+  // Assertions to run against the connection.
+  assertions: {
+    // Protocol assertions.
+    // Check SMTP responses match regular expressions.
+    protocol: [
+      [ "SMTP", "^220" ],
+      [ "EHLO", "STARTTLS" ],
+      [ "QUIT" ]
+    ]
+  }
+}

@@ -1,0 +1,81 @@
+{
+  $schema: "../../../../../main/resources/schema/case.schema.json",
+
+  // Test: Basic SMTP protocol flow.
+  // Validates: Connection, EHLO, STARTTLS, AUTH (optional), MAIL/RCPT/DATA, QUIT.
+  // This test verifies the server accepts and processes a standard email.
+  // No IMAP check - just validates protocol responses and logs.
+
+  // How many times to try and establish a connection to remote server. First counts.
+  retry: 2,
+
+  // Delay between tries.
+  delay: 5,
+
+  // Delivery route.
+  route: "docker",
+
+  // Enable TLS.
+  tls: true,
+
+  // Email envelopes.
+  envelopes: [
+    // Envelope one.
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+
+      // Email eml file to transmit.
+      file: "src/test/resources/cases/sources/lipsum.eml",
+
+      // Assertions to run against the envelope.
+      assertions: {
+
+        // Protocol assertions.
+        // Check SMTP responses match regular expressions.
+        protocol: [
+          ["MAIL", "^250.*Sender OK"],
+          ["RCPT", "^250.*Recipient OK"],
+          ["DATA", "^250.*Received OK"]
+        ],
+
+        // External assertions.
+        external: [
+          {
+            // Assertion type request for pulling logs from the API.
+            type: "request",
+
+            // How long to wait before asserting.
+            wait: 2,
+
+            // Delay between log pulling attempts.
+            delay: 2,
+
+            // How many times to retry should no logs be found or valid.
+            retry: 3,
+
+            // HTTP request details.
+            request: {
+              url: "http://127.0.0.1:28090/logs?q={$transactionUid}",
+              type: "GET"
+            },
+
+            // Verification strings to look for in the response.
+            verify: [ "Received OK" ]
+          }
+        ]
+      }
+    }
+  ],
+
+  // Assertions to run against the connection.
+  assertions: {
+    // Protocol assertions.
+    // Check SMTP responses match regular expressions.
+    protocol: [
+      [ "SMTP", "^220" ],
+      [ "EHLO", "STARTTLS" ],
+      [ "QUIT" ]
+    ]
+  }
+}

@@ -1,0 +1,82 @@
+{
+  $schema: "../../../../../main/resources/schema/case.schema.json",
+
+  // Test: Spam detection with GTUBE pattern.
+  // GTUBE (Generic Test for Unsolicited Bulk Email) should be detected by Rspamd.
+  // With reject score of 15, GTUBE (score 20) triggers rejection.
+  // Expected: 541 rejection at DATA stage.
+
+  // How many times to try and establish a connection to remote server. First counts.
+  retry: 2,
+
+  // Delay between tries.
+  delay: 5,
+
+  // Delivery route.
+  route: "docker",
+
+  // Enable TLS.
+  tls: true,
+
+  // Email envelopes.
+  envelopes: [
+    // Envelope one.
+    {
+      mail: "spammer@badactor.com",
+      rcpt: ["pepper@example.com"],
+
+      // Email eml file to transmit.
+      file: "src/test/resources/cases/sources/gtube.eml",
+
+      // Assertions to run against the envelope.
+      assertions: {
+
+        // Protocol assertions.
+        // Check SMTP responses match regular expressions.
+        protocol: [
+          ["MAIL", "^250.*Sender OK"],
+          ["RCPT", "^250.*Recipient OK"],
+          // With reject score of 15, GTUBE (score 20) should be rejected.
+          ["DATA", "^541"]  // 541 = rejected (spam detected)
+        ],
+
+        // External assertions.
+        external: [
+          {
+            // Assertion type request for pulling logs from the API.
+            type: "request",
+
+            // How long to wait before asserting.
+            wait: 2,
+
+            // Delay between log pulling attempts.
+            delay: 2,
+
+            // How many times to retry should no logs be found or valid.
+            retry: 3,
+
+            // HTTP request details.
+            request: {
+              url: "http://127.0.0.1:28090/logs?q={$transactionUid}",
+              type: "GET"
+            },
+
+            // Verification strings to look for in the response.
+            verify: [ "Spam detected" ]
+          }
+        ]
+      }
+    }
+  ],
+
+  // Assertions to run against the connection.
+  assertions: {
+    // Protocol assertions.
+    // Check SMTP responses match regular expressions.
+    protocol: [
+      [ "SMTP", "^220" ],
+      [ "EHLO", "STARTTLS" ],
+      [ "QUIT" ]
+    ]
+  }
+}

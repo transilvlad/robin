@@ -1,0 +1,82 @@
+{
+  $schema: "../../../../../main/resources/schema/case.schema.json",
+
+  // Test: Email rejection for invalid sender address format.
+  // Validates: RFC 5321 address validation at MAIL FROM stage.
+  // Server should reject malformed email addresses immediately.
+  // Expected: 501 syntax error (invalid parameter format).
+  // This protects against protocol abuse and malformed submissions.
+
+  // How many times to try and establish a connection to remote server. First counts.
+  retry: 2,
+
+  // Delay between tries.
+  delay: 5,
+
+  // Delivery route.
+  route: "docker",
+
+  // Enable TLS.
+  tls: true,
+
+  // Email envelopes.
+  envelopes: [
+    // Envelope one.
+    {
+      mail: "not-an-email",  // Invalid: missing @ symbol and domain
+      rcpt: ["pepper@example.com"],
+
+      // Email eml file to transmit.
+      file: "src/test/resources/cases/sources/lipsum.eml",
+
+      // Assertions to run against the envelope.
+      assertions: {
+
+        // Protocol assertions.
+        // Check SMTP responses match regular expressions.
+        protocol: [
+          // Rejected at MAIL FROM stage - syntax error.
+          // 501 = syntax error in parameters or arguments.
+          ["MAIL", "^(501)"]
+        ],
+
+        // External assertions.
+        external: [
+          {
+            // Assertion type request for pulling logs from the API.
+            type: "request",
+
+            // How long to wait before asserting.
+            wait: 2,
+
+            // Delay between log pulling attempts.
+            delay: 2,
+
+            // How many times to retry should no logs be found or valid.
+            retry: 3,
+
+            // HTTP request details.
+            request: {
+              url: "http://127.0.0.1:28090/logs?q={$transactionUid}",
+              type: "GET"
+            },
+
+            // Verification strings to look for in the response.
+            verify: [ "Invalid address" ]
+          }
+        ]
+      }
+    }
+  ],
+
+  // Assertions to run against the connection.
+  assertions: {
+    // Protocol assertions.
+    // Check SMTP responses match regular expressions.
+    protocol: [
+      [ "SMTP", "^220" ],
+      [ "EHLO", "STARTTLS" ],
+      [ "QUIT" ]
+    ]
+  }
+}
