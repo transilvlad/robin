@@ -5,7 +5,7 @@
   // Use SQL authentication backend.
   authSql: {
     enabled: true,
-    jdbcUrl: "jdbc:postgresql://robin-suite-postgres:5432/robin",
+    jdbcUrl: "jdbc:postgresql://robin-postgres-db:5432/robin",
     user: "robin",
     password: "robin",
 

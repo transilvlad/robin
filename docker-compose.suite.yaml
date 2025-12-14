@@ -31,7 +31,10 @@ services:
     ports:
       - "5433:5432"  # Using 5433 to avoid conflict with local Postgres.
     networks:
-      - robin-suite
+      robin-suite:
+        aliases:
+          - robin-postgres-db
+          - robin-suite-postgres  # Keep for backward compatibility
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U robin"]
       interval: 10s
@@ -127,7 +130,7 @@ services:
     container_name: robin-suite-dovecot
     build:
       context: ./
-      dockerfile: ./.dovecot/Dockerfile
+      dockerfile: ./.suite/build/dovecot.Dockerfile
       args:
         INCLUDE_CFG: "false"
     volumes:

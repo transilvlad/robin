@@ -2,7 +2,7 @@
 # This file is mounted into the Dovecot container at /etc/dovecot/dovecot-sql.conf.ext
 
 driver = pgsql
-connect = host=robin-suite-postgres dbname=robin user=robin password=robin
+connect = host=robin-postgres-db dbname=robin user=robin password=robin
 default_pass_scheme = SHA512-CRYPT
 
 # Deterministic prioritized lookup implemented with LEFT JOINs and CASE ordering.

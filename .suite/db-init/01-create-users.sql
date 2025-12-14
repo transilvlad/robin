@@ -1,5 +1,15 @@
 -- Dovecot users table and sample data for Postgres init
--- Simplified version for suite testing with plain passwords (hashed by Dovecot)
+-- This script is executed by the official Postgres image when the DB is first initialized
+--
+-- Production-grade user initialization with SHA512-CRYPT hashed passwords.
+-- Requires pgcrypto extension (included in standard postgres:15 image).
+-- Passwords are cryptographically hashed at database initialization time.
+--
+-- Security: Database breach will NOT expose plaintext passwords.
+-- Test users: tony@example.com (stark), pepper@example.com (potts), happy@example.com (hogan)
+
+-- Enable pgcrypto for crypt() if available. Some images may need additional libs
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
@@ -11,7 +21,7 @@ CREATE TABLE IF NOT EXISTS users (
   maildir TEXT
 );
 
--- Alias tables
+-- Alias tables inspired by Postfix-style structure
 CREATE TABLE IF NOT EXISTS aliases (
   id SERIAL PRIMARY KEY,
   source TEXT NOT NULL,
@@ -24,27 +34,58 @@ CREATE TABLE IF NOT EXISTS auto_aliases (
   destination TEXT NOT NULL
 );
 
--- Add indexes to speed up alias lookups
+-- Add indexes to speed up alias lookups (on source and destination)
 CREATE INDEX IF NOT EXISTS idx_aliases_source ON aliases(source);
 CREATE INDEX IF NOT EXISTS idx_aliases_destination ON aliases(destination);
 CREATE INDEX IF NOT EXISTS idx_auto_aliases_source ON auto_aliases(source);
 CREATE INDEX IF NOT EXISTS idx_auto_aliases_destination ON auto_aliases(destination);
 
--- Insert users with plain passwords (Dovecot will handle hashing)
--- Using {PLAIN} scheme which Dovecot understands
-INSERT INTO users (email, password, uid, gid, home, maildir)
-VALUES
-  ('tony@example.com', '{PLAIN}stark', 5000, 5000, '/var/mail/vhosts/example.com/tony', 'maildir:/var/mail/vhosts/example.com/tony'),
-  ('pepper@example.com', '{PLAIN}potts', 5000, 5000, '/var/mail/vhosts/example.com/pepper', 'maildir:/var/mail/vhosts/example.com/pepper'),
-  ('happy@example.com', '{PLAIN}hogan', 5000, 5000, '/var/mail/vhosts/example.com/happy', 'maildir:/var/mail/vhosts/example.com/happy')
-ON CONFLICT (email) DO NOTHING;
+-- Insert users with deterministic SHA512-CRYPT hashes using fixed salts.
+-- We compute the hash in a DO block, validate it starts with '$6$' (SHA512-CRYPT),
+-- and insert the resulting hash. If crypt() doesn't produce a $6$ hash we abort early
+-- with an explicit error so the operator can switch to a glibc-backed Postgres image.
 
--- Sample aliases
-INSERT INTO aliases (source, destination)
-VALUES ('tony-alias@example.com', 'tony@example.com')
-ON CONFLICT DO NOTHING;
+DO $$
+DECLARE
+  h TEXT;
+BEGIN
+  h := crypt('stark', '$6$sT0nYsalt2025$');
+  IF left(h,3) <> '$6$' THEN
+    RAISE EXCEPTION 'crypt() did not produce a SHA512-CRYPT ($6) hash: % ; use a glibc-backed Postgres image like postgres:15', h;
+  END IF;
+  INSERT INTO users (email, password, uid, gid, home, maildir)
+  VALUES ('tony@example.com', '{SHA512-CRYPT}' || h, 5000, 5000, '/var/mail/vhosts/example.com/tony', 'maildir:/var/mail/vhosts/example.com/tony')
+  ON CONFLICT (email) DO NOTHING;
+END $$;
 
--- Sample auto alias
-INSERT INTO auto_aliases (source, destination)
-VALUES ('tony@', 'tony@example.com')
-ON CONFLICT DO NOTHING;
+DO $$
+DECLARE
+  h TEXT;
+BEGIN
+  h := crypt('potts', '$6$p3pp3rsalt2025$');
+  IF left(h,3) <> '$6$' THEN
+    RAISE EXCEPTION 'crypt() did not produce a SHA512-CRYPT ($6) hash: % ; use a glibc-backed Postgres image like postgres:15', h;
+  END IF;
+  INSERT INTO users (email, password, uid, gid, home, maildir)
+  VALUES ('pepper@example.com', '{SHA512-CRYPT}' || h, 5000, 5000, '/var/mail/vhosts/example.com/pepper', 'maildir:/var/mail/vhosts/example.com/pepper')
+  ON CONFLICT (email) DO NOTHING;
+END $$;
+
+DO $$
+DECLARE
+  h TEXT;
+BEGIN
+  h := crypt('hogan', '$6$h0gansalt2025$');
+  IF left(h,3) <> '$6$' THEN
+    RAISE EXCEPTION 'crypt() did not produce a SHA512-CRYPT ($6) hash: % ; use a glibc-backed Postgres image like postgres:15', h;
+  END IF;
+  INSERT INTO users (email, password, uid, gid, home, maildir)
+  VALUES ('happy@example.com', '{SHA512-CRYPT}' || h, 5000, 5000, '/var/mail/vhosts/example.com/happy', 'maildir:/var/mail/vhosts/example.com/happy')
+  ON CONFLICT (email) DO NOTHING;
+END $$;
+
+-- Sample aliases: pepper receives mail for tony-alias@example.com
+INSERT INTO aliases (source, destination) VALUES ('tony-alias@example.com', 'tony@example.com') ON CONFLICT DO NOTHING;
+
+-- Sample auto alias: map tony@ to tony@example.com (example of pattern-based mapping stored as explicit entries)
+INSERT INTO auto_aliases (source, destination) VALUES ('tony@', 'tony@example.com') ON CONFLICT DO NOTHING;

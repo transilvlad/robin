@@ -1,43 +1,40 @@
-# Build stage
-FROM maven:3.9.9-amazoncorretto-21-debian AS build
+# Optimized Dockerfile for standalone Robin MTA
+# Uses same stage naming as robin-dovecot for potential build cache sharing
+# Build stage name 'robin-build' matches robin-dovecot.Dockerfile
 
-# Set the working directory inside the container.
+# ============================================================================
+# STAGE: robin-build
+# Maven build stage (shared name with robin-dovecot for cache reuse)
+# ============================================================================
+FROM maven:3.9.9-amazoncorretto-21-debian AS robin-build
+
 WORKDIR /usr/src/robin
+COPY pom.xml .
 
-# Copy the POM to the working directory.
-COPY ../pom.xml .
-
-# Resolve and download all dependencies (including plugins) using BuildKit cache mounts.
+# Download dependencies with cache mount
 RUN --mount=type=cache,target=/root/.m2,id=robin-m2 \
     --mount=type=cache,target=/root/.cache,id=robin-cache \
     mvn -B -q -e dependency:go-offline
 
-# Now copy the source; changes here won't bust the dependency cache.
-COPY ../src ./src
-
-# Build the project using the same cached Maven repo.
+# Build project
+COPY src ./src
 RUN --mount=type=cache,target=/root/.m2,id=robin-m2 \
     --mount=type=cache,target=/root/.cache,id=robin-cache \
     mvn -B -q clean package -Dmaven.test.skip=true
 
-# Production stage
+# ============================================================================
+# STAGE: production
+# Standalone Robin MTA without Dovecot
+# ============================================================================
 FROM alpine/java:21-jdk AS production
 
-# Copy dependencies lib/ folder and the built JAR file from the build stage to the production stage.
-COPY --from=build /usr/src/robin/target/classes/lib /usr/local/robin/lib
-COPY --from=build /usr/src/robin/target/robin.jar /usr/local/robin/robin.jar
+# Copy Robin artifacts from build stage
+COPY --from=robin-build /usr/src/robin/target/classes/lib /usr/local/robin/lib
+COPY --from=robin-build /usr/src/robin/target/robin.jar /usr/local/robin/robin.jar
+COPY src/test/resources/keystore.jks /usr/local/robin/keystore.jks
 
-# Copy the keystore file to the appropriate location.
-COPY ./src/test/resources/keystore.jks /usr/local/robin/keystore.jks
-
-# Build argument to control whether to include cfg files in the image
-# Default is true for published standalone images
-# Set to false when building with docker-compose: --build-arg INCLUDE_CFG=false
+# Conditional config inclusion
 ARG INCLUDE_CFG=true
-
-# Copy configuration files conditionally
-# When INCLUDE_CFG=true (default), cfg files are copied into the image
-# When INCLUDE_CFG=false (docker-compose), only the directory structure is created for volume mounting
 COPY cfg /tmp/cfg/
 RUN if [ "$INCLUDE_CFG" = "true" ]; then \
       mv /tmp/cfg /usr/local/robin/cfg; \
@@ -45,8 +42,11 @@ RUN if [ "$INCLUDE_CFG" = "true" ]; then \
       rm -rf /tmp/cfg && mkdir -p /usr/local/robin/cfg; \
     fi
 
-# Expose standard SMTP ports and Robin endpoint ports.
+# Expose SMTP and API ports
 EXPOSE 25 465 587 8080 8090
 
-# Run supervisor in foreground.
-CMD java -server -Xms256m -Xmx1024m -Dlog4j.configurationFile=/usr/local/robin/cfg/log4j2.xml -cp "/usr/local/robin/robin.jar:/usr/local/robin/lib/*" com.mimecast.robin.Main --server /usr/local/robin/cfg/
+# Run Robin MTA
+CMD java -server -Xms256m -Xmx1024m \
+    -Dlog4j.configurationFile=/usr/local/robin/cfg/log4j2.xml \
+    -cp "/usr/local/robin/robin.jar:/usr/local/robin/lib/*" \
+    com.mimecast.robin.Main --server /usr/local/robin/cfg/
