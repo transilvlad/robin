@@ -1,5 +1,5 @@
 #!/bin/bash
-# Initialize directory structure for Robin Full Suite
+# Initialize directory structure for Robin full suite on Windows WSL2.
 # Run this script before starting docker-compose.suite.yaml
 
 set -e

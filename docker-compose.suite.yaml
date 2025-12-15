@@ -6,6 +6,8 @@
 # - ClamAV (virus scanning)
 # - Rspamd (spam detection)
 # - Roundcube (webmail)
+# See init-suite-dirs.sh for initial directory setup on Windows WSL2.
+# There is a Docker bug that sometimes may prevent mounting/creating non-existent directories.
 
 services:
   # PostgreSQL database for Robin, Dovecot and Roundcube storage.

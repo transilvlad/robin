@@ -12,6 +12,7 @@
 # - Single source of truth: All configuration in .suite directory
 #
 # Port mappings align with suite compose (2525, 2143, 28090) for test compatibility.
+# If running on Windows WSL2 you may need to create log/dovecot/ and store/dovecot/ directories first.
 
 services:
   robin-dovecot:
