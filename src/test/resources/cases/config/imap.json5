@@ -45,7 +45,7 @@
 
             // User credentials.
             user: "tony@example.com",
-            pass: "giveHerTheRing",
+            pass: "stark",
 
             // Folder to check for the email.
             folder: "INBOX",

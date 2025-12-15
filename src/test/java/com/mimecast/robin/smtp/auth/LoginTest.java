@@ -21,7 +21,7 @@ class LoginTest {
 
         Session session = new Session();
         session.setUsername("tony@example.com");
-        session.setPassword("giveHerTheRing");
+        session.setPassword("stark");
 
         authPlain = new Login(new Connection(session));
         authPlainNoSession = new Login(new Connection(new Session()));
@@ -35,7 +35,7 @@ class LoginTest {
 
     @Test
     void getPassword() {
-        assertEquals("Z2l2ZUhlclRoZVJpbmc=", authPlain.getPassword());
+        assertEquals("c3Rhcms=", authPlain.getPassword());
         assertEquals("", authPlainNoSession.getPassword());
     }
 }

@@ -34,7 +34,7 @@
  *             // Authentication details.
  *             .setAuth(true)
  *             .setUsername("tony@example.com")
- *             .setPassword("giveHerTheRing");
+ *             .setPassword("stark");
  *
  *     // Envelope.
  *     MessageEnvelope envelope = new MessageEnvelope();

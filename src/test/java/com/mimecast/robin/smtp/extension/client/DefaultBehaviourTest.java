@@ -35,7 +35,7 @@ class DefaultBehaviourTest {
         connection.getSession().setEhlo("example.com");
         connection.getSession().setAuth(true);
         connection.getSession().setUsername("tony@example.com");
-        connection.getSession().setPassword("giveHerTheRing");
+        connection.getSession().setPassword("stark");
         connection.getSession().setEhloAuth(Collections.singletonList("plain"));
 
         MessageEnvelope envelope = new MessageEnvelope();
@@ -50,7 +50,7 @@ class DefaultBehaviourTest {
 
         connection.parseLines();
         assertEquals("EHLO example.com\r\n", connection.getLine(1));
-        assertEquals("AUTH PLAIN dG9ueUBleGFtcGxlLmNvbQB0b255QGV4YW1wbGUuY29tAGdpdmVIZXJUaGVSaW5n\r\n", connection.getLine(2));
+        assertEquals("AUTH PLAIN dG9ueUBleGFtcGxlLmNvbQB0b255QGV4YW1wbGUuY29tAHN0YXJr\r\n", connection.getLine(2));
         assertEquals("MAIL FROM:<tony@example.com> SIZE=294\r\n", connection.getLine(3));
         assertEquals("RCPT TO:<pepper@example.com>\r\n", connection.getLine(4));
         assertEquals("DATA\r\n", connection.getLine(5));

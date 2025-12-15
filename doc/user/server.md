@@ -298,7 +298,7 @@ Below are concise examples for each auxiliary config file.
       list: [
         {
           name: "tony@example.com",
-          pass: "giveHerTheRing"
+          pass: "stark"
         }
       ]
     }

@@ -267,7 +267,7 @@ Case
         // Enable authentication.
         auth: true,
         user: "tony@example.com",
-        pass: "giveHerTheRing",
+        pass: "stark",
 
 
       // Email envelopes.

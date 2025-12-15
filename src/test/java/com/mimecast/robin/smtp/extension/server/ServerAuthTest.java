@@ -65,7 +65,7 @@ class ServerAuthTest {
     @Test
     void processAuthPlainTrue() throws IOException {
         StringBuilder stringBuilder = new StringBuilder();
-        stringBuilder.append("dG9ueUBleGFtcGxlLmNvbQB0b255QGV4YW1wbGUuY29tAGdpdmVIZXJUaGVSaW5n\r\n");
+        stringBuilder.append("dG9ueUBleGFtcGxlLmNvbQB0b255QGV4YW1wbGUuY29tAHN0YXJr\r\n");
         ConnectionMock connection = new ConnectionMock(stringBuilder);
         connection.getSession().setSecurePort(true);
         connection.getSession().setStartTls(true);
@@ -78,14 +78,14 @@ class ServerAuthTest {
         assertTrue(process);
         assertTrue(connection.getSession().isAuth());
         assertEquals("tony@example.com", connection.getSession().getUsername());
-        assertEquals("giveHerTheRing", connection.getSession().getPassword());
+        assertEquals("stark", connection.getSession().getPassword());
 
         connection.parseLines();
         assertEquals(SmtpResponses.AUTH_PAYLOAD_334 + "\r\n", connection.getLine(1));
         assertEquals(SmtpResponses.AUTH_SUCCESS_235 + "\r\n", connection.getLine(2));
         assertTrue(connection.getSession().isAuth());
         assertEquals("tony@example.com", connection.getSession().getUsername());
-        assertEquals("giveHerTheRing", connection.getSession().getPassword());
+        assertEquals("stark", connection.getSession().getPassword());
     }
 
     @Test
@@ -154,7 +154,7 @@ class ServerAuthTest {
     @Test
     void processAuthLoginOneStep() throws IOException {
         StringBuilder stringBuilder = new StringBuilder();
-        stringBuilder.append("Z2l2ZUhlclRoZVJpbmc=\r\n");
+        stringBuilder.append("c3Rhcms=\r\n");
         ConnectionMock connection = new ConnectionMock(stringBuilder);
         connection.getSession().setDirection(EmailDirection.OUTBOUND);
         connection.getSession().setStartTls(true);
@@ -167,21 +167,21 @@ class ServerAuthTest {
         assertTrue(process);
         assertTrue(connection.getSession().isAuth());
         assertEquals("tony@example.com", connection.getSession().getUsername());
-        assertEquals("giveHerTheRing", connection.getSession().getPassword());
+        assertEquals("stark", connection.getSession().getPassword());
 
         connection.parseLines();
         assertEquals(SmtpResponses.AUTH_PASSWORD_334 + "\r\n", connection.getLine(1));
         assertEquals(SmtpResponses.AUTH_SUCCESS_235 + "\r\n", connection.getLine(2));
         assertTrue(connection.getSession().isAuth());
         assertEquals("tony@example.com", connection.getSession().getUsername());
-        assertEquals("giveHerTheRing", connection.getSession().getPassword());
+        assertEquals("stark", connection.getSession().getPassword());
     }
 
     @Test
     void processAuthLoginTwoStep() throws IOException {
         StringBuilder stringBuilder = new StringBuilder();
         stringBuilder.append("dG9ueUBleGFtcGxlLmNvbQ==\r\n");
-        stringBuilder.append("Z2l2ZUhlclRoZVJpbmc=\r\n");
+        stringBuilder.append("c3Rhcms=\r\n");
         ConnectionMock connection = new ConnectionMock(stringBuilder);
         connection.getSession().setDirection(EmailDirection.OUTBOUND);
         connection.getSession().setStartTls(true);
@@ -194,7 +194,7 @@ class ServerAuthTest {
         assertTrue(process);
         assertTrue(connection.getSession().isAuth());
         assertEquals("tony@example.com", connection.getSession().getUsername());
-        assertEquals("giveHerTheRing", connection.getSession().getPassword());
+        assertEquals("stark", connection.getSession().getPassword());
 
         connection.parseLines();
         assertEquals(SmtpResponses.AUTH_USERNAME_334 + "\r\n", connection.getLine(1));
@@ -202,7 +202,7 @@ class ServerAuthTest {
         assertEquals(SmtpResponses.AUTH_SUCCESS_235 + "\r\n", connection.getLine(3));
         assertTrue(connection.getSession().isAuth());
         assertEquals("tony@example.com", connection.getSession().getUsername());
-        assertEquals("giveHerTheRing", connection.getSession().getPassword());
+        assertEquals("stark", connection.getSession().getPassword());
     }
 
     @Test

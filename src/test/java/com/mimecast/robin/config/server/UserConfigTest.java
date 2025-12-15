@@ -28,6 +28,6 @@ class UserConfigTest {
 
     @Test
     void getPass() {
-        assertEquals("giveHerTheRing", userConfig.getPass());
+        assertEquals("stark", userConfig.getPass());
     }
 }

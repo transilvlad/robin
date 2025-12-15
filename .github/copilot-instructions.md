@@ -161,7 +161,7 @@ mvn test -X
 The project uses sample passwords for testing and demonstration:
 - `notMyPassword` - Demo password (doesn't meet complexity requirements)
 - `1234` - Unit test sample
-- `giveHerTheRing` - Unit test and documentation sample
+- `stark/potts/hogan` - Unit test and documentation sample
 - `avengers` - Test keystore password
 
 **These are NOT production passwords** and should never be changed to real credentials.

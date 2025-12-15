@@ -42,7 +42,7 @@ class ConfigMapperTest {
         assertEquals("example.com", session.getEhlo());
         assertTrue(session.isAuth());
         assertEquals("tony@example.com", session.getUsername());
-        assertEquals("giveHerTheRing", session.getPassword());
+        assertEquals("stark", session.getPassword());
 
         List<MessageEnvelope> envelopes = session.getEnvelopes();
         assertEquals("tony@example.com", envelopes.get(0).getMail());

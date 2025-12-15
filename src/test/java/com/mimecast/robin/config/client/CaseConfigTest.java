@@ -47,7 +47,7 @@ class CaseConfigTest {
 
     @Test
     void getPass() {
-        assertEquals("giveHerTheRing", caseConfig.getPass());
+        assertEquals("stark", caseConfig.getPass());
     }
 
     @Test

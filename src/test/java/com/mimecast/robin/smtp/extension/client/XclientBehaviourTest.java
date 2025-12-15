@@ -41,7 +41,7 @@ class XclientBehaviourTest {
         connection.getSession().setEhlo("example.com");
         connection.getSession().setAuth(true);
         connection.getSession().setUsername("tony@example.com");
-        connection.getSession().setPassword("giveHerTheRing");
+        connection.getSession().setPassword("stark");
         connection.getSession().setEhloAuth(Collections.singletonList("plain"));
 
         Map<String, String> map = new HashMap<>();
@@ -64,7 +64,7 @@ class XclientBehaviourTest {
         assertEquals("EHLO example.com\r\n", connection.getLine(1));
         assertEquals("XCLIENT helo=example.com name=example.com addr=127.0.0.1\r\n", connection.getLine(2));
         assertEquals("EHLO example.com\r\n", connection.getLine(3));
-        assertEquals("AUTH PLAIN dG9ueUBleGFtcGxlLmNvbQB0b255QGV4YW1wbGUuY29tAGdpdmVIZXJUaGVSaW5n\r\n", connection.getLine(4));
+        assertEquals("AUTH PLAIN dG9ueUBleGFtcGxlLmNvbQB0b255QGV4YW1wbGUuY29tAHN0YXJr\r\n", connection.getLine(4));
         assertEquals("MAIL FROM:<tony@example.com> SIZE=294\r\n", connection.getLine(5));
         assertEquals("RCPT TO:<pepper@example.com>\r\n", connection.getLine(6));
         assertEquals("DATA\r\n", connection.getLine(7));

@@ -7,7 +7,15 @@
   list: [
     {
       name: "tony@example.com",
-      pass: "giveHerTheRing"
+      pass: "stark"
+    },
+    {
+      name: "pepper@example.com",
+      pass: "potts"
+    },
+    {
+      name: "happy@example.com",
+      pass: "hogan"
     }
   ]
 }

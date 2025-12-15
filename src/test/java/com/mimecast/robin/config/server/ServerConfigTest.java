@@ -53,7 +53,7 @@ class ServerConfigTest {
 
     @Test
     void getUsers() {
-        assertEquals(1, Config.getServer().getUsers().getList().size());
+        assertEquals(3, Config.getServer().getUsers().getList().size());
     }
 
     @Test

@@ -61,6 +61,6 @@ class RouteConfigTest {
     void getPass() {
         assertNull(routeConfig1.getPass());
 
-        assertEquals("giveHerTheRing", routeConfig2.getPass());
+        assertEquals("stark", routeConfig2.getPass());
     }
 }

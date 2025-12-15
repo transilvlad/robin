@@ -13,7 +13,7 @@
   auth: true,
   authBeforeTls: true,
   user: "tony@example.com",
-  pass: "giveHerTheRing",
+  pass: "stark",
 
   envelopes: [
     {

@@ -27,7 +27,7 @@ class DigestMD5Test {
 
     private final String host = "example.com";
     private final String username = "tony@" + host;
-    private final String password = "giveHerTheRing";
+    private final String password = "stark";
     private final String realm = "example.com";
 
     @Test
@@ -153,9 +153,9 @@ class DigestMD5Test {
         Random cnonce = new NotRandom("1f2dc86a79b1bbbbe4a3df34a3ebf8ba28f1f3553490612d372e908ee8e4c669==");
 
         String challenge = "cmVhbG09IiIsbm9uY2U9IlRIRWRCNDZ4ZzYrRWRhU1VNU3VIN2c9PSIscW9wPSJhdXRoIixjaGFyc2V0PSJ1dGYtOCIsYWxnb3JpdGhtPSJtZDUtc2VzcyI=";
-        String response = "dXNlcm5hbWU9InRvbnlAZXhhbXBsZS5jb20iLHJlYWxtPSIiLHFvcD1hdXRoLG5jPTAwMDAwMDAxLG5vbmNlPSJUSEVkQjQ2eGc2K0VkYVNVTVN1SDdnPT0iLGNub25jZT0iMWYyZGM4NmE3OWIxYmJiYmU0YTNkZjM0YTNlYmY4YmEyOGYxZjM1NTM0OTA2MTJkMzcyZTkwOGVlOGU0YzY2OT09IixkaWdlc3QtdXJpPSJzbXRwLyIscmVzcG9uc2U9Y2E0YmUyNDliODJlOWJhNzE3YThiNTc3MDU0OGYyYzU=";
-        String second = "dXNlcm5hbWU9InRvbnlAZXhhbXBsZS5jb20iLHJlYWxtPSIiLHFvcD1hdXRoLG5jPTAwMDAwMDAyLG5vbmNlPSJUSEVkQjQ2eGc2K0VkYVNVTVN1SDdnPT0iLGNub25jZT0iMWYyZGM4NmE3OWIxYmJiYmU0YTNkZjM0YTNlYmY4YmEyOGYxZjM1NTM0OTA2MTJkMzcyZTkwOGVlOGU0YzY2OT09IixkaWdlc3QtdXJpPSJzbXRwLyIscmVzcG9uc2U9Y2E0YmUyNDliODJlOWJhNzE3YThiNTc3MDU0OGYyYzU=";
-        String server = "cnNwYXV0aD1iYjZhOGY3ZTI3NjMzN2FjNWQwMTk3OTQwYjUwZDE4Zg==";
+        String response = "dXNlcm5hbWU9InRvbnlAZXhhbXBsZS5jb20iLHJlYWxtPSIiLHFvcD1hdXRoLG5jPTAwMDAwMDAxLG5vbmNlPSJUSEVkQjQ2eGc2K0VkYVNVTVN1SDdnPT0iLGNub25jZT0iMWYyZGM4NmE3OWIxYmJiYmU0YTNkZjM0YTNlYmY4YmEyOGYxZjM1NTM0OTA2MTJkMzcyZTkwOGVlOGU0YzY2OT09IixkaWdlc3QtdXJpPSJzbXRwLyIscmVzcG9uc2U9ZDk0N2YxN2M0Nzc1YTZiYTJiOGEzZWU5MmQ2MTVmZmU=";
+        String second = "dXNlcm5hbWU9InRvbnlAZXhhbXBsZS5jb20iLHJlYWxtPSIiLHFvcD1hdXRoLG5jPTAwMDAwMDAyLG5vbmNlPSJUSEVkQjQ2eGc2K0VkYVNVTVN1SDdnPT0iLGNub25jZT0iMWYyZGM4NmE3OWIxYmJiYmU0YTNkZjM0YTNlYmY4YmEyOGYxZjM1NTM0OTA2MTJkMzcyZTkwOGVlOGU0YzY2OT09IixkaWdlc3QtdXJpPSJzbXRwLyIscmVzcG9uc2U9ZDk0N2YxN2M0Nzc1YTZiYTJiOGEzZWU5MmQ2MTVmZmU=";
+        String server = "cnNwYXV0aD1iNTIwZjI2YTk1YzMzYWI3M2I5Y2I4ZTgxMTI1YWNiYg==";
 
         // Initialize client.
         DigestMD5Client client = new DigestMD5Client("", username,  password, "");

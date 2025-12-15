@@ -81,7 +81,7 @@ Below ia a concise example the auxiliary config file.
         port: 465,
         auth: true,
         user: "tony@example.com",
-        pass: "giveHerTheRing"
+        pass: "stark"
       }
     ]
 
@@ -124,7 +124,7 @@ Programmatic example:
             // Authentication etails.
             .setAuth(true)
             .setUsername("tony@example.com")
-            .setPassword("giveHerTheRing");
+            .setPassword("stark");
 
 
     // Envelope.
