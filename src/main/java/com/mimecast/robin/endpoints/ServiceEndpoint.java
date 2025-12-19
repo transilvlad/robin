@@ -340,6 +340,12 @@ public class ServiceEndpoint extends HttpEndpoint {
             }
 
             @Override
+            public boolean enabled() {
+                // TODO: Make this configurable via new graphite.json5 config like prometheus.json5.
+                return false;  // Disable publishing to Graphite server when not configured.
+            }
+
+            @Override
             public String get(String key) {
                 return null; // Accept defaults.
             }
