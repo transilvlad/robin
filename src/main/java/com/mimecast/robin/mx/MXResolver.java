@@ -150,12 +150,11 @@ public class MXResolver {
      *   <li>If no DANE, check MTA-STS policy and filter MX records</li>
      *   <li>If no MTA-STS, return regular MX records</li>
      * </ol>
+     * <p>Use {@link #resolveSecureMx(String)} for security policy enforcement.
      *
      * @param domain Domain to resolve.
      * @return List of DnsRecord, possibly empty if none found.
-     * @deprecated Use {@link #resolveSecureMx(String)} for security policy enforcement.
      */
-    @Deprecated
     public List<DnsRecord> resolveMx(String domain) {
         // Step 1: Get regular MX records via DNS client.
         var optionalDnsRecords = new XBillDnsRecordClient().getMxRecords(domain);
