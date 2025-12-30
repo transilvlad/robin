@@ -16,11 +16,16 @@
         <Logger name="com.mimecast.robin" level="debug" additivity="false">
             <AppenderRef ref="appender"/>
             <AppenderRef ref="console"/>
+        </AsyncAppender>
+    </Appenders>
+
+    <Loggers>
+        <Logger name="com.mimecast.robin" level="info" additivity="false">
+            <AppenderRef ref="async"/>
         </Logger>
 
         <Root level="error">
-            <AppenderRef ref="appender"/>
-            <AppenderRef ref="console"/>
+            <AppenderRef ref="async"/>
         </Root>
     </Loggers>
 
