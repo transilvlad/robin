@@ -10,6 +10,7 @@ import com.mimecast.robin.metrics.MetricsCron;
 import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.smtp.SmtpListener;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
+import com.mimecast.robin.storage.LmtpConnectionPool;
 import com.mimecast.robin.storage.StorageCleaner;
 import com.mimecast.robin.util.VaultClient;
 import com.mimecast.robin.util.VaultClientFactory;
@@ -63,6 +64,13 @@ public class Server extends Foundation {
     protected static ExecutorService botExecutor;
 
     /**
+     * LMTP connection pool for limiting concurrent Dovecot LMTP deliveries.
+     * <p>Prevents overwhelming Dovecot with too many concurrent connections.
+     * <p>Only initialized when LMTP backend is enabled in dovecot configuration.
+     */
+    protected static LmtpConnectionPool lmtpPool;
+
+    /**
      * Initializes and starts the Robin SMTP server.
      *
      * @param path The directory path containing the configuration files.
@@ -72,10 +80,11 @@ public class Server extends Foundation {
         init(path); // Initialize foundation configuration.
         registerShutdownHook(); // Register shutdown hook for graceful termination.
         loadKeystore(); // Load SSL keystore.
-
-        ServerConfig serverConfig = Config.getServer();
+        startup(); // Start prerequisite services.
 
         // Create SMTP listeners based on configuration.
+        ServerConfig serverConfig = Config.getServer();
+
         // Standard SMTP listener.
         if (serverConfig.getSmtpPort() != 0) {
             listeners.add(new SmtpListener(
@@ -108,8 +117,6 @@ public class Server extends Foundation {
                     true
             ));
         }
-
-        startup(); // Start prerequisite services.
 
         // Start listeners in the thread pool.
         if (!listeners.isEmpty()) {
@@ -162,6 +169,19 @@ public class Server extends Foundation {
         log.info("Bot processing thread pool initialized");
 
         ServerConfig serverConfig = Config.getServer();
+
+        // Initialize LMTP connection pool if LMTP backend is enabled.
+        try {
+            DovecotConfig dovecotConfig = serverConfig.getDovecot();
+            if (dovecotConfig.getSaveLmtp().isEnabled()) {
+                int poolSize = dovecotConfig.getSaveLmtp().getConnectionPoolSize();
+                long timeout = dovecotConfig.getSaveLmtp().getConnectionPoolTimeoutSeconds();
+                lmtpPool = new LmtpConnectionPool(poolSize, timeout);
+                log.info("LMTP connection pool initialized: size={}, timeout={}s", poolSize, timeout);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to initialize LMTP connection pool: {}", e.getMessage());
+        }
 
         // Initialize shared DataSource if SQL auth backend is configured.
         try {
@@ -302,5 +322,14 @@ public class Server extends Foundation {
      */
     public static ExecutorService getBotExecutor() {
         return botExecutor;
+    }
+
+    /**
+     * Gets the LMTP connection pool.
+     *
+     * @return LmtpConnectionPool for limiting concurrent LMTP deliveries, or null if not initialized.
+     */
+    public static LmtpConnectionPool getLmtpPool() {
+        return lmtpPool;
     }
 }

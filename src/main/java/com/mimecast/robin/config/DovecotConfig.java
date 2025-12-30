@@ -216,6 +216,8 @@ public class DovecotConfig extends BasicConfig {
         private final List<String> servers;
         private final int port;
         private final boolean tls;
+        private final int connectionPoolSize;
+        private final long connectionPoolTimeoutSeconds;
 
         /**
          * Constructs SaveLmtp from configuration map.
@@ -229,6 +231,8 @@ public class DovecotConfig extends BasicConfig {
             this.servers = safeServers;
             this.port = ((Number) map.getOrDefault("port", 24)).intValue();
             this.tls = Boolean.TRUE.equals(map.getOrDefault("tls", false));
+            this.connectionPoolSize = ((Number) map.getOrDefault("connectionPoolSize", 50)).intValue();
+            this.connectionPoolTimeoutSeconds = ((Number) map.getOrDefault("connectionPoolTimeoutSeconds", 60L)).longValue();
         }
 
         /**
@@ -258,6 +262,24 @@ public class DovecotConfig extends BasicConfig {
          * @return True if TLS enabled, false otherwise.
          */
         public boolean isTls() { return tls; }
+
+        /**
+         * Gets maximum number of concurrent LMTP connections.
+         * <p>
+         * Limits concurrent deliveries to prevent overwhelming Dovecot.
+         *
+         * @return Connection pool size (default: 50).
+         */
+        public int getConnectionPoolSize() { return connectionPoolSize; }
+
+        /**
+         * Gets connection pool timeout in seconds.
+         * <p>
+         * Maximum time a thread will wait to acquire a connection permit.
+         *
+         * @return Timeout in seconds (default: 60).
+         */
+        public long getConnectionPoolTimeoutSeconds() { return connectionPoolTimeoutSeconds; }
     }
 
     /**

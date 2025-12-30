@@ -3,6 +3,7 @@ package com.mimecast.robin.storage;
 import com.mimecast.robin.config.server.ServerConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
+import com.mimecast.robin.main.Server;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.headers.ChaosHeaders;
 import com.mimecast.robin.queue.PersistentQueue;
@@ -34,6 +35,8 @@ import java.util.List;
  * Backend-specific options are grouped under saveLda and saveLmtp config objects. Shared options are top-level.
  * <p>
  * This processor filters out bot addresses, handles delivery failures, and supports chaos headers for testing.
+ * <p>
+ * LMTP deliveries use a connection pool to limit concurrent connections and prevent overwhelming Dovecot.
  */
 public class DovecotStorageProcessor extends AbstractStorageProcessor {
     private static final Logger log = LogManager.getLogger(DovecotStorageProcessor.class);
@@ -109,12 +112,29 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
                 String.join(",", nonBotRecipients),
                 connection.getSession().isOutbound());
 
+        // Get connection pool from Server
+        LmtpConnectionPool pool = Server.getLmtpPool();
+        if (pool == null) {
+            log.error("LMTP connection pool not initialized");
+            for (String recipient : nonBotRecipients) {
+                processFailure(connection, config, recipient);
+            }
+            return;
+        }
+
         // Attempt inline delivery with retries.
         long maxAttempts = config.getDovecot().getInlineSaveMaxAttempts();
         int retryDelay = Math.toIntExact(config.getDovecot().getInlineSaveRetryDelay());
 
         boolean deliverySucceeded = false;
+
         for (long attempt = 1; attempt <= maxAttempts; attempt++) {
+            // Acquire connection permit from pool.
+            if (!pool.acquire()) {
+                log.error("Failed to acquire LMTP connection permit within timeout");
+                break;
+            }
+
             try {
                 if (attempt > 1 && retryDelay > 0) {
                     Sleep.nap(retryDelay);
@@ -124,7 +144,7 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
                 // No MX resolution needed as servers are provided in config.
                 Session lmtpSession = Factories.getSession()
                         .setUID(connection.getSession().getUID())
-                        .setMx(servers)  // Use servers list directly - no MX resolution needed
+                        .setMx(servers)  // Use servers list directly - no MX resolution needed.
                         .setPort(port)
                         .setTls(tls)
                         .setLhlo(Config.getServer().getHostname())
@@ -167,6 +187,9 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
                     log.error("Attempt {} of {} LMTP delivery threw exception (giving up): {}",
                             attempt, maxAttempts, e.getMessage());
                 }
+            } finally {
+                // Always release the connection permit.
+                pool.release();
             }
         }
 

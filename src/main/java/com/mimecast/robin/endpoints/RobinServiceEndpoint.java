@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Server;
 import com.mimecast.robin.metrics.MetricsCron;
+import com.mimecast.robin.storage.LmtpConnectionPool;
 import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.queue.RetryScheduler;
 import com.mimecast.robin.smtp.SmtpListener;
@@ -176,6 +177,23 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
     }
 
     /**
+     * Generates JSON representation of the LMTP connection pool.
+     *
+     * @return JSON object string containing LMTP pool information.
+     */
+    private String getLmtpPoolJson() {
+        LmtpConnectionPool lmtpPool = Server.getLmtpPool();
+        if (lmtpPool == null) {
+            return "{\"enabled\":false}";
+        }
+
+        return String.format("{\"enabled\":true,\"poolSize\":%d,\"available\":%d,\"active\":%d}",
+                lmtpPool.getPoolSize(),
+                lmtpPool.getAvailablePermits(),
+                lmtpPool.getActiveConnections());
+    }
+
+    /**
      * Handles GET requests to display configuration viewer UI.
      * Shows properties and server configuration in formatted JSON with reload button.
      *
@@ -271,13 +289,14 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
                     uptime.toSecondsPart());
 
             // Final health JSON response.
-            String response = String.format("{\"status\":\"UP\", \"uptime\":\"%s\", \"listeners\":%s, \"queue\":%s, \"scheduler\":%s, \"metricsCron\":%s, \"botPool\":%s}",
+            String response = String.format("{\"status\":\"UP\", \"uptime\":\"%s\", \"listeners\":%s, \"queue\":%s, \"scheduler\":%s, \"metricsCron\":%s, \"botPool\":%s, \"lmtpPool\":%s}",
                     uptimeString,
                     getListenersJson(), // Listener stats.
                     getQueueJson(), // Queue stats and retry histogram.
                     getSchedulerJson(), // Scheduler config and cron stats.
                     getMetricsCronJson(), // Metrics cron stats.
-                    getBotPoolJson() // Bot processing thread pool stats.
+                    getBotPoolJson(), // Bot processing thread pool stats.
+                    getLmtpPoolJson() // LMTP connection pool stats.
             );
 
             sendResponse(exchange, 200, "application/json; charset=utf-8", response);
