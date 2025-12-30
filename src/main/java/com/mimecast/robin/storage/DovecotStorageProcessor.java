@@ -312,6 +312,8 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
         // Queue retry delivery.
         else {
             envelope.setFile(connection.getSession().getEnvelopes().getLast().getFile());
+            envelope.setMail(sender); // Set sender.
+            envelope.setRcpts(List.of(mailbox)); // Set recipient.
             relaySession.getSession().setDirection(connection.getSession().getDirection());
 
             // Determine protocol to queue based on enabled backend: LMTP takes precedence.
