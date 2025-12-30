@@ -28,6 +28,18 @@ public class SessionTransactionList extends TransactionList implements Cloneable
     private List<EnvelopeTransactionList> envelopes = new ArrayList<>();
 
     /**
+     * Clears transactions and envelope transaction lists.
+     *
+     * @return SessionTransactionList instance.
+     */
+    @Override
+    public SessionTransactionList clear() {
+        super.clear();
+        envelopes.clear();
+        return this;
+    }
+
+    /**
      * Adds envelope to list.
      *
      * @param envelopeTransactionList EnvelopeTransactionList instance.
