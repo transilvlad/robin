@@ -12,6 +12,8 @@ services:
       dockerfile: ./Dockerfile
       args:
         INCLUDE_CFG: "false"
+    environment:
+      JAVA_TOOL_OPTIONS: "-Dnetworkaddress.cache.negative.ttl=300 -Dsun.net.inetaddr.negative.ttl=300 ${JAVA_TOOL_OPTIONS:-}"
     volumes:
       - ./cfg:/usr/local/robin/cfg
       - ./log:/var/log

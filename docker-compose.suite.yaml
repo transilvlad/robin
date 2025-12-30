@@ -12,7 +12,7 @@
 services:
   # PostgreSQL database for Robin, Dovecot and Roundcube storage.
   robin-suite-postgres:
-    image: postgres:15
+    image: postgres:latest
     container_name: robin-suite-postgres
     command:
       - "postgres"
@@ -28,7 +28,7 @@ services:
       POSTGRES_PASSWORD: robin
     volumes:
       - ./log/postgres:/var/log
-      - ./store/postgres:/var/lib/postgresql/data
+      - ./store/postgres:/var/lib/postgresql
       - ./.suite/db-init:/docker-entrypoint-initdb.d:ro
     ports:
       - "5433:5432"  # Using 5433 to avoid conflict with local Postgres.
@@ -109,6 +109,7 @@ services:
       - "28080:8080"   # Service API
       - "28090:8090"   # Client API (logs, queue, store)
     environment:
+      - JAVA_TOOL_OPTIONS=-Dnetworkaddress.cache.negative.ttl=300 -Dsun.net.inetaddr.negative.ttl=300 ${JAVA_TOOL_OPTIONS:-}
       - POSTGRES_HOST=robin-suite-postgres
       - POSTGRES_DB=robin
       - POSTGRES_USER=robin
