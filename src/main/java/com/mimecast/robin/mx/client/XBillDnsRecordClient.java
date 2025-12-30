@@ -1,5 +1,6 @@
 package com.mimecast.robin.mx.client;
 
+import com.mimecast.robin.main.Config;
 import com.mimecast.robin.mx.assets.DnsRecord;
 import com.mimecast.robin.mx.assets.StsRecord;
 import com.mimecast.robin.mx.assets.StsReport;
@@ -7,14 +8,15 @@ import com.mimecast.robin.mx.assets.XBillDnsRecord;
 import com.mimecast.robin.mx.util.LocalDnsResolver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.xbill.DNS.Lookup;
-import org.xbill.DNS.MXRecord;
-import org.xbill.DNS.TextParseException;
-import org.xbill.DNS.Type;
+import org.xbill.DNS.*;
+import org.xbill.DNS.Record;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * XBill Dns Record Client.
@@ -29,6 +31,23 @@ import java.util.Optional;
 public class XBillDnsRecordClient implements DnsRecordClient {
     private static final Logger log = LogManager.getLogger(XBillDnsRecordClient.class);
 
+    private static final Cache CACHE = new Cache();
+    private static final ConcurrentMap<String, PtrCacheEntry> PTR_CACHE = new ConcurrentHashMap<>();
+
+    /**
+     * PTR Cache Entry.
+     * <p>Holds cached PTR record value and expiry timestamp.
+     */
+    private static class PtrCacheEntry {
+        final String value; // Null means miss.
+        final long expiresAt;
+
+        PtrCacheEntry(String value, long expiresAt) {
+            this.value = value;
+            this.expiresAt = expiresAt;
+        }
+    }
+
     /**
      * Gets DNS TXT MTA-STS record.
      * <p>Will query the <i>_mta-sts.</i> subdomain of the domain provided.
@@ -39,7 +58,7 @@ public class XBillDnsRecordClient implements DnsRecordClient {
      */
     @Override
     public Optional<StsRecord> getStsRecord(String domain) {
-        org.xbill.DNS.Record[] recordList = getRecord("_mta-sts." + domain, Type.TXT);
+        Record[] recordList = getRecord("_mta-sts." + domain, Type.TXT);
         if (recordList != null) {
             List<StsRecord> records = new ArrayList<>();
             for (org.xbill.DNS.Record entry : recordList) {
@@ -51,7 +70,7 @@ public class XBillDnsRecordClient implements DnsRecordClient {
             }
 
             if (records.size() == 1) {
-                return Optional.of(records.get(0));
+                return Optional.of(records.getFirst());
             }
         }
 
@@ -68,7 +87,7 @@ public class XBillDnsRecordClient implements DnsRecordClient {
      */
     @Override
     public Optional<StsReport> getRptRecord(String domain) {
-        org.xbill.DNS.Record[] recordList = getRecord("_smtp._tls." + domain, Type.TXT);
+        Record[] recordList = getRecord("_smtp._tls." + domain, Type.TXT);
         if (recordList != null) {
             List<StsReport> records = new ArrayList<>();
             for (org.xbill.DNS.Record entry : recordList) {
@@ -80,7 +99,7 @@ public class XBillDnsRecordClient implements DnsRecordClient {
             }
 
             if (records.size() == 1) {
-                return Optional.of(records.get(0));
+                return Optional.of(records.getFirst());
             }
         }
 
@@ -94,7 +113,7 @@ public class XBillDnsRecordClient implements DnsRecordClient {
      * @return Optional of List of MXRecord instances.
      */
     public Optional<List<DnsRecord>> getARecords(String domain) {
-        org.xbill.DNS.Record[] recordList = getRecord(domain, Type.A);
+        Record[] recordList = getRecord(domain, Type.A);
         if (recordList != null) {
             List<DnsRecord> records = new ArrayList<>();
             for (org.xbill.DNS.Record record : recordList) {
@@ -118,7 +137,7 @@ public class XBillDnsRecordClient implements DnsRecordClient {
      * @return Optional of List of MXRecord instances.
      */
     public Optional<List<DnsRecord>> getMxRecords(String domain) {
-        org.xbill.DNS.Record[] recordList = getRecord(domain, Type.MX);
+        Record[] recordList = getRecord(domain, Type.MX);
         if (recordList != null) {
             List<DnsRecord> records = new ArrayList<>();
             for (org.xbill.DNS.Record record : recordList) {
@@ -136,20 +155,65 @@ public class XBillDnsRecordClient implements DnsRecordClient {
     }
 
     /**
+     * Gets DNS PTR record for a given IP address.
+     *
+     * @param ipAddress IPv4/IPv6 string.
+     * @return Optional with the first PTR target (FQDN) if present.
+     */
+    public Optional<String> getPtrRecord(String ipAddress) {
+        PtrCacheEntry cached = PTR_CACHE.get(ipAddress);
+        if (cached != null && cached.expiresAt > Instant.now().toEpochMilli()) {
+            return cached.value == null ? Optional.empty() : Optional.of(cached.value);
+        }
+
+        try {
+            Name addr = org.xbill.DNS.ReverseMap.fromAddress(ipAddress);
+            Record[] records = getRecord(addr.toString(true), Type.PTR);
+            if (records != null) {
+                for (org.xbill.DNS.Record record : records) {
+                    if (record instanceof PTRRecord) {
+                        String target = ((PTRRecord) record).getTarget().toString(true);
+                        cachePtr(ipAddress, target);
+                        return Optional.of(target);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.debug("PTR lookup failed for {}: {}", ipAddress, e.getMessage());
+        }
+        cachePtr(ipAddress, null);
+        return Optional.empty();
+    }
+
+    /**
      * Gets DNS TXT record.
      *
      * @param uri  Lookup URI string.
      * @param type Lookup type int.
      * @return Optional of StsRecord instance.
      */
-    private org.xbill.DNS.Record[] getRecord(String uri, int type) {
+    private Record[] getRecord(String uri, int type) {
         try {
             Lookup lookup = new Lookup(uri, type);
+            lookup.setResolver(new ExtendedResolver());
+            lookup.setCache(CACHE);
             return lookup.run();
         } catch (TextParseException e) {
             log.error("Record URI could not resolve: {} - {}", uri, e.getMessage());
         }
 
         return new org.xbill.DNS.Record[0];
+    }
+
+    /**
+     * Caches PTR lookup result.
+     *
+     * @param ipAddress IP address string.
+     * @param value     PTR target string.
+     */
+    private void cachePtr(String ipAddress, String value) {
+        long ttlMs = Config.getServer().getDnsNegativeTtl() * 1000L;
+        long expires = Instant.now().toEpochMilli() + ttlMs;
+        PTR_CACHE.put(ipAddress, new PtrCacheEntry(value, expires));
     }
 }

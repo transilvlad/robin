@@ -6,6 +6,7 @@ import com.mimecast.robin.config.server.ServerConfig;
 import com.mimecast.robin.config.server.UserConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
+import com.mimecast.robin.mx.client.XBillDnsRecordClient;
 import com.mimecast.robin.smtp.EmailDelivery;
 import com.mimecast.robin.smtp.EmailReceipt;
 import com.mimecast.robin.smtp.io.LineInputStream;
@@ -82,11 +83,14 @@ public class Connection extends SmtpFoundation {
         session = Factories.getSession();
 
         // Connection info.
-        session.setAddr(socket.getLocalAddress().getHostName());
+        session.setAddr(socket.getLocalAddress().getHostAddress());
         session.setRdns(socket.getLocalAddress().getHostAddress());
 
         session.setFriendAddr(socket.getInetAddress().getHostAddress());
-        session.setFriendRdns(socket.getInetAddress().getHostName());
+        // Do PTR lookup via DNS client; fall back to address string.
+        session.setFriendRdns(new XBillDnsRecordClient()
+                .getPtrRecord(session.getFriendAddr())
+                .orElse(session.getFriendAddr()));
     }
 
     /**

@@ -154,6 +154,15 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
+     * Gets DNS negative TTL (seconds) for caching NXDOMAIN/NODATA responses.
+     *
+     * @return ttl seconds.
+     */
+    public int getDnsNegativeTtl() {
+        return Math.toIntExact(getLongProperty("dnsNegativeTtl", 300L));
+    }
+
+    /**
      * Is AUTH enabled.
      *
      * @return Boolean.

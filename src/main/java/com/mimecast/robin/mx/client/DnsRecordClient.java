@@ -34,6 +34,14 @@ public interface DnsRecordClient {
     Optional<StsReport> getRptRecord(String domain);
 
     /**
+     * Gets PTR record (reverse DNS) for an IP address.
+     *
+     * @param ipAddress IPv4/IPv6 string.
+     * @return Optional with PTR target if found.
+     */
+    Optional<String> getPtrRecord(String ipAddress);
+
+    /**
      * Gets DNS MX records.
      *
      * @param domain Domain string.

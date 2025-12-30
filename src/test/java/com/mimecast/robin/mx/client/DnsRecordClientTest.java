@@ -12,6 +12,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SuppressWarnings("OptionalGetWithoutIsPresent")
 class DnsRecordClientTest {
@@ -20,15 +21,25 @@ class DnsRecordClientTest {
     static void before() {
         // Set local resolver
         Lookup.setDefaultResolver(new LocalDnsResolver());
-        LocalDnsResolver.put("_mta-sts.mimecast.com", Type.TXT, new ArrayList<String>() {{
+        LocalDnsResolver.put("_mta-sts.mimecast.com", Type.TXT, new ArrayList<>() {{
             add("v=STSv1; id=19840507T234501;");
         }});
-        LocalDnsResolver.put("_mta-sts.mimecast.eu", Type.TXT, new ArrayList<String>() {{
+        LocalDnsResolver.put("_mta-sts.mimecast.eu", Type.TXT, new ArrayList<>() {{
             add("v=STSv1; id=;");
         }});
-        LocalDnsResolver.put("_mta-sts.mimecast.us", Type.TXT, new ArrayList<String>() {{
+        LocalDnsResolver.put("_mta-sts.mimecast.us", Type.TXT, new ArrayList<>() {{
             add("id=19840507T234501;");
         }});
+        // PTR for loopback
+        LocalDnsResolver.put("1.0.0.127.in-addr.arpa", Type.PTR, new ArrayList<>() {{
+            add("localhost.");
+        }});
+    }
+
+    @Test
+    void getPtr() {
+        DnsRecordClient dnsRecordClient = new XBillDnsRecordClient();
+        assertTrue(dnsRecordClient.getPtrRecord("127.0.0.1").isPresent());
     }
 
     @Test
