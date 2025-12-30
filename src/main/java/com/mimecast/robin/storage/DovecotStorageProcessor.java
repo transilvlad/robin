@@ -153,7 +153,8 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
                 // Clone the envelope with only non-bot recipients.
                 MessageEnvelope lmtpEnvelope = envelope.clone();
                 lmtpEnvelope.getRcpts().clear();
-                lmtpEnvelope.getRcpts().addAll(nonBotRecipients);
+                lmtpEnvelope.setRcpt(null); // Clear single rcpt field.
+                lmtpEnvelope.setRcpts(new ArrayList<>(nonBotRecipients));
                 lmtpSession.addEnvelope(lmtpEnvelope);
 
                 // Perform inline LMTP delivery using EmailDelivery.
@@ -336,7 +337,7 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
         else {
             envelope.setFile(connection.getSession().getEnvelopes().getLast().getFile());
             envelope.setMail(sender); // Set sender.
-            envelope.setRcpts(List.of(mailbox)); // Set recipient.
+            envelope.setRcpts(new ArrayList<>(List.of(mailbox))); // Set recipient.
             relaySession.getSession().setDirection(connection.getSession().getDirection());
 
             // Determine protocol to queue based on enabled backend: LMTP takes precedence.

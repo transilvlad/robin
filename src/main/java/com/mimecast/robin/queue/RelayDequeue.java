@@ -194,17 +194,24 @@ public class RelayDequeue {
                 relaySession.getSession().getSessionTransactionList().getEnvelopes();
         List<MessageEnvelope> successfulEnvelopes = new ArrayList<>();
 
+        List<MessageEnvelope> envelopes = relaySession.getSession().getEnvelopes();
+        if (transactions.size() != envelopes.size()) {
+            log.error("Transaction/envelope size mismatch: txCount={}, envCount={}, uid={}",
+                    transactions.size(), envelopes.size(), relaySession.getSession().getUID());
+        }
+
         // Iterate through transactions and identify successful envelopes.
         for (int i = 0; i < transactions.size(); i++) {
             EnvelopeTransactionList txList = transactions.get(i);
-            MessageEnvelope envelope = relaySession.getSession().getEnvelopes().get(i);
+            MessageEnvelope envelope = envelopes.get(i);
 
             if (txList.getErrors().isEmpty()) {
                 log.debug("All recipients succeeded");
                 successfulEnvelopes.add(envelope);
             } else {
                 log.debug("Partial failure: update envelope to contain only failed recipients.");
-                if (txList.getRecipients() != txList.getFailedRecipients()) {
+                List<String> failedRecipients = txList.getFailedRecipients();
+                if (failedRecipients != null && !failedRecipients.isEmpty()) {
                     envelope.setRcpts(txList.getFailedRecipients());
                 }
             }
