@@ -16,7 +16,7 @@
         <guava.version>33.5.0-jre</guava.version>
         <okhttp.version>5.3.2</okhttp.version>
         <micrometer.version>1.16.1</micrometer.version>
-        <log4j.version>2.25.2</log4j.version>
+        <log4j.version>2.25.3</log4j.version>
         <junit.version>6.0.1</junit.version>
         <jmh.version>1.37</jmh.version>
     </properties>
@@ -143,7 +143,7 @@
         <dependency>
             <groupId>org.mariadb.jdbc</groupId>
             <artifactId>mariadb-java-client</artifactId>
-            <version>3.5.6</version>
+            <version>3.5.7</version>
         </dependency>
 
         <dependency>
@@ -161,7 +161,7 @@
         <dependency>
             <groupId>redis.clients</groupId>
             <artifactId>jedis</artifactId>
-            <version>7.1.0</version>
+            <version>7.2.0</version>
         </dependency>
 
         <dependency>
@@ -183,7 +183,7 @@
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-slf4j-impl</artifactId>
-            <version>2.25.2</version>
+            <version>2.25.3</version>
             <scope>runtime</scope>
         </dependency>
 
