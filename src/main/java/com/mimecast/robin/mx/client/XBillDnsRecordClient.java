@@ -195,10 +195,16 @@ public class XBillDnsRecordClient implements DnsRecordClient {
     private Record[] getRecord(String uri, int type) {
         try {
             Lookup lookup = new Lookup(uri, type);
-            lookup.setResolver(new ExtendedResolver());
+            // Use default resolver (respects Lookup.setDefaultResolver() for tests)
+            // Falls back to ExtendedResolver if no default is set
+            Resolver resolver = Lookup.getDefaultResolver();
+            if (resolver == null) {
+                resolver = new ExtendedResolver();
+            }
+            lookup.setResolver(resolver);
             lookup.setCache(CACHE);
             return lookup.run();
-        } catch (TextParseException e) {
+        } catch (Exception e) {
             log.error("Record URI could not resolve: {} - {}", uri, e.getMessage());
         }
 
