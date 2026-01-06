@@ -22,11 +22,18 @@
   },
 
   // Use LMTP backend for email delivery.
+  // Uses connection pooling to reuse TCP connections across deliveries.
   saveLmtp: {
     enabled: true,
     servers: ["robin-suite-dovecot"],
     port: 24,
-    tls: false
+    tls: false,
+
+    // Connection pool settings.
+    connectionPoolSize: 50,
+    connectionPoolTimeoutSeconds: 60,
+    connectionIdleTimeoutSeconds: 270,    // Close idle connections after 4.5 minutes.
+    connectionMaxLifetimeSeconds: 1800    // Close connections after 30 minutes max.
   },
 
   // Disable LDA backend (we're using LMTP).

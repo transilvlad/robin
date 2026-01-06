@@ -218,6 +218,8 @@ public class DovecotConfig extends BasicConfig {
         private final boolean tls;
         private final int connectionPoolSize;
         private final long connectionPoolTimeoutSeconds;
+        private final long connectionIdleTimeoutSeconds;
+        private final long connectionMaxLifetimeSeconds;
 
         /**
          * Constructs SaveLmtp from configuration map.
@@ -233,6 +235,8 @@ public class DovecotConfig extends BasicConfig {
             this.tls = Boolean.TRUE.equals(map.getOrDefault("tls", false));
             this.connectionPoolSize = ((Number) map.getOrDefault("connectionPoolSize", 50)).intValue();
             this.connectionPoolTimeoutSeconds = ((Number) map.getOrDefault("connectionPoolTimeoutSeconds", 60L)).longValue();
+            this.connectionIdleTimeoutSeconds = ((Number) map.getOrDefault("connectionIdleTimeoutSeconds", 270L)).longValue();
+            this.connectionMaxLifetimeSeconds = ((Number) map.getOrDefault("connectionMaxLifetimeSeconds", 1800L)).longValue();
         }
 
         /**
@@ -280,6 +284,25 @@ public class DovecotConfig extends BasicConfig {
          * @return Timeout in seconds (default: 60).
          */
         public long getConnectionPoolTimeoutSeconds() { return connectionPoolTimeoutSeconds; }
+
+        /**
+         * Gets connection idle timeout in seconds.
+         * <p>
+         * Idle connections are closed after this time. Should be less than server-side timeout
+         * (Dovecot LMTP default is 5 minutes / 300s) to allow for graceful QUIT before server closes.
+         *
+         * @return Idle timeout in seconds (default: 270, i.e., 4.5 minutes).
+         */
+        public long getConnectionIdleTimeoutSeconds() { return connectionIdleTimeoutSeconds; }
+
+        /**
+         * Gets connection maximum lifetime in seconds.
+         * <p>
+         * Connections are closed after this time regardless of activity.
+         *
+         * @return Max lifetime in seconds (default: 1800, i.e., 30 minutes).
+         */
+        public long getConnectionMaxLifetimeSeconds() { return connectionMaxLifetimeSeconds; }
     }
 
     /**

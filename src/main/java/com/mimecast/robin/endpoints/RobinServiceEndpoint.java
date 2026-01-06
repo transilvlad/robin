@@ -187,10 +187,11 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
             return "{\"enabled\":false}";
         }
 
-        return String.format("{\"enabled\":true,\"poolSize\":%d,\"available\":%d,\"active\":%d}",
+        return String.format("{\"enabled\":true,\"maxSize\":%d,\"total\":%d,\"idle\":%d,\"borrowed\":%d}",
                 lmtpPool.getPoolSize(),
-                lmtpPool.getAvailablePermits(),
-                lmtpPool.getActiveConnections());
+                lmtpPool.getTotalConnections(),
+                lmtpPool.getIdleCount(),
+                lmtpPool.getBorrowedCount());
     }
 
     /**

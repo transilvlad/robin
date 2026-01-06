@@ -33,6 +33,7 @@
   // LMTP backend configuration (default: enabled, localhost:24).
   // This backend is recommended for distributed and SQL-backed setups.
   // Folder routing is handled automatically by Dovecot based on message direction.
+  // Uses connection pooling to reuse TCP connections across deliveries.
   saveLmtp: {
     // Enable LMTP delivery backend.
     enabled: false,
@@ -44,7 +45,20 @@
     port: 24,
 
     // Enable TLS for LMTP connections (default: false).
-    tls: false
+    tls: false,
+
+    // Maximum number of pooled connections (default: 50).
+    connectionPoolSize: 50,
+
+    // Max time (seconds) to wait for a connection from the pool (default: 60).
+    connectionPoolTimeoutSeconds: 60,
+
+    // Close idle connections after this many seconds (default: 270, i.e., 4.5 minutes).
+    // Should be less than Dovecot's LMTP client timeout (default 5 minutes).
+    connectionIdleTimeoutSeconds: 270,
+
+    // Close connections after this many seconds regardless of activity (default: 1800, i.e., 30 minutes).
+    connectionMaxLifetimeSeconds: 1800
   },
 
   // LDA backend configuration (optional).

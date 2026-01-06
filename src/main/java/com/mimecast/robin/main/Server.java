@@ -173,11 +173,17 @@ public class Server extends Foundation {
         // Initialize LMTP connection pool if LMTP backend is enabled.
         try {
             DovecotConfig dovecotConfig = serverConfig.getDovecot();
-            if (dovecotConfig.getSaveLmtp().isEnabled()) {
-                int poolSize = dovecotConfig.getSaveLmtp().getConnectionPoolSize();
-                long timeout = dovecotConfig.getSaveLmtp().getConnectionPoolTimeoutSeconds();
-                lmtpPool = new LmtpConnectionPool(poolSize, timeout);
-                log.info("LMTP connection pool initialized: size={}, timeout={}s", poolSize, timeout);
+            DovecotConfig.SaveLmtp lmtpConfig = dovecotConfig.getSaveLmtp();
+            if (lmtpConfig.isEnabled()) {
+                lmtpPool = new LmtpConnectionPool(
+                        lmtpConfig.getConnectionPoolSize(),
+                        lmtpConfig.getConnectionPoolTimeoutSeconds(),
+                        lmtpConfig.getConnectionIdleTimeoutSeconds(),
+                        lmtpConfig.getConnectionMaxLifetimeSeconds(),
+                        lmtpConfig.getServers(),
+                        lmtpConfig.getPort(),
+                        lmtpConfig.isTls()
+                );
             }
         } catch (Exception e) {
             log.warn("Failed to initialize LMTP connection pool: {}", e.getMessage());
@@ -264,11 +270,16 @@ public class Server extends Foundation {
                 }
             }
 
+            // Close LMTP connection pool if initialized.
+            if (lmtpPool != null) {
+                lmtpPool.close();
+            }
+
             // Close shared DataSource if initialized.
             try {
                 // Close shared SqlAuthManager first
                 try { SqlAuthManager.close(); } catch (Exception ignore) {}
-                 SharedDataSource.close();
+                SharedDataSource.close();
             } catch (Exception e) {
                 log.warn("Error closing shared DataSource: {}", e.getMessage());
             }

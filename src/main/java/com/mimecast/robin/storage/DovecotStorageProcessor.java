@@ -11,10 +11,8 @@ import com.mimecast.robin.queue.QueueFiles;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.queue.bounce.BounceMessageGenerator;
 import com.mimecast.robin.queue.relay.DovecotLdaClient;
-import com.mimecast.robin.smtp.EmailDelivery;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
-import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
 import com.mimecast.robin.util.Sleep;
 import org.apache.logging.log4j.LogManager;
@@ -81,6 +79,9 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
      * Uses a configurable LMTP server list and supports SQL authentication.
      * Implements inline delivery with retry logic matching LDA behavior.
      * Filters out bot addresses and logs delivery actions.
+     * <p>
+     * Uses a connection pool for efficient connection reuse - TCP connections and LHLO handshakes
+     * are reused across deliveries, significantly improving throughput.
      *
      * @param connection  Connection instance.
      * @param emailParser EmailParser instance.
@@ -88,11 +89,6 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
      * @throws IOException If an I/O error occurs during processing.
      */
     protected void saveToLmtp(Connection connection, EmailParser emailParser, ServerConfig config) throws IOException {
-        var lmtpConfig = config.getDovecot().getSaveLmtp();
-        List<String> servers = lmtpConfig.getServers();
-        int port = lmtpConfig.getPort();
-        boolean tls = lmtpConfig.isTls();
-
         MessageEnvelope envelope = connection.getSession().getEnvelopes().getLast();
         List<String> originalRecipients = envelope.getRcpts();
         List<String> nonBotRecipients = new ArrayList<>();
@@ -122,46 +118,41 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
             return;
         }
 
-        // Attempt inline delivery with retries.
+        // Clone the envelope with only non-bot recipients
+        MessageEnvelope lmtpEnvelope = envelope.clone();
+        lmtpEnvelope.getRcpts().clear();
+        lmtpEnvelope.setRcpt(null);
+        lmtpEnvelope.setRcpts(new ArrayList<>(nonBotRecipients));
+
+        // Attempt inline delivery with retries
         long maxAttempts = config.getDovecot().getInlineSaveMaxAttempts();
         int retryDelay = Math.toIntExact(config.getDovecot().getInlineSaveRetryDelay());
 
         boolean deliverySucceeded = false;
 
         for (long attempt = 1; attempt <= maxAttempts; attempt++) {
-            // Acquire connection permit from pool.
-            if (!pool.acquire()) {
-                log.error("Failed to acquire LMTP connection permit within timeout");
-                break;
+            if (attempt > 1 && retryDelay > 0) {
+                Sleep.nap(retryDelay);
+            }
+
+            // Borrow connection from pool (creates new if needed, includes LHLO)
+            LmtpConnectionPool.PooledLmtpConnection pooled = pool.borrow(lmtpEnvelope);
+            if (pooled == null) {
+                log.error("Failed to acquire LMTP connection from pool");
+                continue;
             }
 
             try {
-                if (attempt > 1 && retryDelay > 0) {
-                    Sleep.nap(retryDelay);
-                }
+                // Set UID on borrowed connection's session
+                pooled.getSession().setUID(connection.getSession().getUID());
+                pooled.getSession().setDirection(connection.getSession().getDirection());
 
-                // Create a new session for LMTP delivery with mx and port from config.
-                // No MX resolution needed as servers are provided in config.
-                Session lmtpSession = Factories.getSession()
-                        .setUID(connection.getSession().getUID())
-                        .setMx(servers)  // Use servers list directly - no MX resolution needed.
-                        .setPort(port)
-                        .setTls(tls)
-                        .setLhlo(Config.getServer().getHostname())
-                        .setDirection(connection.getSession().getDirection());
+                // Use LmtpBehaviour to send (MAIL/RCPT/DATA only, no QUIT)
+                LmtpBehaviour behaviour = new LmtpBehaviour();
+                behaviour.process(pooled.getConnection());
 
-                // Clone the envelope with only non-bot recipients.
-                MessageEnvelope lmtpEnvelope = envelope.clone();
-                lmtpEnvelope.getRcpts().clear();
-                lmtpEnvelope.setRcpt(null); // Clear single rcpt field.
-                lmtpEnvelope.setRcpts(new ArrayList<>(nonBotRecipients));
-                lmtpSession.addEnvelope(lmtpEnvelope);
-
-                // Perform inline LMTP delivery using EmailDelivery.
-                new EmailDelivery(lmtpSession).send();
-
-                // Check transaction results to determine success.
-                var sessionTransactionList = lmtpSession.getSessionTransactionList();
+                // Check transaction results to determine success
+                var sessionTransactionList = pooled.getSession().getSessionTransactionList();
                 var envelopes = sessionTransactionList != null ? sessionTransactionList.getEnvelopes() : null;
                 EnvelopeTransactionList transactionList = (envelopes != null && !envelopes.isEmpty())
                         ? envelopes.getLast()
@@ -170,15 +161,17 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
                 if (transactionList != null && transactionList.getErrors().isEmpty()) {
                     deliverySucceeded = true;
                     log.info("LMTP delivery successful after {} attempt(s)", attempt);
+                    // Return connection to pool for reuse
+                    pool.returnConnection(pooled);
                     break;
                 } else {
                     if (attempt < maxAttempts) {
-                        log.warn("Attempt {} of {} LMTP delivery failed (will retry)",
-                                attempt, maxAttempts);
+                        log.warn("Attempt {} of {} LMTP delivery failed (will retry)", attempt, maxAttempts);
                     } else {
-                        log.error("Attempt {} of {} LMTP delivery failed (giving up)",
-                                attempt, maxAttempts);
+                        log.error("Attempt {} of {} LMTP delivery failed (giving up)", attempt, maxAttempts);
                     }
+                    // Invalidate connection on failure (may be in bad state)
+                    pool.invalidate(pooled);
                 }
             } catch (Exception e) {
                 if (attempt < maxAttempts) {
@@ -188,13 +181,12 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
                     log.error("Attempt {} of {} LMTP delivery threw exception (giving up): {}",
                             attempt, maxAttempts, e.getMessage());
                 }
-            } finally {
-                // Always release the connection permit.
-                pool.release();
+                // Invalidate connection on exception
+                pool.invalidate(pooled);
             }
         }
 
-        // Process failure if delivery did not succeed.
+        // Process failure if delivery did not succeed
         if (!deliverySucceeded) {
             for (String recipient : nonBotRecipients) {
                 processFailure(connection, config, recipient);

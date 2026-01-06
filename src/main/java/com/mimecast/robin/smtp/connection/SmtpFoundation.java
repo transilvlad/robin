@@ -491,4 +491,13 @@ public abstract class SmtpFoundation {
             log.info("Socket already closed.");
         }
     }
+
+    /**
+     * Checks if the socket is connected and not closed.
+     *
+     * @return True if socket is connected and open, false otherwise.
+     */
+    public boolean isConnected() {
+        return socket != null && socket.isConnected() && !socket.isClosed();
+    }
 }
