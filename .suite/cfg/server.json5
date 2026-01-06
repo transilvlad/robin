@@ -129,5 +129,8 @@
   // Enable XCLIENT extension for development and testing only.
   // WARNING: Do NOT enable in production. XCLIENT allows clients to forge sender information
   // and is intended strictly for development and testing purposes.
-  xclientEnabled: true
+  xclientEnabled: true,
+
+  // DNS negative TTL (seconds) for caching NXDOMAIN/NODATA responses.
+  dnsNegativeTtl: 300
 }
