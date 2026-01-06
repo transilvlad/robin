@@ -27,9 +27,10 @@ public class LineInputStream extends PushbackInputStream {
     private static final int LF = 10; // \n
 
     /**
-     * Internal read buffer size (8KB - standard for I/O buffering).
+     * Default internal read buffer size (1KB - safe for default pushback buffer).
+     * Must be smaller than pushback buffer to avoid "Push back buffer is full" errors.
      */
-    private static final int BUFFER_SIZE = 8192;
+    private static final int DEFAULT_BUFFER_SIZE = 1024;
 
     /**
      * Initial line buffer size (typical SMTP line is 78-998 bytes).
@@ -42,9 +43,15 @@ public class LineInputStream extends PushbackInputStream {
     private int lineNumber = 0;
 
     /**
-     * Internal read buffer for bulk reads.
+     * Pushback buffer size from constructor (used to size internal read buffer).
      */
-    private final byte[] readBuffer = new byte[BUFFER_SIZE];
+    private final int pushbackSize;
+
+    /**
+     * Internal read buffer for bulk reads.
+     * Size is limited to 75% of pushback buffer to ensure unread() always succeeds.
+     */
+    private final byte[] readBuffer;
 
     /**
      * Current position in read buffer.
@@ -62,22 +69,41 @@ public class LineInputStream extends PushbackInputStream {
     private final ByteArrayOutputStream lineBuffer = new ByteArrayOutputStream(LINE_BUFFER_INITIAL_SIZE);
 
     /**
+     * Flag to prevent recursive buffer pushback when PushbackInputStream delegates between unread() methods.
+     * Set to true during unread operations to avoid pushing back buffer data multiple times.
+     */
+    private boolean inUnreadOperation = false;
+
+    /**
      * Constructs a new LineInputStream instance.
+     * Uses default pushback buffer size (1 byte from PushbackInputStream).
+     * For optimal performance, use constructor with explicit size.
      *
      * @param stream InputStream instance.
      */
     public LineInputStream(InputStream stream) {
         super(stream);
+        this.pushbackSize = 1; // PushbackInputStream default
+        // Use safe default that won't overflow tiny pushback buffer.
+        this.readBuffer = new byte[1];
     }
 
     /**
      * Constructs a new LineInputStream instance with given pushback buffer size.
+     * Internal read buffer is sized at 50% of pushback buffer to ensure unread()
+     * operations always succeed when pushing back buffered data + caller's line.
      *
      * @param stream InputStream instance.
      * @param size   Pushback buffer size.
      */
     public LineInputStream(InputStream stream, int size) {
         super(stream, size);
+        this.pushbackSize = size;
+        // Size read buffer to 50% of pushback buffer for safety margin.
+        // This ensures we can always push back: unprocessed buffer data + caller's line.
+        // Example: 1024 byte pushback → 512 byte read buffer, leaving 512 bytes for caller.
+        int bufferSize = Math.max(256, size / 2);
+        this.readBuffer = new byte[bufferSize];
     }
 
     /**
@@ -110,7 +136,7 @@ public class LineInputStream extends PushbackInputStream {
         while (true) {
             // Refill internal buffer if needed.
             if (bufferPos >= bufferLimit) {
-                bufferLimit = super.read(readBuffer, 0, BUFFER_SIZE);
+                bufferLimit = super.read(readBuffer, 0, readBuffer.length);
                 bufferPos = 0;
 
                 // End of stream.
@@ -170,7 +196,7 @@ public class LineInputStream extends PushbackInputStream {
         }
 
         // Refill buffer.
-        bufferLimit = super.read(readBuffer, 0, BUFFER_SIZE);
+        bufferLimit = super.read(readBuffer, 0, readBuffer.length);
         bufferPos = 0;
 
         if (bufferLimit == -1) {
@@ -181,40 +207,79 @@ public class LineInputStream extends PushbackInputStream {
     }
 
     /**
-     * Overrides unread() to invalidate internal buffer.
+     * Overrides unread() to preserve internal buffer state.
      *
-     * <p>Forces subsequent reads to go through PushbackInputStream.
+     * <p>CRITICAL: Before pushing back requested bytes, must first push back any
+     * unprocessed data from internal buffer. Otherwise that data is lost forever,
+     * causing MIME parts and boundaries to be missed during parsing.
      *
      * @param b Byte to unread.
      * @throws IOException Unable to unread.
      */
     @Override
     public void unread(int b) throws IOException {
-        // Invalidate internal buffer to ensure pushback works correctly.
-        bufferPos = 0;
-        bufferLimit = 0;
-        super.unread(b);
+        // Prevent recursive buffer pushback when called as delegate from PushbackInputStream.
+        if (!inUnreadOperation) {
+            inUnreadOperation = true;
+            try {
+                // Push back unprocessed buffer data first, then requested byte.
+                if (bufferPos < bufferLimit) {
+                    super.unread(readBuffer, bufferPos, bufferLimit - bufferPos);
+                }
+                super.unread(b);
+
+                // Invalidate internal buffer.
+                bufferPos = 0;
+                bufferLimit = 0;
+            } finally {
+                inUnreadOperation = false;
+            }
+        } else {
+            // Called recursively - just delegate without buffer management.
+            super.unread(b);
+        }
     }
 
     /**
-     * Overrides unread() to invalidate internal buffer.
+     * Overrides unread() to preserve internal buffer state.
      *
-     * <p>Forces subsequent reads to go through PushbackInputStream.
+     * <p>CRITICAL: Before pushing back requested bytes, must first push back any
+     * unprocessed data from internal buffer. Otherwise that data is lost forever,
+     * causing MIME parts and boundaries to be missed during parsing.
      *
      * @param b Byte array to unread.
      * @throws IOException Unable to unread.
      */
     @Override
     public void unread(byte[] b) throws IOException {
-        bufferPos = 0;
-        bufferLimit = 0;
-        super.unread(b);
+        // Prevent recursive buffer pushback when called as delegate from PushbackInputStream.
+        if (!inUnreadOperation) {
+            inUnreadOperation = true;
+            try {
+                // Push back unprocessed buffer data first, then requested bytes.
+                if (bufferPos < bufferLimit) {
+                    super.unread(readBuffer, bufferPos, bufferLimit - bufferPos);
+                }
+                super.unread(b);
+
+                // Invalidate internal buffer.
+                bufferPos = 0;
+                bufferLimit = 0;
+            } finally {
+                inUnreadOperation = false;
+            }
+        } else {
+            // Called recursively - just delegate without buffer management.
+            super.unread(b);
+        }
     }
 
     /**
-     * Overrides unread() to invalidate internal buffer.
+     * Overrides unread() to preserve internal buffer state.
      *
-     * <p>Forces subsequent reads to go through PushbackInputStream.
+     * <p>CRITICAL: Before pushing back requested bytes, must first push back any
+     * unprocessed data from internal buffer. Otherwise that data is lost forever,
+     * causing MIME parts and boundaries to be missed during parsing.
      *
      * @param b   Byte array to unread.
      * @param off Offset.
@@ -223,8 +288,25 @@ public class LineInputStream extends PushbackInputStream {
      */
     @Override
     public void unread(byte[] b, int off, int len) throws IOException {
-        bufferPos = 0;
-        bufferLimit = 0;
-        super.unread(b, off, len);
+        // Prevent recursive buffer pushback when called as delegate from PushbackInputStream.
+        if (!inUnreadOperation) {
+            inUnreadOperation = true;
+            try {
+                // Push back unprocessed buffer data first, then requested bytes.
+                if (bufferPos < bufferLimit) {
+                    super.unread(readBuffer, bufferPos, bufferLimit - bufferPos);
+                }
+                super.unread(b, off, len);
+
+                // Invalidate internal buffer.
+                bufferPos = 0;
+                bufferLimit = 0;
+            } finally {
+                inUnreadOperation = false;
+            }
+        } else {
+            // Called recursively - just delegate without buffer management.
+            super.unread(b, off, len);
+        }
     }
 }
