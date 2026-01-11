@@ -1,0 +1,7 @@
+# PostgreSQL query for virtual mailbox domains.
+hosts = postgres-backend
+user = robin
+password = robin
+dbname = robin
+
+query = SELECT DISTINCT substring(email from '@(.*)$') FROM users WHERE email LIKE '%%@%s'

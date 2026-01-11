@@ -1,0 +1,37 @@
+{
+  // Performance test Robin MTA server configuration.
+  hostname: "perf-robin",
+  bind: "::",
+  smtpPort: 25,
+  securePort: 0,       // Disabled for performance
+  submissionPort: 0,   // Disabled for performance
+
+  smtpConfig: {
+    backlog: 500,
+    minimumPoolSize: 50,
+    maximumPoolSize: 250,
+    threadKeepAliveTime: 180,
+    transactionsLimit: 1000,
+    recipientsLimit: 100,
+    envelopeLimit: 1000,
+    messageSizeLimit: 10485760,  // 10 MB
+    errorLimit: 10
+  },
+
+  auth: false,        // No auth for max throughput
+  starttls: false,    // No TLS for max throughput
+  chunking: true,
+
+  service: {
+    port: 8080,
+    authType: "none"
+  },
+
+  api: {
+    port: 8090,
+    authType: "none"
+  },
+
+  // DNS negative TTL (seconds) for PTR caching.
+  dnsNegativeTtl: 300
+}

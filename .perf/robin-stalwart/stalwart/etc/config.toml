@@ -1,0 +1,196 @@
+#################################
+# Stalwart Performance Test Configuration
+# Location: .perf-stalwart/stalwart/etc/config.toml
+#
+# This configuration sets up Stalwart as an LMTP/IMAP server for performance
+# testing Robin MTA and Postfix. SMTP listeners are intentionally omitted as
+# we're testing MTAs, not Stalwart's SMTP capabilities.
+#################################
+
+# Storage Backend Configuration
+[store."postgresql"]
+type = "postgresql"
+host = "postgres-backend"
+port = 5432
+database = "robin"
+user = "robin"
+password = "robin"
+timeout = "15s"
+
+[store."postgresql".pool]
+max-connections = 50
+
+[store."postgresql".tls]
+enable = false
+allow-invalid-certs = false
+
+# SQL Queries for Directory Lookups (PostgreSQL uses $1, $2 placeholders)
+[store."postgresql".query]
+# Retrieve account details by name
+name = "SELECT name, type, description, secret, quota FROM accounts WHERE name = $1 AND active = true"
+
+# Fetch groups that an account is a member of
+members = "SELECT member_of FROM group_members WHERE name = $1"
+
+# Retrieve account name(s) associated with an email address
+recipients = "SELECT name FROM emails WHERE address = $1"
+
+# Retrieve email addresses for an account (primary first, then aliases)
+emails = "SELECT address FROM emails WHERE name = $1 ORDER BY type DESC"
+
+# Verify account credentials
+verify = "SELECT name FROM accounts WHERE name = $1 AND secret = $2 AND active = true"
+
+# RocksDB Storage (embedded, for message store)
+[store."rocksdb"]
+type = "rocksdb"
+path = "/opt/stalwart/data"
+compression = "lz4"
+
+# Set RocksDB as data, blob, lookup, and FTS store
+[storage]
+data = "rocksdb"
+blob = "rocksdb"
+lookup = "rocksdb"
+fts = "rocksdb"
+directory = "postgresql"
+
+# Directory Configuration (PostgreSQL-backed authentication)
+[directory."postgresql"]
+type = "sql"
+store = "postgresql"
+
+# Column Mappings
+[directory."postgresql".columns]
+name = "name"
+description = "description"
+secret = "secret"
+quota = "quota"
+class = "type"
+
+# Server Configuration
+[server]
+hostname = "perf-stalwart"
+
+# LMTP Listener (port 24 for MTA delivery)
+[server.listener."lmtp"]
+bind = ["[::]:24"]
+protocol = "lmtp"
+max-connections = 400
+
+# LMTP listener socket options (performance tuning)
+[server.listener."lmtp".socket]
+backlog = 500
+reuse-addr = true
+reuse-port = true
+nodelay = true
+
+# IMAP Listener (port 143 for test verification with STARTTLS)
+[server.listener."imap"]
+bind = ["[::]:143"]
+protocol = "imap"
+max-connections = 200
+tls.implicit = false
+
+# IMAP listener socket options
+[server.listener."imap".socket]
+backlog = 200
+reuse-addr = true
+reuse-port = true
+nodelay = true
+
+# HTTP/JMAP Listener (port 8080 for web admin interface)
+[server.listener."http"]
+bind = ["[::]:8080"]
+protocol = "http"
+max-connections = 100
+tls.implicit = false
+
+# HTTP listener socket options
+[server.listener."http".socket]
+reuse-addr = true
+reuse-port = true
+nodelay = true
+
+# IMAP authentication settings - allow auth with STARTTLS
+[imap.auth]
+allow-plain-text = true
+
+# Disable SMTP listeners (not needed for performance test)
+# Simply omit [server.listener."smtp"] sections
+
+# Authentication Configuration
+[authentication]
+fallback-admin = false
+
+[authentication.master]
+allow = false
+
+# Use PostgreSQL directory for authentication
+[session.auth]
+directories = ["postgresql"]
+# Allow unauthenticated LMTP connections from Robin
+require = [{if = "listener", eq = "lmtp", then = false}, {else = true}]
+
+# Session Configuration
+[session.rcpt]
+directories = ["postgresql"]
+relay = false
+max-recipients = 100
+
+# LMTP Configuration
+[session.rcpt.lmtp]
+directories = ["postgresql"]
+
+[session.data]
+max-message-size = 10485760  # 10 MB (aligned with Robin/Postfix)
+
+[session.data.limits]
+size = 10485760
+received-headers = 50
+
+# Queue Configuration (minimal for LMTP)
+[queue]
+path = "/opt/stalwart/queue"
+hash = 64
+
+[queue.schedule]
+retry = ["1s", "5s", "10s", "30s", "1m", "5m", "10m", "30m", "1h", "2h"]
+notify = ["1h", "6h", "12h"]
+expire = "24h"
+
+# Local delivery routing (deliver to internal mailbox store)
+[queue.route."local"]
+type = "local"
+
+# Disable spam filtering for performance testing
+[spam-filter]
+enable = false
+
+# Disable spam filter in DATA stage
+[session.data.script]
+# Remove default spam-filter script from DATA stage
+
+# Disable rate limiting for performance testing (new syntax)
+[[queue.limiter.inbound]]
+enable = false
+
+# Logging Configuration
+# File-based logging with daily rotation
+[tracer.log]
+type = "log"
+path = "/var/log"
+prefix = "stalwart.log"
+rotate = "daily"
+level = "info"
+ansi = false
+multiline = false
+lossy = false
+enable = true
+
+# Also keep stdout for Docker logs
+[tracer.stdout]
+type = "stdout"
+level = "info"
+ansi = false
+enable = true

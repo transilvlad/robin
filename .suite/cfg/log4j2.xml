@@ -10,19 +10,17 @@
         <Console name="console" target="SYSTEM_OUT">
             <PatternLayout pattern="%-5p|%d{MMdd-HHmmssSSS}|%t|%c{2}|%X{aCode}|%X{bCode}|%X{cCode}|%m%n"/>
         </Console>
-        <AsyncAppender name="async" includeLocation="false">
-            <AppenderRef ref="appender"/>
-            <AppenderRef ref="console"/>
-        </AsyncAppender>
     </Appenders>
 
     <Loggers>
-        <Logger name="com.mimecast.robin" level="info" additivity="false">
-            <AppenderRef ref="async"/>
+        <Logger name="com.mimecast.robin" level="debug" additivity="false">
+            <AppenderRef ref="appender"/>
+            <AppenderRef ref="console"/>
         </Logger>
 
         <Root level="error">
-            <AppenderRef ref="async"/>
+            <AppenderRef ref="appender"/>
+            <AppenderRef ref="console"/>
         </Root>
     </Loggers>
 

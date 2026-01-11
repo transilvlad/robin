@@ -1,0 +1,10 @@
+{
+  // Queue configuration for performance testing.
+  // Tuned for aggressive retry processing under high load.
+  enabled: true,
+  delay: 10,                    // Initial delay before first retry (seconds, down from 60)
+  retryDelay: [60, 120, 300],   // Retry schedule (seconds, faster retries)
+  maxRetries: 5,                // More retry attempts
+  cronPeriod: 5,                // Run dequeue every 5 seconds (down from 30)
+  maxDequeuePerTick: 50         // Process up to 50 items per tick (up from 10)
+}

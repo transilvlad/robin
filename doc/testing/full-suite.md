@@ -31,10 +31,23 @@ store/                    # All persistent data (postgres, clamav, rspamd, etc.)
 
 ## Test Environment Setup
 
+### 0. First-Time Setup
+
+**After cloning the repository, run the init script:**
+
+```bash
+# From repository root
+./.suite/init-suite.sh
+```
+
+This script creates required `log/` and `store/` directories for all suite services (postgres, clamav, rspamd, robin, dovecot, roundcube).
+
 ### 1. Start the Suite
 
 ```bash
-docker-compose -f docker-compose.suite.yaml up -d
+# From .suite directory
+cd .suite
+docker-compose up -d
 ```
 
 **Wait for services to be healthy:**
@@ -47,8 +60,8 @@ docker-compose -f docker-compose.suite.yaml up -d
 ### 2. Verify Health
 
 ```bash
-# All containers healthy
-docker-compose -f docker-compose.suite.yaml ps | grep healthy
+# All containers healthy (from .suite directory)
+docker-compose ps | grep healthy
 
 # Test users created
 docker exec robin-suite-postgres psql -U robin -d robin -c "SELECT email FROM users;"
@@ -232,8 +245,8 @@ curl -s http://localhost:28090/client/queue/list | \
 
 ```bash
 # Clear temporary storage
-docker exec robin-suite-robin rm -rf /usr/local/robin/store/tmp/*
-docker exec robin-suite-robin rm -rf /usr/local/robin/store/queue/*
+docker exec robin-suite-robin rm -rf /usr/local/robin/store/robin/tmp/*
+docker exec robin-suite-robin rm -rf /usr/local/robin/store/robin/queue/*
 ```
 
 ## Manual Testing

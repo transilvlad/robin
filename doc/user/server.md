@@ -268,7 +268,7 @@ Below are concise examples for each auxiliary config file.
       disableRenameHeader: true,
 
       // Path to storage folder.
-      path: "/usr/local/robin/store",
+      path: "/usr/local/robin/store/robin/",
 
       // Folder for inbound emails. Leave empty to disable. Default: new
       inboundFolder: "new",

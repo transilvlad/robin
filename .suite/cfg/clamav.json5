@@ -6,7 +6,7 @@
   scanAttachments: true,
 
   // ClamAV server host.
-  host: "robin-suite-clamav",
+  host: "antivirus-backend",
 
   // ClamAV server port.
   port: 3310,

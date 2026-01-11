@@ -45,7 +45,7 @@
   // If enabled and queueMapDB, queueRedis, and queueMariaDB are disabled, PostgreSQL will be used for queue persistence.
   queuePgSQL: {
     enabled: true,
-    jdbcUrl: "jdbc:postgresql://robin-postgres-db:5432/robin",
+    jdbcUrl: "jdbc:postgresql://postgres-backend:5432/robin",
     username: "robin",
     password: "robin",
     tableName: "queue"

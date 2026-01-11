@@ -5,7 +5,7 @@
   // Use SQL authentication backend.
   authSql: {
     enabled: true,
-    jdbcUrl: "jdbc:postgresql://robin-postgres-db:5432/robin",
+    jdbcUrl: "jdbc:postgresql://postgres-backend:5432/robin",
     user: "robin",
     password: "robin",
 
@@ -25,7 +25,7 @@
   // Uses connection pooling to reuse TCP connections across deliveries.
   saveLmtp: {
     enabled: true,
-    servers: ["robin-suite-dovecot"],
+    servers: ["lmtp-backend"],
     port: 24,
     tls: false,
 

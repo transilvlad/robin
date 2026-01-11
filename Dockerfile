@@ -1,6 +1,6 @@
 # Optimized Dockerfile for standalone Robin MTA
 # Uses same stage naming as robin-dovecot for potential build cache sharing
-# Build stage name 'robin-build' matches robin-dovecot.Dockerfile
+# Build stage name 'robin-build' matches .Dockerfile
 
 # ============================================================================
 # STAGE: robin-build

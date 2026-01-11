@@ -1,5 +1,6 @@
-# Dovecot SQL configuration for PostgreSQL
-# This file is mounted into the Dovecot container at /etc/dovecot/dovecot-sql.conf.ext
+# Dovecot SQL configuration for PostgreSQL (Dovecot 2.3 style)
+# This file is used only by docker-compose.dovecot.yaml (combined container)
+# The suite setup uses inline SQL config in 10-auth.conf instead
 
 driver = pgsql
 connect = host=robin-postgres-db dbname=robin user=robin password=robin
@@ -7,7 +8,6 @@ default_pass_scheme = SHA512-CRYPT
 
 # Deterministic prioritized lookup implemented with LEFT JOINs and CASE ordering.
 # Priority: 1 = direct user match, 2 = aliases, 3 = auto_aliases.
-# This avoids UNION and returns a single canonical user/password for Dovecot.
 password_query = \
   SELECT u.email AS user, u.password AS password FROM users u \
   LEFT JOIN aliases a ON a.destination = u.email \
@@ -24,5 +24,3 @@ user_query = \
   WHERE u.email = '%u' OR a.source = '%u' OR aa.source = '%u' \
   ORDER BY CASE WHEN u.email = '%u' THEN 1 WHEN a.source = '%u' THEN 2 WHEN aa.source = '%u' THEN 3 ELSE 4 END \
   LIMIT 1;
-
-# Note: alias lookups prefer exact `aliases` entries over `auto_aliases`.

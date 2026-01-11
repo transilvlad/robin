@@ -1,0 +1,93 @@
+# Docker Compose for Robin MTA + Dovecot LDA Testing
+# This file sets up a combined container for testing Robin's Dovecot LDA delivery integration.
+# Uses LDA (Local Delivery Agent) + unix sockets for user lookup and authentication in same-container delivery.
+#
+# Configuration strategy:
+# - Build: Ubuntu 24.04 + Java 21 + Dovecot 2.4 + Robin
+# - Configs: Uses .perf/robin-dovecot configs with LDA-specific dovecot.json5
+# - PostgreSQL: Uses 'postgres-backend' hostname (aligned with other .perf setups)
+#
+# Port mappings (2525, 2143, 28090) for test compatibility.
+# See .suite/init-suite.sh for initial directory setup on Windows WSL2.
+
+services:
+  robin-lda:
+    container_name: robin-lda
+    build:
+      context: ../../
+      dockerfile: ./.perf/robin-dovecot-lda/Dockerfile
+      args:
+        INCLUDE_CFG: "false"
+    environment:
+      JAVA_TOOL_OPTIONS: "-Dnetworkaddress.cache.negative.ttl=300 -Dsun.net.inetaddr.negative.ttl=300 -Dlog4j2.asyncLoggerWaitStrategy=Timeout -Dlog4j2.asyncLoggerTimeout=1000 ${JAVA_TOOL_OPTIONS:-}"
+    volumes:
+      # Robin configuration - LDA-specific dovecot.json5, rest from .shared
+      - ./cfg/dovecot.json5:/usr/local/robin/cfg/dovecot.json5:ro
+      - ../.shared/robin/cfg/log4j2.xml:/usr/local/robin/cfg/log4j2.xml:ro
+      - ../.shared/robin/cfg/queue.json5:/usr/local/robin/cfg/queue.json5:ro
+      - ../.shared/robin/cfg/relay.json5:/usr/local/robin/cfg/relay.json5:ro
+      - ../.shared/robin/cfg/server.json5:/usr/local/robin/cfg/server.json5:ro
+      - ../.shared/robin/cfg/storage.json5:/usr/local/robin/cfg/storage.json5:ro
+      # Robin logs and storage
+      - ../../log/robin:/var/log/robin
+      - ../../store/robin:/usr/local/robin/store
+      # Dovecot configuration from .perf/robin-dovecot
+      - ../robin-dovecot/dovecot/etc:/etc/dovecot:ro
+      # Dovecot logs and mail storage
+      - ../../log/dovecot:/var/log/dovecot
+      - ../../store/dovecot:/var/mail/vhosts
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "2525:25"      # SMTP (external 2525 matches suite)
+      - "2587:587"     # SUBMISSION (external 2587 matches suite)
+      - "2465:465"     # SMTPS (external 2465 matches suite)
+      - "2110:110"     # POP3 (external 2110 matches suite)
+      - "2143:143"     # IMAP (external 2143 matches suite)
+      - "2993:993"     # IMAPS (external 2993 matches suite)
+      - "24190:4190"   # ManageSieve (external 24190 matches suite)
+      - "28080:8080"   # Service (external 28080 matches suite)
+      - "28090:8090"   # API (external 28090 matches suite)
+    networks:
+      - robin-dovecot-lda-net
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "25"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    command:
+      - "postgres"
+      - "-c"
+      - "logging_collector=on"
+      - "-c"
+      - "log_directory=/var/log"
+      - "-c"
+      - "log_filename=postgresql-%Y-%m-%d.log"
+    environment:
+      POSTGRES_DB: robin
+      POSTGRES_USER: robin
+      POSTGRES_PASSWORD: robin
+    volumes:
+      - ../../log/postgres:/var/log
+      - ../../store/postgres:/var/lib/postgresql
+      - ../../.suite/db-init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    networks:
+      robin-dovecot-lda-net:
+        aliases:
+          - postgres-backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U robin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  robin-dovecot-lda-net:
+    driver: bridge

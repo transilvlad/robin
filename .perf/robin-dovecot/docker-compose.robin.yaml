@@ -1,0 +1,92 @@
+# Docker Compose for Robin MTA Performance Testing
+# This stack includes: Robin MTA + Dovecot + PostgreSQL (no virus/spam scanning)
+
+services:
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    command:
+      - "postgres"
+      - "-c"
+      - "logging_collector=on"
+      - "-c"
+      - "log_directory=/var/log/postgresql"
+      - "-c"
+      - "log_filename=postgresql.log"
+      - "-c"
+      - "log_destination=stderr"
+    environment:
+      POSTGRES_DB: robin
+      POSTGRES_USER: robin
+      POSTGRES_PASSWORD: robin
+      POSTGRES_MAX_CONNECTIONS: 300
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - ../.shared/db-init:/docker-entrypoint-initdb.d:ro
+      - ../../store/postgres:/var/lib/postgresql
+      - ../../log/postgres:/var/log/postgresql
+    networks:
+      robin-net:
+        aliases:
+          - postgres-backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U robin -d robin"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  dovecot:
+    image: dovecot/dovecot:latest
+    container_name: dovecot
+    user: "0:0"
+    cap_add:
+      - CHOWN
+    volumes:
+      - ./dovecot/etc:/etc/dovecot
+      - ../../store/dovecot:/var/mail/vhosts
+      - ../../log/dovecot:/var/log
+    networks:
+      robin-net:
+        aliases:
+          - lmtp-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "doveadm", "who"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  robin:
+    image: robin-robin-mta:latest
+    container_name: robin
+    environment:
+      JAVA_TOOL_OPTIONS: "-Dnetworkaddress.cache.negative.ttl=300 -Dsun.net.inetaddr.negative.ttl=300 -Dlog4j2.asyncLoggerWaitStrategy=Timeout -Dlog4j2.asyncLoggerTimeout=1000 ${JAVA_TOOL_OPTIONS:-}"   # Optional JFR/profiling flags (off by default)
+    volumes:
+      - ../.shared/robin/cfg:/usr/local/robin/cfg
+      - ../../log:/var/log
+      - ../../store:/usr/local/robin/store
+    networks:
+      - robin-net
+    depends_on:
+      dovecot:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    ports:
+      - "2525:25"      # SMTP
+      - "28080:8080"   # Health endpoint
+      - "28090:8090"   # Service endpoint
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "25"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+networks:
+  robin-net:
+    driver: bridge
+
+volumes: {}

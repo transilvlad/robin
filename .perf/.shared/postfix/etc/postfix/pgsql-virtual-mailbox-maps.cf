@@ -1,0 +1,7 @@
+# PostgreSQL query for virtual mailbox maps.
+hosts = postgres-backend
+user = robin
+password = robin
+dbname = robin
+
+query = SELECT email FROM users WHERE email = '%s'

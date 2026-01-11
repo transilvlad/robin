@@ -1,0 +1,89 @@
+# Docker Compose for Postfix + Stalwart Performance Testing
+# This stack tests Postfix delivering to Stalwart LMTP
+
+services:
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    command:
+      - "postgres"
+      - "-c"
+      - "logging_collector=on"
+      - "-c"
+      - "log_directory=/var/log/postgresql"
+      - "-c"
+      - "log_filename=postgresql.log"
+      - "-c"
+      - "log_destination=stderr"
+    environment:
+      POSTGRES_DB: robin
+      POSTGRES_USER: robin
+      POSTGRES_PASSWORD: robin
+      POSTGRES_MAX_CONNECTIONS: 300
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - ../.shared/db-init/01-create-schema.sql:/docker-entrypoint-initdb.d/01-create-schema.sql:ro
+      - ../.shared/db-init/02-create-users.sql:/docker-entrypoint-initdb.d/02-create-users.sql:ro
+      - ../.shared/db-init-stalwart/03-create-stalwart-tables.sql:/docker-entrypoint-initdb.d/03-create-stalwart-tables.sql:ro
+      - ../.shared/db-init-stalwart/04-create-stalwart-users.sql:/docker-entrypoint-initdb.d/04-create-stalwart-users.sql:ro
+      - ../../store/postgres:/var/lib/postgresql
+      - ../../log/postgres:/var/log/postgresql
+    networks:
+      postfix-stalwart-net:
+        aliases:
+          - postgres-backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U robin -d robin"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  stalwart:
+    image: stalwartlabs/stalwart:latest
+    container_name: stalwart
+    user: "0:0"
+    volumes:
+      - ./stalwart/etc:/opt/stalwart/etc
+      - ../../store/stalwart:/opt/stalwart/data
+      - ../../log/stalwart:/var/log
+    networks:
+      postfix-stalwart-net:
+        aliases:
+          - lmtp-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "2143:143"   # IMAP for test verification
+    # Health check disabled - Stalwart container lacks standard tools (nc, ps, wget, curl)
+    # Container logs show LMTP/IMAP listeners start successfully
+
+  postfix:
+    build:
+      context: ../../
+      dockerfile: .perf/.shared/postfix/Dockerfile
+    container_name: postfix
+    volumes:
+      - ../.shared/postfix/etc/postfix:/etc/postfix
+      - ../../log/postfix:/var/log/postfix
+    networks:
+      - postfix-stalwart-net
+    depends_on:
+      stalwart:
+        condition: service_started  # Changed from service_healthy - Stalwart has no health check
+      postgres:
+        condition: service_healthy
+    ports:
+      - "2525:25"     # SMTP (aligned with Robin stack)
+    healthcheck:
+      test: ["CMD-SHELL", "postfix status || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+networks:
+  postfix-stalwart-net:
+    driver: bridge
+
+volumes: {}

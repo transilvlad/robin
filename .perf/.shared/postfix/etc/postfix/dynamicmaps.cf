@@ -1,0 +1,13 @@
+# Postfix dynamic maps configuration
+# This file defines which shared objects provide dictionary support
+# for various database types.
+#
+# Format: dict-type  so-name (pathname)  dict-function  mkmap-function
+
+cdb	postfix-cdb.so	dict_cdb_open	mkmap_cdb_open
+ldap	postfix-ldap.so	dict_ldap_open
+lmdb	postfix-lmdb.so	dict_lmdb_open	mkmap_lmdb_open
+mysql	postfix-mysql.so	dict_mysql_open
+pcre	postfix-pcre.so	dict_pcre_open
+pgsql	postfix-pgsql.so	dict_pgsql_open
+sqlite	postfix-sqlite.so	dict_sqlite_open

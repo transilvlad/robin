@@ -1,0 +1,18 @@
+{
+  // LMTP delivery configuration for Robin MTA.
+  // Uses connection pooling to reuse TCP connections across deliveries.
+  // Network alias "lmtp-backend" resolves to backend in current test suite.
+  saveLmtp: {
+    enabled: true,
+    servers: ["lmtp-backend"],
+    port: 24,
+    timeout: 30000,
+    tls: false,
+
+    // Connection pool settings (tuned for high load).
+    connectionPoolSize: 350,              // Max pooled connections.
+    connectionPoolTimeoutSeconds: 180,    // Max wait time for connection.
+    connectionIdleTimeoutSeconds: 270,    // Close idle connections after 4.5 minutes.
+    connectionMaxLifetimeSeconds: 1800    // Close connections after 30 minutes max.
+  }
+}

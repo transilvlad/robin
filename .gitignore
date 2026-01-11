@@ -1,9 +1,12 @@
 *.iml
 .idea/
-.dovecot/etc/dh.pem
-.dovecot/etc/certs/
 .suite/etc/dovecot/certs/
 .suite/etc/dovecot/dh.pem
+.perf/.utils/
+.perf/results/
+.perf/*/results/
+jmeter-*.log
+jmeter.log
 log/
 store/
 target/
