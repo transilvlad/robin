@@ -24,7 +24,8 @@
     enabled: true,
     ldaBinary: "/usr/libexec/dovecot/dovecot-lda",
     inboxFolder: "INBOX",
-    sentFolder: "Sent"
+    sentFolder: "Sent",
+    maxConcurrency: 50
   },
 
   // Delivery options

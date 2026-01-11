@@ -17,6 +17,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Dovecot LDA client.
@@ -27,6 +30,20 @@ import java.util.List;
  */
 public class DovecotLdaClient {
     private static final Logger log = LogManager.getLogger(DovecotLdaClient.class);
+
+    /**
+     * Semaphore to limit concurrent LDA subprocess spawning.
+     * Initialized with maxConcurrency from configuration, defaults to 50.
+     */
+    private static volatile Semaphore ldaSemaphore;
+
+    /**
+     * Monitoring counters for LDA subprocess behavior.
+     */
+    private static final AtomicInteger activeLdaProcesses = new AtomicInteger(0);
+    private static final AtomicInteger totalLdaAttempts = new AtomicInteger(0);
+    private static final AtomicInteger totalLdaTimeouts = new AtomicInteger(0);
+    private static final AtomicInteger totalLdaConcurrencyFailures = new AtomicInteger(0);
 
     private final RelaySession relaySession;
     
@@ -53,6 +70,22 @@ public class DovecotLdaClient {
     public DovecotLdaClient setChaosHeaders(ChaosHeaders chaosHeaders) {
         this.chaosHeaders = chaosHeaders;
         return this;
+    }
+
+    /**
+     * Initializes the LDA semaphore with maxConcurrency from configuration.
+     * Uses double-checked locking for thread-safe lazy initialization.
+     */
+    private static void initializeSemaphore() {
+        if (ldaSemaphore == null) {
+            synchronized (DovecotLdaClient.class) {
+                if (ldaSemaphore == null) {
+                    int maxConcurrency = Config.getServer().getDovecot().getSaveLda().getMaxConcurrency();
+                    ldaSemaphore = new Semaphore(maxConcurrency);
+                    log.info("Initialized LDA semaphore with maxConcurrency: {}", maxConcurrency);
+                }
+            }
+        }
     }
 
     /**
@@ -171,13 +204,16 @@ public class DovecotLdaClient {
      * @throws InterruptedException On process interruption.
      */
     protected Pair<Integer, String> callDovecotLda(String recipient) throws IOException, InterruptedException {
+        // Initialize semaphore on first use.
+        initializeSemaphore();
+
         // Check for chaos headers if enabled and present.
         if (Config.getServer().isChaosHeaders() && chaosHeaders != null && chaosHeaders.hasHeaders()) {
             for (MimeHeader header : chaosHeaders.getByValue(ChaosHeaders.TARGET_DOVECOT_LDA_CLIENT)) {
                 String recipientParam = header.getParameter("recipient");
                 String exitCodeParam = header.getParameter("exitCode");
                 String messageParam = header.getParameter("message");
-                
+
                 if (recipientParam != null && exitCodeParam != null && recipientParam.equalsIgnoreCase(recipient)) {
                     // Parse exit code and message parameters.
                     try {
@@ -203,30 +239,62 @@ public class DovecotLdaClient {
                 }
             }
         }
-        
-        List<String> command = new ArrayList<>(Arrays.asList(
-                Config.getServer().getDovecot().getSaveLda().getLdaBinary(),
-                "-d", recipient,
-                "-p", relaySession.getSession().getEnvelopes().getFirst().getFile()
-        ));
 
-        if (StringUtils.isNotBlank(relaySession.getMailbox())) {
-            command.add("-m");
-            command.add(relaySession.getMailbox());
+        // Acquire semaphore before spawning process.
+        boolean acquired = ldaSemaphore.tryAcquire(10, TimeUnit.SECONDS);
+        if (!acquired) {
+            totalLdaConcurrencyFailures.incrementAndGet();
+            log.warn("LDA semaphore timeout - too many concurrent LDA processes. Active: {}, Total attempts: {}, Concurrency failures: {}",
+                     activeLdaProcesses.get(), totalLdaAttempts.get(), totalLdaConcurrencyFailures.get());
+            return Pair.of(75, "LDA concurrency limit reached");  // EX_TEMPFAIL
         }
 
-        log.debug("Running command: {}", command);
+        Process process = null;
+        try {
+            activeLdaProcesses.incrementAndGet();
+            totalLdaAttempts.incrementAndGet();
 
-        // Instantiate process builder and start running.
-        ProcessBuilder pb = new ProcessBuilder(command);
-        Process process = pb.start();
+            List<String> command = new ArrayList<>(Arrays.asList(
+                    Config.getServer().getDovecot().getSaveLda().getLdaBinary(),
+                    "-d", recipient,
+                    "-p", relaySession.getSession().getEnvelopes().getFirst().getFile()
+            ));
 
-        // Get error string.
-        String error = new String(process.getErrorStream().readAllBytes());
+            if (StringUtils.isNotBlank(relaySession.getMailbox())) {
+                command.add("-m");
+                command.add(relaySession.getMailbox());
+            }
 
-        // Wait for process to finish and get exit code.
-        int exitCode = process.waitFor();
+            log.debug("Running command: {} (active processes: {})", command, activeLdaProcesses.get());
 
-        return Pair.of(exitCode, error);
+            // Instantiate process builder and start running.
+            ProcessBuilder pb = new ProcessBuilder(command);
+            process = pb.start();
+
+            // Get error string.
+            String error = new String(process.getErrorStream().readAllBytes());
+
+            // Wait for process to finish with timeout.
+            boolean completed = process.waitFor(30, TimeUnit.SECONDS);
+            if (!completed) {
+                totalLdaTimeouts.incrementAndGet();
+                process.destroyForcibly();
+                log.error("LDA process timeout after 30 seconds for recipient: {}. Active: {}, Total attempts: {}, Total timeouts: {}",
+                         recipient, activeLdaProcesses.get(), totalLdaAttempts.get(), totalLdaTimeouts.get());
+                return Pair.of(75, "LDA process timeout");  // EX_TEMPFAIL
+            }
+
+            int exitCode = process.exitValue();
+            return Pair.of(exitCode, error);
+
+        } finally {
+            activeLdaProcesses.decrementAndGet();
+            ldaSemaphore.release();
+
+            // Ensure process is destroyed if still running.
+            if (process != null && process.isAlive()) {
+                process.destroyForcibly();
+            }
+        }
     }
 }

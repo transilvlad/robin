@@ -317,6 +317,7 @@ public class DovecotConfig extends BasicConfig {
         private final String ldaBinary;
         private final String inboxFolder;
         private final String sentFolder;
+        private final int maxConcurrency;
 
         /**
          * Constructs SaveLda from configuration map.
@@ -328,6 +329,7 @@ public class DovecotConfig extends BasicConfig {
             this.ldaBinary = map.getOrDefault("ldaBinary", "/usr/libexec/dovecot/dovecot-lda").toString();
             this.inboxFolder = map.getOrDefault("inboxFolder", "INBOX").toString();
             this.sentFolder = map.getOrDefault("sentFolder", "Sent").toString();
+            this.maxConcurrency = ((Number) map.getOrDefault("maxConcurrency", 50)).intValue();
         }
 
         /**
@@ -357,5 +359,12 @@ public class DovecotConfig extends BasicConfig {
          * @return Folder name (default: "Sent").
          */
         public String getSentFolder() { return sentFolder; }
+
+        /**
+         * Gets maximum concurrent LDA subprocess limit.
+         *
+         * @return Maximum concurrent LDA processes (default: 50).
+         */
+        public int getMaxConcurrency() { return maxConcurrency; }
     }
 }

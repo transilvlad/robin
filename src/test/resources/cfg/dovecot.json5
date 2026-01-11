@@ -74,7 +74,10 @@
     inboxFolder: "INBOX",
 
     // Folder for outbound email delivery via LDA.
-    sentFolder: "Sent"
+    sentFolder: "Sent",
+
+    // Limit concurrent LDA subprocesses to prevent resource exhaustion.,
+    maxConcurrency: 50
   },
 
   // Shared mailbox delivery options for both backends.
