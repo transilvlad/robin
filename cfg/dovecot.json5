@@ -76,8 +76,12 @@
     // Folder for outbound email delivery via LDA.
     sentFolder: "Sent",
 
-    // Limit concurrent LDA subprocesses to prevent resource exhaustion.,
-    maxConcurrency: 50
+    // Limit concurrent LDA subprocesses to prevent resource exhaustion.
+    maxConcurrency: 50,
+
+    // Timeout (seconds) for LDA subprocess execution (default: 30).
+    // LDA processes are killed if they exceed this timeout.
+    ldaTimeoutSeconds: 30
   },
 
   // Shared mailbox delivery options for both backends.

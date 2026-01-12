@@ -318,6 +318,7 @@ public class DovecotConfig extends BasicConfig {
         private final String inboxFolder;
         private final String sentFolder;
         private final int maxConcurrency;
+        private final long ldaTimeoutSeconds;
 
         /**
          * Constructs SaveLda from configuration map.
@@ -330,6 +331,7 @@ public class DovecotConfig extends BasicConfig {
             this.inboxFolder = map.getOrDefault("inboxFolder", "INBOX").toString();
             this.sentFolder = map.getOrDefault("sentFolder", "Sent").toString();
             this.maxConcurrency = ((Number) map.getOrDefault("maxConcurrency", 50)).intValue();
+            this.ldaTimeoutSeconds = ((Number) map.getOrDefault("ldaTimeoutSeconds", 30L)).longValue();
         }
 
         /**
@@ -366,5 +368,14 @@ public class DovecotConfig extends BasicConfig {
          * @return Maximum concurrent LDA processes (default: 50).
          */
         public int getMaxConcurrency() { return maxConcurrency; }
+
+        /**
+         * Gets timeout in seconds for LDA subprocess execution.
+         * <p>
+         * LDA processes are killed if they exceed this timeout.
+         *
+         * @return Timeout in seconds (default: 30).
+         */
+        public long getLdaTimeoutSeconds() { return ldaTimeoutSeconds; }
     }
 }

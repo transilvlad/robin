@@ -274,13 +274,14 @@ public class DovecotLdaClient {
             // Get error string.
             String error = new String(process.getErrorStream().readAllBytes());
 
-            // Wait for process to finish with timeout.
-            boolean completed = process.waitFor(30, TimeUnit.SECONDS);
+            // Wait for process to finish with timeout from configuration.
+            long timeoutSeconds = Config.getServer().getDovecot().getSaveLda().getLdaTimeoutSeconds();
+            boolean completed = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
             if (!completed) {
                 totalLdaTimeouts.incrementAndGet();
                 process.destroyForcibly();
-                log.error("LDA process timeout after 30 seconds for recipient: {}. Active: {}, Total attempts: {}, Total timeouts: {}",
-                         recipient, activeLdaProcesses.get(), totalLdaAttempts.get(), totalLdaTimeouts.get());
+                log.error("LDA process timeout after {} seconds for recipient: {}. Active: {}, Total attempts: {}, Total timeouts: {}",
+                         timeoutSeconds, recipient, activeLdaProcesses.get(), totalLdaAttempts.get(), totalLdaTimeouts.get());
                 return Pair.of(75, "LDA process timeout");  // EX_TEMPFAIL
             }
 
