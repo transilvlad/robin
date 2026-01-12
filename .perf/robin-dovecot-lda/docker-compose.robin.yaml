@@ -12,10 +12,10 @@
 
 services:
   robin-lda:
-    container_name: robin-lda
+    container_name: robin-dovecot-lda
     build:
       context: ../../
-      dockerfile: ./.perf/robin-dovecot-lda/Dockerfile
+      dockerfile: ./.perf/robin-dovecot-lda/robin.Dockerfile
       args:
         INCLUDE_CFG: "false"
     environment:
@@ -50,7 +50,9 @@ services:
       - "28080:8080"   # Service (external 28080 matches suite)
       - "28090:8090"   # API (external 28090 matches suite)
     networks:
-      - robin-dovecot-lda-net
+      robin-dovecot-lda-net:
+        aliases:
+          - lmtp-backend
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "25"]
       interval: 10s
@@ -75,7 +77,7 @@ services:
     volumes:
       - ../../log/postgres:/var/log
       - ../../store/postgres:/var/lib/postgresql
-      - ../../.suite/db-init:/docker-entrypoint-initdb.d:ro
+      - ../.shared/db-init:/docker-entrypoint-initdb.d:ro
     ports:
       - "5432:5432"
     networks:

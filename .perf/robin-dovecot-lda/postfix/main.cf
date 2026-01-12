@@ -1,0 +1,76 @@
+# Postfix main configuration for Dovecot LDA performance testing.
+# This configuration uses pipe transport for LDA subprocess delivery.
+# Based on .perf/.shared/postfix/etc/postfix/main.cf
+
+# Basic settings.
+mydomain = example.com
+myorigin = $mydomain
+inet_interfaces = all
+inet_protocols = ipv4
+myhostname = postfix-dovecot-lda
+mynetworks = 127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+
+# Disable local delivery - virtual mailbox only.
+mydestination =
+local_recipient_maps =
+
+# PostgreSQL virtual lookups.
+virtual_mailbox_domains = pgsql:/etc/postfix/pgsql-virtual-mailbox-domains.cf
+virtual_mailbox_maps = pgsql:/etc/postfix/pgsql-virtual-mailbox-maps.cf
+virtual_alias_maps =
+
+# *** KEY CHANGE: Use pipe transport for Dovecot LDA subprocess delivery ***
+# (NOT LMTP like other performance tests)
+virtual_transport = dovecot-lda
+
+# SASL authentication (disabled for performance testing).
+smtpd_sasl_auth_enable = no
+
+# TLS (optional for performance test).
+smtpd_tls_security_level = may
+smtpd_tls_cert_file = /etc/ssl/certs/ssl-cert-snakeoil.pem
+smtpd_tls_key_file = /etc/ssl/private/ssl-cert-snakeoil.key
+smtp_tls_security_level = may
+
+# Minimal restrictions for performance.
+smtpd_recipient_restrictions = permit_mynetworks,reject_unauth_destination
+smtpd_client_restrictions = permit_mynetworks,permit_sasl_authenticated,reject
+smtpd_helo_restrictions = permit_mynetworks,reject_invalid_helo_hostname,permit
+smtpd_sender_restrictions = permit_mynetworks,reject
+smtpd_relay_restrictions = permit
+smtpd_delay_reject = yes
+smtpd_helo_required = yes
+
+# ALIGNED: Max 100 recipients per envelope (matches Robin's recipientsLimit: 100)
+smtpd_recipient_limit = 100
+
+# ALIGNED: 10 MB message size limit (matches Robin's messageSizeLimit: 10485760)
+message_size_limit = 10485760
+header_size_limit = 4096000
+
+# Performance tuning - aligned with Robin MTA configuration.
+# Robin has: SMTP pool 50-250, LMTP pool 350, backlog 500
+default_process_limit = 400
+smtpd_client_connection_count_limit = 250
+smtpd_client_connection_rate_limit = 0
+
+# Queue management.
+maximal_backoff_time = 60s
+maximal_queue_lifetime = 1h
+minimal_backoff_time = 10s
+queue_run_delay = 10s
+
+# Disable content filtering.
+content_filter =
+
+# Database and relay.
+default_database_type = lmdb
+relay_domains =
+
+# Debugging.
+debug_peer_list = 127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+smtp_sasl_mechanism_filter = scram,scram,scram,scram,scram,DIGEST-MD5,CRAM-MD5,ntlm,plain,login,anonymous
+
+# Logging.
+maillog_file = /var/log/postfix/maillog
+manpage_directory = /usr/share/man

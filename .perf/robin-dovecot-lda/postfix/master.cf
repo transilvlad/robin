@@ -1,0 +1,49 @@
+# Postfix master process configuration for Dovecot LDA performance testing.
+# Based on .perf/.shared/postfix/etc/postfix/master.cf with LDA pipe transport.
+
+# SMTP daemon.
+# ALIGNED: Backlog 500 (matches Robin's backlog: 500)
+smtp      inet  n       -       n       -       500     smtpd
+
+# Local submission pickup (needed for sendmail/postdrop).
+pickup    fifo  n       -       n       60      1       pickup
+
+# Queue listing (postqueue/showq).
+showq     unix  n       -       n       -       -       showq
+
+# *** KEY CHANGE: Dovecot LDA delivery via pipe subprocess ***
+# (NOT LMTP like other performance tests)
+dovecot-lda unix  -       n       n       -       -       pipe
+  flags=DRhu user=vmail:vmail argv=/usr/lib/dovecot/dovecot-lda -f ${sender} -d ${recipient}
+
+# Cleanup daemon.
+cleanup   unix  n       -       n       -       0       cleanup
+
+# Queue manager.
+qmgr      unix  n       -       n       200     1       qmgr
+
+# Rewrite service.
+rewrite   unix  -       -       n       -       -       trivial-rewrite
+
+# Bounce daemon.
+bounce    unix  -       -       n       -       0       bounce
+defer     unix  -       -       n       -       0       bounce
+
+# Verify service.
+verify    unix  -       -       n       -       1       verify
+
+# Flush service.
+flush     unix  n       -       n       1000?   0       flush
+
+# Relay service.
+relay     unix  -       -       n       -       -       smtp
+trace	  unix	-	-	n	-	0	bounce
+proxymap  unix	-	-	n	-	-	proxymap
+anvil	  unix	-	-	n	-	1	anvil
+scache	  unix	-	-	n	-	1	scache
+discard	  unix	-	-	n	-	-	discard
+tlsmgr    unix  -       -       n       1000?   1       tlsmgr
+retry     unix  -       -       n       -       -       error
+proxywrite unix -       -       n       -       1       proxymap
+postlog   unix-dgram n  -       n       -       1       postlogd
+lmtp       unix  -       n       n       -       -       lmtp

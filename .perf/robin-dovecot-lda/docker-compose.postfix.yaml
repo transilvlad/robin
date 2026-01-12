@@ -1,0 +1,84 @@
+# Docker Compose for Postfix + Dovecot LDA Testing
+# This file sets up a combined container for testing Postfix's Dovecot LDA delivery integration.
+# Uses LDA (Local Delivery Agent) via pipe transport for subprocess-based delivery.
+#
+# Configuration strategy:
+# - Build: Debian + Postfix + Dovecot 2.4 + Supervisor
+# - Configs: Uses .perf/robin-dovecot Dovecot configs with LDA-specific Postfix configs
+# - PostgreSQL: Uses 'postgres-backend' hostname (aligned with other .perf setups)
+#
+# Port mappings (2525, 2143) for test compatibility.
+
+services:
+  postfix-dovecot-lda:
+    container_name: postfix-dovecot-lda
+    build:
+      context: ../../
+      dockerfile: ./.perf/robin-dovecot-lda/postfix.Dockerfile
+    volumes:
+      # Postfix configs (LDA-specific main.cf and master.cf)
+      - ./postfix/main.cf:/etc/postfix/main.cf:ro
+      - ./postfix/master.cf:/etc/postfix/master.cf:ro
+      # PostgreSQL lookup configs (shared)
+      - ../.shared/postfix/etc/postfix/pgsql-virtual-mailbox-domains.cf:/etc/postfix/pgsql-virtual-mailbox-domains.cf:ro
+      - ../.shared/postfix/etc/postfix/pgsql-virtual-mailbox-maps.cf:/etc/postfix/pgsql-virtual-mailbox-maps.cf:ro
+      # Dovecot configs (reuse from robin-dovecot)
+      - ../robin-dovecot/dovecot/etc:/etc/dovecot:ro
+      # Logs
+      - ../../log/dovecot:/var/log/dovecot
+      - ../../log/postfix:/var/log/postfix
+      # Storage
+      - ../../store/dovecot:/var/mail/vhosts
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "2525:25"      # SMTP
+      - "2143:143"     # IMAP (for verification)
+      - "2993:993"     # IMAPS
+      - "2110:110"     # POP3
+      - "24190:4190"   # ManageSieve
+    networks:
+      robin-dovecot-lda-net:
+        aliases:
+          - lmtp-backend
+    healthcheck:
+      test: ["CMD-SHELL", "postfix status && doveadm who"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    command:
+      - "postgres"
+      - "-c"
+      - "logging_collector=on"
+      - "-c"
+      - "log_directory=/var/log"
+      - "-c"
+      - "log_filename=postgresql-%Y-%m-%d.log"
+    environment:
+      POSTGRES_DB: robin
+      POSTGRES_USER: robin
+      POSTGRES_PASSWORD: robin
+    volumes:
+      - ../../log/postgres:/var/log
+      - ../../store/postgres:/var/lib/postgresql
+      - ../.shared/db-init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    networks:
+      robin-dovecot-lda-net:
+        aliases:
+          - postgres-backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U robin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  robin-dovecot-lda-net:
+    driver: bridge

@@ -56,7 +56,7 @@ RUN mkdir -p /var/mail/vhosts /var/lib/dovecot /run/dovecot \
     && chown -R dovecot:dovecot /var/mail /var/lib/dovecot /run/dovecot
 
 # Copy initialization scripts
-COPY .perf/robin-dovecot-lda/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY .perf/robin-dovecot-lda/supervisord-robin.conf /etc/supervisor/conf.d/supervisord.conf
 COPY .perf/robin-dovecot-lda/docker-init.sh /usr/local/bin/docker-init.sh
 COPY .perf/robin-dovecot-lda/quota-warning.sh /usr/local/bin/quota-warning.sh
 RUN chmod +x /usr/local/bin/docker-init.sh /usr/local/bin/quota-warning.sh
