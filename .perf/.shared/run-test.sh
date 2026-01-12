@@ -57,8 +57,23 @@ echo_warning() {
     echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
-# Auto-detect backend and test name from compose file.
-if [[ "$COMPOSE_FILE" == *"stalwart"* ]]; then
+# Auto-detect backend and test name from directory and compose file.
+CURRENT_DIR="$(basename $(pwd))"
+
+# Check directory name first for more accurate detection.
+if [[ "$CURRENT_DIR" == "robin-stalwart" ]]; then
+    BACKEND="stalwart"
+    TEST_NAME="robin"
+    CONTAINER_NAME="stalwart"
+    IMAP_PORT=2143
+    USE_IMAP=true
+elif [[ "$CURRENT_DIR" == "stalwart-bare" ]]; then
+    BACKEND="stalwart"
+    TEST_NAME="stalwart-bare"
+    CONTAINER_NAME="perf-stalwart"
+    IMAP_PORT=2143
+    USE_IMAP=true
+elif [[ "$COMPOSE_FILE" == *"stalwart"* ]]; then
     BACKEND="stalwart"
     TEST_NAME="stalwart"
     CONTAINER_NAME="perf-stalwart"
@@ -74,14 +89,6 @@ else
     TEST_NAME="robin"
     CONTAINER_NAME="perf-dovecot"
     USE_IMAP=false
-fi
-
-# Special handling for stalwart-bare (no MTA).
-if [[ "$(basename $(pwd))" == "stalwart-bare" ]]; then
-    BACKEND="stalwart"
-    TEST_NAME="stalwart-bare"
-    IMAP_PORT=2143
-    USE_IMAP=true
 fi
 
 # Check if JMeter is installed.

@@ -7,9 +7,9 @@
   submissionPort: 0,   // Disabled for performance
 
   smtpConfig: {
-    backlog: 500,
+    backlog: 1000,
     minimumPoolSize: 50,
-    maximumPoolSize: 250,
+    maximumPoolSize: 350,
     threadKeepAliveTime: 180,
     transactionsLimit: 1000,
     recipientsLimit: 100,

@@ -5,8 +5,7 @@
 .perf/.utils/
 .perf/results/
 .perf/*/results/
-jmeter-*.log
-jmeter.log
+*.log
 log/
 store/
 target/

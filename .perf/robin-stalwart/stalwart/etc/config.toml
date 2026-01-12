@@ -17,8 +17,10 @@ user = "robin"
 password = "robin"
 timeout = "15s"
 
+# PostgreSQL Connection Pool (optimized for high concurrency)
 [store."postgresql".pool]
-max-connections = 50
+max-connections = 100
+workers = 8
 
 [store."postgresql".tls]
 enable = false
@@ -67,6 +69,25 @@ description = "description"
 secret = "secret"
 quota = "quota"
 class = "type"
+
+# Global Performance Settings
+[global]
+# Thread pool for CPU-intensive tasks (default: number of CPUs)
+# Set higher for better parallelism during high load
+thread-pool = 16
+
+# Cache Configuration (optimized for high performance)
+[cache.email]
+size = 104857600  # 100 MB (increased from default 50 MB)
+
+[cache.dns.txt]
+size = 10485760  # 10 MB (increased from default 5 MB)
+
+[cache.dns.mx]
+size = 10485760  # 10 MB (increased from default 5 MB)
+
+[cache.dns.ptr]
+size = 2097152  # 2 MB (increased from default 1 MB)
 
 # Server Configuration
 [server]
