@@ -47,6 +47,7 @@ New to Robin? Start here:
 
 ### 🔒 Security
 
+- [DoS Protection](features/dos-protection.md) - Multi-layered SMTP attack defense
 - [DANE & MTA-STS in Robin](security/dane-mta-sts-usage.md) - How Robin enforces security policies
 - [TLS Configuration](user/server.md#tls) - Protocols and ciphers
 - [SMTP Authentication](user/server.md#authentication) - Auth configuration

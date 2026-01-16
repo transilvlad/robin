@@ -5,6 +5,7 @@ import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Server;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.mimecast.robin.smtp.security.BlocklistMatcher;
+import com.mimecast.robin.smtp.security.ConnectionTracker;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -129,7 +130,19 @@ public class SmtpListener {
                     continue;
                 }
 
+                // Apply DoS protections if enabled.
+                if (config.isDosProtectionEnabled()) {
+                    if (!checkConnectionLimits(sock, remoteIp)) {
+                        continue; // Connection rejected due to limits.
+                    }
+                }
+
                 log.info("Accepted connection from {}:{} on port {}.", remoteIp, sock.getPort(), port);
+
+                // Record connection for tracking.
+                if (config.isDosProtectionEnabled()) {
+                    ConnectionTracker.recordConnection(remoteIp);
+                }
 
                 executor.submit(() -> {
                     try {
@@ -138,6 +151,11 @@ public class SmtpListener {
                     } catch (Exception e) {
                         SmtpMetrics.incrementEmailReceiptException(e.getClass().getSimpleName());
                         log.error("Email receipt unexpected exception: {}", e.getMessage());
+                    } finally {
+                        // Always record disconnection for proper tracking.
+                        if (config.isDosProtectionEnabled()) {
+                            ConnectionTracker.recordDisconnection(remoteIp);
+                        }
                     }
                     return null;
                 });
@@ -149,6 +167,65 @@ public class SmtpListener {
             }
         } catch (IOException e) {
             log.info("Error reading/writing: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Checks connection limits for DoS protection.
+     *
+     * @param sock     The socket to potentially close.
+     * @param remoteIp The remote IP address.
+     * @return True if connection should be accepted, false if rejected.
+     */
+    private boolean checkConnectionLimits(Socket sock, String remoteIp) {
+        // Check global connection limit.
+        int maxTotal = config.getMaxTotalConnections();
+        if (maxTotal > 0 && ConnectionTracker.getTotalActiveConnections() >= maxTotal) {
+            log.warn("Rejecting connection from {}: global connection limit reached ({} connections)",
+                    remoteIp, maxTotal);
+            SmtpMetrics.incrementDosConnectionLimitRejection();
+            closeSocket(sock);
+            return false;
+        }
+
+        // Check per-IP connection limit.
+        int maxPerIp = config.getMaxConnectionsPerIp();
+        int currentConnections = ConnectionTracker.getActiveConnections(remoteIp);
+        if (maxPerIp > 0 && currentConnections >= maxPerIp) {
+            log.warn("Rejecting connection from {}: per-IP connection limit reached ({}/{} connections)",
+                    remoteIp, currentConnections, maxPerIp);
+            SmtpMetrics.incrementDosConnectionLimitRejection();
+            closeSocket(sock);
+            return false;
+        }
+
+        // Check connection rate limit.
+        int maxPerWindow = config.getMaxConnectionsPerWindow();
+        int windowSeconds = config.getRateLimitWindowSeconds();
+        if (maxPerWindow > 0 && windowSeconds > 0) {
+            int recentConnections = ConnectionTracker.getRecentConnectionCount(remoteIp, windowSeconds);
+            if (recentConnections >= maxPerWindow) {
+                log.warn("Rejecting connection from {}: rate limit exceeded ({} connections in {}s window)",
+                        remoteIp, recentConnections, windowSeconds);
+                SmtpMetrics.incrementDosRateLimitRejection();
+                closeSocket(sock);
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Safely closes a socket.
+     *
+     * @param sock The socket to close.
+     */
+    private void closeSocket(Socket sock) {
+        try {
+            sock.close();
+        } catch (IOException e) {
+            log.debug("Error closing rejected socket: {}", e.getMessage());
         }
     }
 

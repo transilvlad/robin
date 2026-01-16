@@ -77,6 +77,7 @@ Documentation
 
 ### Server
 - [Server configuration](doc/user/server.md)
+- [DoS Protection](doc/features/dos-protection.md) - Multi-layered defense against SMTP attacks (connection floods, slowloris, command floods).
 - [Queue Persistence](doc/features/queue.md) - Configurable queue backends (MapDB, MariaDB, PostgreSQL).
 - [HashiCorp Vault](doc/features/vault.md)
 - [SMTP webhooks](doc/features/webhooks.md)

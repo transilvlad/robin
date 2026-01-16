@@ -1,5 +1,6 @@
 package com.mimecast.robin.smtp.extension.server;
 
+import com.mimecast.robin.config.server.ListenerConfig;
 import com.mimecast.robin.config.server.ScenarioConfig;
 import com.mimecast.robin.config.server.WebhookConfig;
 import com.mimecast.robin.main.Config;
@@ -8,6 +9,7 @@ import com.mimecast.robin.smtp.ProxyEmailDelivery;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
+import com.mimecast.robin.smtp.security.SlowTransferOutputStream;
 import com.mimecast.robin.smtp.verb.BdatVerb;
 import com.mimecast.robin.smtp.verb.Verb;
 import com.mimecast.robin.smtp.webhook.WebhookCaller;
@@ -34,6 +36,30 @@ public class ServerData extends ServerProcessor {
      * Envelope limit.
      */
     private int emailSizeLimit = 10242400; // 10 MB.
+
+    /**
+     * Listener configuration for DoS protections.
+     */
+    private ListenerConfig listenerConfig;
+
+    /**
+     * Gets the ListenerConfig if connection was created with one.
+     *
+     * @return ListenerConfig or null.
+     */
+    private ListenerConfig getListenerConfig() {
+        return listenerConfig;
+    }
+
+    /**
+     * Sets listener configuration.
+     *
+     * @param listenerConfig Listener configuration.
+     */
+    public void setListenerConfig(ListenerConfig listenerConfig) {
+        this.listenerConfig = listenerConfig;
+    }
+
 
     /**
      * CHUNKING advert.
@@ -89,7 +115,7 @@ public class ServerData extends ServerProcessor {
             // Proxy mode - stream email to proxy server.
             return handleProxyData();
         }
-        
+
         // Check if envelope is blackholed.
         if (!connection.getSession().getEnvelopes().isEmpty() && connection.getSession().getEnvelopes().getLast().isBlackholed()) {
             // Blackholed email - read data but don't store or call webhooks.
@@ -246,11 +272,35 @@ public class ServerData extends ServerProcessor {
         connection.write(SmtpResponses.READY_WILLING_354);
 
         StorageClient storageClient = Factories.getStorageClient(connection, extension);
+        ListenerConfig config = getListenerConfig();
 
         try (CountingOutputStream cos = new CountingOutputStream(storageClient.getStream())) {
             connection.setTimeout(connection.getSession().getExtendedTimeout());
-            connection.readMultiline(cos, emailSizeLimit);
-            bytesReceived = cos.getByteCount();
+
+            // Apply DoS protections if enabled.
+            if (config != null && config.isDosProtectionEnabled()) {
+                SlowTransferOutputStream dosStream = new SlowTransferOutputStream(
+                        cos,
+                        config.getMinDataRateBytesPerSecond(),
+                        config.getMaxDataTimeoutSeconds(),
+                        connection.getSession().getFriendAddr()
+                );
+                connection.readMultiline(dosStream, emailSizeLimit);
+                bytesReceived = cos.getByteCount();
+
+                // Check if slow transfer was detected.
+                if (dosStream.isSlowTransferDetected()) {
+                    connection.setTimeout(connection.getSession().getTimeout());
+                    SmtpMetrics.incrementDosSlowTransferRejection();
+                    connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID())
+                            + " Slow transfer detected");
+                    return false;
+                }
+            } else {
+                // No DoS protection, use normal stream.
+                connection.readMultiline(cos, emailSizeLimit);
+                bytesReceived = cos.getByteCount();
+            }
         } finally {
             connection.setTimeout(connection.getSession().getTimeout());
         }
@@ -307,16 +357,16 @@ public class ServerData extends ServerProcessor {
 
         } else {
             // Check if envelope is blackholed.
-            boolean isBlackholed = !connection.getSession().getEnvelopes().isEmpty() && 
-                                   connection.getSession().getEnvelopes().getLast().isBlackholed();
-            
+            boolean isBlackholed = !connection.getSession().getEnvelopes().isEmpty() &&
+                    connection.getSession().getEnvelopes().getLast().isBlackholed();
+
             if (isBlackholed) {
                 // Blackholed email - read bytes but don't store.
                 CountingOutputStream cos = new CountingOutputStream(java.io.OutputStream.nullOutputStream());
-                
+
                 binaryRead(bdatVerb, cos);
                 bytesReceived = cos.getByteCount();
-                
+
                 if (bdatVerb.isLast()) {
                     log.info("Blackholed email - {} bytes received but not saved", bytesReceived);
                 }
@@ -341,7 +391,7 @@ public class ServerData extends ServerProcessor {
                     return false;
                 }
             }
-            
+
             // Scenario response or accept.
             scenarioResponse(connection.getSession().getUID());
         }

@@ -21,6 +21,11 @@ public final class SmtpMetrics {
     private static volatile Counter emailRblRejectionCounter;
     private static volatile Counter emailVirusRejectionCounter;
     private static volatile Counter emailSpamRejectionCounter;
+    private static volatile Counter dosRateLimitRejectionCounter;
+    private static volatile Counter dosConnectionLimitRejectionCounter;
+    private static volatile Counter dosTarpitCounter;
+    private static volatile Counter dosSlowTransferRejectionCounter;
+    private static volatile Counter dosCommandFloodRejectionCounter;
 
     /**
      * Private constructor for utility class.
@@ -90,6 +95,46 @@ public final class SmtpMetrics {
      */
     public static void incrementEmailSpamRejection() {
         incrementCounter(() -> emailSpamRejectionCounter, "email spam rejection counter");
+    }
+
+    /**
+     * Increment the DoS rate limit rejection counter.
+     * <p>Called when a connection is rejected due to rate limiting.
+     */
+    public static void incrementDosRateLimitRejection() {
+        incrementCounter(() -> dosRateLimitRejectionCounter, "DoS rate limit rejection counter");
+    }
+
+    /**
+     * Increment the DoS connection limit rejection counter.
+     * <p>Called when a connection is rejected due to connection limits.
+     */
+    public static void incrementDosConnectionLimitRejection() {
+        incrementCounter(() -> dosConnectionLimitRejectionCounter, "DoS connection limit rejection counter");
+    }
+
+    /**
+     * Increment the DoS tarpit counter.
+     * <p>Called when a connection is tarpitted due to suspicious behavior.
+     */
+    public static void incrementDosTarpit() {
+        incrementCounter(() -> dosTarpitCounter, "DoS tarpit counter");
+    }
+
+    /**
+     * Increment the DoS slow transfer rejection counter.
+     * <p>Called when a connection is rejected due to slow data transfer (slowloris attack).
+     */
+    public static void incrementDosSlowTransferRejection() {
+        incrementCounter(() -> dosSlowTransferRejectionCounter, "DoS slow transfer rejection counter");
+    }
+
+    /**
+     * Increment the DoS command flood rejection counter.
+     * <p>Called when a connection is rejected due to command flooding.
+     */
+    public static void incrementDosCommandFloodRejection() {
+        incrementCounter(() -> dosCommandFloodRejectionCounter, "DoS command flood rejection counter");
     }
 
     /**
@@ -198,6 +243,27 @@ public final class SmtpMetrics {
             emailSpamRejectionCounter = Counter.builder("robin.email.spam.rejection")
                     .description("Number of emails rejected due to spam or phishing detection")
                     .register(MetricsRegistry.getPrometheusRegistry());
+
+            dosRateLimitRejectionCounter = Counter.builder("robin.dos.ratelimit.rejection")
+                    .description("Number of connections rejected due to rate limiting")
+                    .register(MetricsRegistry.getPrometheusRegistry());
+
+            dosConnectionLimitRejectionCounter = Counter.builder("robin.dos.connectionlimit.rejection")
+                    .description("Number of connections rejected due to connection limits")
+                    .register(MetricsRegistry.getPrometheusRegistry());
+
+            dosTarpitCounter = Counter.builder("robin.dos.tarpit")
+                    .description("Number of connections tarpitted due to suspicious behavior")
+                    .register(MetricsRegistry.getPrometheusRegistry());
+
+            dosSlowTransferRejectionCounter = Counter.builder("robin.dos.slowtransfer.rejection")
+                    .description("Number of connections rejected due to slow data transfer")
+                    .register(MetricsRegistry.getPrometheusRegistry());
+
+            dosCommandFloodRejectionCounter = Counter.builder("robin.dos.commandflood.rejection")
+                    .description("Number of connections rejected due to command flooding")
+                    .register(MetricsRegistry.getPrometheusRegistry());
+
             Counter.builder("robin.email.receipt.exception")
                     .description("Number of exceptions during email receipt processing")
                     .tag("exception_type", "Exception")
@@ -230,6 +296,27 @@ public final class SmtpMetrics {
             emailSpamRejectionCounter = Counter.builder("robin.email.spam.rejection")
                     .description("Number of emails rejected due to spam or phishing detection")
                     .register(MetricsRegistry.getGraphiteRegistry());
+
+            dosRateLimitRejectionCounter = Counter.builder("robin.dos.ratelimit.rejection")
+                    .description("Number of connections rejected due to rate limiting")
+                    .register(MetricsRegistry.getGraphiteRegistry());
+
+            dosConnectionLimitRejectionCounter = Counter.builder("robin.dos.connectionlimit.rejection")
+                    .description("Number of connections rejected due to connection limits")
+                    .register(MetricsRegistry.getGraphiteRegistry());
+
+            dosTarpitCounter = Counter.builder("robin.dos.tarpit")
+                    .description("Number of connections tarpitted due to suspicious behavior")
+                    .register(MetricsRegistry.getGraphiteRegistry());
+
+            dosSlowTransferRejectionCounter = Counter.builder("robin.dos.slowtransfer.rejection")
+                    .description("Number of connections rejected due to slow data transfer")
+                    .register(MetricsRegistry.getGraphiteRegistry());
+
+            dosCommandFloodRejectionCounter = Counter.builder("robin.dos.commandflood.rejection")
+                    .description("Number of connections rejected due to command flooding")
+                    .register(MetricsRegistry.getGraphiteRegistry());
+
             Counter.builder("robin.email.receipt.exception")
                     .description("Number of exceptions during email receipt processing")
                     .tag("exception_type", "Exception")
@@ -249,5 +336,10 @@ public final class SmtpMetrics {
         emailRblRejectionCounter = null;
         emailVirusRejectionCounter = null;
         emailSpamRejectionCounter = null;
+        dosRateLimitRejectionCounter = null;
+        dosConnectionLimitRejectionCounter = null;
+        dosTarpitCounter = null;
+        dosSlowTransferRejectionCounter = null;
+        dosCommandFloodRejectionCounter = null;
     }
 }

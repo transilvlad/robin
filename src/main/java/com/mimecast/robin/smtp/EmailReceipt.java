@@ -13,10 +13,12 @@ import com.mimecast.robin.smtp.extension.server.ServerMail;
 import com.mimecast.robin.smtp.extension.server.ServerProcessor;
 import com.mimecast.robin.smtp.extension.server.ServerRcpt;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
+import com.mimecast.robin.smtp.security.ConnectionTracker;
 import com.mimecast.robin.smtp.session.EmailDirection;
 import com.mimecast.robin.smtp.verb.Verb;
 import com.mimecast.robin.smtp.webhook.WebhookCaller;
 import com.mimecast.robin.smtp.webhook.WebhookResponse;
+import com.mimecast.robin.util.Sleep;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
@@ -52,6 +54,12 @@ public class EmailReceipt implements Runnable {
      * <p>Limits how many erroneous commands will be permitted.
      */
     private int errorLimit = 3;
+
+    /**
+     * Tarpit violation counter.
+     * <p>Tracks how many times this connection has violated rate limits for progressive delays.
+     */
+    private int tarpitViolations = 0;
 
     /**
      * Constructs a new EmailReceipt instance with given Connection instance.
@@ -139,6 +147,13 @@ public class EmailReceipt implements Runnable {
                     break;
                 }
                 verb = new Verb(read);
+
+                // Apply DoS protections before processing command.
+                if (config.isDosProtectionEnabled()) {
+                    if (!checkCommandRateLimits()) {
+                        break; // Disconnect due to rate limit violation.
+                    }
+                }
 
                 // Don't process if error.
                 if (!isError(verb)) process(verb);
@@ -293,6 +308,7 @@ public class EmailReceipt implements Runnable {
             }
             if (server instanceof ServerData) {
                 ((ServerData) server).setEmailSizeLimit(config.getEmailSizeLimit());
+                ((ServerData) server).setListenerConfig(config);
             }
 
             server.process(connection, verb);
@@ -364,5 +380,50 @@ public class EmailReceipt implements Runnable {
         }
 
         return true; // No webhook configured, continue processing.
+    }
+
+    /**
+     * Checks command rate limits for DoS protection.
+     * <p>Implements progressive tarpit delays for repeated violations.
+     *
+     * @return True if command should be processed, false to disconnect.
+     * @throws IOException Unable to communicate.
+     */
+    private boolean checkCommandRateLimits() throws IOException {
+        String clientIp = connection.getSession().getFriendAddr();
+
+        // Record command for this IP.
+        ConnectionTracker.recordCommand(clientIp);
+
+        // Check if command rate limit is exceeded.
+        int maxCommandsPerMinute = config.getMaxCommandsPerMinute();
+        if (maxCommandsPerMinute > 0) {
+            int commandsPerMinute = ConnectionTracker.getCommandsPerMinute(clientIp);
+
+            if (commandsPerMinute > maxCommandsPerMinute) {
+                tarpitViolations++;
+                log.warn("Command rate limit exceeded for {}: {} commands/min (limit: {}), violation #{}",
+                        clientIp, commandsPerMinute, maxCommandsPerMinute, tarpitViolations);
+
+                // Apply progressive tarpit delay.
+                int baseDelay = config.getTarpitDelayMillis();
+                if (baseDelay > 0) {
+                    int delay = baseDelay * tarpitViolations; // Progressive delay.
+                    log.info("Applying tarpit delay of {}ms to {}", delay, clientIp);
+                    SmtpMetrics.incrementDosTarpit();
+                    Sleep.nap(delay);
+                }
+
+                // Disconnect after multiple violations (3 strikes).
+                if (tarpitViolations >= 3) {
+                    log.warn("Disconnecting {} after {} tarpit violations", clientIp, tarpitViolations);
+                    SmtpMetrics.incrementDosCommandFloodRejection();
+                    connection.write(SmtpResponses.CLOSING_221 + " [" + connection.getSession().getUID() + "]");
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 }
