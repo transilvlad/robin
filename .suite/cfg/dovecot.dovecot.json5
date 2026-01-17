@@ -25,7 +25,8 @@
     ldaBinary: "/usr/libexec/dovecot/dovecot-lda",
     inboxFolder: "INBOX",
     sentFolder: "Sent",
-    maxConcurrency: 50
+    maxConcurrency: 50,
+    ldaTimeoutSeconds: 30
   },
 
   // Delivery options
