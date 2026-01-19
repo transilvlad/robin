@@ -1,6 +1,6 @@
 {
   // Path to MTA logs (relative to project root for host-based tests)
-  localLogsDir: "/var/log/",
+  localLogsDir: "/var/log/robin/",
 
   // Pattern to match UID out of SMTP responses
   uidPattern: "\\s\\[([a-z0-9\\-_]+)]",

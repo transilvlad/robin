@@ -38,12 +38,7 @@
 
   // Disable LDA backend (we're using LMTP).
   saveLda: {
-    enabled: false,
-    ldaBinary: "/usr/lib/dovecot/dovecot-lda",
-    inboxFolder: "INBOX",
-    sentFolder: "Sent",
-    maxConcurrency: 50,
-    ldaTimeoutSeconds: 30
+    enabled: false
   },
 
   // Delivery options
