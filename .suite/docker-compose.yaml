@@ -45,6 +45,7 @@ services:
   # ClamAV virus scanner.
   suite-clamav:
     image: clamav/clamav:latest
+    platform: linux/amd64
     container_name: suite-clamav
     volumes:
       - ../log/clamav:/var/log/clamav
@@ -65,6 +66,7 @@ services:
   # Rspamd spam/phishing detection.
   suite-rspamd:
     image: rspamd/rspamd:latest
+    platform: linux/amd64
     container_name: suite-rspamd
     volumes:
       - ../log/rspamd:/var/log
@@ -87,6 +89,7 @@ services:
   # Robin MTA server.
   suite-robin:
     container_name: suite-robin
+    platform: linux/amd64
     build:
       context: ../
       dockerfile: ./Dockerfile

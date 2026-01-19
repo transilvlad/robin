@@ -72,6 +72,7 @@ services:
 
   robin:
     image: robin-robin-mta:latest
+    platform: linux/amd64
     container_name: robin
     environment:
       JAVA_TOOL_OPTIONS: "-Dnetworkaddress.cache.negative.ttl=300 -Dsun.net.inetaddr.negative.ttl=300 -Dlog4j2.asyncLoggerWaitStrategy=Timeout -Dlog4j2.asyncLoggerTimeout=1000 ${JAVA_TOOL_OPTIONS:-}"
