@@ -16,6 +16,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.junit.jupiter.api.parallel.Isolated;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -23,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>Tests the dequeuing and processing logic for relay sessions.
  * <p>Uses in-memory queue database from test configuration.
  */
+@Isolated
 public class RelayDequeueTest {
 
     @TempDir

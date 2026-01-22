@@ -4,12 +4,15 @@ import com.mimecast.robin.main.Factories;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import org.junit.jupiter.api.parallel.Isolated;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Test class for the queue database factory system.
  * <p>Tests use in-memory database (all backends disabled in test resources config).
  */
+@Isolated
 class QueueDatabaseFactoryTest {
 
     private PersistentQueue<RelaySession> queue;

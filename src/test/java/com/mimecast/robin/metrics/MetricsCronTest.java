@@ -16,6 +16,8 @@ import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.regex.Pattern;
 
+import org.junit.jupiter.api.parallel.Isolated;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -24,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Note: These tests focus on testing internal logic and helper methods.
  * Full integration testing with actual HTTP servers would require additional test infrastructure.
  */
+@Isolated
 class MetricsCronTest {
 
     private PrometheusMeterRegistry testRegistry;
