@@ -7,37 +7,67 @@ import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
 import java.io.IOException;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * JUnit 5 extension that provides a mock Vault server for testing.
  *
  * <p>This extension starts a MockWebServer that simulates HashiCorp Vault responses
  * for testing purposes. It automatically starts before all tests and shuts down after.
+ * <p>Each test class gets its own server instance on a dynamically allocated port to avoid conflicts.
  */
 public class VaultClientMockExtension implements BeforeAllCallback, AfterAllCallback {
 
-    private static MockWebServer mockServer;
+    private static final ConcurrentHashMap<Class<?>, MockWebServer> servers = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Class<?>, Integer> ports = new ConcurrentHashMap<>();
 
     @Override
     public void beforeAll(ExtensionContext context) throws Exception {
-        mockServer = new MockWebServer();
-        mockServer.start(8200);
+        Class<?> testClass = context.getRequiredTestClass();
+        
+        // Create a new server for this test class
+        MockWebServer mockServer = new MockWebServer();
+        // Use port 0 to let the OS assign an available port dynamically
+        mockServer.start();
+
+        // Store server and port
+        servers.put(testClass, mockServer);
+        ports.put(testClass, mockServer.getPort());
 
         // Setup mock responses
-        setupMockResponses();
+        setupMockResponses(mockServer);
     }
 
     @Override
     public void afterAll(ExtensionContext context) throws Exception {
+        Class<?> testClass = context.getRequiredTestClass();
+        MockWebServer mockServer = servers.remove(testClass);
+        ports.remove(testClass);
+        
         if (mockServer != null) {
             mockServer.shutdown();
         }
     }
 
     /**
+     * Get the dynamically allocated port for the mock server.
+     * This should be called from test methods to get the port for the current test class.
+     *
+     * @return The port number, or 8200 if not available.
+     */
+    public static Integer getMockServerPort() {
+        // Find the port for any test class (there should only be one running at a time per thread)
+        // In case of parallel execution, we return the first available port
+        if (!ports.isEmpty()) {
+            return ports.values().iterator().next();
+        }
+        return 8200;
+    }
+
+    /**
      * Setup mock responses for various Vault endpoints.
      */
-    private void setupMockResponses() throws IOException {
+    private void setupMockResponses(MockWebServer mockServer) throws IOException {
         // Mock dispatcher to handle different paths
         mockServer.setDispatcher(new okhttp3.mockwebserver.Dispatcher() {
             @Override

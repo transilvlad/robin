@@ -2,6 +2,8 @@ package com.mimecast.robin.queue;
 
 import com.mimecast.robin.smtp.session.Session;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 
 import java.io.File;
 import java.nio.file.Paths;
@@ -13,8 +15,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for queue control operations (delete, retry, bounce).
+ * <p>These tests use a singleton queue instance, so they must run serially to avoid interference.
  */
 @TestMethodOrder(MethodOrderer.MethodName.class)
+@Execution(ExecutionMode.SAME_THREAD)
 class QueueControlsTest {
 
     static PersistentQueue<RelaySession> queue;
