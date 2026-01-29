@@ -5,6 +5,8 @@ import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -13,8 +15,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for VaultClient utility.
+ * <p>These tests use a mock server that needs to be isolated to avoid
+ * port conflicts, so they run serially.
  */
 @ExtendWith(VaultClientMockExtension.class)
+@Execution(ExecutionMode.SAME_THREAD)
 class VaultClientTest {
 
     // Helper method to get the mock server port
