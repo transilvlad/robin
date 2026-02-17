@@ -41,7 +41,35 @@
     messageSizeLimit: 10242400, // 10 MB
 
     // Number of SMTP errors to allow before terminating connection (default: 3).
-    errorLimit: 3
+    errorLimit: 3,
+
+    // DoS Protection Settings
+    // Enable or disable DoS protections (default: true).
+    dosProtectionEnabled: true,
+
+    // Maximum concurrent connections per IP address (default: 10, 0 to disable).
+    maxConnectionsPerIp: 10,
+
+    // Maximum total concurrent connections (default: 100, 0 to disable).
+    maxTotalConnections: 100,
+
+    // Rate limit window in seconds (default: 60).
+    rateLimitWindowSeconds: 60,
+
+    // Maximum new connections per IP within rate limit window (default: 30, 0 to disable).
+    maxConnectionsPerWindow: 30,
+
+    // Maximum commands per minute per connection (default: 100, 0 to disable).
+    maxCommandsPerMinute: 100,
+
+    // Minimum data transfer rate in bytes per second (default: 10240, 0 to disable).
+    minDataRateBytesPerSecond: 10240, // 10 KB/s
+
+    // Maximum data transfer timeout in seconds (default: 300).
+    maxDataTimeoutSeconds: 300,
+
+    // Tarpit delay in milliseconds for suspicious behavior (default: 1000, 0 to disable).
+    tarpitDelayMillis: 1000
   },
 
   // Secure SMTP port configuration
@@ -53,8 +81,17 @@
     transactionsLimit: 500,
     recipientsLimit: 100,
     envelopeLimit: 100,
-    messageSizeLimit: 10242400,
-    errorLimit: 5
+    messageSizeLimit: 10242400, // 10 MB
+    errorLimit: 3,
+    dosProtectionEnabled: true,
+    maxConnectionsPerIp: 10,
+    maxTotalConnections: 100,
+    rateLimitWindowSeconds: 60,
+    maxConnectionsPerWindow: 30,
+    maxCommandsPerMinute: 100,
+    minDataRateBytesPerSecond: 10240,
+    maxDataTimeoutSeconds: 300,
+    tarpitDelayMillis: 1000
   },
 
   // Submission port configuration
@@ -66,8 +103,17 @@
     transactionsLimit: 500,
     recipientsLimit: 100,
     envelopeLimit: 100,
-    messageSizeLimit: 10242400,
-    errorLimit: 5
+    messageSizeLimit: 10242400, // 10 MB
+    errorLimit: 3,
+    dosProtectionEnabled: true,
+    maxConnectionsPerIp: 10,
+    maxTotalConnections: 100,
+    rateLimitWindowSeconds: 60,
+    maxConnectionsPerWindow: 30,
+    maxCommandsPerMinute: 100,
+    minDataRateBytesPerSecond: 10240,
+    maxDataTimeoutSeconds: 300,
+    tarpitDelayMillis: 1000
   },
 
   // Advertise AUTH support (default: true).
@@ -99,7 +145,10 @@
     port: 8080,
     authType: "none",
     authValue: "",
-    allowList: []
+    allowList: [
+      "127.0.0.1",
+      "::1"
+    ]
   },
 
   // API endpoint configuration.
@@ -107,7 +156,10 @@
     port: 8090,
     authType: "none",
     authValue: "",
-    allowList: []
+    allowList: [
+      "127.0.0.1",
+      "::1"
+    ]
   },
 
   // RBL (Realtime Blackhole List) configuration.
@@ -124,13 +176,14 @@
   // Chaos headers for testing exception scenarios.
   // WARNING: Do NOT enable in production. This feature allows bypassing normal processing
   // and is intended strictly for development and testing purposes.
-  chaosHeaders: true,
+  chaosHeaders: false,
 
   // Enable XCLIENT extension for development and testing only.
   // WARNING: Do NOT enable in production. XCLIENT allows clients to forge sender information
   // and is intended strictly for development and testing purposes.
-  xclientEnabled: true,
+  xclientEnabled: false,
 
-  // DNS negative TTL (seconds) for caching NXDOMAIN/NODATA responses.
+  // DNS negative TTL (seconds) for caching NXDOMAIN/NODATA responses (default: 300).
+  // Reduces DNS lookups for non-existent domains.
   dnsNegativeTtl: 300
 }
