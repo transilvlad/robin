@@ -47,6 +47,9 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
         server.createContext("/", this::handleLandingPage);
         log.info("Landing available at http://localhost:{}/", port);
 
+        // Favicon.
+        server.createContext("/favicon.ico", this::handleFavicon);
+
         // Config endpoints at the top (matching landing page order).
         server.createContext("/config", this::handleConfigViewer);
         log.info("Config viewer available at http://localhost:{}/config", port);

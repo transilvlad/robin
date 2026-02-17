@@ -1,7 +1,12 @@
 package com.mimecast.robin.util;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -10,14 +15,25 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for VaultClient utility.
+ * <p>These tests use a mock server that needs to be isolated to avoid
+ * port conflicts, so they run serially.
  */
 @ExtendWith(VaultClientMockExtension.class)
+@Execution(ExecutionMode.SAME_THREAD)
 class VaultClientTest {
+
+    // Helper method to get the mock server port
+    private static int getMockServerPort() {
+        // The MockWebServer in VaultClientMockExtension will be started on a dynamic port
+        // We'll use a ThreadLocal to pass the port from the extension
+        Integer port = VaultClientMockExtension.getMockServerPort();
+        return port != null ? port : 8200;
+    }
 
     @Test
     void testGetSecretKvV2() throws VaultClient.VaultException {
         VaultClient client = new VaultClient.Builder()
-                .withAddress("http://localhost:8200")
+                .withAddress("http://localhost:" + getMockServerPort())
                 .withToken("test-token")
                 .build();
 
@@ -29,7 +45,7 @@ class VaultClientTest {
     @Test
     void testGetSecretKvV1() throws VaultClient.VaultException {
         VaultClient client = new VaultClient.Builder()
-                .withAddress("http://localhost:8200")
+                .withAddress("http://localhost:" + getMockServerPort())
                 .withToken("test-token")
                 .build();
 
@@ -41,7 +57,7 @@ class VaultClientTest {
     @Test
     void testGetSecretNotFound() throws VaultClient.VaultException {
         VaultClient client = new VaultClient.Builder()
-                .withAddress("http://localhost:8200")
+                .withAddress("http://localhost:" + getMockServerPort())
                 .withToken("test-token")
                 .build();
 
@@ -53,7 +69,7 @@ class VaultClientTest {
     @Test
     void testGetAllSecrets() throws VaultClient.VaultException {
         VaultClient client = new VaultClient.Builder()
-                .withAddress("http://localhost:8200")
+                .withAddress("http://localhost:" + getMockServerPort())
                 .withToken("test-token")
                 .build();
 
@@ -69,7 +85,7 @@ class VaultClientTest {
     @Test
     void testWriteSecret() {
         VaultClient client = new VaultClient.Builder()
-                .withAddress("http://localhost:8200")
+                .withAddress("http://localhost:" + getMockServerPort())
                 .withToken("test-token")
                 .build();
 
@@ -83,7 +99,7 @@ class VaultClientTest {
     @Test
     void testDisabledClient() throws VaultClient.VaultException {
         VaultClient client = new VaultClient.Builder()
-                .withAddress("http://localhost:8200")
+                .withAddress("http://localhost:" + getMockServerPort())
                 .withToken("test-token")
                 .withEnabled(false)
                 .build();
@@ -100,7 +116,7 @@ class VaultClientTest {
     @Test
     void testBuilderWithNamespace() {
         VaultClient client = new VaultClient.Builder()
-                .withAddress("http://localhost:8200")
+                .withAddress("http://localhost:" + getMockServerPort())
                 .withToken("test-token")
                 .withNamespace("tenant1")
                 .build();
@@ -111,7 +127,7 @@ class VaultClientTest {
     @Test
     void testBuilderWithTimeouts() {
         VaultClient client = new VaultClient.Builder()
-                .withAddress("http://localhost:8200")
+                .withAddress("http://localhost:" + getMockServerPort())
                 .withToken("test-token")
                 .withConnectTimeout(60)
                 .withReadTimeout(60)
@@ -124,7 +140,7 @@ class VaultClientTest {
     @Test
     void testBuilderWithSkipTlsVerification() {
         VaultClient client = new VaultClient.Builder()
-                .withAddress("https://localhost:8200")
+                .withAddress("https://localhost:" + getMockServerPort())
                 .withToken("test-token")
                 .withSkipTlsVerification(true)
                 .build();
@@ -145,7 +161,7 @@ class VaultClientTest {
     void testBuilderMissingToken() {
         assertThrows(NullPointerException.class, () -> {
             new VaultClient.Builder()
-                    .withAddress("http://localhost:8200")
+                    .withAddress("http://localhost:" + getMockServerPort())
                     .build();
         });
     }
@@ -164,7 +180,7 @@ class VaultClientTest {
     @Test
     void testGetSecretWithNullPath() {
         VaultClient client = new VaultClient.Builder()
-                .withAddress("http://localhost:8200")
+                .withAddress("http://localhost:" + getMockServerPort())
                 .withToken("test-token")
                 .build();
 
@@ -176,7 +192,7 @@ class VaultClientTest {
     @Test
     void testGetSecretWithNullKey() {
         VaultClient client = new VaultClient.Builder()
-                .withAddress("http://localhost:8200")
+                .withAddress("http://localhost:" + getMockServerPort())
                 .withToken("test-token")
                 .build();
 
@@ -188,7 +204,7 @@ class VaultClientTest {
     @Test
     void testGetAllSecretsWithNullPath() {
         VaultClient client = new VaultClient.Builder()
-                .withAddress("http://localhost:8200")
+                .withAddress("http://localhost:" + getMockServerPort())
                 .withToken("test-token")
                 .build();
 
@@ -200,7 +216,7 @@ class VaultClientTest {
     @Test
     void testWriteSecretWithNullPath() {
         VaultClient client = new VaultClient.Builder()
-                .withAddress("http://localhost:8200")
+                .withAddress("http://localhost:" + getMockServerPort())
                 .withToken("test-token")
                 .build();
 
@@ -212,7 +228,7 @@ class VaultClientTest {
     @Test
     void testWriteSecretWithNullSecrets() {
         VaultClient client = new VaultClient.Builder()
-                .withAddress("http://localhost:8200")
+                .withAddress("http://localhost:" + getMockServerPort())
                 .withToken("test-token")
                 .build();
 

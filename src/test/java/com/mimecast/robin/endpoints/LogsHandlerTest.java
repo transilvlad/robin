@@ -3,6 +3,8 @@ package com.mimecast.robin.endpoints;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -15,7 +17,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for LogsHandler.
+ * <p>These tests access Log4j2 configuration using reflection which may
+ * not be thread-safe, so they run serially.
  */
+@Execution(ExecutionMode.SAME_THREAD)
 class LogsHandlerTest {
 
     private Path tempDir;

@@ -10,6 +10,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 
 import javax.naming.ConfigurationException;
 import java.io.IOException;
@@ -25,8 +27,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Integration tests for queue control API endpoints.
+ * <p>These tests use the singleton queue instance, so they must run serially.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@Execution(ExecutionMode.SAME_THREAD)
 class ApiEndpointQueueControlsTest {
 
     private static final int TEST_PORT = 8095;

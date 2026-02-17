@@ -1,6 +1,8 @@
 package com.mimecast.robin;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -9,6 +11,12 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+/**
+ * Tests for Main class.
+ * <p>These tests must run serially because Main() constructor has side effects
+ * and tests share system output capture through MainMock.
+ */
+@Execution(ExecutionMode.SAME_THREAD)
 class MainTest {
 
     @Test

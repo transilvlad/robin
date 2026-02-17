@@ -27,11 +27,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.jupiter.api.parallel.Isolated;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for WebhookCaller.
  */
+@Isolated
 class WebhookCallerTest {
 
     private static HttpServer mockServer;
