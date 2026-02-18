@@ -139,7 +139,7 @@ public class ImapExternalClient extends MatchExternalClient {
         for (List<String> list : headerMatches) {
             List<Pattern> compiled = new ArrayList<>();
             for (String assertion : list) {
-                compiled.add(Pattern.compile(assertion, Pattern.CASE_INSENSITIVE));
+                compiled.add(Pattern.compile(Magic.magicReplace(assertion, connection.getSession()), Pattern.CASE_INSENSITIVE));
             }
 
             matchGroups.add(new AssertExternalGroup().setPatterns(compiled));
