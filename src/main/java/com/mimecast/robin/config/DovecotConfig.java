@@ -81,6 +81,26 @@ public class DovecotConfig extends BasicConfig {
     public String getAuthSqlUserQuery() { return getStringProperty("authSql.userQuery", ""); }
 
     /**
+     * Gets SQL query to list all users.
+     *
+     * @return SQL query string.
+     */
+    public String getAuthSqlUsersQuery() {
+        String usersQuery = getStringProperty("authSql.usersQuery", "");
+        if (usersQuery != null && !usersQuery.isBlank()) {
+            return usersQuery;
+        }
+
+        // Backward compatibility for older naming.
+        String listQuery = getStringProperty("authSql.listQuery", "");
+        if (listQuery != null && !listQuery.isBlank()) {
+            return listQuery;
+        }
+
+        return "SELECT email FROM users ORDER BY email";
+    }
+
+    /**
      * Gets LMTP backend configuration.
      *
      * @return SaveLmtp instance with LMTP settings.

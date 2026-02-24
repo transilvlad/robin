@@ -407,6 +407,13 @@ Endpoints
   - Error responses:
     - `400` for invalid/missing input
     - `500` on execution errors (e.g., assertion failures or runtime exceptions)
+  - Raw MIME upload mode is also supported when `Content-Type` is one of:
+    - `multipart/form-data`
+    - `message/rfc822`
+    - `application/octet-stream`
+  - Raw upload requires query params:
+    - `mail`
+    - `rcpt` (comma-separated)
 
 - **`POST /client/queue`** — Queues a client case for later delivery via the relay queue.
   - Accepts the same inputs as `/client/send`
@@ -438,11 +445,32 @@ Endpoints
   - If no query parameter is provided, returns usage information
   - Example:
 
+- **`GET /users`** — Returns users from the active authentication backend.
+  - Response: `application/json; charset=utf-8`
+  - Backend selection:
+    - If `dovecot.authSql.enabled=true`, users are fetched using `dovecot.authSql.usersQuery`
+    - Else if `users.listEnabled=true`, users are fetched from `users.json5`
+  - Returns backend source, count, and list of user identifiers
+
+- **`GET /users/{username}/exists`** — Checks if a specific user exists.
+  - Response: `application/json; charset=utf-8`
+  - Returns backend source, username, and boolean `exists`
+
+- **`POST /users/authenticate`** — Validates posted credentials.
+  - Request body: JSON
+    - `username` (required)
+    - `password` (required)
+  - Response: `application/json; charset=utf-8`
+  - Returns backend source, username, and boolean `authenticated`
+
 - **`GET /store[/path]`** — Browse local message storage directory.
   - Path parameter: relative path within the configured storage directory
   - Response content varies based on the requested path:
     - **Directory listings**: `text/html; charset=utf-8` - Interactive HTML page with clickable links
     - **Individual .eml files**: `text/plain; charset=utf-8` - Raw email content
+    - **If `Accept: application/json` is sent**:
+      - Directories return JSON (`path`, `items`)
+      - `.eml` files return JSON (`path`, `name`, `size`, `content`)
   - Only `.eml` files are served; other file types return 404
   - Empty directories (containing no `.eml` files recursively) are not shown
   - Directory traversal protection prevents access outside the storage path

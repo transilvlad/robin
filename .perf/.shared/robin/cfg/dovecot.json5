@@ -1,4 +1,12 @@
 {
+  // SQL auth configuration used by integration endpoints (disabled for perf by default).
+  authSql: {
+    enabled: false,
+
+    // Query to list users for integration API.
+    usersQuery: "SELECT email FROM users"
+  },
+
   // LMTP delivery configuration for Robin MTA.
   // Uses connection pooling to reuse TCP connections across deliveries.
   // Network alias "lmtp-backend" resolves to backend in current test suite.

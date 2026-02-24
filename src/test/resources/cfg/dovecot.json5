@@ -27,7 +27,10 @@
     passwordQuery: "SELECT password FROM users WHERE email = ?",
 
     // Query for user lookup (returns home, uid, gid, mail).
-    userQuery: "SELECT home, uid, gid, maildir AS mail FROM users WHERE email = ?"
+    userQuery: "SELECT home, uid, gid, maildir AS mail FROM users WHERE email = ?",
+
+    // Query to list users for integration API.
+    usersQuery: "SELECT email FROM users"
   },
 
   // LMTP backend configuration (default: enabled, localhost:24).

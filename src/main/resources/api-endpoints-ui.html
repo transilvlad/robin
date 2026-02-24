@@ -44,7 +44,7 @@
 <ul>
     <li>
         <a href="/client/send"><code>/client/send</code></a>
-        <span class="description">- Submit a JSON or JSON5 case via POST (body).</span>
+        <span class="description">- Submit a JSON or JSON5 case via POST (body). Also supports raw EML upload via <code>multipart/form-data</code>, <code>message/rfc822</code>, or <code>application/octet-stream</code> with query params <code>mail</code> and <code>rcpt</code>.</span>
     </li>
     <li>
         <a href="/client/queue"><code>/client/queue</code></a>
@@ -60,8 +60,12 @@
             <br>Returns usage message if no query parameter is set. Searches current and previous log4j2 log files.</span>
     </li>
     <li>
+        <a href="/users"><code>/users</code></a>
+        <span class="description">- Integration users API. Get list of users, check existence, and validate credentials.</span>
+    </li>
+    <li>
         <a href="/store/"><code>/store</code></a>
-        <span class="description">- Browse local message storage. Directory listings are returned as HTML with clickable links; individual <code>.eml</code> files are returned as <code>text/plain</code>. Empty folders are ignored.</span>
+        <span class="description">- Browse local message storage and perform folder/message/draft mutations for webmail integration. Directory listings are returned as HTML with clickable links; individual <code>.eml</code> files are returned as <code>text/plain</code>. Send <code>Accept: application/json</code> for integration-friendly JSON responses. Empty folders are ignored.</span>
     </li>
     <li>
         <a href="/health"><code>/health</code></a>
@@ -172,6 +176,69 @@ curl "http://localhost:8090/logs?q=session"</code></pre>
     <p>PowerShell:</p>
     <pre><code>Invoke-RestMethod -Method Get -Uri 'http://localhost:8090/logs?query=ERROR'
 Invoke-RestMethod -Method Get -Uri 'http://localhost:8090/logs?q=session'</code></pre>
+</div>
+<h2>Users</h2>
+<ul>
+    <li><b>Endpoint:</b> <code>/users</code> (GET)</li>
+    <li><b>Description:</b> Returns all users from the active backend (SQL or users config).</li>
+    <li><b>Endpoint:</b> <code>/users/{username}/exists</code> (GET)</li>
+    <li><b>Description:</b> Checks if a specific user exists.</li>
+    <li><b>Endpoint:</b> <code>/users/authenticate</code> (POST)</li>
+    <li><b>Request body:</b> <code>{"username":"user@example.com","password":"secret"}</code></li>
+    <li><b>Description:</b> Validates the posted password using Robin's configured auth backend.</li>
+</ul>
+<div class="note">
+    <p>Bash:</p>
+    <pre><code>curl "http://localhost:8090/users"
+curl "http://localhost:8090/users/tony%40example.com/exists"
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"username":"tony@example.com","password":"stark"}' \
+  "http://localhost:8090/users/authenticate"</code></pre>
+</div>
+<h2>Store</h2>
+<ul>
+    <li><b>Browse:</b> <code>GET /store/{domain}/{user}/...</code></li>
+    <li><b>Folder create:</b> <code>POST /store/{domain}/{user}/folders</code> with <code>{"parent":"optional/path","name":"Office"}</code></li>
+    <li><b>Folder rename:</b> <code>PATCH /store/{domain}/{user}/folders/{folder}</code> with <code>{"name":"Office_Renamed"}</code></li>
+    <li><b>Folder delete:</b> <code>DELETE /store/{domain}/{user}/folders/{folder}</code> (empty folders only)</li>
+    <li><b>Folder copy:</b> <code>POST /store/{domain}/{user}/folders/{folder}/copy</code> with <code>{"destinationParent":"Target","newName":"Projects Copy"}</code></li>
+    <li><b>Folder move:</b> <code>POST /store/{domain}/{user}/folders/{folder}/move</code> with <code>{"destinationParent":"Target"}</code></li>
+    <li><b>Folder properties:</b> <code>GET /store/{domain}/{user}/folders/{folder}/properties</code></li>
+    <li><b>Message move:</b> <code>POST /store/{domain}/{user}/messages/move</code></li>
+    <li><b>Message read status:</b> <code>POST /store/{domain}/{user}/messages/read-status</code></li>
+    <li><b>Mark all read:</b> <code>POST /store/{domain}/{user}/messages/mark-all-read</code></li>
+    <li><b>Delete all:</b> <code>POST /store/{domain}/{user}/messages/delete-all</code></li>
+    <li><b>Cleanup old messages:</b> <code>POST /store/{domain}/{user}/messages/cleanup</code></li>
+    <li><b>Draft create:</b> <code>POST /store/{domain}/{user}/drafts</code> (raw EML or JSON compose payload)</li>
+    <li><b>Draft update:</b> <code>PUT /store/{domain}/{user}/drafts/{draftId}</code></li>
+    <li><b>Draft delete:</b> <code>DELETE /store/{domain}/{user}/drafts/{draftId}</code></li>
+    <li><b>Attachment upload:</b> <code>POST /store/{domain}/{user}/drafts/{draftId}/attachments?filename=name.ext</code> (raw body)</li>
+    <li><b>Attachment delete:</b> <code>DELETE /store/{domain}/{user}/drafts/{draftId}/attachments/{attachmentId}</code></li>
+</ul>
+<div class="note">
+    <p>Bash:</p>
+    <pre><code># List folder as JSON
+curl -H "Accept: application/json" \
+  "http://localhost:8090/store/example.com/tony/inbox"
+
+# Create and rename folder
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"name":"Projects"}' \
+  "http://localhost:8090/store/example.com/tony/folders"
+curl -X PATCH -H "Content-Type: application/json" \
+  -d '{"name":"Projects_Renamed"}' \
+  "http://localhost:8090/store/example.com/tony/folders/Projects"
+
+# Move one message
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"fromFolder":"inbox","toFolder":"trash","messageIds":["a.eml"]}' \
+  "http://localhost:8090/store/example.com/tony/messages/move"
+
+# Save draft from raw EML and upload attachment
+curl -X POST -H "Content-Type: message/rfc822" --data-binary @draft.eml \
+  "http://localhost:8090/store/example.com/tony/drafts"
+curl -X POST -H "Content-Type: application/octet-stream" --data-binary @quote.pdf \
+  "http://localhost:8090/store/example.com/tony/drafts/{draftId}/attachments?filename=quote.pdf"</code></pre>
 </div>
 </body>
 </html>

@@ -11,7 +11,10 @@
 
   // Disable SQL authentication (we're using sockets).
   authSql: {
-    enabled: false
+    enabled: false,
+
+    // Query to list users for integration API.
+    usersQuery: "SELECT email FROM users"
   },
 
   // Disable LMTP backend (we're using LDA).
