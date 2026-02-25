@@ -34,6 +34,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -45,6 +46,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -85,6 +87,11 @@ import java.util.regex.Pattern;
  */
 public class ApiEndpoint extends HttpEndpoint {
     private static final Logger log = LogManager.getLogger(ApiEndpoint.class);
+    private static final Object CONFIG_RELOAD_LOCK = new Object();
+    private static final Pattern DOMAIN_PATTERN = Pattern.compile(
+            "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
+    );
+    private static final Pattern SELECTOR_PATTERN = Pattern.compile("^[A-Za-z0-9][A-Za-z0-9_-]{0,62}$");
 
     /**
      * Gson instance used for serializing responses with an exclusion strategy
@@ -98,6 +105,7 @@ public class ApiEndpoint extends HttpEndpoint {
      */
     private QueueOperationsHandler queueHandler;
     private String storagePathOverride;
+    private String dkimConfigPathOverride;
 
     /**
      * Starts the API endpoint with endpoint configuration.
@@ -112,6 +120,17 @@ public class ApiEndpoint extends HttpEndpoint {
         this.storagePathOverride = (configuredStoragePath == null || configuredStoragePath.isBlank())
                 ? null
                 : configuredStoragePath;
+        String configuredDkimPath = config.getStringProperty("dkimConfigPath",
+                config.getStringProperty("configPath", null));
+        if (configuredDkimPath == null || configuredDkimPath.isBlank()) {
+            configuredDkimPath = System.getProperty("robin.config.path");
+        }
+        if (configuredDkimPath == null || configuredDkimPath.isBlank()) {
+            configuredDkimPath = System.getenv("ROBIN_CONFIG_PATH");
+        }
+        this.dkimConfigPathOverride = (configuredDkimPath == null || configuredDkimPath.isBlank())
+                ? "cfg"
+                : configuredDkimPath.trim();
 
         // Initialize queue operations handler.
         this.queueHandler = new QueueOperationsHandler(this);
@@ -151,6 +170,9 @@ public class ApiEndpoint extends HttpEndpoint {
         // Logs search endpoint.
         server.createContext("/logs", this::handleLogs);
 
+        // DKIM config endpoint.
+        server.createContext("/config/dkim", this::handleConfigDkim);
+
         // User integration endpoints.
         server.createContext("/users", this::handleUsers);
 
@@ -170,6 +192,7 @@ public class ApiEndpoint extends HttpEndpoint {
         log.info("Queue retry available at http://localhost:{}/client/queue/retry", apiPort);
         log.info("Queue bounce available at http://localhost:{}/client/queue/bounce", apiPort);
         log.info("Logs available at http://localhost:{}/logs", apiPort);
+        log.info("DKIM config available at http://localhost:{}/config/dkim", apiPort);
         log.info("Users available at http://localhost:{}/users", apiPort);
         log.info("Store available at http://localhost:{}/store/", apiPort);
         log.info("Health available at http://localhost:{}/health", apiPort);
@@ -501,6 +524,124 @@ public class ApiEndpoint extends HttpEndpoint {
             log.error("Error processing /logs: {}", e.getMessage());
             sendText(exchange, 500, "Internal Server Error: " + e.getMessage());
         }
+    }
+
+    private void handleConfigDkim(HttpExchange exchange) throws IOException {
+        if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendText(exchange, 405, "Method Not Allowed");
+            return;
+        }
+
+        if (!auth.isAuthenticated(exchange)) {
+            auth.sendAuthRequired(exchange);
+            return;
+        }
+
+        Map<String, Object> body;
+        try {
+            body = parseJsonBody(exchange.getRequestBody());
+        } catch (IOException e) {
+            sendJson(exchange, 400, "{\"error\":\"Invalid JSON body\"}");
+            return;
+        }
+
+        String domain = bodyValue(body, "domain").toLowerCase(Locale.ROOT);
+        String selector = bodyValue(body, "selector");
+        String privateKey = bodyValue(body, "privateKeyBase64");
+        if (privateKey.isBlank()) {
+            privateKey = bodyValue(body, "privateKey");
+        }
+        String algorithm = normalizeDkimAlgorithm(bodyValue(body, "algorithm"));
+
+        if (!isValidDomain(domain)) {
+            sendJson(exchange, 400, "{\"error\":\"Invalid domain\"}");
+            return;
+        }
+        if (!isValidSelector(selector)) {
+            sendJson(exchange, 400, "{\"error\":\"Invalid selector\"}");
+            return;
+        }
+        if (privateKey.isBlank()) {
+            sendJson(exchange, 400, "{\"error\":\"Missing private key\"}");
+            return;
+        }
+        if (algorithm == null) {
+            sendJson(exchange, 400, "{\"error\":\"Unsupported algorithm\"}");
+            return;
+        }
+
+        Path configRoot = Paths.get(dkimConfigPathOverride).toAbsolutePath().normalize();
+        Path dkimDir = configRoot.resolve("dkim").normalize();
+        Path dkimFile = dkimDir.resolve(domain + ".json5").normalize();
+        if (!dkimFile.startsWith(dkimDir)) {
+            sendJson(exchange, 400, "{\"error\":\"Invalid domain\"}");
+            return;
+        }
+
+        String content = buildDkimConfigContent(domain, selector, privateKey, algorithm);
+
+        try {
+            Files.createDirectories(dkimDir);
+            Files.writeString(
+                    dkimFile,
+                    content,
+                    StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING,
+                    StandardOpenOption.WRITE
+            );
+
+            synchronized (CONFIG_RELOAD_LOCK) {
+                Config.triggerReload();
+            }
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "ok");
+            response.put("domain", domain);
+            response.put("selector", selector);
+            sendJson(exchange, 200, gson.toJson(response));
+            log.info("Updated DKIM config for domain {} at {}", domain, dkimFile);
+        } catch (Exception e) {
+            log.error("Failed to write DKIM config for domain {}: {}", domain, e.getMessage());
+            sendJson(exchange, 500, "{\"error\":\"Internal Server Error\"}");
+        }
+    }
+
+    private String bodyValue(Map<String, Object> body, String key) {
+        if (body == null || body.get(key) == null) {
+            return "";
+        }
+        return String.valueOf(body.get(key)).trim();
+    }
+
+    private boolean isValidDomain(String domain) {
+        return !domain.isBlank() && DOMAIN_PATTERN.matcher(domain).matches();
+    }
+
+    private boolean isValidSelector(String selector) {
+        return !selector.isBlank() && SELECTOR_PATTERN.matcher(selector).matches();
+    }
+
+    private String normalizeDkimAlgorithm(String value) {
+        if (value == null || value.isBlank()) {
+            return "rsa";
+        }
+
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "rsa", "rsa2048", "rsa_2048" -> "rsa";
+            case "ed25519", "ed_25519" -> "ed25519";
+            default -> null;
+        };
+    }
+
+    private String buildDkimConfigContent(String domain, String selector, String privateKey, String algorithm) {
+        return "{\n"
+                + "  domain: \"" + escapeJson(domain) + "\",\n"
+                + "  selector: \"" + escapeJson(selector) + "\",\n"
+                + "  algorithm: \"" + escapeJson(algorithm) + "\",\n"
+                + "  privateKey: \"" + escapeJson(privateKey) + "\"\n"
+                + "}\n";
     }
 
     /**
