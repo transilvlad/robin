@@ -588,3 +588,50 @@ Protected Methods and Fields
 - `protected void createContexts()` - Override to customize the HTTP context creation.
 - `protected void sendResponse(HttpExchange exchange, int code, String contentType, String response)` - Send HTTP responses.
 - `protected void sendError(HttpExchange exchange, int code, String message)` - Send HTTP error responses.
+
+API Endpoint Architecture
+-------------------------
+
+The API endpoint functionality is organized into focused handler classes following the Single Responsibility Principle:
+
+| Handler Class | Path | Responsibility |
+|---------------|------|----------------|
+| `ApiEndpoint` | `/`, `/health` | Server setup, landing page, health check |
+| `ClientSendHandler` | `/client/send` | Immediate SMTP message sending |
+| `ClientQueueHandler` | `/client/queue` | Enqueueing messages for later relay |
+| `QueueOperationsHandler` | `/client/queue/*` | Queue listing, delete, retry, bounce |
+| `UsersHandler` | `/users/*` | User listing, existence, authentication |
+| `StoreHandler` | `/store/*` | Storage browsing and mutation |
+| `LogsHandler` | `/logs` | Log file searching |
+
+### Store Handler Decomposition
+
+The `StoreHandler` delegates to three internal helper classes for Maildir operations:
+
+- `StoreFolderOperations` — Folder creation, rename, delete, copy, move, properties
+- `StoreMessageOperations` — Message move, read-status, mark-all-read, delete-all, cleanup
+- `StoreDraftOperations` — Draft creation, update, delete, attachment management
+
+### Shared Utilities
+
+Common functionality is centralized in `ApiEndpointUtils`:
+
+- Request parsing (`parseQuery`, `readBody`, `parseJsonBody`)
+- Response formatting (`escapeHtml`, `escapeJson`)
+- File upload handling (`isRawUploadRequest`, `readUploadedEmlBytes`, `persistUploadedEml`)
+- Case configuration building (`buildCaseConfig`)
+- Shared Gson instances with exclusion strategies
+
+### Handler Interface
+
+All handlers implement or follow the `ApiHandler` interface pattern:
+
+```java
+public interface ApiHandler {
+    void handle(HttpExchange exchange) throws IOException;
+    String getPath();
+}
+```
+
+This enables consistent registration and potential future plugin-based endpoint extensions.
+

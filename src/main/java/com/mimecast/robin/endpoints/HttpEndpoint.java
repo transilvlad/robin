@@ -79,7 +79,7 @@ public abstract class HttpEndpoint {
      * @param json     JSON payload.
      * @throws IOException If an I/O error occurs.
      */
-    protected void sendJson(HttpExchange exchange, int code, String json) throws IOException {
+    void sendJson(HttpExchange exchange, int code, String json) throws IOException {
         exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
         byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
         exchange.sendResponseHeaders(code, bytes.length);
@@ -97,7 +97,7 @@ public abstract class HttpEndpoint {
      * @param html     HTML payload.
      * @throws IOException If an I/O error occurs.
      */
-    protected void sendHtml(HttpExchange exchange, int code, String html) throws IOException {
+    void sendHtml(HttpExchange exchange, int code, String html) throws IOException {
         exchange.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
         byte[] bytes = html.getBytes(StandardCharsets.UTF_8);
         exchange.sendResponseHeaders(code, bytes.length);
@@ -115,7 +115,7 @@ public abstract class HttpEndpoint {
      * @param text     Plain text payload.
      * @throws IOException If an I/O error occurs.
      */
-    protected void sendText(HttpExchange exchange, int code, String text) throws IOException {
+    void sendText(HttpExchange exchange, int code, String text) throws IOException {
         exchange.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
         byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
         exchange.sendResponseHeaders(code, bytes.length);
@@ -168,7 +168,7 @@ public abstract class HttpEndpoint {
      * @return The content of the file as a string.
      * @throws IOException If the resource is not found or cannot be read.
      */
-    protected String readResourceFile(String path) throws IOException {
+    String readResourceFile(String path) throws IOException {
         try (InputStream is = getClass().getClassLoader().getResourceAsStream(path)) {
             if (is == null) {
                 throw new IOException("Resource not found: " + path);

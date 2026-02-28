@@ -84,32 +84,76 @@ class ApiEndpointStoreMutationsTest {
     @Test
     void testFolderAndProperties() throws Exception {
         HttpResponse<String> create = sendJson("POST", "/store/" + DOMAIN + "/" + USER + "/folders",
-                "{\"name\":\"Projects\"}");
+                "{\"parent\":\"inbox\",\"name\":\"Projects\"}");
         assertEquals(200, create.statusCode());
         assertTrue(create.body().contains("\"Folder created.\""));
+        assertTrue(Files.isDirectory(userRoot.resolve(".Projects").resolve("new")));
+        assertTrue(Files.isDirectory(userRoot.resolve(".Projects").resolve("cur")));
+        assertTrue(Files.isDirectory(userRoot.resolve(".Projects").resolve("tmp")));
+        assertTrue(!Files.exists(userRoot.resolve("inbox")));
 
-        Path eml = userRoot.resolve("Projects").resolve("new").resolve("msg1.eml");
+        Path eml = userRoot.resolve(".Projects").resolve("new").resolve("msg1.eml");
         Files.createDirectories(eml.getParent());
         Files.writeString(eml, "Subject: one\r\n\r\nBody", StandardCharsets.UTF_8);
 
-        HttpResponse<String> rename = sendJson("PATCH", "/store/" + DOMAIN + "/" + USER + "/folders/Projects",
+        HttpResponse<String> rename = sendJson("PATCH", "/store/" + DOMAIN + "/" + USER + "/folders/.Projects",
                 "{\"name\":\"ProjectsRenamed\"}");
         assertEquals(200, rename.statusCode());
         assertTrue(rename.body().contains("\"Folder renamed.\""));
 
-        HttpResponse<String> props = send("GET", "/store/" + DOMAIN + "/" + USER + "/folders/ProjectsRenamed/properties", null, null);
+        HttpResponse<String> props = send("GET", "/store/" + DOMAIN + "/" + USER + "/folders/.ProjectsRenamed/properties", null, null);
         assertEquals(200, props.statusCode());
         @SuppressWarnings("unchecked")
         Map<String, Object> propsMap = gson.fromJson(props.body(), Map.class);
         assertEquals(1.0, propsMap.get("r"));
         assertEquals(1.0, propsMap.get("total"));
         assertEquals(1.0, propsMap.get("unread"));
+
+        HttpResponse<String> createParent = sendJson("POST", "/store/" + DOMAIN + "/" + USER + "/folders",
+                "{\"name\":\"Trash\"}");
+        assertEquals(200, createParent.statusCode());
+        HttpResponse<String> createChild = sendJson("POST", "/store/" + DOMAIN + "/" + USER + "/folders",
+                "{\"parent\":\".Trash\",\"name\":\"New\"}");
+        assertEquals(200, createChild.statusCode());
+        assertTrue(Files.isDirectory(userRoot.resolve(".Trash").resolve(".New").resolve("new")));
+        assertTrue(Files.isDirectory(userRoot.resolve(".Trash").resolve(".New").resolve("cur")));
+        assertTrue(Files.isDirectory(userRoot.resolve(".Trash").resolve(".New").resolve("tmp")));
+    }
+
+    @Test
+    void testFolderPropertiesUnreadIsScopedToFolder() throws Exception {
+        Path inboxNew = userRoot.resolve("new");
+        Path trashNew = userRoot.resolve(".Trash").resolve("new");
+        Path trashCur = userRoot.resolve(".Trash").resolve("cur");
+        Files.createDirectories(inboxNew);
+        Files.createDirectories(trashNew);
+        Files.createDirectories(trashCur);
+
+        Files.writeString(trashNew.resolve("unread-in-trash.eml"), "Subject: trash\r\n\r\nBody", StandardCharsets.UTF_8);
+
+        HttpResponse<String> inboxProps = send("GET",
+                "/store/" + DOMAIN + "/" + USER + "/folders/inbox/properties",
+                null, null);
+        assertEquals(200, inboxProps.statusCode());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> inboxMap = gson.fromJson(inboxProps.body(), Map.class);
+        assertEquals(0.0, inboxMap.get("unread"));
+        assertEquals(0.0, inboxMap.get("total"));
+
+        HttpResponse<String> trashProps = send("GET",
+                "/store/" + DOMAIN + "/" + USER + "/folders/.Trash/properties",
+                null, null);
+        assertEquals(200, trashProps.statusCode());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> trashMap = gson.fromJson(trashProps.body(), Map.class);
+        assertEquals(1.0, trashMap.get("unread"));
+        assertEquals(1.0, trashMap.get("total"));
     }
 
     @Test
     void testMessageOperations() throws Exception {
-        Path inboxNew = userRoot.resolve("inbox").resolve("new");
-        Path inboxCur = userRoot.resolve("inbox").resolve("cur");
+        Path inboxNew = userRoot.resolve("new");
+        Path inboxCur = userRoot.resolve("cur");
         Path trashNew = userRoot.resolve(".Trash").resolve("new");
         Files.createDirectories(inboxNew);
         Files.createDirectories(inboxCur);

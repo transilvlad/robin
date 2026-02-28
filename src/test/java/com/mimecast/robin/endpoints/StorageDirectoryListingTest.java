@@ -29,7 +29,7 @@ class StorageDirectoryListingTest {
     void testGenerateItemsForEmptyDirectory() throws IOException {
         String items = listing.generateItems(testBasePath, "");
         assertNotNull(items);
-        assertEquals("", items.trim()); // Should be empty since no .eml files or directories with .eml files
+        assertEquals("", items.trim());
     }
 
     @Test
@@ -62,7 +62,7 @@ class StorageDirectoryListingTest {
     }
 
     @Test
-    void testGenerateItemsIgnoresEmptyDirectory() throws IOException {
+    void testGenerateItemsIncludesEmptyDirectory() throws IOException {
         // Create an empty subdirectory
         Path emptyDir = testBasePath.resolve("empty");
         Files.createDirectories(emptyDir);
@@ -70,7 +70,23 @@ class StorageDirectoryListingTest {
         String items = listing.generateItems(testBasePath, "");
 
         assertNotNull(items);
-        assertFalse(items.contains("empty")); // Should not include empty directory
+        assertTrue(items.contains("empty"));
+    }
+
+    @Test
+    void testGenerateItemsIncludesMaildirInternalDirectories() throws IOException {
+        Files.createDirectories(testBasePath.resolve("new"));
+        Files.createDirectories(testBasePath.resolve("cur"));
+        Files.createDirectories(testBasePath.resolve("tmp"));
+        Files.createDirectories(testBasePath.resolve(".Reports"));
+
+        String items = listing.generateItems(testBasePath, "");
+
+        assertNotNull(items);
+        assertTrue(items.contains(">new<"));
+        assertTrue(items.contains(">cur<"));
+        assertTrue(items.contains(">tmp<"));
+        assertTrue(items.contains(".Reports"));
     }
 
     @Test

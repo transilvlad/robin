@@ -68,6 +68,10 @@ class ApiEndpointStoreJsonTest {
         testRoot = storageRoot.resolve("api-store-json-test");
         Files.createDirectories(testRoot);
         Files.createDirectories(testRoot.resolve("inbox"));
+        Files.createDirectories(testRoot.resolve("empty-folder"));
+        Files.createDirectories(testRoot.resolve("new"));
+        Files.createDirectories(testRoot.resolve("cur"));
+        Files.createDirectories(testRoot.resolve("tmp"));
         Files.writeString(testRoot.resolve("inbox/test.eml"), "Subject: API Test\n\nHello JSON", StandardCharsets.UTF_8);
         Files.writeString(testRoot.resolve("ignore.txt"), "ignore", StandardCharsets.UTF_8);
     }
@@ -106,6 +110,10 @@ class ApiEndpointStoreJsonTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> items = (List<Map<String, Object>>) map.get("items");
         assertTrue(items.stream().anyMatch(i -> "dir".equals(i.get("type")) && "inbox".equals(i.get("name"))));
+        assertTrue(items.stream().anyMatch(i -> "dir".equals(i.get("type")) && "empty-folder".equals(i.get("name"))));
+        assertTrue(items.stream().anyMatch(i -> "dir".equals(i.get("type")) && "new".equals(i.get("name"))));
+        assertTrue(items.stream().anyMatch(i -> "dir".equals(i.get("type")) && "cur".equals(i.get("name"))));
+        assertTrue(items.stream().anyMatch(i -> "dir".equals(i.get("type")) && "tmp".equals(i.get("name"))));
         assertTrue(items.stream().noneMatch(i -> "ignore.txt".equals(i.get("name"))));
     }
 

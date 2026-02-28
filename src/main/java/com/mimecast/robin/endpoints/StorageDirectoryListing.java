@@ -12,8 +12,8 @@ import java.util.stream.Stream;
 
 /**
  * Directory listing generator for the storage browser.
- * <p>Generates HTML content for directory listings, showing only .eml files and
- * directories that contain .eml files (recursively).
+ * <p>Generates HTML content for directory listings, showing .eml files and all
+ * directories, including Maildir internals (<code>cur</code>, <code>new</code>, <code>tmp</code>).
  */
 public class StorageDirectoryListing {
     private static final Logger log = LogManager.getLogger(StorageDirectoryListing.class);
@@ -54,9 +54,7 @@ public class StorageDirectoryListing {
         for (Path child : children) {
             String name = child.getFileName().toString();
             if (Files.isDirectory(child)) {
-                if (containsEmlFiles(child)) {
-                    addDirectoryItem(items, name, relativePath);
-                }
+                addDirectoryItem(items, name, relativePath);
             } else if (isEmlFile(child)) {
                 addFileItem(items, child, name, relativePath);
             }
@@ -117,18 +115,6 @@ public class StorageDirectoryListing {
     private boolean isEmlFile(Path path) {
         return Files.isRegularFile(path) &&
                path.getFileName().toString().toLowerCase().endsWith(".eml");
-    }
-
-    /**
-     * Checks recursively whether a directory contains any .eml files.
-     */
-    private boolean containsEmlFiles(Path dir) {
-        try (Stream<Path> walk = Files.walk(dir)) {
-            return walk.anyMatch(this::isEmlFile);
-        } catch (IOException e) {
-            log.debug("containsEmlFiles check failed for {}: {}", dir, e.getMessage());
-            return false;
-        }
     }
 
     /**
