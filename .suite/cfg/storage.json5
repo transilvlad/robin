@@ -16,7 +16,7 @@
   disableRenameHeader: true,
 
   // Path to storage folder.
-  path: "/usr/local/robin/store/robin/",
+  path: "/usr/local/robin/store/",
 
   // Folder for inbound emails. Leave empty to disable. Default: new
   inboundFolder: "new",

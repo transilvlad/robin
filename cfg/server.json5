@@ -132,7 +132,7 @@
   keystorepassword: "avengers",
 
   // Java truststore (default: /usr/local/truststore.jks).
-  truststore: "/usr/local/robin/truststore.jks",
+  truststore: "/opt/java/openjdk/lib/security/cacerts",
 
   // Truststore password or path to password file.
   truststorepassword: "avengers",
