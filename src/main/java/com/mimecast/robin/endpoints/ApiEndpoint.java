@@ -15,12 +15,16 @@ import com.mimecast.robin.queue.QueueFiles;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.session.Session;
+import com.mimecast.robin.user.endpoint.DkimEndpoint;
+import com.mimecast.robin.user.repository.DkimKeyRepository;
 import com.mimecast.robin.util.GsonExclusionStrategy;
 import com.mimecast.robin.util.Magic;
 import com.mimecast.robin.util.PathUtils;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -50,6 +54,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import java.util.function.Supplier;
 
 /**
  * API endpoint for case submission and queue management.
@@ -104,6 +109,8 @@ public class ApiEndpoint extends HttpEndpoint {
      * Queue operations handler for managing queue-related requests.
      */
     private QueueOperationsHandler queueHandler;
+    private DkimEndpoint dkimEndpoint;
+    private HikariDataSource dkimDataSource;
     private String storagePathOverride;
     private String dkimConfigPathOverride;
 
@@ -141,6 +148,9 @@ public class ApiEndpoint extends HttpEndpoint {
                 .setPrettyPrinting()
                 .create();
 
+        Supplier<DkimKeyRepository> dkimRepositorySupplier = buildDkimRepositorySupplier(config);
+        this.dkimEndpoint = new DkimEndpoint(this.auth, dkimRepositorySupplier);
+
         // Bind the HTTP server to the configured API port.
         int apiPort = config.getPort(8090);
         HttpServer server = HttpServer.create(new InetSocketAddress(apiPort), 10);
@@ -172,6 +182,9 @@ public class ApiEndpoint extends HttpEndpoint {
 
         // DKIM config endpoint.
         server.createContext("/config/dkim", this::handleConfigDkim);
+        // DKIM key management endpoints.
+        server.createContext("/domains", dkimEndpoint::handle);
+        server.createContext("/api/v1/domains", dkimEndpoint::handle);
 
         // User integration endpoints.
         server.createContext("/users", this::handleUsers);
@@ -193,12 +206,31 @@ public class ApiEndpoint extends HttpEndpoint {
         log.info("Queue bounce available at http://localhost:{}/client/queue/bounce", apiPort);
         log.info("Logs available at http://localhost:{}/logs", apiPort);
         log.info("DKIM config available at http://localhost:{}/config/dkim", apiPort);
+        log.info("DKIM domain API available at http://localhost:{}/domains/{{domain}}/dkim/*", apiPort);
+        log.info("DKIM domain API available at http://localhost:{}/api/v1/domains/{{domain}}/dkim/*", apiPort);
         log.info("Users available at http://localhost:{}/users", apiPort);
         log.info("Store available at http://localhost:{}/store/", apiPort);
         log.info("Health available at http://localhost:{}/health", apiPort);
         if (auth.isAuthEnabled()) {
             log.info("Authentication is enabled");
         }
+    }
+
+    private Supplier<DkimKeyRepository> buildDkimRepositorySupplier(EndpointConfig config) {
+        String jdbcUrl = config.getStringProperty("dkimJdbcUrl");
+        if (jdbcUrl != null && !jdbcUrl.isBlank()) {
+            HikariConfig hikariConfig = new HikariConfig();
+            hikariConfig.setJdbcUrl(jdbcUrl.trim());
+            hikariConfig.setUsername(config.getStringProperty("dkimJdbcUser", ""));
+            hikariConfig.setPassword(config.getStringProperty("dkimJdbcPassword", ""));
+            hikariConfig.setMaximumPoolSize(4);
+            hikariConfig.setPoolName("RobinDkimEndpointPool");
+            this.dkimDataSource = new HikariDataSource(hikariConfig);
+            log.info("Using dedicated DKIM datasource for endpoint: {}", jdbcUrl);
+            return () -> new DkimKeyRepository(dkimDataSource);
+        }
+
+        return () -> new DkimKeyRepository(SharedDataSource.getDataSource());
     }
 
     /**

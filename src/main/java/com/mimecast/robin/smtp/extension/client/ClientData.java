@@ -1,6 +1,7 @@
 package com.mimecast.robin.smtp.extension.client;
 
 import com.mimecast.robin.config.client.LoggingConfig;
+import com.mimecast.robin.db.SharedDataSource;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.mime.EmailBuilder;
 import com.mimecast.robin.smtp.MessageEnvelope;
@@ -8,6 +9,8 @@ import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.io.ChunkedInputStream;
 import com.mimecast.robin.smtp.io.MagicInputStream;
 import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
+import com.mimecast.robin.user.repository.DkimKeyRepository;
+import com.mimecast.robin.user.service.DkimSigningService;
 import com.mimecast.robin.util.Magic;
 import com.mimecast.robin.util.StreamUtils;
 import org.apache.commons.io.input.BoundedInputStream;
@@ -127,6 +130,8 @@ public class ClientData extends ClientProcessor {
             }
         }
 
+        inputStream = applyDkimSigning(inputStream, envelope);
+
         return inputStream;
     }
 
@@ -243,6 +248,42 @@ public class ClientData extends ClientProcessor {
         }
 
         return read.startsWith("250");
+    }
+
+    /**
+     * Applies DKIM signing to the outbound stream when enabled.
+     *
+     * <p>Signing is skipped when:
+     * <ul>
+     *   <li>{@code inputStream} is null (no message body)</li>
+     *   <li>The system property {@code dkim.signing.enabled} is not {@code true}</li>
+     *   <li>No shared {@link com.zaxxer.hikari.HikariDataSource} is available</li>
+     * </ul>
+     *
+     * @param inputStream raw email stream (may be null)
+     * @param envelope    current message envelope
+     * @return signed stream, or original stream unchanged
+     */
+    protected InputStream applyDkimSigning(InputStream inputStream, MessageEnvelope envelope) {
+        if (inputStream == null) return null;
+        if (!Config.getProperties().getBooleanProperty("dkim.signing.enabled", false)) return inputStream;
+
+        var dataSource = SharedDataSource.getDataSource();
+        if (dataSource == null) return inputStream;
+
+        String mailFrom = envelope.getMailFrom();
+        if (mailFrom == null || mailFrom.isBlank()) return inputStream;
+
+        String domain = mailFrom.contains("@") ? mailFrom.substring(mailFrom.indexOf('@') + 1) : mailFrom;
+        domain = domain.replace(">", "").strip();
+
+        try {
+            var service = new DkimSigningService(new DkimKeyRepository(dataSource), null);
+            return service.sign(inputStream, domain);
+        } catch (Exception e) {
+            log.warn("DKIM signing failed for domain {}: {}", domain, e.getMessage());
+            return inputStream;
+        }
     }
 
     /**

@@ -11,6 +11,7 @@ import com.mimecast.robin.queue.RelayQueueCron;
 import com.mimecast.robin.smtp.SmtpListener;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.mimecast.robin.storage.LmtpConnectionPool;
+import com.mimecast.robin.user.config.DkimSchema;
 import com.mimecast.robin.storage.StorageCleaner;
 import com.mimecast.robin.util.VaultClient;
 import com.mimecast.robin.util.VaultClientFactory;
@@ -195,6 +196,8 @@ public class Server extends Foundation {
             if (dovecotConfig.isAuthSqlEnabled()) {
                 // Initialize shared pool (lazy init in SharedDataSource.getDataSource())
                 var ds = SharedDataSource.getDataSource();
+                // Ensure DKIM tables exist when PostgreSQL auth backend is in use.
+                DkimSchema.apply(ds);
                 // Initialize shared Sql providers for auth and user lookup
                 SqlAuthManager.init(ds);
             }

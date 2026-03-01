@@ -1,0 +1,25 @@
+{
+  dkim: {
+    signing: {
+      enabled: true,
+      algorithm: "RSA_2048",         // RSA_2048 | ED25519 | DUAL
+      defaultSelector: "YYYYMMDD",
+      selectorPattern: "date",       // date | sequential | custom
+    },
+    rotation: {
+      strategy: "MANUAL",            // MANUAL | AUTO | DUAL_ALGO | SERVICE_SCOPED
+      prePublishDays: 7,
+      overlapDays: 7,
+      rotationIntervalDays: 180,
+      alertDaysBeforeExpiry: 30,
+    },
+    detection: {
+      enabled: true,
+      probeTimeoutMs: 500,
+      maxConcurrentProbes: 10,
+    },
+    privateKey: {
+      encryptionEnabled: true,
+    },
+  },
+}
