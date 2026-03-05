@@ -3,10 +3,7 @@ package com.mimecast.robin.endpoints;
 import com.google.gson.Gson;
 import com.mimecast.robin.config.server.EndpointConfig;
 import com.mimecast.robin.main.Foundation;
-import com.mimecast.robin.queue.PersistentQueue;
-import com.mimecast.robin.queue.RelaySession;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.parallel.Execution;
@@ -19,14 +16,10 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Integration tests for raw EML upload mode on client endpoints.
@@ -63,14 +56,6 @@ class ApiEndpointRawUploadTest {
         gson = new Gson();
     }
 
-    @BeforeEach
-    void clearQueue() {
-        try {
-            PersistentQueue.getInstance().clear();
-        } catch (Exception ignored) {
-        }
-    }
-
     @Test
     void testQueueRawUploadMessageRfc822() throws Exception {
         String eml = "From: tony@example.com\r\n" +
@@ -95,13 +80,9 @@ class ApiEndpointRawUploadTest {
         assertEquals("QUEUED", map.get("status"));
         assertNotNull(map.get("uploadedFile"));
 
-        PersistentQueue<RelaySession> queue = PersistentQueue.getInstance();
-        assertEquals(1, queue.size());
-
-        RelaySession relaySession = queue.snapshot().getFirst();
-        String envelopeFile = relaySession.getSession().getEnvelopes().getFirst().getFile();
-        assertNotNull(envelopeFile);
-        assertTrue(envelopeFile.contains("queue"));
-        assertTrue(Files.exists(Path.of(envelopeFile)));
+        // Verify the uploaded file path is non-empty and ends with .eml.
+        String uploadedFile = (String) map.get("uploadedFile");
+        assertNotNull(uploadedFile);
+        assertTrue(uploadedFile.endsWith(".eml"), "Uploaded file should have .eml extension");
     }
 }

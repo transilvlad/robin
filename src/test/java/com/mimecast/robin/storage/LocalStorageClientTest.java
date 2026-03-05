@@ -121,7 +121,6 @@ class LocalStorageClientTest {
         if (param != 0) {
             try {
                 PersistentQueue.getInstance().dequeue();
-                PersistentQueue.getInstance().close();
             } catch (Exception ignored) {}
         }
     }

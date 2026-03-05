@@ -1,31 +1,34 @@
 package com.mimecast.robin.storage;
 
 import com.mimecast.robin.main.Config;
-import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.main.Foundation;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.session.EmailDirection;
 import com.mimecast.robin.smtp.session.Session;
-import com.mimecast.robin.util.PathUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 import javax.naming.ConfigurationException;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@Execution(ExecutionMode.SAME_THREAD)
+@ResourceLock(value = "storage-config", mode = ResourceAccessMode.READ_WRITE)
 class LocalStorageProcessorTest {
 
     private static final String TEST_EMAIL_CONTENT = "From: sender@example.com\r\n" +
@@ -50,14 +53,16 @@ class LocalStorageProcessorTest {
                 if (file.exists()) {
                     file.delete();
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
 
         // Clean up directories (in reverse order)
         for (int i = dirsToCleanup.size() - 1; i >= 0; i--) {
             try {
                 Files.deleteIfExists(dirsToCleanup.get(i));
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
 
         filesToCleanup.clear();
@@ -69,11 +74,11 @@ class LocalStorageProcessorTest {
         // Setup
         Config.getServer().getStorage().getMap().put("localMailbox", false);
         LocalStorageProcessor processor = new LocalStorageProcessor();
-        
+
         Connection connection = new Connection(new Session());
         MessageEnvelope envelope = new MessageEnvelope().addRcpt("recipient@example.com");
         connection.getSession().addEnvelope(envelope);
-        
+
         // Create test file
         Path tmpFile = Files.createTempFile("test-email-", ".eml");
         filesToCleanup.add(tmpFile.toFile());
@@ -83,7 +88,7 @@ class LocalStorageProcessorTest {
         // Process
         try (EmailParser parser = new EmailParser(tmpFile.toString()).parse()) {
             boolean result = processor.process(connection, parser);
-            
+
             // Should return true (success) but not create any files
             assertTrue(result);
         }
@@ -99,20 +104,20 @@ class LocalStorageProcessorTest {
         Config.getServer().getStorage().getMap().put("inboundFolder", "new");
 
         LocalStorageProcessor processor = new LocalStorageProcessor();
-        
+
         Connection connection = new Connection(new Session());
         connection.getSession().setDirection(EmailDirection.INBOUND);
         MessageEnvelope envelope = new MessageEnvelope()
                 .addRcpt("user1@example.com")
                 .addRcpt("user2@example.com");
         connection.getSession().addEnvelope(envelope);
-        
+
         // Create test file in tmp directory
         Path tmpDir = Paths.get(basePath, "tmp", "new");
         Files.createDirectories(tmpDir);
         dirsToCleanup.add(tmpDir);
         dirsToCleanup.add(tmpDir.getParent());
-        
+
         Path tmpFile = tmpDir.resolve("test-email.eml");
         Files.writeString(tmpFile, TEST_EMAIL_CONTENT);
         filesToCleanup.add(tmpFile.toFile());
@@ -122,23 +127,23 @@ class LocalStorageProcessorTest {
         try (EmailParser parser = new EmailParser(tmpFile.toString()).parse()) {
             boolean result = processor.process(connection, parser);
             assertTrue(result);
-            
+
             // Verify files were created for each recipient in inboundFolder
             Path user1File = Paths.get(basePath, "example.com", "user1", "new", "test-email.eml");
             Path user2File = Paths.get(basePath, "example.com", "user2", "new", "test-email.eml");
-            
+
             assertTrue(Files.exists(user1File), "File should exist for user1");
             assertTrue(Files.exists(user2File), "File should exist for user2");
-            
+
             // Verify content includes Received header
             String user1Content = Files.readString(user1File);
             assertTrue(user1Content.contains("Received:"), "Should have Received header");
             assertTrue(user1Content.contains("for <user1@example.com>"), "Should have recipient in Received header");
             assertTrue(user1Content.contains(TEST_EMAIL_CONTENT), "Should have original email content");
-            
+
             String user2Content = Files.readString(user2File);
             assertTrue(user2Content.contains("for <user2@example.com>"), "Should have recipient in Received header");
-            
+
             // Cleanup
             filesToCleanup.add(user1File.toFile());
             filesToCleanup.add(user2File.toFile());
@@ -160,7 +165,7 @@ class LocalStorageProcessorTest {
         Config.getServer().getStorage().getMap().put("outboundFolder", ".Sent/new");
 
         LocalStorageProcessor processor = new LocalStorageProcessor();
-        
+
         Connection connection = new Connection(new Session());
         connection.getSession().setDirection(EmailDirection.OUTBOUND);
         MessageEnvelope envelope = new MessageEnvelope()
@@ -168,14 +173,14 @@ class LocalStorageProcessorTest {
                 .addRcpt("recipient1@remote.com")
                 .addRcpt("recipient2@remote.com");
         connection.getSession().addEnvelope(envelope);
-        
+
         // Create test file in tmp directory
         Path tmpDir = Paths.get(basePath, "tmp", ".Sent", "new");
         Files.createDirectories(tmpDir);
         dirsToCleanup.add(tmpDir);
         dirsToCleanup.add(tmpDir.getParent());
         dirsToCleanup.add(tmpDir.getParent().getParent());
-        
+
         Path tmpFile = tmpDir.resolve("test-email.eml");
         Files.writeString(tmpFile, TEST_EMAIL_CONTENT);
         filesToCleanup.add(tmpFile.toFile());
@@ -185,22 +190,22 @@ class LocalStorageProcessorTest {
         try (EmailParser parser = new EmailParser(tmpFile.toString()).parse()) {
             boolean result = processor.process(connection, parser);
             assertTrue(result);
-            
+
             // Verify file was created only once for sender in outboundFolder
             Path senderFile = Paths.get(basePath, "example.com", "sender", ".Sent", "new", "test-email.eml");
-            
+
             assertTrue(Files.exists(senderFile), "File should exist in sender's outbound folder");
-            
+
             // Verify no files for recipients (they are remote)
             Path recipient1File = Paths.get(basePath, "remote.com", "recipient1", ".Sent", "new", "test-email.eml");
             assertFalse(Files.exists(recipient1File), "Should not create file for remote recipient");
-            
+
             // Verify content includes Received header without "for" clause
             String senderContent = Files.readString(senderFile);
             assertTrue(senderContent.contains("Received:"), "Should have Received header");
             assertFalse(senderContent.contains("for <"), "Should not have 'for' clause in outbound Received header");
             assertTrue(senderContent.contains(TEST_EMAIL_CONTENT), "Should have original email content");
-            
+
             // Cleanup
             filesToCleanup.add(senderFile.toFile());
             dirsToCleanup.add(senderFile.getParent());
@@ -215,14 +220,14 @@ class LocalStorageProcessorTest {
         // Setup
         Config.getServer().getStorage().getMap().put("localMailbox", true);
         LocalStorageProcessor processor = new LocalStorageProcessor();
-        
+
         Connection connection = new Connection(new Session());
         // No envelopes added
-        
+
         // Process
         try (EmailParser parser = new EmailParser("dummy").parse()) {
             boolean result = processor.process(connection, parser);
-            
+
             // Should return true (success) with warning
             assertTrue(result);
         } catch (Exception e) {
@@ -236,7 +241,7 @@ class LocalStorageProcessorTest {
         // Setup
         Config.getServer().getStorage().getMap().put("localMailbox", true);
         LocalStorageProcessor processor = new LocalStorageProcessor();
-        
+
         Connection connection = new Connection(new Session());
         MessageEnvelope envelope = new MessageEnvelope().addRcpt("recipient@example.com");
         connection.getSession().addEnvelope(envelope);
@@ -245,7 +250,7 @@ class LocalStorageProcessorTest {
         // Process
         try (EmailParser parser = new EmailParser("dummy").parse()) {
             boolean result = processor.process(connection, parser);
-            
+
             // Should return false (failure)
             assertFalse(result);
         } catch (Exception e) {
@@ -263,19 +268,19 @@ class LocalStorageProcessorTest {
         Config.getServer().getStorage().getMap().put("path", basePath);
 
         LocalStorageProcessor processor = new LocalStorageProcessor();
-        
+
         Connection connection = new Connection(new Session());
         connection.getSession().setDirection(EmailDirection.INBOUND);
         MessageEnvelope envelope = new MessageEnvelope()
                 .addRcpt("invalid-email-format");  // No @ sign
         connection.getSession().addEnvelope(envelope);
-        
+
         // Create test file
         Path tmpDir = Paths.get(basePath, "tmp", "new");
         Files.createDirectories(tmpDir);
         dirsToCleanup.add(tmpDir);
         dirsToCleanup.add(tmpDir.getParent());
-        
+
         Path tmpFile = tmpDir.resolve("test-email.eml");
         Files.writeString(tmpFile, TEST_EMAIL_CONTENT);
         filesToCleanup.add(tmpFile.toFile());
@@ -284,7 +289,7 @@ class LocalStorageProcessorTest {
         // Process
         try (EmailParser parser = new EmailParser(tmpFile.toString()).parse()) {
             boolean result = processor.process(connection, parser);
-            
+
             // Should still return true (success) but skip invalid email
             assertTrue(result);
         }
