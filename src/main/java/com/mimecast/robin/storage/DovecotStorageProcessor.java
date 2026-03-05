@@ -1,9 +1,11 @@
 package com.mimecast.robin.storage;
 
+import com.mimecast.robin.auth.SqlAuthManager;
 import com.mimecast.robin.config.server.ServerConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.main.Server;
+import com.mimecast.robin.sasl.SqlUserLookup;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.headers.ChaosHeaders;
 import com.mimecast.robin.queue.PersistentQueue;
@@ -21,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * DovecotStorageProcessor delivers emails to user mailboxes using either LDA or LMTP backends.
@@ -103,6 +106,10 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
             log.debug("All recipients are bot addresses, skipping LMTP processing.");
             return;
         }
+
+        // Resolve aliases before delivery so emails go to the correct mailbox.
+        nonBotRecipients = resolveAliases(nonBotRecipients);
+
         log.info("Invoking LMTP delivery for sender={} recipients={} outbound={}",
                 envelope.getMail(),
                 String.join(",", nonBotRecipients),
@@ -225,6 +232,10 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
             log.debug("All recipients are bot addresses, skipping Dovecot LDA processing");
             return;
         }
+
+        // Resolve aliases before delivery so emails go to the correct mailbox.
+        nonBotRecipients = resolveAliases(nonBotRecipients);
+
         String folder = connection.getSession().isInbound()
                 ? config.getDovecot().getSaveLda().getInboxFolder()
                 : config.getDovecot().getSaveLda().getSentFolder();
@@ -290,6 +301,31 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
             log.error("Dovecot LDA complete delivery failure");
             throw new IOException("Storage unable to save to Dovecot LDA");
         }
+    }
+
+    /**
+     * Resolves aliases for a list of recipient addresses using SQL lookup.
+     * If no SQL lookup is configured, returns the original list unchanged.
+     *
+     * @param recipients List of recipient email addresses.
+     * @return List with aliases resolved to real destination addresses.
+     */
+    private List<String> resolveAliases(List<String> recipients) {
+        SqlUserLookup lookup = SqlAuthManager.getUserLookup();
+        if (lookup == null) {
+            return recipients;
+        }
+        List<String> resolved = new ArrayList<>();
+        for (String recipient : recipients) {
+            Optional<String> alias = lookup.resolveAlias(recipient);
+            if (alias.isPresent()) {
+                log.debug("Resolved alias {} -> {}", recipient, alias.get());
+                resolved.add(alias.get());
+            } else {
+                resolved.add(recipient);
+            }
+        }
+        return resolved;
     }
 
     /**

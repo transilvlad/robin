@@ -125,6 +125,13 @@
   // Advertise CHUNKING support (default: true).
   chunking: true,
 
+  // PEM certificate file path (alternative to JKS keystore).
+  // If both pemCert and pemKey are set, they take precedence over keystore.
+  pemCert: "",
+
+  // PEM private key file path (PKCS8 format).
+  pemKey: "",
+
   // Java keystore (default: /usr/local/keystore.jks).
   keystore: "src/test/resources/keystore.jks",
 

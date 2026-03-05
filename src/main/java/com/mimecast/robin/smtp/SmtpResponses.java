@@ -187,6 +187,11 @@ public final class SmtpResponses {
     public static final String SPAM_FOUND_550 = "541 5.7.1 Spam detected [%s]";
 
     /**
+     * 550 Domain not served here.
+     */
+    public static final String UNKNOWN_DOMAIN_550 = "550 5.1.2 Domain not served here [%s]";
+
+    /**
      * 550 Unknown destination mailbox address.
      */
     public static final String UNKNOWN_MAILBOX_550 = "550 5.1.1 Unknown destination mailbox address [%s]";

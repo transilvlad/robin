@@ -101,6 +101,20 @@ public class DovecotConfig extends BasicConfig {
     }
 
     /**
+     * Gets SQL query to check if a domain is served.
+     *
+     * @return SQL query string (empty means skip domain check).
+     */
+    public String getAuthSqlDomainQuery() { return getStringProperty("authSql.domainQuery", ""); }
+
+    /**
+     * Gets SQL query to resolve aliases to real destination addresses.
+     *
+     * @return SQL query string (empty means skip alias resolution).
+     */
+    public String getAuthSqlAliasQuery() { return getStringProperty("authSql.aliasQuery", ""); }
+
+    /**
      * Gets LMTP backend configuration.
      *
      * @return SaveLmtp instance with LMTP settings.

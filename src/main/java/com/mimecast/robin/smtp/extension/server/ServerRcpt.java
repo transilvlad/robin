@@ -93,7 +93,20 @@ public class ServerRcpt extends ServerMail {
                         return false;
                     }
                     try {
-                        if (lookup.lookup(new MailVerb(verb).getAddress().getAddress()).isEmpty()) {
+                        String recipientEmail = new MailVerb(verb).getAddress().getAddress();
+
+                        // Domain check: reject if the domain is not served here.
+                        String domain = recipientEmail.substring(recipientEmail.indexOf('@') + 1);
+                        if (!lookup.isDomainServed(domain)) {
+                            connection.write(String.format(SmtpResponses.UNKNOWN_DOMAIN_550, connection.getSession().getUID()));
+                            return false;
+                        }
+
+                        // Alias resolution: resolve alias to real destination.
+                        Optional<String> alias = lookup.resolveAlias(recipientEmail);
+                        String resolvedEmail = alias.orElse(recipientEmail);
+
+                        if (lookup.lookup(resolvedEmail).isEmpty()) {
                             connection.write(String.format(SmtpResponses.UNKNOWN_MAILBOX_550, connection.getSession().getUID()));
                             return false;
                         }

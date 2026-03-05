@@ -208,6 +208,24 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
+     * Gets PEM certificate file path.
+     *
+     * @return PEM certificate path, or empty string if not configured.
+     */
+    public String getPemCertPath() {
+        return getStringProperty("pemCert", "");
+    }
+
+    /**
+     * Gets PEM private key file path.
+     *
+     * @return PEM private key path, or empty string if not configured.
+     */
+    public String getPemKeyPath() {
+        return getStringProperty("pemKey", "");
+    }
+
+    /**
      * Gets trust store.
      *
      * @return Trust store path.

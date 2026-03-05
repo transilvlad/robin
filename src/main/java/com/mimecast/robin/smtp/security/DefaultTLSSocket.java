@@ -124,7 +124,8 @@ public class DefaultTLSSocket implements TLSSocket {
         KeyManager[] km = null;
         if (!client) {
             KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
-            KeyStore ks = KeyStore.getInstance("JKS");
+            String storeType = Config.getProperties().getStringProperty("javax.net.ssl.keyStoreType", "JKS");
+            KeyStore ks = KeyStore.getInstance(storeType);
 
             // Load keystore.
             ks.load(getKeyStore(), getKeyStorePassword());

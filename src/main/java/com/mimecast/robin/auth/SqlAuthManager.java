@@ -28,8 +28,10 @@ public final class SqlAuthManager {
             var dovecot = Config.getServer().getDovecot();
             String authQuery = dovecot.getAuthSqlPasswordQuery();
             String userQuery = dovecot.getAuthSqlUserQuery();
+            String domainQuery = dovecot.getAuthSqlDomainQuery();
+            String aliasQuery = dovecot.getAuthSqlAliasQuery();
             authProvider = new SqlAuthProvider(ds, authQuery);
-            userLookup = new SqlUserLookup(ds, userQuery);
+            userLookup = new SqlUserLookup(ds, userQuery, domainQuery, aliasQuery);
             log.info("SqlAuthManager initialized with shared datasource");
         } catch (Exception e) {
             log.error("Failed to initialize SqlAuthManager: {}", e.getMessage());

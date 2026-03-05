@@ -4,7 +4,13 @@
     enabled: false,
 
     // Query to list users for integration API.
-    usersQuery: "SELECT email FROM users"
+    usersQuery: "SELECT email FROM users",
+
+    // Query to check if a domain is served (returns any row if served).
+    domainQuery: "",
+
+    // Query to resolve aliases to real destination addresses.
+    aliasQuery: ""
   },
 
   // LMTP delivery configuration for Robin MTA.

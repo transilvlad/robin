@@ -17,10 +17,21 @@ import com.mimecast.robin.util.VaultClientFactory;
 import com.mimecast.robin.util.VaultMagicProvider;
 
 import javax.naming.ConfigurationException;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.KeyFactory;
+import java.security.KeyStore;
+import java.security.PrivateKey;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -294,8 +305,24 @@ public class Server extends Foundation {
      */
     private static void loadKeystore() {
         ServerConfig serverConfig = Config.getServer();
+        String pemCert = serverConfig.getPemCertPath();
+        String pemKey = serverConfig.getPemKeyPath();
+
+        // PEM takes precedence over JKS if both cert and key are configured.
+        if (!pemCert.isEmpty() && !pemKey.isEmpty()) {
+            String password = readKeystorePassword(serverConfig);
+            try {
+                loadPemKeystore(pemCert, pemKey, password);
+                log.info("Loaded PEM certificate from {} and key from {}", pemCert, pemKey);
+                return;
+            } catch (Exception e) {
+                log.error("Failed to load PEM certificate/key: {}", e.getMessage());
+                return;
+            }
+        }
+
+        // Fall back to JKS keystore.
         String keyStorePath = serverConfig.getKeyStore();
-        String keyStorePasswordPath = serverConfig.getKeyStorePassword();
 
         // Verify that the keystore file is readable.
         try {
@@ -305,16 +332,72 @@ public class Server extends Foundation {
             return;
         }
         System.setProperty("javax.net.ssl.keyStore", keyStorePath);
+        System.setProperty("javax.net.ssl.keyStorePassword", readKeystorePassword(serverConfig));
+    }
 
-        // Read keystore password from file or use plain text from config.
-        String keyStorePassword;
+    /**
+     * Reads keystore password from file or falls back to plain text from config.
+     */
+    private static String readKeystorePassword(ServerConfig serverConfig) {
+        String keyStorePasswordPath = serverConfig.getKeyStorePassword();
         try {
-            keyStorePassword = new String(Files.readAllBytes(Paths.get(keyStorePasswordPath)));
+            return new String(Files.readAllBytes(Paths.get(keyStorePasswordPath)));
         } catch (IOException e) {
             log.warn("Keystore password could not be read from file, treating as plain text.");
-            keyStorePassword = keyStorePasswordPath;
+            return keyStorePasswordPath;
         }
-        System.setProperty("javax.net.ssl.keyStorePassword", keyStorePassword);
+    }
+
+    /**
+     * Loads PEM certificate and private key, converts to PKCS12 keystore,
+     * and sets system properties for TLS.
+     *
+     * @param certPath Path to PEM certificate file (may contain chain).
+     * @param keyPath  Path to PEM private key file (PKCS8 format).
+     * @param password Password for the generated PKCS12 keystore.
+     */
+    private static void loadPemKeystore(String certPath, String keyPath, String password) throws Exception {
+        CertificateFactory cf = CertificateFactory.getInstance("X.509");
+
+        // Load certificate chain.
+        Collection<? extends Certificate> certs;
+        try (FileInputStream fis = new FileInputStream(certPath)) {
+            certs = cf.generateCertificates(fis);
+        }
+
+        // Load private key (PKCS8 PEM).
+        String keyPem = Files.readString(Path.of(keyPath));
+        String keyBase64 = keyPem
+                .replace("-----BEGIN PRIVATE KEY-----", "")
+                .replace("-----END PRIVATE KEY-----", "")
+                .replaceAll("\\s", "");
+        byte[] keyBytes = Base64.getDecoder().decode(keyBase64);
+        PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
+
+        // Try RSA first, fall back to EC.
+        PrivateKey key;
+        try {
+            key = KeyFactory.getInstance("RSA").generatePrivate(spec);
+        } catch (Exception e) {
+            key = KeyFactory.getInstance("EC").generatePrivate(spec);
+        }
+
+        // Build PKCS12 keystore in memory.
+        char[] pw = password.toCharArray();
+        KeyStore ks = KeyStore.getInstance("PKCS12");
+        ks.load(null, pw);
+        ks.setKeyEntry("robin", key, pw, certs.toArray(new Certificate[0]));
+
+        // Write to temp file for system property.
+        Path tempKs = Files.createTempFile("robin-ks-", ".p12");
+        tempKs.toFile().deleteOnExit();
+        try (OutputStream os = Files.newOutputStream(tempKs)) {
+            ks.store(os, pw);
+        }
+
+        System.setProperty("javax.net.ssl.keyStore", tempKs.toString());
+        System.setProperty("javax.net.ssl.keyStorePassword", password);
+        System.setProperty("javax.net.ssl.keyStoreType", "PKCS12");
     }
 
     /**

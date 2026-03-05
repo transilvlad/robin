@@ -133,30 +133,53 @@ try (DovecotSaslAuthNative auth = new DovecotSaslAuthNative(client)) {
 }
 ```
 
-y rSQL-based Auth & User Lookup (Robin)
+SQL-based Auth & User Lookup (Robin)
 ------------------------------------
 
 Robin supports using an SQL backend as an alternative to Dovecot UNIX domain sockets for
 both user existence lookups (RCPT) and authentication (AUTH). This is controlled via
-`cfg/dovecot.json5` using the `authBackend` key which can be set to either `dovecot` or `sql`.
+`cfg/dovecot.json5` using the `authSql.enabled` flag.
+
+### Domain, Alias, and Mailbox Lookups
+
+The SQL backend supports three query types that replicate Postfix virtual domain behavior:
+
+- **domainQuery** — Checks if a domain is served by this mail system. Called at RCPT TO before user lookup. If empty, the check is skipped (all domains accepted).
+- **aliasQuery** — Resolves aliases to real destination addresses. Called at RCPT TO and before LMTP/LDA delivery. If empty, alias resolution is skipped.
+- **userQuery** — Checks if a specific user/mailbox exists (existing behavior).
 
 Configuration example (`cfg/dovecot.json5`):
-```
+```json5
 {
-  authBackend: "sql",
-  authSocket: {
-    client: "/run/dovecot/auth-client",
-    userdb: "/run/dovecot/auth-userdb"
-  },
   authSql: {
+    enabled: true,
     jdbcUrl: "jdbc:postgresql://robin-postgres:5432/robin",
     user: "robin",
     password: "robin",
     passwordQuery: "SELECT password FROM users WHERE email = ?",
-    userQuery: "SELECT home, uid, gid, maildir AS mail FROM users WHERE email = ?"
+    userQuery: "SELECT home, uid, gid, maildir AS mail FROM users WHERE email = ?",
+    domainQuery: "SELECT 1 FROM users WHERE email LIKE '%@' || ? UNION SELECT 1 FROM aliases WHERE source LIKE '%@' || ? UNION SELECT 1 FROM auto_aliases WHERE source LIKE '%@' || ?",
+    aliasQuery: "SELECT destination FROM (SELECT destination, 0 as priority FROM aliases WHERE source = ? AND destination <> '' UNION SELECT email as destination, 1 as priority FROM users WHERE email = ? UNION SELECT destination, 2 as priority FROM auto_aliases WHERE source = ? AND destination <> '') AS t ORDER BY priority LIMIT 1"
   }
 }
 ```
+
+**Query parameter binding:**
+- `domainQuery`: All `?` parameters receive just the domain (e.g., `example.com`). The SQL handles the `'%@' ||` prefix.
+- `aliasQuery`: All `?` parameters receive the full email address.
+- `userQuery`: Single `?` parameter receives the full email address.
+
+### RCPT TO Flow (with SQL backend)
+
+1. Extract domain from recipient address.
+2. `isDomainServed(domain)` — reject with 550 5.1.2 if domain not served.
+3. `resolveAlias(email)` — if alias resolves, use resolved address for user lookup.
+4. `lookup(resolvedEmail)` — reject with 550 5.1.1 if user not found.
+
+### Delivery Flow (LMTP/LDA)
+
+Before delivery, aliases are resolved again so the email is delivered to the correct mailbox.
+This ensures that even if the RCPT TO accepted the alias address, delivery uses the real mailbox.
 
 Java usage examples
 -------------------
@@ -178,6 +201,26 @@ boolean ok = auth.authenticate("tony@example.com", "stark");
 System.out.println(ok ? "Auth OK" : "Auth Failed");
 auth.close();
 ```
+
+PEM Certificate Support
+-----------------------
+
+Robin supports PEM certificates as an alternative to JKS keystores for TLS. If both `pemCert` and
+`pemKey` are configured in `server.json5`, they take precedence over the JKS `keystore` setting.
+
+Configuration (`server.json5`):
+```json5
+{
+  pemCert: "/etc/letsencrypt/live/example.com/fullchain.pem",
+  pemKey: "/etc/letsencrypt/live/example.com/privkey.pem",
+  keystorepassword: "avengers"
+}
+```
+
+- Supports both RSA and EC private keys (PKCS8 PEM format).
+- The certificate file may contain a full chain (e.g., Let's Encrypt `fullchain.pem`).
+- The `keystorepassword` is used for the internally generated PKCS12 keystore.
+- Works with both STARTTLS (port 587) and SMTPS (port 465).
 
 Notes
 -----
