@@ -50,6 +50,7 @@ public class ServerConfig extends ConfigFoundation {
         CONFIG_FILENAMES.put("blocklist", "blocklist.json5");
         CONFIG_FILENAMES.put("whitelist", "whitelist.json5");
         CONFIG_FILENAMES.put("geoip", "geoip.json5");
+        CONFIG_FILENAMES.put("distributedRate", "distributed-rate.json5");
         CONFIG_FILENAMES.put("blackhole", "blackhole.json5");
         CONFIG_FILENAMES.put("proxy", "proxy.json5");
         CONFIG_FILENAMES.put("bots", "bots.json5");
@@ -328,6 +329,20 @@ public class ServerConfig extends ConfigFoundation {
         }
         // Return default config if not defined.
         return new GeoIpConfig(null);
+    }
+
+    /**
+     * Gets distributed rate limiting configuration.
+     *
+     * @return DistributedRateConfig instance.
+     */
+    public DistributedRateConfig getDistributedRateConfig() {
+        loadExternalIfAbsent("distributedRate", Map.class);
+
+        if (map.containsKey("distributedRate")) {
+            return new DistributedRateConfig(getMapProperty("distributedRate"));
+        }
+        return new DistributedRateConfig(null);
     }
 
     /**

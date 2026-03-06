@@ -1,0 +1,9 @@
+{
+  enabled: false,
+  host: "localhost",
+  port: 6379,
+  password: "",
+  keyPrefix: "robin:conn:",
+  poolMaxTotal: 10,
+  keyTtlSeconds: 600
+}

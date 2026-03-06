@@ -21,7 +21,7 @@ public class MemoryPolicyCache extends PolicyCache {
     /**
      * Deque cache.
      */
-    private static final LinkedHashMap<String, StsPolicy> map = new LinkedHashMap<String, StsPolicy>() {
+    private final LinkedHashMap<String, StsPolicy> map = new LinkedHashMap<>() {
         @Override
         protected boolean removeEldestEntry(Map.Entry<String, StsPolicy> eldest) {
             return this.size() > 100; // Limit.

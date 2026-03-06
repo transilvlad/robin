@@ -30,6 +30,7 @@ public final class SmtpMetrics {
     private static volatile Counter adaptiveRateLimitAppliedCounter;
     private static volatile Counter geoIpBlockRejectionCounter;
     private static volatile Counter geoIpLimitAppliedCounter;
+    private static volatile Counter distributedStoreErrorCounter;
 
     /**
      * Private constructor for utility class.
@@ -171,6 +172,14 @@ public final class SmtpMetrics {
      */
     public static void incrementGeoIpLimitApplied() {
         incrementCounter(() -> geoIpLimitAppliedCounter, "GeoIP limit applied counter");
+    }
+
+    /**
+     * Increment the distributed store error counter.
+     * <p>Called when a Redis operation in {@link com.mimecast.robin.smtp.security.RedisConnectionStore} fails.
+     */
+    public static void incrementDistributedStoreError() {
+        incrementCounter(() -> distributedStoreErrorCounter, "distributed store error counter");
     }
 
     /**
@@ -316,6 +325,10 @@ public final class SmtpMetrics {
                     .description("Number of connections with reduced limits due to GeoIP country limit policy")
                     .register(MetricsRegistry.getPrometheusRegistry());
 
+            distributedStoreErrorCounter = Counter.builder("robin.distributed.store.error")
+                    .description("Number of errors encountered by the Redis connection store")
+                    .register(MetricsRegistry.getPrometheusRegistry());
+
             Counter.builder("robin.email.receipt.exception")
                     .description("Number of exceptions during email receipt processing")
                     .tag("exception_type", "Exception")
@@ -385,6 +398,10 @@ public final class SmtpMetrics {
                     .description("Number of connections with reduced limits due to GeoIP country limit policy")
                     .register(MetricsRegistry.getGraphiteRegistry());
 
+            distributedStoreErrorCounter = Counter.builder("robin.distributed.store.error")
+                    .description("Number of errors encountered by the Redis connection store")
+                    .register(MetricsRegistry.getGraphiteRegistry());
+
             Counter.builder("robin.email.receipt.exception")
                     .description("Number of exceptions during email receipt processing")
                     .tag("exception_type", "Exception")
@@ -413,5 +430,6 @@ public final class SmtpMetrics {
         adaptiveRateLimitAppliedCounter = null;
         geoIpBlockRejectionCounter = null;
         geoIpLimitAppliedCounter = null;
+        distributedStoreErrorCounter = null;
     }
 }

@@ -1,0 +1,21 @@
+{
+  // Distributed rate limiting via Redis.
+  // When enabled, connection state is shared across all Robin cluster nodes.
+  enabled: false,
+
+  // Redis host and port.
+  host: "localhost",
+  port: 6379,
+
+  // Redis password — leave empty if authentication is not required.
+  password: "",
+
+  // Prefix applied to all Redis keys written by this store.
+  keyPrefix: "robin:conn:",
+
+  // Maximum connections in the Jedis connection pool.
+  poolMaxTotal: 10,
+
+  // TTL (seconds) applied to Redis keys to prevent unbounded memory growth.
+  keyTtlSeconds: 600
+}
