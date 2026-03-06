@@ -38,6 +38,14 @@ The following components may be added/replaced:
 
         Factories.addStorageProcessor(CustomStorageProcessor::new)
 
+  To replace all processors at once:
+
+        Factories.setStorageProcessors(List.of(CustomStorageProcessor::new))
+
+  To remove all processors:
+
+        Factories.clearStorageProcessors()
+
 - **QueueDatabase** - Custom queue backend for relay queue. *See: QueueDatabase.java*
 
         Factories.setQueueDatabase(CustomQueueDatabase::new)
@@ -57,6 +65,10 @@ The following components may be added/replaced:
 - **DigestDatabase** - Deque storage map. *See: StaticDigestDatabase.java*
 
         Factories.setDatabase(DigestDatabase::new)
+
+- **WebhookCaller** - Custom webhook handler. *See: WebhookCallerInterface.java, WebhookCaller.java*
+
+        Factories.setWebhookCaller(CustomWebhookCaller::new)
 
 - **LogsClient** - MTA logs client. *See: LogsClient.java*
 

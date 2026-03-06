@@ -21,6 +21,8 @@ import com.mimecast.robin.smtp.extension.client.DefaultBehaviour;
 import com.mimecast.robin.smtp.security.DefaultTLSSocket;
 import com.mimecast.robin.smtp.security.TLSSocket;
 import com.mimecast.robin.smtp.session.Session;
+import com.mimecast.robin.smtp.webhook.WebhookCaller;
+import com.mimecast.robin.smtp.webhook.WebhookCallerInterface;
 import com.mimecast.robin.storage.*;
 import com.mimecast.robin.trust.PermissiveTrustManager;
 import com.mimecast.robin.trust.TrustManager;
@@ -94,12 +96,12 @@ public class Factories {
      * MTA storage processors.
      * <p>Used to do post receipt processing like virus and spam scanning or dovecot LDA delivery.
      */
-    private static final List<Callable<StorageProcessor>> storageProcessors = List.of(
+    private static final List<Callable<StorageProcessor>> storageProcessors = new ArrayList<>(List.of(
             SpamStorageProcessor::new,
             AVStorageProcessor::new,
             LocalStorageProcessor::new,
             DovecotStorageProcessor::new
-    );
+    ));
 
     /**
      * External clients.
@@ -316,6 +318,23 @@ public class Factories {
     }
 
     /**
+     * Sets StorageProcessors, replacing all existing entries.
+     *
+     * @param processors List of StorageProcessor callables.
+     */
+    public static void setStorageProcessors(List<Callable<StorageProcessor>> processors) {
+        storageProcessors.clear();
+        storageProcessors.addAll(processors);
+    }
+
+    /**
+     * Clears all StorageProcessors.
+     */
+    public static void clearStorageProcessors() {
+        storageProcessors.clear();
+    }
+
+    /**
      * Puts ExternalClient.
      *
      * @param key      Config map key.
@@ -498,5 +517,36 @@ public class Factories {
 
         // Use factory to select appropriate backend based on configuration.
         return QueueFactory.createQueueDatabase();
+    }
+
+    /**
+     * Webhook caller implementation.
+     * <p>When set, overrides the default WebhookCaller.
+     */
+    private static Callable<WebhookCallerInterface> webhookCaller;
+
+    /**
+     * Sets WebhookCaller callable.
+     *
+     * @param callable WebhookCallerInterface callable.
+     */
+    public static void setWebhookCaller(Callable<WebhookCallerInterface> callable) {
+        Factories.webhookCaller = callable;
+    }
+
+    /**
+     * Gets WebhookCallerInterface instance.
+     *
+     * @return WebhookCallerInterface instance.
+     */
+    public static WebhookCallerInterface getWebhookCaller() {
+        if (webhookCaller != null) {
+            try {
+                return webhookCaller.call();
+            } catch (Exception e) {
+                log.error("Error calling webhook caller: {}", e.getMessage());
+            }
+        }
+        return new WebhookCaller();
     }
 }

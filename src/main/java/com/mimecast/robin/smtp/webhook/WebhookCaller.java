@@ -29,7 +29,7 @@ import java.util.concurrent.CompletableFuture;
  *
  * <p>Handles HTTP calls to webhook endpoints with session payload as JSON.
  */
-public class WebhookCaller {
+public class WebhookCaller implements WebhookCallerInterface {
     private static final Logger log = LogManager.getLogger(WebhookCaller.class);
 
     /**
@@ -71,7 +71,8 @@ public class WebhookCaller {
      * @param verb       Verb instance.
      * @return WebhookResponse.
      */
-    public static WebhookResponse call(WebhookConfig config, Connection connection, Verb verb) {
+    @Override
+    public WebhookResponse call(WebhookConfig config, Connection connection, Verb verb) {
         if (!config.isEnabled()) {
             return new WebhookResponse(200, "", true);
         }
@@ -334,7 +335,8 @@ public class WebhookCaller {
      * @return SMTP response string or null.
      */
     @SuppressWarnings("deprecation")
-    public static String extractSmtpResponse(String body) {
+    @Override
+    public String extractSmtpResponse(String body) {
         if (body == null) {
             return null;
         }
@@ -385,7 +387,8 @@ public class WebhookCaller {
      * @param connection Connection instance.
      * @return WebhookResponse.
      */
-    public static WebhookResponse callRaw(WebhookConfig config, String filePath, Connection connection) {
+    @Override
+    public WebhookResponse callRaw(WebhookConfig config, String filePath, Connection connection) {
         if (!config.isEnabled() || config.getUrl().isEmpty()) {
             return new WebhookResponse(200, "", true);
         }

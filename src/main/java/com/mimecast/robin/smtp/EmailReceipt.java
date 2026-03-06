@@ -4,6 +4,7 @@ import com.mimecast.robin.config.server.ListenerConfig;
 import com.mimecast.robin.config.server.WebhookConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Extensions;
+import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.scanners.rbl.RblChecker;
 import com.mimecast.robin.scanners.rbl.RblResult;
 import com.mimecast.robin.smtp.connection.Connection;
@@ -16,7 +17,6 @@ import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.mimecast.robin.smtp.security.ConnectionTracker;
 import com.mimecast.robin.smtp.session.EmailDirection;
 import com.mimecast.robin.smtp.verb.Verb;
-import com.mimecast.robin.smtp.webhook.WebhookCaller;
 import com.mimecast.robin.smtp.webhook.WebhookResponse;
 import com.mimecast.robin.util.Sleep;
 import org.apache.logging.log4j.LogManager;
@@ -373,10 +373,10 @@ public class EmailReceipt implements Runnable {
                 }
 
                 log.debug("Calling webhook for extension: {}", extensionKey);
-                WebhookResponse response = WebhookCaller.call(config, connection, verb);
+                WebhookResponse response = Factories.getWebhookCaller().call(config, connection, verb);
 
                 // Check if webhook returned a custom SMTP response.
-                String smtpResponse = WebhookCaller.extractSmtpResponse(response.getBody());
+                String smtpResponse = Factories.getWebhookCaller().extractSmtpResponse(response.getBody());
                 if (smtpResponse != null && !smtpResponse.isEmpty()) {
                     connection.write(smtpResponse + " [" + connection.getSession().getUID() + "]");
                     return !smtpResponse.startsWith("4") && !smtpResponse.startsWith("5"); // Stop processing, webhook provided response.

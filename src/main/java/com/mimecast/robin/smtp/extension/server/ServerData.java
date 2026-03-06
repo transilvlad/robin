@@ -12,7 +12,6 @@ import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.mimecast.robin.smtp.security.SlowTransferOutputStream;
 import com.mimecast.robin.smtp.verb.BdatVerb;
 import com.mimecast.robin.smtp.verb.Verb;
-import com.mimecast.robin.smtp.webhook.WebhookCaller;
 import com.mimecast.robin.smtp.webhook.WebhookResponse;
 import com.mimecast.robin.storage.StorageClient;
 import org.apache.commons.io.output.CountingOutputStream;
@@ -466,8 +465,8 @@ public class ServerData extends ServerProcessor {
                 WebhookConfig rawCfg = webhooks.get("raw");
                 if (rawCfg.isEnabled()) {
                     log.debug("Calling RAW webhook with file: {}", filePath);
-                    WebhookResponse response = WebhookCaller.callRaw(rawCfg, filePath, connection);
-                    String smtpResponse = WebhookCaller.extractSmtpResponse(response.getBody());
+                    WebhookResponse response = Factories.getWebhookCaller().callRaw(rawCfg, filePath, connection);
+                    String smtpResponse = Factories.getWebhookCaller().extractSmtpResponse(response.getBody());
                     if (smtpResponse != null) {
                         connection.write(smtpResponse + " [" + connection.getSession().getUID() + "]");
                         return !smtpResponse.startsWith("4") && !smtpResponse.startsWith("5"); // Stop processing, webhook provided response.
