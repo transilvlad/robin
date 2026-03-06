@@ -200,5 +200,22 @@ public class RspamdConfig extends ConfigFoundation {
         public String getKeyPath() {
             return getStringProperty("keyPath", "");
         }
+
+        /**
+         * Gets the DKIM signing backend to use.
+         * <p>
+         * Supported values:
+         * <ul>
+         *   <li>{@code "rspamd"} (default) — delegates to Rspamd via HTTP</li>
+         *   <li>{@code "native"} — signs locally using Apache jDKIM, no external service</li>
+         * </ul>
+         * A plugin override registered via {@code Factories.setDkimSigner()} takes precedence
+         * over this setting.
+         *
+         * @return Backend identifier string.
+         */
+        public String getBackend() {
+            return getStringProperty("backend", "rspamd");
+        }
     }
 }

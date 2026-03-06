@@ -11,6 +11,7 @@ import com.mimecast.robin.config.BasicConfig;
 import com.mimecast.robin.queue.QueueDatabase;
 import com.mimecast.robin.queue.QueueFactory;
 import com.mimecast.robin.queue.RelaySession;
+import com.mimecast.robin.signing.DkimSigner;
 import com.mimecast.robin.smtp.auth.DigestCache;
 import com.mimecast.robin.smtp.auth.StaticDigestCache;
 import com.mimecast.robin.smtp.connection.Connection;
@@ -398,6 +399,41 @@ public class Factories {
      */
     public static String[] getBotNames() {
         return bots.keySet().toArray(new String[0]);
+    }
+
+    /**
+     * DKIM signer implementation.
+     * <p>When set, overrides the config-based backend selection in relay signing.
+     */
+    private static Callable<DkimSigner> dkimSigner;
+
+    /**
+     * Sets DkimSigner callable.
+     * <p>When set, overrides the config-based backend ({@code rspamd} or {@code native})
+     * selected by the {@code dkimSigning.backend} config field.
+     *
+     * @param callable DkimSigner callable.
+     */
+    public static void setDkimSigner(Callable<DkimSigner> callable) {
+        dkimSigner = callable;
+    }
+
+    /**
+     * Gets DkimSigner.
+     * <p>Returns {@code null} if no override has been registered; callers should
+     * then fall back to config-based backend selection.
+     *
+     * @return DkimSigner instance, or null if not registered.
+     */
+    public static DkimSigner getDkimSigner() {
+        if (dkimSigner != null) {
+            try {
+                return dkimSigner.call();
+            } catch (Exception e) {
+                log.error("Error calling DKIM signer: {}", e.getMessage());
+            }
+        }
+        return null;
     }
 
     /**

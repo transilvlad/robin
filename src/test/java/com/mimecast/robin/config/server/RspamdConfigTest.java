@@ -175,4 +175,21 @@ class RspamdConfigTest {
         RspamdConfig config = new RspamdConfig(new HashMap<>());
         assertEquals("", config.getDkimSigning().getKeyPath(), "Default keyPath should be empty");
     }
+
+    @Test
+    void testGetDkimSigningBackendDefaultIsRspamd() {
+        RspamdConfig config = new RspamdConfig(new HashMap<>());
+        assertEquals("rspamd", config.getDkimSigning().getBackend(), "Default backend should be rspamd");
+    }
+
+    @Test
+    void testGetDkimSigningBackendCustomValue() {
+        Map<String, Object> dkimMap = new HashMap<>();
+        dkimMap.put("backend", "native");
+        Map<String, Object> map = new HashMap<>();
+        map.put("dkimSigning", dkimMap);
+
+        RspamdConfig config = new RspamdConfig(map);
+        assertEquals("native", config.getDkimSigning().getBackend(), "Backend should be native");
+    }
 }

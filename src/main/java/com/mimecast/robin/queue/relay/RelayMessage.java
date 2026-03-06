@@ -11,7 +11,9 @@ import com.mimecast.robin.queue.PersistentQueue;
 import com.mimecast.robin.queue.QueueFiles;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.scanners.DkimSigningLookup;
-import com.mimecast.robin.scanners.RspamdClient;
+import com.mimecast.robin.signing.DkimSigner;
+import com.mimecast.robin.signing.NativeDkimSigner;
+import com.mimecast.robin.signing.RspamdDkimSigner;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.session.Session;
@@ -180,7 +182,15 @@ public class RelayMessage {
             return;
         }
 
-        RspamdClient rspamdClient = new RspamdClient(rspamdConfig.getHost(), rspamdConfig.getPort());
+        // Resolve signer: plugin override takes precedence over config-based backend selection.
+        DkimSigner signer = Factories.getDkimSigner();
+        if (signer == null) {
+            if ("native".equalsIgnoreCase(signingConfig.getBackend())) {
+                signer = new NativeDkimSigner();
+            } else {
+                signer = new RspamdDkimSigner(rspamdConfig.getHost(), rspamdConfig.getPort());
+            }
+        }
 
         for (MessageEnvelope envelope : relaySession.getSession().getEnvelopes()) {
             if (envelope.getFile() == null) continue;
@@ -200,12 +210,12 @@ public class RelayMessage {
                 String keyPath = keyPathTemplate.replace("$domain", domain).replace("$selector", selector);
                 try {
                     String privateKey = readPrivateKey(keyPath);
-                    Optional<String> sig = rspamdClient.sign(emailFile, domain, selector, privateKey);
+                    Optional<String> sig = signer.sign(emailFile, domain, selector, privateKey);
                     if (sig.isPresent()) {
                         signatures.add(sig.get());
                         log.debug("DKIM signature obtained: domain={} selector={}", domain, selector);
                     } else {
-                        log.warn("No DKIM signature from Rspamd: domain={} selector={}", domain, selector);
+                        log.warn("No DKIM signature returned: domain={} selector={}", domain, selector);
                     }
                 } catch (IOException e) {
                     log.warn("Cannot read DKIM key at {}: {}", keyPath, e.getMessage());

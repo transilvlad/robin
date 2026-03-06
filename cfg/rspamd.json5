@@ -34,6 +34,10 @@
   // domain, allowing a message to carry more than one DKIM signature.
   dkimSigning: {
     enabled: false,
+
+    // Signing backend: "rspamd" (default) or "native" (Apache jDKIM, no external service).
+    backend: "rspamd",
+
     jdbcUrl: "jdbc:postgresql://localhost:5432/robin",
     user: "robin",
     password: "robin",
