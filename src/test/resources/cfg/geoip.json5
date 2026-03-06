@@ -1,0 +1,6 @@
+{
+  enabled: false,
+  databasePath: "/usr/local/robin/GeoLite2-Country.mmdb",
+  defaultAction: "allow",
+  countries: {}
+}

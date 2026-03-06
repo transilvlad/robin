@@ -7,6 +7,8 @@ import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.mimecast.robin.smtp.security.AdaptiveRateLimiter;
 import com.mimecast.robin.smtp.security.BlocklistMatcher;
 import com.mimecast.robin.smtp.security.ConnectionTracker;
+import com.mimecast.robin.smtp.security.GeoIpAction;
+import com.mimecast.robin.smtp.security.GeoIpMatcher;
 import com.mimecast.robin.smtp.security.WhitelistMatcher;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -139,9 +141,25 @@ public class SmtpListener {
                     log.info("Whitelisted connection from {}: bypassing DoS limits", remoteIp);
                 }
 
+                // Check GeoIP policy for non-whitelisted IPs.
+                boolean geoLimited = false;
+                if (!whitelisted) {
+                    GeoIpAction geoAction = GeoIpMatcher.check(remoteIp, Config.getServer().getGeoIpConfig());
+                    if (geoAction == GeoIpAction.BLOCK) {
+                        log.warn("Dropping connection from GeoIP-blocked country: {}", remoteIp);
+                        SmtpMetrics.incrementGeoIpBlockRejection();
+                        closeSocket(sock);
+                        continue;
+                    }
+                    geoLimited = geoAction == GeoIpAction.LIMIT;
+                    if (geoLimited) {
+                        SmtpMetrics.incrementGeoIpLimitApplied();
+                    }
+                }
+
                 // Apply DoS protections if enabled and IP is not whitelisted.
                 if (config.isDosProtectionEnabled() && !whitelisted) {
-                    if (!checkConnectionLimits(sock, remoteIp)) {
+                    if (!checkConnectionLimits(sock, remoteIp, geoLimited)) {
                         continue; // Connection rejected due to limits.
                     }
                 }
@@ -183,12 +201,14 @@ public class SmtpListener {
     /**
      * Checks connection limits for DoS protection.
      * <p>Applies adaptive rate limiting if configured, which may reduce limits under high server load.
+     * <p>If {@code geoLimited} is true, per-IP and per-window limits are additionally halved.
      *
-     * @param sock     The socket to potentially close.
-     * @param remoteIp The remote IP address.
+     * @param sock       The socket to potentially close.
+     * @param remoteIp   The remote IP address.
+     * @param geoLimited True if the connection originates from a GeoIP-limited country.
      * @return True if connection should be accepted, false if rejected.
      */
-    private boolean checkConnectionLimits(Socket sock, String remoteIp) {
+    private boolean checkConnectionLimits(Socket sock, String remoteIp, boolean geoLimited) {
         // Apply adaptive rate limiting if configured.
         ListenerConfig effective = AdaptiveRateLimiter.applyAdaptiveLimits(
                 config, Config.getServer().getAdaptiveRateConfig());
@@ -203,8 +223,10 @@ public class SmtpListener {
             return false;
         }
 
-        // Check per-IP connection limit.
-        int maxPerIp = effective.getMaxConnectionsPerIp();
+        // Check per-IP connection limit (halved for GeoIP-limited countries).
+        int maxPerIp = geoLimited
+                ? Math.max(1, effective.getMaxConnectionsPerIp() / 2)
+                : effective.getMaxConnectionsPerIp();
         int currentConnections = ConnectionTracker.getActiveConnections(remoteIp);
         if (maxPerIp > 0 && currentConnections >= maxPerIp) {
             log.warn("Rejecting connection from {}: per-IP connection limit reached ({}/{} connections)",
@@ -214,8 +236,10 @@ public class SmtpListener {
             return false;
         }
 
-        // Check connection rate limit.
-        int maxPerWindow = effective.getMaxConnectionsPerWindow();
+        // Check connection rate limit (halved for GeoIP-limited countries).
+        int maxPerWindow = geoLimited
+                ? Math.max(1, effective.getMaxConnectionsPerWindow() / 2)
+                : effective.getMaxConnectionsPerWindow();
         int windowSeconds = effective.getRateLimitWindowSeconds();
         if (maxPerWindow > 0 && windowSeconds > 0) {
             int recentConnections = ConnectionTracker.getRecentConnectionCount(remoteIp, windowSeconds);

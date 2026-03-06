@@ -165,6 +165,12 @@
         </dependency>
 
         <dependency>
+            <groupId>com.maxmind.geoip2</groupId>
+            <artifactId>geoip2</artifactId>
+            <version>4.2.0</version>
+        </dependency>
+
+        <dependency>
             <groupId>org.apache.james.jdkim</groupId>
             <artifactId>apache-jdkim-library</artifactId>
             <version>0.3</version>

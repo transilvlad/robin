@@ -28,6 +28,8 @@ public final class SmtpMetrics {
     private static volatile Counter dosCommandFloodRejectionCounter;
     private static volatile Counter whitelistBypassCounter;
     private static volatile Counter adaptiveRateLimitAppliedCounter;
+    private static volatile Counter geoIpBlockRejectionCounter;
+    private static volatile Counter geoIpLimitAppliedCounter;
 
     /**
      * Private constructor for utility class.
@@ -153,6 +155,22 @@ public final class SmtpMetrics {
      */
     public static void incrementAdaptiveRateLimitApplied() {
         incrementCounter(() -> adaptiveRateLimitAppliedCounter, "adaptive rate limit applied counter");
+    }
+
+    /**
+     * Increment the GeoIP block rejection counter.
+     * <p>Called when a connection is rejected due to GeoIP country block policy.
+     */
+    public static void incrementGeoIpBlockRejection() {
+        incrementCounter(() -> geoIpBlockRejectionCounter, "GeoIP block rejection counter");
+    }
+
+    /**
+     * Increment the GeoIP limit applied counter.
+     * <p>Called when a connection from a GeoIP-limited country has reduced limits applied.
+     */
+    public static void incrementGeoIpLimitApplied() {
+        incrementCounter(() -> geoIpLimitAppliedCounter, "GeoIP limit applied counter");
     }
 
     /**
@@ -290,6 +308,14 @@ public final class SmtpMetrics {
                     .description("Number of times adaptive rate limiting reduced connection limits")
                     .register(MetricsRegistry.getPrometheusRegistry());
 
+            geoIpBlockRejectionCounter = Counter.builder("robin.geoip.block.rejection")
+                    .description("Number of connections rejected due to GeoIP country block policy")
+                    .register(MetricsRegistry.getPrometheusRegistry());
+
+            geoIpLimitAppliedCounter = Counter.builder("robin.geoip.limit.applied")
+                    .description("Number of connections with reduced limits due to GeoIP country limit policy")
+                    .register(MetricsRegistry.getPrometheusRegistry());
+
             Counter.builder("robin.email.receipt.exception")
                     .description("Number of exceptions during email receipt processing")
                     .tag("exception_type", "Exception")
@@ -351,6 +377,14 @@ public final class SmtpMetrics {
                     .description("Number of times adaptive rate limiting reduced connection limits")
                     .register(MetricsRegistry.getGraphiteRegistry());
 
+            geoIpBlockRejectionCounter = Counter.builder("robin.geoip.block.rejection")
+                    .description("Number of connections rejected due to GeoIP country block policy")
+                    .register(MetricsRegistry.getGraphiteRegistry());
+
+            geoIpLimitAppliedCounter = Counter.builder("robin.geoip.limit.applied")
+                    .description("Number of connections with reduced limits due to GeoIP country limit policy")
+                    .register(MetricsRegistry.getGraphiteRegistry());
+
             Counter.builder("robin.email.receipt.exception")
                     .description("Number of exceptions during email receipt processing")
                     .tag("exception_type", "Exception")
@@ -377,5 +411,7 @@ public final class SmtpMetrics {
         dosCommandFloodRejectionCounter = null;
         whitelistBypassCounter = null;
         adaptiveRateLimitAppliedCounter = null;
+        geoIpBlockRejectionCounter = null;
+        geoIpLimitAppliedCounter = null;
     }
 }
