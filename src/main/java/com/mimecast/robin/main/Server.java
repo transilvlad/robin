@@ -1,13 +1,14 @@
 package com.mimecast.robin.main;
 
 import com.mimecast.robin.auth.SqlAuthManager;
-import com.mimecast.robin.config.server.ServerConfig;
 import com.mimecast.robin.config.DovecotConfig;
+import com.mimecast.robin.config.server.ServerConfig;
 import com.mimecast.robin.db.SharedDataSource;
 import com.mimecast.robin.endpoints.ApiEndpoint;
 import com.mimecast.robin.endpoints.RobinServiceEndpoint;
 import com.mimecast.robin.metrics.MetricsCron;
 import com.mimecast.robin.queue.RelayQueueCron;
+import com.mimecast.robin.scanners.DkimSigningLookup;
 import com.mimecast.robin.smtp.SmtpListener;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.mimecast.robin.storage.LmtpConnectionPool;
@@ -289,10 +290,20 @@ public class Server extends Foundation {
             // Close shared DataSource if initialized.
             try {
                 // Close shared SqlAuthManager first
-                try { SqlAuthManager.close(); } catch (Exception ignore) {}
+                try {
+                    SqlAuthManager.close();
+                } catch (Exception ignore) {
+                }
                 SharedDataSource.close();
             } catch (Exception e) {
                 log.warn("Error closing shared DataSource: {}", e.getMessage());
+            }
+
+            // Close DKIM signing pool if initialized.
+            try {
+                DkimSigningLookup.close();
+            } catch (Exception e) {
+                log.warn("Error closing DkimSigningLookup pool: {}", e.getMessage());
             }
 
             log.info("Shutdown complete.");

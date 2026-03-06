@@ -45,7 +45,7 @@ public class SpamStorageProcessor extends AbstractStorageProcessor {
             // Scan the email and retrieve the score
             Map<String, Object> scanResult = rspamdClient.scanFile(emailFile);
             double score = rspamdClient.getScore();
-            
+
             // Save scan results to envelope
             if (!scanResult.isEmpty()) {
                 Map<String, Object> rspamdResult = new HashMap<>(scanResult);
@@ -55,27 +55,27 @@ public class SpamStorageProcessor extends AbstractStorageProcessor {
                     envelopes.getLast().addScanResult(rspamdResult);
                 }
             }
-            
+
             // Get thresholds with defaults
             double discardThreshold = rspamdConfig.getDiscardThreshold();
             double rejectThreshold = rspamdConfig.getRejectThreshold();
-            
+
             // Validate thresholds - discardThreshold should be >= rejectThreshold
             if (discardThreshold < rejectThreshold) {
-                log.warn("Invalid threshold configuration: discardThreshold ({}) is less than rejectThreshold ({}). Using rejectThreshold as discardThreshold.", 
-                         discardThreshold, rejectThreshold);
+                log.warn("Invalid threshold configuration: discardThreshold ({}) is less than rejectThreshold ({}). Using rejectThreshold as discardThreshold.",
+                        discardThreshold, rejectThreshold);
                 discardThreshold = rejectThreshold;
             }
-            
+
             // Apply threshold-based logic
             if (score >= discardThreshold) {
-                log.warn("Spam/phishing detected in {} with score {} (>= discard threshold {}), discarding: {}", 
-                         connection.getSession().getEnvelopes().getLast().getFile(), score, discardThreshold, rspamdClient.getSymbols());
+                log.warn("Spam/phishing detected in {} with score {} (>= discard threshold {}), discarding: {}",
+                        connection.getSession().getEnvelopes().getLast().getFile(), score, discardThreshold, rspamdClient.getSymbols());
                 SmtpMetrics.incrementEmailSpamRejection();
                 return true;  // Accept but discard
             } else if (score >= rejectThreshold) {
-                log.warn("Spam/phishing detected in {} with score {} (>= reject threshold {}): {}", 
-                         connection.getSession().getEnvelopes().getLast().getFile(), score, rejectThreshold, rspamdClient.getSymbols());
+                log.warn("Spam/phishing detected in {} with score {} (>= reject threshold {}): {}",
+                        connection.getSession().getEnvelopes().getLast().getFile(), score, rejectThreshold, rspamdClient.getSymbols());
                 SmtpMetrics.incrementEmailSpamRejection();
                 connection.write(String.format(SmtpResponses.SPAM_FOUND_550, connection.getSession().getUID()));
                 return false;  // Reject
@@ -86,4 +86,5 @@ public class SpamStorageProcessor extends AbstractStorageProcessor {
 
         return true;
     }
+
 }

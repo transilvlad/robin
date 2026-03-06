@@ -26,5 +26,25 @@
 
   // Spam score threshold for discarding emails.
   // Emails with score >= discardThreshold will be silently discarded.
-  discardThreshold: 15.0
+  discardThreshold: 15.0,
+
+  // DKIM signing lookup configuration.
+  // When enabled, Robin queries this database for outbound emails to determine which
+  // domain and selector pairs to use for signing. Multiple rows may be returned per sender
+  // domain, allowing a message to carry more than one DKIM signature.
+  dkimSigning: {
+    enabled: false,
+    jdbcUrl: "jdbc:postgresql://localhost:5432/robin",
+    user: "robin",
+    password: "robin",
+
+    // Filesystem path template for DKIM private key files (PKCS8 PEM, produced by rspamadm dkim_keygen).
+    // $domain and $selector are replaced at runtime. Must be readable by the Robin process.
+    keyPath: "/var/lib/rspamd/dkim/$domain.$selector.key",
+
+    // Query returning signing domain and selector pairs for the given sender domain.
+    // Parameters: sender domain (?)
+    // Expected columns: domain, selector (multiple rows supported)
+    signingQuery: "SELECT s.sign_domain AS domain, s.selector FROM dkim_signing_domains d JOIN dkim_signing_selectors s ON s.domain_id = d.id WHERE d.domain = ?"
+  }
 }

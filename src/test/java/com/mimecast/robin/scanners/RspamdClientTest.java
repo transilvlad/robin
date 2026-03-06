@@ -3,6 +3,7 @@ package com.mimecast.robin.scanners;
 import com.google.gson.JsonObject;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,6 +15,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -310,11 +312,86 @@ class RspamdClientTest {
         assertTrue((Boolean) result2.get("spam"), "Second scan should be spam");
     }
 
+    @Test
+    void testSignReturnsSignatureWhenPresent() throws IOException, InterruptedException {
+        String milterResponse = createSignResponse("v=1; a=rsa-sha256; d=example.com; s=default; b=abc123");
+        mockWebServer.enqueue(new MockResponse()
+                .setStatus("HTTP/1.1 200 OK")
+                .setBody(milterResponse)
+                .addHeader("Content-Type", "application/json"));
+
+        Optional<String> result = client.sign(cleanFile, "example.com", "default", "FAKEBASE64KEY");
+
+        assertTrue(result.isPresent(), "Sign should return a value when Rspamd returns a DKIM-Signature");
+        assertEquals("v=1; a=rsa-sha256; d=example.com; s=default; b=abc123", result.get());
+    }
+
+    @Test
+    void testSignSendsCorrectHeaders() throws IOException, InterruptedException {
+        String milterResponse = createSignResponse("v=1; a=rsa-sha256; d=example.com; s=default; b=abc123");
+        mockWebServer.enqueue(new MockResponse()
+                .setStatus("HTTP/1.1 200 OK")
+                .setBody(milterResponse)
+                .addHeader("Content-Type", "application/json"));
+
+        client.sign(cleanFile, "example.com", "default", "FAKEBASE64KEY");
+
+        RecordedRequest request = mockWebServer.takeRequest();
+        assertEquals("Yes", request.getHeader("PerformDkimSign"), "PerformDkimSign header must be 'Yes'");
+        assertEquals("example.com", request.getHeader("DkimDomain"), "DkimDomain header must match");
+        assertEquals("default", request.getHeader("DkimSelector"), "DkimSelector header must match");
+        assertEquals("FAKEBASE64KEY", request.getHeader("DkimPrivateKey"), "DkimPrivateKey header must match");
+    }
+
+    @Test
+    void testSignReturnsEmptyWhenMilterAbsent() throws IOException {
+        mockWebServer.enqueue(new MockResponse()
+                .setStatus("HTTP/1.1 200 OK")
+                .setBody(createScanResponse(false, 1.5, "BAYES_HAM"))
+                .addHeader("Content-Type", "application/json"));
+
+        Optional<String> result = client.sign(cleanFile, "example.com", "default", "FAKEBASE64KEY");
+        assertFalse(result.isPresent(), "Sign should return empty when no DKIM-Signature in milter response");
+    }
+
+    @Test
+    void testSignReturnsEmptyOnServerError() throws IOException {
+        mockWebServer.enqueue(new MockResponse().setStatus("HTTP/1.1 500 Internal Server Error"));
+
+        Optional<String> result = client.sign(cleanFile, "example.com", "default", "FAKEBASE64KEY");
+        assertFalse(result.isPresent(), "Sign should return empty on server error");
+    }
+
+    /**
+     * Helper method to create a mock Rspamd response containing a DKIM-Signature milter header.
+     *
+     * @param sigValue The DKIM-Signature header value
+     * @return JSON string representing a response with milter add_headers
+     */
+    private String createSignResponse(String sigValue) {
+        JsonObject dkimEntry = new JsonObject();
+        dkimEntry.addProperty("value", sigValue);
+        dkimEntry.addProperty("order", 1);
+
+        JsonObject addHeaders = new JsonObject();
+        addHeaders.add("DKIM-Signature", dkimEntry);
+
+        JsonObject milter = new JsonObject();
+        milter.add("add_headers", addHeaders);
+
+        JsonObject response = new JsonObject();
+        response.addProperty("spam", false);
+        response.addProperty("score", 1.5);
+        response.addProperty("required_score", 7.0);
+        response.add("milter", milter);
+        return response.toString();
+    }
+
     /**
      * Helper method to create a mock Rspamd scan response.
      *
-     * @param isSpam Whether the content is spam
-     * @param score  The spam score
+     * @param isSpam  Whether the content is spam
+     * @param score   The spam score
      * @param symbols The detected symbols (rules)
      * @return JSON string representing the scan response
      */

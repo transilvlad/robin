@@ -12,9 +12,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -42,9 +40,6 @@ public class RspamdClient {
     private boolean spfScanEnabled;
     private boolean dkimScanEnabled;
     private boolean dmarcScanEnabled;
-    private boolean dkimSigningEnabled;
-    private String dkimSigningDomain;
-    private String dkimSigningSelector;
 
     private Map<String, Object> lastScanResult;
 
@@ -76,9 +71,6 @@ public class RspamdClient {
         this.spfScanEnabled = true;
         this.dkimScanEnabled = true;
         this.dmarcScanEnabled = true;
-        this.dkimSigningEnabled = false;
-        this.dkimSigningDomain = null;
-        this.dkimSigningSelector = null;
         log.debug("Rspamd client initialized with {}:{}", host, port);
     }
 
@@ -184,16 +176,6 @@ public class RspamdClient {
             requestBuilder.addHeader("X-SPF-Scan", String.valueOf(spfScanEnabled));
             requestBuilder.addHeader("X-DKIM-Scan", String.valueOf(dkimScanEnabled));
             requestBuilder.addHeader("X-DMARC-Scan", String.valueOf(dmarcScanEnabled));
-
-            // Add DKIM signing options if enabled
-            if (dkimSigningEnabled) {
-                if (dkimSigningDomain != null) {
-                    requestBuilder.addHeader("X-DKIM-Sign-Domain", dkimSigningDomain);
-                }
-                if (dkimSigningSelector != null) {
-                    requestBuilder.addHeader("X-DKIM-Sign-Selector", dkimSigningSelector);
-                }
-            }
 
             Request request = requestBuilder.build();
 
@@ -374,27 +356,69 @@ public class RspamdClient {
     }
 
     /**
-     * Set whether DKIM signing is enabled and configure signing options.
+     * Requests Rspamd to produce a DKIM signature for the given email file.
      * <p>
-     * IMPORTANT: This method configures which domain and selector to use for DKIM signing.
-     * The actual private key must be pre-configured in Rspamd's DKIM keystore.
-     * Rspamd looks up the private key using the domain/selector combination provided here.
+     * Posts the raw email content to {@code /checkv2} with {@code PerformDkimSign: Yes},
+     * {@code DkimDomain}, {@code DkimSelector}, and {@code DkimPrivateKey} headers.
+     * The private key must be supplied as a base64 string without PEM header/footer lines.
      * <p>
-     * Rspamd DKIM key configuration:
-     * - Keys are typically stored in /etc/rspamd/dkim/ directory
-     * - Private keys should be in PEM format: /etc/rspamd/dkim/{domain}.{selector}.key
-     * - Public keys are published in DNS at: {selector}._domainkey.{domain}
-     * - Configure key paths in Rspamd's dkim_signing module configuration
+     * Rspamd returns the computed {@code DKIM-Signature} header value in
+     * {@code milter.add_headers.DKIM-Signature.value}. The caller is responsible for
+     * prepending the resulting header to the email file before delivery.
+     * <p>
+     * Rspamd must have {@code use_http_headers = true} and {@code use_milter_headers = true}
+     * set in its {@code dkim_signing} configuration for this to work.
      *
-     * @param domain   The domain to sign for (e.g., "example.com"). Must match a configured domain in Rspamd.
-     * @param selector The DKIM selector (e.g., "default"). Must match a configured selector in Rspamd.
-     * @return Self.
+     * @param emailFile  File containing the raw email to sign.
+     * @param domain     Signing domain (e.g., {@code "example.com"}).
+     * @param selector   DKIM selector (e.g., {@code "default"}).
+     * @param privateKey Base64-encoded private key content (no PEM headers/footers).
+     * @return DKIM-Signature header value, or empty if signing failed.
+     * @throws IOException If the email file cannot be read.
      */
-    public RspamdClient setDkimSigningOptions(String domain, String selector) {
-        this.dkimSigningEnabled = true;
-        this.dkimSigningDomain = domain;
-        this.dkimSigningSelector = selector;
-        log.debug("DKIM signing enabled for domain: {}, selector: {}", domain, selector);
-        return this;
+    public Optional<String> sign(File emailFile, String domain, String selector, String privateKey) throws IOException {
+        byte[] content = Files.readAllBytes(emailFile.toPath());
+        RequestBody body = RequestBody.create(content, APPLICATION_OCTET_STREAM);
+        Request request = new Request.Builder()
+                .url(baseUrl + SCAN_ENDPOINT)
+                .post(body)
+                .addHeader("PerformDkimSign", "Yes")
+                .addHeader("DkimDomain", domain)
+                .addHeader("DkimSelector", selector)
+                .addHeader("DkimPrivateKey", privateKey)
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                log.error("Rspamd DKIM sign request failed: HTTP {}", response.code());
+                return Optional.empty();
+            }
+            String responseBody = response.body() != null ? response.body().string() : "{}";
+            @SuppressWarnings("unchecked")
+            Map<String, Object> result = gson.fromJson(responseBody, Map.class);
+            return extractDkimSignature(result);
+        } catch (Exception e) {
+            log.error("DKIM sign request failed for domain {}: {}", domain, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Extracts the DKIM-Signature value from a Rspamd response map.
+     *
+     * @param result Rspamd JSON response deserialized as a Map.
+     * @return DKIM-Signature header value, or empty if not present.
+     */
+    @SuppressWarnings("unchecked")
+    private Optional<String> extractDkimSignature(Map<String, Object> result) {
+        Object milter = result.get("milter");
+        if (!(milter instanceof Map)) return Optional.empty();
+        Object addHeaders = ((Map<String, Object>) milter).get("add_headers");
+        if (!(addHeaders instanceof Map)) return Optional.empty();
+        Object dkimEntry = ((Map<String, Object>) addHeaders).get("DKIM-Signature");
+        if (!(dkimEntry instanceof Map)) return Optional.empty();
+        Object value = ((Map<String, Object>) dkimEntry).get("value");
+        if (!(value instanceof String)) return Optional.empty();
+        return Optional.of((String) value);
     }
 }

@@ -15,7 +15,7 @@ class RspamdConfigTest {
     @Test
     void testDefaultValues() {
         RspamdConfig config = new RspamdConfig(new HashMap<>());
-        
+
         assertFalse(config.isEnabled(), "Default enabled should be false");
         assertEquals("localhost", config.getHost(), "Default host should be localhost");
         assertEquals(11333, config.getPort(), "Default port should be 11333");
@@ -39,9 +39,9 @@ class RspamdConfigTest {
         map.put("dmarcScanEnabled", false);
         map.put("rejectThreshold", 10.0);
         map.put("discardThreshold", 20.0);
-        
+
         RspamdConfig config = new RspamdConfig(map);
-        
+
         assertTrue(config.isEnabled(), "Enabled should be true");
         assertEquals("rspamd.example.com", config.getHost(), "Host should be rspamd.example.com");
         assertEquals(9999, config.getPort(), "Port should be 9999");
@@ -59,9 +59,9 @@ class RspamdConfigTest {
         map.put("enabled", true);
         map.put("host", "custom-host");
         // Other values should use defaults
-        
+
         RspamdConfig config = new RspamdConfig(map);
-        
+
         assertTrue(config.isEnabled(), "Enabled should be true");
         assertEquals("custom-host", config.getHost(), "Host should be custom-host");
         assertEquals(11333, config.getPort(), "Port should use default");
@@ -106,9 +106,9 @@ class RspamdConfigTest {
         Map<String, Object> map = new HashMap<>();
         map.put("rejectThreshold", 5.5);
         map.put("discardThreshold", 12.75);
-        
+
         RspamdConfig config = new RspamdConfig(map);
-        
+
         assertEquals(5.5, config.getRejectThreshold(), 0.001, "Reject threshold should be 5.5");
         assertEquals(12.75, config.getDiscardThreshold(), 0.001, "Discard threshold should be 12.75");
     }
@@ -125,11 +125,54 @@ class RspamdConfigTest {
         Map<String, Object> map = new HashMap<>();
         map.put("enabled", null);
         map.put("host", null);
-        
+
         RspamdConfig config = new RspamdConfig(map);
-        
+
         // Should use defaults when values are null
         assertFalse(config.isEnabled());
         assertNull(config.getHost()); // String property returns null when value is null
+    }
+
+    @Test
+    void testGetDkimSigningDefaultsWhenAbsent() {
+        RspamdConfig config = new RspamdConfig(new HashMap<>());
+        RspamdConfig.DkimSigningConfig signing = config.getDkimSigning();
+
+        assertNotNull(signing, "DkimSigningConfig should not be null");
+        assertFalse(signing.isEnabled(), "Default DKIM signing should be disabled");
+        assertEquals("", signing.getJdbcUrl(), "Default jdbcUrl should be empty");
+        assertEquals("", signing.getUser(), "Default user should be empty");
+        assertEquals("", signing.getPassword(), "Default password should be empty");
+        assertEquals("", signing.getSigningQuery(), "Default signingQuery should be empty");
+    }
+
+    @Test
+    void testGetDkimSigningWithValues() {
+        Map<String, Object> dkimMap = new HashMap<>();
+        dkimMap.put("enabled", true);
+        dkimMap.put("jdbcUrl", "jdbc:postgresql://db:5432/robin");
+        dkimMap.put("user", "robin");
+        dkimMap.put("password", "secret");
+        dkimMap.put("signingQuery", "SELECT domain, selector FROM dkim WHERE domain = ?");
+        dkimMap.put("keyPath", "/var/lib/rspamd/dkim/$domain.$selector.key");
+
+        Map<String, Object> map = new HashMap<>();
+        map.put("dkimSigning", dkimMap);
+
+        RspamdConfig config = new RspamdConfig(map);
+        RspamdConfig.DkimSigningConfig signing = config.getDkimSigning();
+
+        assertTrue(signing.isEnabled(), "DKIM signing should be enabled");
+        assertEquals("jdbc:postgresql://db:5432/robin", signing.getJdbcUrl());
+        assertEquals("robin", signing.getUser());
+        assertEquals("secret", signing.getPassword());
+        assertEquals("SELECT domain, selector FROM dkim WHERE domain = ?", signing.getSigningQuery());
+        assertEquals("/var/lib/rspamd/dkim/$domain.$selector.key", signing.getKeyPath());
+    }
+
+    @Test
+    void testGetDkimSigningKeyPathDefault() {
+        RspamdConfig config = new RspamdConfig(new HashMap<>());
+        assertEquals("", config.getDkimSigning().getKeyPath(), "Default keyPath should be empty");
     }
 }
