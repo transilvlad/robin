@@ -4,6 +4,7 @@ import com.mimecast.robin.config.server.ListenerConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Server;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
+import com.mimecast.robin.smtp.security.AdaptiveRateLimiter;
 import com.mimecast.robin.smtp.security.BlocklistMatcher;
 import com.mimecast.robin.smtp.security.ConnectionTracker;
 import com.mimecast.robin.smtp.security.WhitelistMatcher;
@@ -181,14 +182,19 @@ public class SmtpListener {
 
     /**
      * Checks connection limits for DoS protection.
+     * <p>Applies adaptive rate limiting if configured, which may reduce limits under high server load.
      *
      * @param sock     The socket to potentially close.
      * @param remoteIp The remote IP address.
      * @return True if connection should be accepted, false if rejected.
      */
     private boolean checkConnectionLimits(Socket sock, String remoteIp) {
+        // Apply adaptive rate limiting if configured.
+        ListenerConfig effective = AdaptiveRateLimiter.applyAdaptiveLimits(
+                config, Config.getServer().getAdaptiveRateConfig());
+
         // Check global connection limit.
-        int maxTotal = config.getMaxTotalConnections();
+        int maxTotal = effective.getMaxTotalConnections();
         if (maxTotal > 0 && ConnectionTracker.getTotalActiveConnections() >= maxTotal) {
             log.warn("Rejecting connection from {}: global connection limit reached ({} connections)",
                     remoteIp, maxTotal);
@@ -198,7 +204,7 @@ public class SmtpListener {
         }
 
         // Check per-IP connection limit.
-        int maxPerIp = config.getMaxConnectionsPerIp();
+        int maxPerIp = effective.getMaxConnectionsPerIp();
         int currentConnections = ConnectionTracker.getActiveConnections(remoteIp);
         if (maxPerIp > 0 && currentConnections >= maxPerIp) {
             log.warn("Rejecting connection from {}: per-IP connection limit reached ({}/{} connections)",
@@ -209,8 +215,8 @@ public class SmtpListener {
         }
 
         // Check connection rate limit.
-        int maxPerWindow = config.getMaxConnectionsPerWindow();
-        int windowSeconds = config.getRateLimitWindowSeconds();
+        int maxPerWindow = effective.getMaxConnectionsPerWindow();
+        int windowSeconds = effective.getRateLimitWindowSeconds();
         if (maxPerWindow > 0 && windowSeconds > 0) {
             int recentConnections = ConnectionTracker.getRecentConnectionCount(remoteIp, windowSeconds);
             if (recentConnections >= maxPerWindow) {

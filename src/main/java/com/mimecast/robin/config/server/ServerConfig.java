@@ -315,6 +315,19 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
+     * Gets adaptive rate limiting configuration.
+     * <p>This configuration lives inline inside {@code server.json5} under the {@code adaptiveRate} key.
+     *
+     * @return AdaptiveRateConfig instance.
+     */
+    public AdaptiveRateConfig getAdaptiveRateConfig() {
+        if (map.containsKey("adaptiveRate")) {
+            return new AdaptiveRateConfig(getMapProperty("adaptiveRate"));
+        }
+        return new AdaptiveRateConfig(null);
+    }
+
+    /**
      * Gets whitelist configuration.
      *
      * @return WhitelistConfig instance.

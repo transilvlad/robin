@@ -27,6 +27,7 @@ public final class SmtpMetrics {
     private static volatile Counter dosSlowTransferRejectionCounter;
     private static volatile Counter dosCommandFloodRejectionCounter;
     private static volatile Counter whitelistBypassCounter;
+    private static volatile Counter adaptiveRateLimitAppliedCounter;
 
     /**
      * Private constructor for utility class.
@@ -144,6 +145,14 @@ public final class SmtpMetrics {
      */
     public static void incrementWhitelistBypass() {
         incrementCounter(() -> whitelistBypassCounter, "whitelist bypass counter");
+    }
+
+    /**
+     * Increment the adaptive rate limit applied counter.
+     * <p>Called when adaptive rate limiting reduces connection limits due to high server load.
+     */
+    public static void incrementAdaptiveRateLimitApplied() {
+        incrementCounter(() -> adaptiveRateLimitAppliedCounter, "adaptive rate limit applied counter");
     }
 
     /**
@@ -277,6 +286,10 @@ public final class SmtpMetrics {
                     .description("Number of connections from whitelisted IPs bypassing DoS limits and RBL")
                     .register(MetricsRegistry.getPrometheusRegistry());
 
+            adaptiveRateLimitAppliedCounter = Counter.builder("robin.adaptive.ratelimit.applied")
+                    .description("Number of times adaptive rate limiting reduced connection limits")
+                    .register(MetricsRegistry.getPrometheusRegistry());
+
             Counter.builder("robin.email.receipt.exception")
                     .description("Number of exceptions during email receipt processing")
                     .tag("exception_type", "Exception")
@@ -334,6 +347,10 @@ public final class SmtpMetrics {
                     .description("Number of connections from whitelisted IPs bypassing DoS limits and RBL")
                     .register(MetricsRegistry.getGraphiteRegistry());
 
+            adaptiveRateLimitAppliedCounter = Counter.builder("robin.adaptive.ratelimit.applied")
+                    .description("Number of times adaptive rate limiting reduced connection limits")
+                    .register(MetricsRegistry.getGraphiteRegistry());
+
             Counter.builder("robin.email.receipt.exception")
                     .description("Number of exceptions during email receipt processing")
                     .tag("exception_type", "Exception")
@@ -359,5 +376,6 @@ public final class SmtpMetrics {
         dosSlowTransferRejectionCounter = null;
         dosCommandFloodRejectionCounter = null;
         whitelistBypassCounter = null;
+        adaptiveRateLimitAppliedCounter = null;
     }
 }
