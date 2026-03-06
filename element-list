@@ -39,6 +39,7 @@ com.mimecast.robin.queue.relay
 com.mimecast.robin.sasl
 com.mimecast.robin.scanners
 com.mimecast.robin.scanners.rbl
+com.mimecast.robin.signing
 com.mimecast.robin.smtp
 com.mimecast.robin.smtp.auth
 com.mimecast.robin.smtp.connection
