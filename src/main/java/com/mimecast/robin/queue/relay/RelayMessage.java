@@ -126,6 +126,16 @@ public class RelayMessage {
                     applyDkimSignaturesIfEnabled(relaySession);
                 }
 
+                // Apply IP pool selection if configured.
+                IpPoolSelector poolSelector = Factories.getIpPoolSelector();
+                String poolKey = poolSelector.selectPoolKey(relaySession.getSession());
+                relaySession.setPoolKey(poolKey);
+                String bindIp = poolSelector.selectAddress(poolKey);
+                if (bindIp != null) {
+                    relaySession.getSession().setBind(bindIp);
+                    log.debug("IP pool bind: session={} pool={} ip={}", relaySession.getUID(), poolKey, bindIp);
+                }
+
                 // Enqueue for relay delivery.
                 PersistentQueue.getInstance()
                         .enqueue(relaySession);

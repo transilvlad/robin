@@ -16,5 +16,18 @@
   bounce: true,
 
   // Retry count for outbound relay (Default: 30).
-  maxRetryCount: 30
+  maxRetryCount: 30,
+
+  // IP pools for weighted outbound bind address selection.
+  // Omit or leave empty to skip binding (default OS selection).
+  // ipPools: [
+  //   {
+  //     name: "default",
+  //     default: true,
+  //     addresses: [
+  //       { ip: "10.0.0.1", weight: 10 },
+  //       { ip: "10.0.0.2", weight: 5 }
+  //     ]
+  //   }
+  // ]
 }

@@ -40,6 +40,11 @@ public class RelaySession implements Serializable {
     private String mailbox;
 
     /**
+     * IP pool key assigned at enqueue time. Persists across retries.
+     */
+    private String poolKey;
+
+    /**
      * Retry count.
      */
     private int retryCount = 0;
@@ -140,6 +145,26 @@ public class RelaySession implements Serializable {
      */
     public RelaySession setMailbox(String mailbox) {
         this.mailbox = mailbox;
+        return this;
+    }
+
+    /**
+     * Gets IP pool key.
+     *
+     * @return Pool key string.
+     */
+    public String getPoolKey() {
+        return poolKey;
+    }
+
+    /**
+     * Sets IP pool key.
+     *
+     * @param poolKey Pool key string.
+     * @return Self.
+     */
+    public RelaySession setPoolKey(String poolKey) {
+        this.poolKey = poolKey;
         return this;
     }
 

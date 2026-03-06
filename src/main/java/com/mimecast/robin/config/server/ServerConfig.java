@@ -408,6 +408,16 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
+     * Gets IP pool config from relay config.
+     *
+     * @return IpPoolConfig instance.
+     */
+    public IpPoolConfig getIpPools() {
+        loadExternalIfAbsent("relay", Map.class);
+        return new IpPoolConfig(getMapProperty("relay"));
+    }
+
+    /**
      * Gets dovecot config.
      *
      * @return DovecotConfig instance.

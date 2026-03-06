@@ -11,6 +11,7 @@ import com.mimecast.robin.config.BasicConfig;
 import com.mimecast.robin.queue.QueueDatabase;
 import com.mimecast.robin.queue.QueueFactory;
 import com.mimecast.robin.queue.RelaySession;
+import com.mimecast.robin.queue.relay.IpPoolSelector;
 import com.mimecast.robin.signing.DkimSigner;
 import com.mimecast.robin.smtp.auth.DigestCache;
 import com.mimecast.robin.smtp.auth.StaticDigestCache;
@@ -399,6 +400,38 @@ public class Factories {
      */
     public static String[] getBotNames() {
         return bots.keySet().toArray(new String[0]);
+    }
+
+    /**
+     * IP pool selector implementation.
+     * <p>When set, overrides the default weighted round-robin pool selector.
+     */
+    private static Callable<IpPoolSelector> ipPoolSelector;
+
+    /**
+     * Sets IpPoolSelector callable.
+     *
+     * @param callable IpPoolSelector callable.
+     */
+    public static void setIpPoolSelector(Callable<IpPoolSelector> callable) {
+        ipPoolSelector = callable;
+    }
+
+    /**
+     * Gets IpPoolSelector.
+     * <p>Returns a default {@link IpPoolSelector} backed by the relay config when no override is registered.
+     *
+     * @return IpPoolSelector instance.
+     */
+    public static IpPoolSelector getIpPoolSelector() {
+        if (ipPoolSelector != null) {
+            try {
+                return ipPoolSelector.call();
+            } catch (Exception e) {
+                log.error("Error calling IP pool selector: {}", e.getMessage());
+            }
+        }
+        return new IpPoolSelector(Config.getServer().getIpPools());
     }
 
     /**
