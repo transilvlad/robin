@@ -48,6 +48,7 @@ public class ServerConfig extends ConfigFoundation {
         CONFIG_FILENAMES.put("clamav", "clamav.json5");
         CONFIG_FILENAMES.put("rspamd", "rspamd.json5");
         CONFIG_FILENAMES.put("blocklist", "blocklist.json5");
+        CONFIG_FILENAMES.put("whitelist", "whitelist.json5");
         CONFIG_FILENAMES.put("blackhole", "blackhole.json5");
         CONFIG_FILENAMES.put("proxy", "proxy.json5");
         CONFIG_FILENAMES.put("bots", "bots.json5");
@@ -311,6 +312,21 @@ public class ServerConfig extends ConfigFoundation {
         }
         // Return default config if not defined.
         return new RblConfig(null);
+    }
+
+    /**
+     * Gets whitelist configuration.
+     *
+     * @return WhitelistConfig instance.
+     */
+    public WhitelistConfig getWhitelistConfig() {
+        loadExternalIfAbsent("whitelist", Map.class);
+
+        if (map.containsKey("whitelist")) {
+            return new WhitelistConfig(getMapProperty("whitelist"));
+        }
+        // Return default config if not defined.
+        return new WhitelistConfig(null);
     }
 
     /**

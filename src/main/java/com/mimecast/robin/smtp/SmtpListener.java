@@ -6,6 +6,7 @@ import com.mimecast.robin.main.Server;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.mimecast.robin.smtp.security.BlocklistMatcher;
 import com.mimecast.robin.smtp.security.ConnectionTracker;
+import com.mimecast.robin.smtp.security.WhitelistMatcher;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -130,8 +131,15 @@ public class SmtpListener {
                     continue;
                 }
 
-                // Apply DoS protections if enabled.
-                if (config.isDosProtectionEnabled()) {
+                // Check if the IP is whitelisted (bypasses DoS limits and RBL).
+                boolean whitelisted = WhitelistMatcher.isWhitelisted(remoteIp, Config.getServer().getWhitelistConfig());
+                if (whitelisted) {
+                    SmtpMetrics.incrementWhitelistBypass();
+                    log.info("Whitelisted connection from {}: bypassing DoS limits", remoteIp);
+                }
+
+                // Apply DoS protections if enabled and IP is not whitelisted.
+                if (config.isDosProtectionEnabled() && !whitelisted) {
                     if (!checkConnectionLimits(sock, remoteIp)) {
                         continue; // Connection rejected due to limits.
                     }
@@ -139,21 +147,22 @@ public class SmtpListener {
 
                 log.info("Accepted connection from {}:{} on port {}.", remoteIp, sock.getPort(), port);
 
-                // Record connection for tracking.
-                if (config.isDosProtectionEnabled()) {
+                // Record connection for tracking (skipped for whitelisted IPs).
+                if (config.isDosProtectionEnabled() && !whitelisted) {
                     ConnectionTracker.recordConnection(remoteIp);
                 }
 
+                final boolean isWhitelisted = whitelisted;
                 executor.submit(() -> {
                     try {
-                        new EmailReceipt(sock, config, secure, submission).run();
+                        new EmailReceipt(sock, config, secure, submission, isWhitelisted).run();
 
                     } catch (Exception e) {
                         SmtpMetrics.incrementEmailReceiptException(e.getClass().getSimpleName());
                         log.error("Email receipt unexpected exception: {}", e.getMessage());
                     } finally {
-                        // Always record disconnection for proper tracking.
-                        if (config.isDosProtectionEnabled()) {
+                        // Always record disconnection for proper tracking (skipped for whitelisted IPs).
+                        if (config.isDosProtectionEnabled() && !isWhitelisted) {
                             ConnectionTracker.recordDisconnection(remoteIp);
                         }
                     }

@@ -1,0 +1,15 @@
+{
+  // Enable or disable connection whitelisting (default: false).
+  // Whitelisted IPs bypass DoS limits, rate limiting, and RBL checks.
+  enabled: false,
+
+  // List of trusted IP addresses and CIDR blocks.
+  // Examples:
+  //   - "127.0.0.1" - trusts the loopback address
+  //   - "10.0.0.0/8" - trusts the entire 10.x.x.x range
+  //   - "2001:db8::/32" - trusts an IPv6 subnet
+  entries: [
+    // "127.0.0.1",
+    // "10.0.0.0/8"
+  ]
+}

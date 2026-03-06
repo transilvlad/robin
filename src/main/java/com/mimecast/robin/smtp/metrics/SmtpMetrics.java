@@ -26,6 +26,7 @@ public final class SmtpMetrics {
     private static volatile Counter dosTarpitCounter;
     private static volatile Counter dosSlowTransferRejectionCounter;
     private static volatile Counter dosCommandFloodRejectionCounter;
+    private static volatile Counter whitelistBypassCounter;
 
     /**
      * Private constructor for utility class.
@@ -135,6 +136,14 @@ public final class SmtpMetrics {
      */
     public static void incrementDosCommandFloodRejection() {
         incrementCounter(() -> dosCommandFloodRejectionCounter, "DoS command flood rejection counter");
+    }
+
+    /**
+     * Increment the whitelist bypass counter.
+     * <p>Called when a connection is accepted from a whitelisted IP, bypassing DoS limits and RBL checks.
+     */
+    public static void incrementWhitelistBypass() {
+        incrementCounter(() -> whitelistBypassCounter, "whitelist bypass counter");
     }
 
     /**
@@ -264,6 +273,10 @@ public final class SmtpMetrics {
                     .description("Number of connections rejected due to command flooding")
                     .register(MetricsRegistry.getPrometheusRegistry());
 
+            whitelistBypassCounter = Counter.builder("robin.whitelist.bypass")
+                    .description("Number of connections from whitelisted IPs bypassing DoS limits and RBL")
+                    .register(MetricsRegistry.getPrometheusRegistry());
+
             Counter.builder("robin.email.receipt.exception")
                     .description("Number of exceptions during email receipt processing")
                     .tag("exception_type", "Exception")
@@ -317,6 +330,10 @@ public final class SmtpMetrics {
                     .description("Number of connections rejected due to command flooding")
                     .register(MetricsRegistry.getGraphiteRegistry());
 
+            whitelistBypassCounter = Counter.builder("robin.whitelist.bypass")
+                    .description("Number of connections from whitelisted IPs bypassing DoS limits and RBL")
+                    .register(MetricsRegistry.getGraphiteRegistry());
+
             Counter.builder("robin.email.receipt.exception")
                     .description("Number of exceptions during email receipt processing")
                     .tag("exception_type", "Exception")
@@ -341,5 +358,6 @@ public final class SmtpMetrics {
         dosTarpitCounter = null;
         dosSlowTransferRejectionCounter = null;
         dosCommandFloodRejectionCounter = null;
+        whitelistBypassCounter = null;
     }
 }
