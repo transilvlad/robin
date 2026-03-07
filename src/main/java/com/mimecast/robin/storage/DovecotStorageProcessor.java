@@ -115,6 +115,11 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
                 String.join(",", nonBotRecipients),
                 connection.getSession().isOutbound());
 
+        if (!config.getDovecot().getSaveLmtp().isInline()) {
+            enqueueLmtpDelivery(connection, envelope, nonBotRecipients, config);
+            return;
+        }
+
         // Get connection pool from Server
         LmtpConnectionPool pool = Server.getLmtpPool();
         if (pool == null) {
@@ -199,6 +204,34 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
                 processFailure(connection, config, recipient);
             }
         }
+    }
+
+    private void enqueueLmtpDelivery(Connection connection, MessageEnvelope envelope,
+                                     List<String> recipients, ServerConfig config) {
+        RelaySession relaySession = new RelaySession(Factories.getSession())
+                .setProtocol("lmtp");
+
+        var lmtpConfig = config.getDovecot().getSaveLmtp();
+        relaySession.getSession()
+                .setDirection(connection.getSession().getDirection())
+                .setMx(lmtpConfig.getServers())
+                .setPort(lmtpConfig.getPort())
+                .setTls(lmtpConfig.isTls())
+                .setLhlo(Config.getServer().getHostname());
+
+        MessageEnvelope queuedEnvelope = new MessageEnvelope()
+                .setFile(envelope.getFile())
+                .setMail(envelope.getMail())
+                .setRcpts(new ArrayList<>(recipients));
+
+        relaySession.getSession().addEnvelope(queuedEnvelope);
+        QueueFiles.persistEnvelopeFiles(relaySession);
+        PersistentQueue.getInstance().enqueue(relaySession);
+
+        log.info("Queued LMTP delivery for sender={} recipients={} uid={}",
+                envelope.getMail(),
+                String.join(",", recipients),
+                connection.getSession().getUID());
     }
 
     /**

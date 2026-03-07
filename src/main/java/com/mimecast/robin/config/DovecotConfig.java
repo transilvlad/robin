@@ -247,6 +247,7 @@ public class DovecotConfig extends BasicConfig {
      */
     public static class SaveLmtp {
         private final boolean enabled;
+        private final boolean inline;
         private final List<String> servers;
         private final int port;
         private final boolean tls;
@@ -262,6 +263,7 @@ public class DovecotConfig extends BasicConfig {
          */
         public SaveLmtp(Map<String, Object> map) {
             this.enabled = Boolean.TRUE.equals(map.getOrDefault("enabled", true));
+            this.inline = !Boolean.FALSE.equals(map.getOrDefault("inline", true));
             @SuppressWarnings("unchecked")
             List<String> safeServers = (List<String>) map.getOrDefault("servers", List.of("127.0.0.1"));
             this.servers = safeServers;
@@ -279,6 +281,13 @@ public class DovecotConfig extends BasicConfig {
          * @return True if enabled, false otherwise.
          */
         public boolean isEnabled() { return enabled; }
+
+        /**
+         * Gets whether SMTP accept should wait for LMTP completion.
+         *
+         * @return True to deliver inline, false to enqueue for async relay.
+         */
+        public boolean isInline() { return inline; }
 
         /**
          * Gets list of LMTP server addresses.
