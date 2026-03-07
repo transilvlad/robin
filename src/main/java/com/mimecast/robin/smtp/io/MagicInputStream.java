@@ -24,6 +24,7 @@ import java.util.regex.Pattern;
  */
 @SuppressWarnings("squid:MaximumInheritanceDepth")
 public class MagicInputStream extends LineInputStream {
+    private static final int DEFAULT_PUSHBACK_BUFFER_SIZE = 8192;
 
     /**
      * MessageEnvelope instance.
@@ -70,7 +71,7 @@ public class MagicInputStream extends LineInputStream {
      * @param in InputStream instance.
      */
     public MagicInputStream(InputStream in) {
-        super(in);
+        super(in, DEFAULT_PUSHBACK_BUFFER_SIZE);
     }
 
     /**

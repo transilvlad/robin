@@ -34,6 +34,7 @@ import java.util.Optional;
  */
 public class Connection extends SmtpFoundation {
     private static final Logger log = LogManager.getLogger(Connection.class);
+    private static final int SOCKET_PUSHBACK_BUFFER_SIZE = 8192;
 
     /**
      * Session instance.
@@ -151,7 +152,7 @@ public class Connection extends SmtpFoundation {
      */
     public void buildStreams() throws IOException {
         ThreadContext.put("bCode", socket.getRemoteSocketAddress().toString());
-        inc = new LineInputStream(socket.getInputStream());
+        inc = new LineInputStream(socket.getInputStream(), SOCKET_PUSHBACK_BUFFER_SIZE);
         out = new DataOutputStream(socket.getOutputStream());
     }
 
