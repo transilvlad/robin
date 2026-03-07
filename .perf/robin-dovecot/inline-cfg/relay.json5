@@ -1,0 +1,10 @@
+{
+  // PostgreSQL relay queue configuration for performance testing.
+  queuePgSQL: {
+    enabled: true,
+    jdbcUrl: "jdbc:postgresql://postgres-backend:5432/mailserver",
+    username: "mailuser",
+    password: "mailpass",
+    tableName: "relay_queue"
+  }
+}

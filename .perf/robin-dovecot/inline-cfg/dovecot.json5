@@ -1,0 +1,33 @@
+{
+  // SQL auth configuration used by integration endpoints (disabled for perf by default).
+  authSql: {
+    enabled: false,
+
+    // Query to list users for integration API.
+    usersQuery: "SELECT email FROM users",
+
+    // Query to check if a domain is served (returns any row if served).
+    domainQuery: "",
+
+    // Query to resolve aliases to real destination addresses.
+    aliasQuery: ""
+  },
+
+  // LMTP delivery configuration for Robin MTA.
+  // Uses connection pooling to reuse TCP connections across deliveries.
+  // Network alias "lmtp-backend" resolves to backend in current test suite.
+  saveLmtp: {
+    enabled: true,
+    inline: true,
+    servers: ["lmtp-backend"],
+    port: 24,
+    timeout: 30000,
+    tls: false,
+
+    // Connection pool settings (tuned for high load).
+    connectionPoolSize: 400,              // Max pooled connections.
+    connectionPoolTimeoutSeconds: 180,    // Max wait time for connection.
+    connectionIdleTimeoutSeconds: 270,    // Close idle connections after 4.5 minutes.
+    connectionMaxLifetimeSeconds: 1800    // Close connections after 30 minutes max.
+  }
+}

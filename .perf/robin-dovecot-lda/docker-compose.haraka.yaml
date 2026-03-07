@@ -1,0 +1,65 @@
+# Docker Compose for Haraka + Dovecot LDA Testing
+# Single container with Haraka SMTP and Dovecot LDA subprocess delivery.
+
+services:
+  haraka-dovecot-lda:
+    container_name: haraka-dovecot-lda
+    build:
+      context: ../../
+      dockerfile: ./.perf/robin-dovecot-lda/haraka.Dockerfile
+    volumes:
+      - ../robin-dovecot/dovecot/etc:/etc/dovecot:ro
+      - ../../log/dovecot:/var/log/dovecot
+      - ../../store/dovecot:/var/mail/vhosts
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "2525:25"
+      - "2143:143"
+      - "2993:993"
+      - "2110:110"
+      - "24190:4190"
+    networks:
+      robin-dovecot-lda-net:
+        aliases:
+          - lmtp-backend
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 25 && doveadm who >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:latest
+    command:
+      - "postgres"
+      - "-c"
+      - "logging_collector=on"
+      - "-c"
+      - "log_directory=/var/log"
+      - "-c"
+      - "log_filename=postgresql-%Y-%m-%d.log"
+    environment:
+      POSTGRES_DB: robin
+      POSTGRES_USER: robin
+      POSTGRES_PASSWORD: robin
+    volumes:
+      - ../../log/postgres:/var/log
+      - ../../store/postgres:/var/lib/postgresql
+      - ../.shared/db-init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    networks:
+      robin-dovecot-lda-net:
+        aliases:
+          - postgres-backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U robin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  robin-dovecot-lda-net:
+    driver: bridge
