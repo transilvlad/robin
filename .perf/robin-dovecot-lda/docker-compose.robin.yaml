@@ -36,6 +36,8 @@ services:
       # Dovecot logs and mail storage
       - ../../log/dovecot:/var/log/dovecot
       - ../../store/dovecot:/var/mail/vhosts
+    tmpfs:
+      - /usr/local/robin/store/robin/tmp:size=256m
     depends_on:
       postgres:
         condition: service_healthy
@@ -61,7 +63,6 @@ services:
 
   postgres:
     image: postgres:latest
-    container_name: postgres
     command:
       - "postgres"
       - "-c"

@@ -1,10 +1,8 @@
 {
   // Queue configuration for performance testing.
-  // Tuned for aggressive retry processing under high load.
+  // Tuned for aggressive dequeue processing under high load.
   enabled: true,
-  delay: 10,                    // Initial delay before first retry (seconds, down from 60)
-  retryDelay: [60, 120, 300],   // Retry schedule (seconds, faster retries)
-  maxRetries: 5,                // More retry attempts
-  cronPeriod: 5,                // Run dequeue every 5 seconds (down from 30)
-  maxDequeuePerTick: 50         // Process up to 50 items per tick (up from 10)
+  queueInitialDelay: 1,         // Start draining queued LMTP deliveries almost immediately.
+  queueInterval: 1,             // Run dequeue every second during perf tests.
+  maxDequeuePerTick: 250        // Drain large queued batches quickly enough to keep up with load.
 }

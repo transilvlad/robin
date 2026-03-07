@@ -57,37 +57,65 @@ echo_warning() {
     echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
+resolve_compose_container_id() {
+    docker-compose -f "$COMPOSE_FILE" ps -q "$1" 2>/dev/null | head -1
+}
+
 # Auto-detect backend and test name from directory and compose file.
-CURRENT_DIR="$(basename $(pwd))"
+CURRENT_DIR="$(basename "$(pwd)")"
+DOVECOT_SERVICE=""
+STALWART_SERVICE=""
 
 # Check directory name first for more accurate detection.
-if [[ "$CURRENT_DIR" == "robin-stalwart" ]]; then
+if [[ "$CURRENT_DIR" == "robin-dovecot-lda" ]]; then
+    BACKEND="dovecot"
+    USE_IMAP=false
+    if [[ "$COMPOSE_FILE" == *"postfix"* ]]; then
+        TEST_NAME="postfix"
+        DOVECOT_SERVICE="postfix-dovecot-lda"
+    elif [[ "$COMPOSE_FILE" == *"haraka"* ]]; then
+        TEST_NAME="haraka"
+        DOVECOT_SERVICE="haraka-dovecot-lda"
+    else
+        TEST_NAME="robin"
+        DOVECOT_SERVICE="robin-lda"
+    fi
+elif [[ "$CURRENT_DIR" == "robin-stalwart" ]]; then
     BACKEND="stalwart"
-    TEST_NAME="robin"
-    CONTAINER_NAME="stalwart"
     IMAP_PORT=2143
     USE_IMAP=true
+    STALWART_SERVICE="stalwart"
+    if [[ "$COMPOSE_FILE" == *"postfix"* ]]; then
+        TEST_NAME="postfix"
+    else
+        TEST_NAME="robin"
+    fi
 elif [[ "$CURRENT_DIR" == "stalwart-bare" ]]; then
     BACKEND="stalwart"
     TEST_NAME="stalwart-bare"
-    CONTAINER_NAME="perf-stalwart"
     IMAP_PORT=2143
     USE_IMAP=true
+    STALWART_SERVICE="stalwart"
 elif [[ "$COMPOSE_FILE" == *"stalwart"* ]]; then
     BACKEND="stalwart"
     TEST_NAME="stalwart"
-    CONTAINER_NAME="perf-stalwart"
     IMAP_PORT=2143
     USE_IMAP=true
+    STALWART_SERVICE="stalwart"
+elif [[ "$COMPOSE_FILE" == *"haraka"* ]]; then
+    BACKEND="dovecot"
+    TEST_NAME="haraka"
+    DOVECOT_SERVICE="dovecot"
+    USE_IMAP=false
 elif [[ "$COMPOSE_FILE" == *"postfix"* ]]; then
     BACKEND="dovecot"
     TEST_NAME="postfix"
-    CONTAINER_NAME="perf-dovecot"
+    DOVECOT_SERVICE="dovecot"
     USE_IMAP=false
 else
     BACKEND="dovecot"
     TEST_NAME="robin"
-    CONTAINER_NAME="perf-dovecot"
+    DOVECOT_SERVICE="dovecot"
     USE_IMAP=false
 fi
 
@@ -120,14 +148,19 @@ else
 
     # Special rate limit handling for stalwart-bare.
     if [[ "$TEST_NAME" == "stalwart-bare" ]]; then
+        STALWART_CONTAINER_ID="$(resolve_compose_container_id "${STALWART_SERVICE}")"
         echo_info "Disabling Stalwart rate limiting via CLI..."
-        docker exec perf-stalwart stalwart-cli -u http://localhost:8080 -c admin:admin123 \
-            server add-config queue.limiter.inbound.ip.enable false 2>/dev/null || true
-        docker exec perf-stalwart stalwart-cli -u http://localhost:8080 -c admin:admin123 \
-            server add-config queue.limiter.inbound.sender.enable false 2>/dev/null || true
-        docker exec perf-stalwart stalwart-cli -u http://localhost:8080 -c admin:admin123 \
-            server reload-config 2>/dev/null || true
-        echo_info "Rate limiting disabled"
+        if [[ -n "$STALWART_CONTAINER_ID" ]]; then
+            docker exec "$STALWART_CONTAINER_ID" stalwart-cli -u http://localhost:8080 -c admin:admin123 \
+                server add-config queue.limiter.inbound.ip.enable false 2>/dev/null || true
+            docker exec "$STALWART_CONTAINER_ID" stalwart-cli -u http://localhost:8080 -c admin:admin123 \
+                server add-config queue.limiter.inbound.sender.enable false 2>/dev/null || true
+            docker exec "$STALWART_CONTAINER_ID" stalwart-cli -u http://localhost:8080 -c admin:admin123 \
+                server reload-config 2>/dev/null || true
+            echo_info "Rate limiting disabled"
+        else
+            echo_warning "Could not resolve Stalwart container for rate limit configuration"
+        fi
     fi
 fi
 
@@ -146,7 +179,12 @@ if [[ "$USE_IMAP" == true ]]; then
         --folder INBOX \
         --delete-all 2>/dev/null || true
 else
-    docker exec ${CONTAINER_NAME} doveadm expunge -u pepper@example.com mailbox INBOX all 2>/dev/null || true
+    DOVECOT_CONTAINER_ID="$(resolve_compose_container_id "${DOVECOT_SERVICE}")"
+    if [[ -n "$DOVECOT_CONTAINER_ID" ]]; then
+        docker exec "$DOVECOT_CONTAINER_ID" doveadm expunge -u pepper@example.com mailbox INBOX all 2>/dev/null || true
+    else
+        echo_warning "Could not resolve Dovecot container for mailbox cleanup"
+    fi
 fi
 
 # Run JMeter test.

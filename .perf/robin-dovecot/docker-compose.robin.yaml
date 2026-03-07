@@ -4,7 +4,6 @@
 services:
   postgres:
     image: postgres:latest
-    container_name: postgres
     command:
       - "postgres"
       - "-c"
@@ -67,6 +66,8 @@ services:
       - ../.shared/robin/cfg:/usr/local/robin/cfg
       - ../../log:/var/log
       - ../../store:/usr/local/robin/store
+    tmpfs:
+      - /usr/local/robin/store/robin/tmp:size=256m
     networks:
       - robin-net
     depends_on:

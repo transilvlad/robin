@@ -18,6 +18,7 @@
   // Network alias "lmtp-backend" resolves to backend in current test suite.
   saveLmtp: {
     enabled: true,
+    inline: false,
     servers: ["lmtp-backend"],
     port: 24,
     timeout: 30000,

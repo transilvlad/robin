@@ -15,7 +15,8 @@
     recipientsLimit: 100,
     envelopeLimit: 1000,
     messageSizeLimit: 10485760,  // 10 MB
-    errorLimit: 10
+    errorLimit: 10,
+    dosProtectionEnabled: false
   },
 
   auth: false,        // No auth for max throughput
