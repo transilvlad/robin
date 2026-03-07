@@ -31,7 +31,7 @@ services:
       - ../store/postgres:/var/lib/postgresql
       - ./db-init:/docker-entrypoint-initdb.d:ro
     ports:
-      - "5433:5432"  # Using 5433 to avoid conflict with local Postgres.
+      - "5434:5432"
     networks:
       suite:
         aliases:
