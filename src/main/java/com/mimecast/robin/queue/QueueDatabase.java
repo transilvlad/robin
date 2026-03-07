@@ -5,95 +5,79 @@ import java.io.Serializable;
 import java.util.List;
 
 /**
- * Interface for queue database implementations.
- * <p>Defines the contract for persistent queue storage backends.
+ * Contract for a scheduled work queue with claim/ack semantics.
  *
- * @param <T> Type of items stored in the queue, must be Serializable
+ * @param <T> payload type
  */
 public interface QueueDatabase<T extends Serializable> extends Closeable {
 
     /**
-     * Add an item to the tail of the queue.
-     *
-     * @param item The item to enqueue
+     * Initialize external resources.
      */
-    void enqueue(T item);
+    void initialize();
 
     /**
-     * Remove and return the head of the queue, or null if empty.
-     *
-     * @return The head item or null if empty
+     * Inserts a ready queue item.
      */
-    T dequeue();
+    QueueItem<T> enqueue(QueueItem<T> item);
 
     /**
-     * Peek at the head without removing.
-     *
-     * @return The head item or null if empty
+     * Claims ready items for the given consumer until the lease expires.
      */
-    T peek();
+    List<QueueItem<T>> claimReady(int limit, long nowEpochSeconds, String consumerId, long claimUntilEpochSeconds);
 
     /**
-     * Check if the queue is empty.
-     *
-     * @return true if the queue is empty
+     * Acknowledges successful completion and removes the item from the active queue.
      */
-    boolean isEmpty();
+    boolean acknowledge(String uid);
 
     /**
-     * Get the size of the queue.
-     *
-     * @return The number of items in the queue
+     * Reschedules a claimed item for a future attempt.
+     */
+    boolean reschedule(QueueItem<T> item, long nextAttemptAtEpochSeconds, String lastError);
+
+    /**
+     * Releases expired claims back to READY.
+     */
+    int releaseExpiredClaims(long nowEpochSeconds);
+
+    /**
+     * Marks an item as dead.
+     */
+    boolean markDead(String uid, String lastError);
+
+    /**
+     * Active queue size.
      */
     long size();
 
     /**
-     * Take a snapshot copy of current values for read-only inspection.
-     *
-     * @return List of all items in the queue
+     * Aggregate queue statistics.
      */
-    List<T> snapshot();
+    QueueStats stats();
 
     /**
-     * Remove an item from the queue by index (0-based).
-     *
-     * @param index The index of the item to remove
-     * @return true if item was removed, false if index was out of bounds
+     * Returns a paged queue listing ordered by creation time.
      */
-    boolean removeByIndex(int index);
+    QueuePage<T> list(int offset, int limit, QueueListFilter filter);
 
     /**
-     * Remove items from the queue by indices (0-based).
-     *
-     * @param indices The indices of items to remove
-     * @return Number of items successfully removed
+     * Returns the item by queue UID.
      */
-    int removeByIndices(List<Integer> indices);
+    QueueItem<T> getByUID(String uid);
 
     /**
-     * Remove an item from the queue by UID (for RelaySession).
-     *
-     * @param uid The UID of the item to remove
-     * @return true if item was removed, false if not found
+     * Removes the item by queue UID regardless of state.
      */
-    boolean removeByUID(String uid);
+    boolean deleteByUID(String uid);
 
     /**
-     * Remove items from the queue by UIDs (for RelaySession).
-     *
-     * @param uids The UIDs of items to remove
-     * @return Number of items successfully removed
+     * Removes multiple items by queue UID regardless of state.
      */
-    int removeByUIDs(List<String> uids);
+    int deleteByUIDs(List<String> uids);
 
     /**
-     * Clear all items from the queue.
+     * Clears the full queue state, including dead items.
      */
     void clear();
-
-    /**
-     * Initialize the database connection/resources.
-     * Called during queue creation.
-     */
-    void initialize();
 }

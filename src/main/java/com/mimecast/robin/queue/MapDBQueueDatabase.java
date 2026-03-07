@@ -2,18 +2,23 @@ package com.mimecast.robin.queue;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.mapdb.*;
+import org.mapdb.Atomic;
+import org.mapdb.BTreeMap;
+import org.mapdb.DB;
+import org.mapdb.DBMaker;
+import org.mapdb.Serializer;
 import org.mapdb.serializer.SerializerJava;
 
 import java.io.File;
 import java.io.Serializable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 
 /**
- * MapDB implementation of QueueDatabase.
- * <p>A persistent FIFO queue backed by MapDB v3.
+ * MapDB-backed scheduled work queue.
  *
- * @param <T> Type of items stored in the queue, must be Serializable
+ * @param <T> payload type
  */
 public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase<T> {
 
@@ -22,30 +27,23 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
     private final File file;
     private final int concurrencyScale;
     private DB db;
-    private BTreeMap<Long, T> queue;
-    private Atomic.Long seq;
+    private BTreeMap<String, QueueItem<T>> items;
+    private BTreeMap<String, String> createdIndex;
+    private BTreeMap<String, String> readyIndex;
+    private BTreeMap<String, String> claimedIndex;
+    private Atomic.Long deadCount;
 
-    /**
-     * Constructs a new MapDBQueueDatabase instance.
-     *
-     * @param file The file to store the database.
-     * @param concurrencyScale The concurrency scale for MapDB (default: 32).
-     */
     public MapDBQueueDatabase(File file, int concurrencyScale) {
         this.file = file;
         this.concurrencyScale = concurrencyScale;
     }
 
-    /**
-     * Initialize the database connection/resources.
-     */
     @Override
-    @SuppressWarnings({"unchecked"})
-    public void initialize() {
-        // Check if this is a temp file (used in tests) to configure MapDB appropriately.
-        boolean isTempFile = file.getAbsolutePath().contains("temp") ||
-                           file.getAbsolutePath().contains("junit") ||
-                           file.getName().startsWith("test-");
+    @SuppressWarnings("unchecked")
+    public synchronized void initialize() {
+        boolean isTempFile = file.getAbsolutePath().contains("temp")
+                || file.getAbsolutePath().contains("junit")
+                || file.getName().startsWith("test-");
 
         DBMaker.Maker dbMaker = DBMaker
                 .fileDB(file)
@@ -53,213 +51,239 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
                 .closeOnJvmShutdown();
 
         if (isTempFile) {
-            // For temp files (tests), use simpler configuration to avoid Windows file locking issues.
-            this.db = dbMaker
-                    .fileLockDisable()
-                    .fileChannelEnable()
-                    .make();
+            this.db = dbMaker.fileLockDisable().fileChannelEnable().make();
         } else {
-            // For production files, use full-featured configuration.
-            this.db = dbMaker
-                    .fileMmapEnableIfSupported()
-                    .transactionEnable()
-                    .make();
+            this.db = dbMaker.fileMmapEnableIfSupported().transactionEnable().make();
         }
 
-        this.seq = db.atomicLong("queue_seq").createOrOpen();
-        this.queue = (BTreeMap<Long, T>) db.treeMap("queue_map", Serializer.LONG, new SerializerJava()).createOrOpen();
+        SerializerJava serializer = new SerializerJava();
+        this.items = (BTreeMap<String, QueueItem<T>>) db.treeMap("queue_items", Serializer.STRING, serializer).createOrOpen();
+        this.createdIndex = db.treeMap("queue_created_index", Serializer.STRING, Serializer.STRING).createOrOpen();
+        this.readyIndex = db.treeMap("queue_ready_index", Serializer.STRING, Serializer.STRING).createOrOpen();
+        this.claimedIndex = db.treeMap("queue_claimed_index", Serializer.STRING, Serializer.STRING).createOrOpen();
+        this.deadCount = db.atomicLong("queue_dead_count").createOrOpen();
     }
 
-    /**
-     * Add an item to the tail of the queue.
-     *
-     * @param item The item to enqueue
-     */
     @Override
-    public void enqueue(T item) {
-        long id = seq.incrementAndGet();
-        queue.put(id, item);
-        db.commit();
+    public synchronized QueueItem<T> enqueue(QueueItem<T> item) {
+        removeIndexes(item);
+        item.readyAt(item.getNextAttemptAtEpochSeconds()).syncFromPayload();
+        putItem(item);
+        commit();
+        return item;
     }
 
-    /**
-     * Remove and return the head of the queue, or null if empty.
-     */
     @Override
-    public T dequeue() {
-        Map.Entry<Long, T> first = queue.pollFirstEntry();
-        if (first == null) return null;
-        db.commit();
-        return first.getValue();
-    }
-
-    /**
-     * Peek at the head without removing.
-     */
-    @Override
-    public T peek() {
-        Map.Entry<Long, T> first = queue.firstEntry();
-        return first != null ? first.getValue() : null;
-    }
-
-    /**
-     * Check if the queue is empty.
-     */
-    @Override
-    public boolean isEmpty() {
-        return queue.isEmpty();
-    }
-
-    /**
-     * Get the size of the queue.
-     */
-    @Override
-    public long size() {
-        return queue.sizeLong();
-    }
-
-    /**
-     * Take a snapshot copy of current values for read-only inspection (e.g., service/health).
-     */
-    @Override
-    public List<T> snapshot() {
-        return new ArrayList<>(queue.values());
-    }
-
-    /**
-     * Remove an item from the queue by index (0-based).
-     */
-    @Override
-    public boolean removeByIndex(int index) {
-        if (index < 0) {
-            return false;
+    public synchronized List<QueueItem<T>> claimReady(int limit, long nowEpochSeconds, String consumerId,
+                                                      long claimUntilEpochSeconds) {
+        List<QueueItem<T>> claimed = new ArrayList<>();
+        if (limit <= 0) {
+            return claimed;
         }
 
-        List<Long> keys = new ArrayList<>(queue.keySet());
-        if (index >= keys.size()) {
-            return false;
-        }
-
-        Long key = keys.get(index);
-        T removed = queue.remove(key);
-        if (removed != null) {
-            db.commit();
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Remove items from the queue by indices (0-based).
-     */
-    @Override
-    public int removeByIndices(List<Integer> indices) {
-        if (indices == null || indices.isEmpty()) {
-            return 0;
-        }
-
-        // Get keys and sort indices in descending order to avoid index shift issues
-        List<Long> keys = new ArrayList<>(queue.keySet());
-        List<Integer> sortedIndices = new ArrayList<>(indices);
-        sortedIndices.sort((a, b) -> b - a);
-
-        int removed = 0;
-        for (int index : sortedIndices) {
-            if (index >= 0 && index < keys.size()) {
-                Long key = keys.get(index);
-                if (queue.remove(key) != null) {
-                    removed++;
-                }
+        String toKey = sortKey(nowEpochSeconds, Long.MAX_VALUE, "~");
+        List<String> readyKeys = new ArrayList<>(readyIndex.headMap(toKey, true).keySet());
+        for (String readyKey : readyKeys) {
+            if (claimed.size() >= limit) {
+                break;
             }
+            String uid = readyIndex.remove(readyKey);
+            QueueItem<T> item = items.get(uid);
+            if (item == null || item.getState() != QueueItemState.READY) {
+                continue;
+            }
+            item.claim(consumerId, claimUntilEpochSeconds);
+            items.put(uid, item);
+            claimedIndex.put(sortKey(item.getClaimedUntilEpochSeconds(), item.getCreatedAtEpochSeconds(), uid), uid);
+            claimed.add(item);
         }
+        commit();
+        return claimed;
+    }
 
-        if (removed > 0) {
-            db.commit();
+    @Override
+    public synchronized boolean acknowledge(String uid) {
+        boolean removed = deleteByUID(uid);
+        if (removed) {
+            commit();
         }
         return removed;
     }
 
-    /**
-     * Remove an item from the queue by UID (for RelaySession).
-     */
     @Override
-    public boolean removeByUID(String uid) {
-        if (uid == null) {
+    public synchronized boolean reschedule(QueueItem<T> item, long nextAttemptAtEpochSeconds, String lastError) {
+        QueueItem<T> existing = items.get(item.getUid());
+        if (existing == null) {
             return false;
         }
-        for (Map.Entry<Long, T> entry : queue.entrySet()) {
-            T item = entry.getValue();
-            if (item instanceof RelaySession relaySession) {
-                if (uid.equals(relaySession.getUID())) {
-                    queue.remove(entry.getKey());
-                    db.commit();
-                    return true;
-                }
-            }
-        }
-        return false;
+        removeIndexes(existing);
+        existing.setPayload(item.getPayload())
+                .setRetryCount(item.getRetryCount())
+                .setProtocol(item.getProtocol())
+                .setSessionUid(item.getSessionUid())
+                .setLastError(lastError)
+                .readyAt(nextAttemptAtEpochSeconds);
+        putItem(existing);
+        commit();
+        return true;
     }
 
-    /**
-     * Remove items from the queue by UIDs (for RelaySession).
-     */
     @Override
-    public int removeByUIDs(List<String> uids) {
+    public synchronized int releaseExpiredClaims(long nowEpochSeconds) {
+        int released = 0;
+        String toKey = sortKey(nowEpochSeconds, Long.MAX_VALUE, "~");
+        List<String> claimKeys = new ArrayList<>(claimedIndex.headMap(toKey, true).keySet());
+        for (String claimKey : claimKeys) {
+            String uid = claimedIndex.remove(claimKey);
+            QueueItem<T> item = items.get(uid);
+            if (item == null || item.getState() != QueueItemState.CLAIMED) {
+                continue;
+            }
+            item.readyAt(nowEpochSeconds);
+            items.put(uid, item);
+            readyIndex.put(sortKey(item.getNextAttemptAtEpochSeconds(), item.getCreatedAtEpochSeconds(), uid), uid);
+            released++;
+        }
+        if (released > 0) {
+            commit();
+        }
+        return released;
+    }
+
+    @Override
+    public synchronized boolean markDead(String uid, String lastError) {
+        QueueItem<T> item = items.get(uid);
+        if (item == null) {
+            return false;
+        }
+        removeIndexes(item);
+        item.dead(lastError);
+        items.put(uid, item);
+        createdIndex.put(sortKey(item.getCreatedAtEpochSeconds(), item.getCreatedAtEpochSeconds(), uid), uid);
+        deadCount.set(deadCount.get() + 1L);
+        commit();
+        return true;
+    }
+
+    @Override
+    public synchronized long size() {
+        return readyIndex.sizeLong() + claimedIndex.sizeLong();
+    }
+
+    @Override
+    public synchronized QueueStats stats() {
+        long ready = readyIndex.sizeLong();
+        long claimed = claimedIndex.sizeLong();
+        long dead = deadCount.get();
+        long oldestReady = readyIndex.isEmpty() ? 0L : parseEpoch(readyIndex.firstKey());
+        long oldestClaimed = claimedIndex.isEmpty() ? 0L : parseEpoch(claimedIndex.firstKey());
+        return new QueueStats(ready, claimed, dead, ready + claimed, oldestReady, oldestClaimed);
+    }
+
+    @Override
+    public synchronized QueuePage<T> list(int offset, int limit, QueueListFilter filter) {
+        List<QueueItem<T>> all = new ArrayList<>();
+        for (String createdKey : createdIndex.keySet()) {
+            QueueItem<T> item = items.get(createdIndex.get(createdKey));
+            if (item != null && (filter == null || filter.matches(item))) {
+                all.add(item);
+            }
+        }
+
+        int safeOffset = Math.max(0, offset);
+        int safeLimit = Math.max(0, limit);
+        int end = Math.min(all.size(), safeOffset + safeLimit);
+        List<QueueItem<T>> slice = safeOffset >= all.size() ? List.of() : new ArrayList<>(all.subList(safeOffset, end));
+        return new QueuePage<>(all.size(), slice);
+    }
+
+    @Override
+    public synchronized QueueItem<T> getByUID(String uid) {
+        return items.get(uid);
+    }
+
+    @Override
+    public synchronized boolean deleteByUID(String uid) {
+        QueueItem<T> item = items.remove(uid);
+        if (item == null) {
+            return false;
+        }
+        if (item.getState() == QueueItemState.DEAD) {
+            deadCount.set(Math.max(0L, deadCount.get() - 1L));
+        }
+        removeIndexes(item);
+        commit();
+        return true;
+    }
+
+    @Override
+    public synchronized int deleteByUIDs(List<String> uids) {
         if (uids == null || uids.isEmpty()) {
             return 0;
         }
-
-        Set<String> uidSet = new HashSet<>(uids);
-        List<Long> keysToRemove = new ArrayList<>();
-
-        for (Map.Entry<Long, T> entry : queue.entrySet()) {
-            T item = entry.getValue();
-            if (item instanceof RelaySession relaySession) {
-                if (uidSet.contains(relaySession.getUID())) {
-                    keysToRemove.add(entry.getKey());
-                }
+        int removed = 0;
+        for (String uid : new LinkedHashSet<>(uids)) {
+            if (deleteByUID(uid)) {
+                removed++;
             }
         }
-
-        for (Long key : keysToRemove) {
-            queue.remove(key);
-        }
-
-        if (!keysToRemove.isEmpty()) {
-            db.commit();
-        }
-
-        return keysToRemove.size();
+        return removed;
     }
 
-    /**
-     * Clear all items from the queue.
-     */
     @Override
-    public void clear() {
-        queue.clear();
-        db.commit();
+    public synchronized void clear() {
+        items.clear();
+        createdIndex.clear();
+        readyIndex.clear();
+        claimedIndex.clear();
+        deadCount.set(0L);
+        commit();
     }
 
-    /**
-     * Close the database.
-     */
     @Override
-    public void close() {
+    public synchronized void close() {
         if (db != null) {
             try {
-                // Ensure all transactions are committed before closing.
                 if (!db.isClosed()) {
                     db.commit();
                     db.close();
                 }
             } catch (Exception e) {
-                // Log but don't throw - close should be idempotent and not fail.
-                // This is especially important for MapDB WAL file cleanup on Windows.
                 log.warn("Error closing MapDB database for file {}: {}", file.getAbsolutePath(), e.getMessage());
             } finally {
                 db = null;
             }
         }
+    }
+
+    private void putItem(QueueItem<T> item) {
+        items.put(item.getUid(), item);
+        createdIndex.put(sortKey(item.getCreatedAtEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()), item.getUid());
+        if (item.getState() == QueueItemState.READY) {
+            readyIndex.put(sortKey(item.getNextAttemptAtEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()), item.getUid());
+        } else if (item.getState() == QueueItemState.CLAIMED) {
+            claimedIndex.put(sortKey(item.getClaimedUntilEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()), item.getUid());
+        }
+    }
+
+    private void removeIndexes(QueueItem<T> item) {
+        createdIndex.remove(sortKey(item.getCreatedAtEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()));
+        readyIndex.remove(sortKey(item.getNextAttemptAtEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()));
+        claimedIndex.remove(sortKey(item.getClaimedUntilEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()));
+    }
+
+    private void commit() {
+        if (db != null && !db.isClosed()) {
+            db.commit();
+        }
+    }
+
+    private static String sortKey(long primaryEpochSeconds, long secondaryEpochSeconds, String uid) {
+        return String.format("%020d|%020d|%s", primaryEpochSeconds, secondaryEpochSeconds, uid);
+    }
+
+    private static long parseEpoch(String key) {
+        int end = key.indexOf('|');
+        return end < 0 ? 0L : Long.parseLong(key.substring(0, end));
     }
 }

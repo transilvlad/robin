@@ -7,48 +7,42 @@ import org.apache.logging.log4j.Logger;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
+import redis.clients.jedis.Pipeline;
 
-import java.io.*;
-import java.util.*;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
- * Redis implementation of QueueDatabase.
- * <p>A persistent FIFO queue backed by Redis LIST with Java serialization.
- * <p>Compatible with AWS Elasticache and standard Redis instances.
- * <p>Configuration is loaded from {@code Config.getServer().getQueue().getMapProperty("queueRedis")}.
+ * Redis-backed scheduled work queue.
  *
- * @param <T> Type of items stored in the queue, must be Serializable
+ * @param <T> payload type
  */
 public class RedisQueueDatabase<T extends Serializable> implements QueueDatabase<T> {
-
     private static final Logger log = LogManager.getLogger(RedisQueueDatabase.class);
-    
-    // Placeholder prefixes for atomic remove operations
-    private static final String REMOVE_PLACEHOLDER_PREFIX = "__ROBIN_REMOVE__";
-    private static final String REMOVE_UID_PLACEHOLDER_PREFIX = "__ROBIN_REMOVE_UID__";
-    private static final String REMOVE_UIDS_PLACEHOLDER_PREFIX = "__ROBIN_REMOVE_UIDS__";
 
     private JedisPool jedisPool;
     private final String host;
     private final int port;
     private final String queueKey;
 
-    /**
-     * Constructs a new RedisQueueDatabase instance.
-     * <p>Loads configuration including host, port, and queueKey from queue config.
-     */
     public RedisQueueDatabase() {
         BasicConfig queueConfig = Config.getServer().getQueue();
         BasicConfig redisConfig = new BasicConfig(queueConfig.getMapProperty("queueRedis"));
-
         this.host = redisConfig.getStringProperty("host", "localhost");
         this.port = Math.toIntExact(redisConfig.getLongProperty("port", 6379L));
         this.queueKey = redisConfig.getStringProperty("queueKey", "robin:queue");
     }
 
-    /**
-     * Initialize the Redis connection pool.
-     */
     @Override
     public void initialize() {
         try {
@@ -57,336 +51,363 @@ public class RedisQueueDatabase<T extends Serializable> implements QueueDatabase
             poolConfig.setMaxIdle(5);
             poolConfig.setMinIdle(1);
             poolConfig.setTestOnBorrow(true);
-
             this.jedisPool = new JedisPool(poolConfig, host, port);
-
-            // Test the connection
             try (Jedis jedis = jedisPool.getResource()) {
                 jedis.ping();
             }
-
-            log.info("Redis queue database initialized: host={}, port={}, queueKey={}", host, port, queueKey);
         } catch (Exception e) {
-            log.error("Failed to initialize Redis queue database: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to initialize Redis queue database", e);
         }
     }
 
-    /**
-     * Add an item to the tail of the queue.
-     * <p>Uses Redis LPUSH to push to the left (tail) of the list.
-     *
-     * @param item The item to enqueue
-     */
     @Override
-    public void enqueue(T item) {
+    public QueueItem<T> enqueue(QueueItem<T> item) {
         try (Jedis jedis = jedisPool.getResource()) {
-            byte[] serialized = serialize(item);
-            jedis.lpush(queueKey.getBytes(), serialized);
+            String uid = item.getUid();
+            Pipeline pipeline = jedis.pipelined();
+            pipeline.del(payloadKey(uid));
+            pipeline.del(metaKey(uid));
+            pipeline.set(payloadKey(uid).getBytes(), serializeObject(item));
+            Map<String, String> meta = encodeMeta(item.readyAt(item.getNextAttemptAtEpochSeconds()).syncFromPayload());
+            pipeline.hset(metaKey(uid), meta);
+            pipeline.zadd(createdKey(), item.getCreatedAtEpochSeconds(), uid);
+            pipeline.zrem(claimedKey(), uid);
+            pipeline.zrem(deadKey(), uid);
+            pipeline.zadd(readyKey(), item.getNextAttemptAtEpochSeconds(), uid);
+            pipeline.sync();
+            return item;
         } catch (Exception e) {
             log.error("Failed to enqueue item: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to enqueue item", e);
         }
     }
 
-    /**
-     * Remove and return the head of the queue, or null if empty.
-     * <p>Uses Redis RPOP to pop from the right (head) of the list.
-     *
-     * @return The head item or null if empty
-     */
     @Override
-    public T dequeue() {
+    public List<QueueItem<T>> claimReady(int limit, long nowEpochSeconds, String consumerId, long claimUntilEpochSeconds) {
+        if (limit <= 0) {
+            return List.of();
+        }
+
+        String script = """
+                local ids = redis.call('ZRANGEBYSCORE', KEYS[1], '-inf', ARGV[1], 'LIMIT', 0, ARGV[2])
+                for _, id in ipairs(ids) do
+                  redis.call('ZREM', KEYS[1], id)
+                  redis.call('ZADD', KEYS[2], ARGV[3], id)
+                  redis.call('HSET', ARGV[4] .. id .. ':meta',
+                    'state', ARGV[5],
+                    'claimOwner', ARGV[6],
+                    'claimedUntil', ARGV[3],
+                    'updatedAt', ARGV[1])
+                end
+                return ids
+                """;
+
         try (Jedis jedis = jedisPool.getResource()) {
-            byte[] data = jedis.rpop(queueKey.getBytes());
-            if (data == null) {
-                return null;
+            @SuppressWarnings("unchecked")
+            List<String> ids = (List<String>) jedis.eval(script, List.of(readyKey(), claimedKey()),
+                    List.of(String.valueOf(nowEpochSeconds), String.valueOf(limit), String.valueOf(claimUntilEpochSeconds),
+                            keyPrefix(), QueueItemState.CLAIMED.name(), consumerId));
+            List<QueueItem<T>> claimed = new ArrayList<>(ids.size());
+            for (String uid : ids) {
+                QueueItem<T> item = getByUID(uid);
+                if (item != null) {
+                    claimed.add(item);
+                }
             }
-            return deserialize(data);
+            return claimed;
         } catch (Exception e) {
-            log.error("Failed to dequeue item: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to dequeue item", e);
+            log.error("Failed to claim ready items: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to claim ready items", e);
         }
     }
 
-    /**
-     * Peek at the head without removing.
-     * <p>Uses Redis LINDEX to get the rightmost (head) element at index -1.
-     *
-     * @return The head item or null if empty
-     */
     @Override
-    public T peek() {
+    public boolean acknowledge(String uid) {
+        return deleteByUID(uid);
+    }
+
+    @Override
+    public boolean reschedule(QueueItem<T> item, long nextAttemptAtEpochSeconds, String lastError) {
         try (Jedis jedis = jedisPool.getResource()) {
-            byte[] data = jedis.lindex(queueKey.getBytes(), -1);
-            if (data == null) {
-                return null;
-            }
-            return deserialize(data);
+            item.readyAt(nextAttemptAtEpochSeconds).setLastError(lastError).syncFromPayload();
+            Pipeline pipeline = jedis.pipelined();
+            pipeline.set(payloadKey(item.getUid()).getBytes(), serializeObject(item));
+            pipeline.hset(metaKey(item.getUid()), encodeMeta(item));
+            pipeline.zrem(claimedKey(), item.getUid());
+            pipeline.zadd(readyKey(), nextAttemptAtEpochSeconds, item.getUid());
+            pipeline.sync();
+            return true;
         } catch (Exception e) {
-            log.error("Failed to peek item: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to peek item", e);
+            log.error("Failed to reschedule item {}: {}", item.getUid(), e.getMessage(), e);
+            throw new RuntimeException("Failed to reschedule item", e);
         }
     }
 
-    /**
-     * Check if the queue is empty.
-     *
-     * @return true if the queue is empty
-     */
     @Override
-    public boolean isEmpty() {
-        return size() == 0;
+    public int releaseExpiredClaims(long nowEpochSeconds) {
+        String script = """
+                local ids = redis.call('ZRANGEBYSCORE', KEYS[1], '-inf', ARGV[1])
+                for _, id in ipairs(ids) do
+                  redis.call('ZREM', KEYS[1], id)
+                  redis.call('ZADD', KEYS[2], ARGV[1], id)
+                  redis.call('HSET', ARGV[2] .. id .. ':meta',
+                    'state', ARGV[3],
+                    'claimOwner', '',
+                    'claimedUntil', '0',
+                    'nextAttemptAt', ARGV[1],
+                    'updatedAt', ARGV[1])
+                end
+                return #ids
+                """;
+        try (Jedis jedis = jedisPool.getResource()) {
+            Object result = jedis.eval(script, List.of(claimedKey(), readyKey()),
+                    List.of(String.valueOf(nowEpochSeconds), keyPrefix(), QueueItemState.READY.name()));
+            return ((Number) result).intValue();
+        } catch (Exception e) {
+            log.error("Failed to release expired claims: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to release expired claims", e);
+        }
     }
 
-    /**
-     * Get the size of the queue.
-     * <p>Uses Redis LLEN to get the length of the list.
-     *
-     * @return The number of items in the queue
-     */
+    @Override
+    public boolean markDead(String uid, String lastError) {
+        QueueItem<T> item = getByUID(uid);
+        if (item == null) {
+            return false;
+        }
+        try (Jedis jedis = jedisPool.getResource()) {
+            item.dead(lastError);
+            Pipeline pipeline = jedis.pipelined();
+            pipeline.hset(metaKey(uid), encodeMeta(item));
+            pipeline.zrem(readyKey(), uid);
+            pipeline.zrem(claimedKey(), uid);
+            pipeline.zadd(deadKey(), item.getCreatedAtEpochSeconds(), uid);
+            pipeline.sync();
+            return true;
+        } catch (Exception e) {
+            log.error("Failed to mark dead item {}: {}", uid, e.getMessage(), e);
+            throw new RuntimeException("Failed to mark dead item", e);
+        }
+    }
+
     @Override
     public long size() {
         try (Jedis jedis = jedisPool.getResource()) {
-            return jedis.llen(queueKey.getBytes());
+            return jedis.zcard(readyKey()) + jedis.zcard(claimedKey());
         } catch (Exception e) {
             log.error("Failed to get queue size: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to get queue size", e);
         }
     }
 
-    /**
-     * Take a snapshot copy of current values for read-only inspection.
-     * <p>Uses Redis LRANGE to get all items in the list.
-     *
-     * @return List of all items in the queue
-     */
     @Override
-    public List<T> snapshot() {
+    public QueueStats stats() {
         try (Jedis jedis = jedisPool.getResource()) {
-            long length = jedis.llen(queueKey.getBytes());
-            if (length == 0) {
-                return new ArrayList<>();
-            }
-
-            // LRANGE returns items in order from left to right (tail to head)
-            // We need to reverse to match the queue order (head to tail)
-            List<byte[]> data = jedis.lrange(queueKey.getBytes(), 0, -1);
-            List<T> items = new ArrayList<>();
-            for (int i = data.size() - 1; i >= 0; i--) {
-                items.add(deserialize(data.get(i)));
-            }
-            return items;
+            long ready = jedis.zcard(readyKey());
+            long claimed = jedis.zcard(claimedKey());
+            long dead = jedis.zcard(deadKey());
+            long oldestReady = readFirstScore(jedis, readyKey());
+            long oldestClaimed = readFirstScore(jedis, claimedKey());
+            return new QueueStats(ready, claimed, dead, ready + claimed, oldestReady, oldestClaimed);
         } catch (Exception e) {
-            log.error("Failed to take snapshot: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to take snapshot", e);
+            log.error("Failed to get queue stats: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to get queue stats", e);
         }
     }
 
-    /**
-     * Remove an item from the queue by index (0-based).
-     * <p>Index 0 is the head of the queue (rightmost in Redis list).
-     *
-     * @param index The index of the item to remove
-     * @return true if item was removed, false if index was out of bounds
-     */
     @Override
-    public boolean removeByIndex(int index) {
-        if (index < 0) {
+    public QueuePage<T> list(int offset, int limit, QueueListFilter filter) {
+        QueueListFilter effectiveFilter = filter != null ? filter : QueueListFilter.activeOnly();
+        try (Jedis jedis = jedisPool.getResource()) {
+            List<String> ids = jedis.zrange(createdKey(), 0, -1);
+            List<QueueItem<T>> matches = new ArrayList<>();
+            for (String uid : ids) {
+                QueueItem<T> item = getByUID(uid);
+                if (item != null && effectiveFilter.matches(item)) {
+                    matches.add(item);
+                }
+            }
+            int safeOffset = Math.max(0, offset);
+            int safeLimit = Math.max(0, limit);
+            int end = Math.min(matches.size(), safeOffset + safeLimit);
+            List<QueueItem<T>> page = safeOffset >= matches.size() ? List.of() : new ArrayList<>(matches.subList(safeOffset, end));
+            return new QueuePage<>(matches.size(), page);
+        } catch (Exception e) {
+            log.error("Failed to list queue items: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to list queue items", e);
+        }
+    }
+
+    @Override
+    public QueueItem<T> getByUID(String uid) {
+        try (Jedis jedis = jedisPool.getResource()) {
+            Map<String, String> meta = jedis.hgetAll(metaKey(uid));
+            byte[] payload = jedis.get(payloadKey(uid).getBytes());
+            if (meta == null || meta.isEmpty() || payload == null) {
+                return null;
+            }
+            return decodeItem(meta, payload);
+        } catch (Exception e) {
+            log.error("Failed to get queue item {}: {}", uid, e.getMessage(), e);
+            throw new RuntimeException("Failed to get queue item", e);
+        }
+    }
+
+    @Override
+    public boolean deleteByUID(String uid) {
+        if (uid == null || uid.isBlank()) {
             return false;
         }
-
         try (Jedis jedis = jedisPool.getResource()) {
-            long length = jedis.llen(queueKey.getBytes());
-            if (index >= length) {
+            boolean exists = jedis.exists(metaKey(uid)) || jedis.exists(payloadKey(uid).getBytes());
+            if (!exists) {
                 return false;
             }
-
-            // Convert queue index to Redis list index (reverse order)
-            long redisIndex = length - 1 - index;
-
-            // Get the item at the index
-            byte[] data = jedis.lindex(queueKey.getBytes(), redisIndex);
-            if (data == null) {
-                return false;
-            }
-
-            // Use a unique placeholder to mark and remove the item
-            String placeholder = REMOVE_PLACEHOLDER_PREFIX + UUID.randomUUID();
-            jedis.lset(queueKey.getBytes(), redisIndex, placeholder.getBytes());
-            jedis.lrem(queueKey.getBytes(), 1, placeholder.getBytes());
-
+            Pipeline pipeline = jedis.pipelined();
+            pipeline.del(payloadKey(uid));
+            pipeline.del(metaKey(uid));
+            pipeline.zrem(createdKey(), uid);
+            pipeline.zrem(readyKey(), uid);
+            pipeline.zrem(claimedKey(), uid);
+            pipeline.zrem(deadKey(), uid);
+            pipeline.sync();
             return true;
         } catch (Exception e) {
-            log.error("Failed to remove by index: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to remove by index", e);
+            log.error("Failed to delete queue item {}: {}", uid, e.getMessage(), e);
+            throw new RuntimeException("Failed to delete queue item", e);
         }
     }
 
-    /**
-     * Remove items from the queue by indices (0-based).
-     * <p>Indices are processed in descending order to avoid index shifting issues.
-     *
-     * @param indices The indices of items to remove
-     * @return Number of items successfully removed
-     */
     @Override
-    public int removeByIndices(List<Integer> indices) {
-        if (indices == null || indices.isEmpty()) {
+    public int deleteByUIDs(List<String> uids) {
+        if (uids == null || uids.isEmpty()) {
             return 0;
         }
-
-        // Sort indices in descending order to avoid index shifting issues
-        List<Integer> sortedIndices = new ArrayList<>(indices);
-        sortedIndices.sort(Comparator.reverseOrder());
-
         int removed = 0;
-        for (int index : sortedIndices) {
-            if (removeByIndex(index)) {
+        for (String uid : new LinkedHashSet<>(uids)) {
+            if (deleteByUID(uid)) {
                 removed++;
             }
         }
         return removed;
     }
 
-    /**
-     * Remove an item from the queue by UID (for RelaySession).
-     *
-     * @param uid The UID of the item to remove
-     * @return true if item was removed, false if not found
-     */
-    @Override
-    public boolean removeByUID(String uid) {
-        if (uid == null) {
-            return false;
-        }
-
-        try (Jedis jedis = jedisPool.getResource()) {
-            List<byte[]> data = jedis.lrange(queueKey.getBytes(), 0, -1);
-            
-            for (int i = 0; i < data.size(); i++) {
-                T item = deserialize(data.get(i));
-                if (item instanceof RelaySession relaySession) {
-                    if (uid.equals(relaySession.getUID())) {
-                        // Use a unique placeholder to mark and remove the item
-                        String placeholder = REMOVE_UID_PLACEHOLDER_PREFIX + UUID.randomUUID();
-                        jedis.lset(queueKey.getBytes(), i, placeholder.getBytes());
-                        jedis.lrem(queueKey.getBytes(), 1, placeholder.getBytes());
-                        return true;
-                    }
-                }
-            }
-            return false;
-        } catch (Exception e) {
-            log.error("Failed to remove by UID: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to remove by UID", e);
-        }
-    }
-
-    /**
-     * Remove items from the queue by UIDs (for RelaySession).
-     *
-     * @param uids The UIDs of items to remove
-     * @return Number of items successfully removed
-     */
-    @Override
-    public int removeByUIDs(List<String> uids) {
-        if (uids == null || uids.isEmpty()) {
-            return 0;
-        }
-
-        Set<String> uidSet = new HashSet<>(uids);
-        int removed = 0;
-
-        try (Jedis jedis = jedisPool.getResource()) {
-            List<byte[]> data = jedis.lrange(queueKey.getBytes(), 0, -1);
-            List<Integer> indicesToRemove = new ArrayList<>();
-
-            for (int i = 0; i < data.size(); i++) {
-                T item = deserialize(data.get(i));
-                if (item instanceof RelaySession relaySession) {
-                    if (uidSet.contains(relaySession.getUID())) {
-                        indicesToRemove.add(i);
-                    }
-                }
-            }
-
-            // Remove in reverse order to avoid index shifting
-            for (int i = indicesToRemove.size() - 1; i >= 0; i--) {
-                int index = indicesToRemove.get(i);
-                String placeholder = REMOVE_UIDS_PLACEHOLDER_PREFIX + UUID.randomUUID();
-                jedis.lset(queueKey.getBytes(), index, placeholder.getBytes());
-                jedis.lrem(queueKey.getBytes(), 1, placeholder.getBytes());
-                removed++;
-            }
-
-            return removed;
-        } catch (Exception e) {
-            log.error("Failed to remove by UIDs: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to remove by UIDs", e);
-        }
-    }
-
-    /**
-     * Clear all items from the queue.
-     * <p>Uses Redis DEL to delete the entire list.
-     */
     @Override
     public void clear() {
         try (Jedis jedis = jedisPool.getResource()) {
-            jedis.del(queueKey.getBytes());
+            List<String> ids = jedis.zrange(createdKey(), 0, -1);
+            Pipeline pipeline = jedis.pipelined();
+            for (String uid : ids) {
+                pipeline.del(payloadKey(uid));
+                pipeline.del(metaKey(uid));
+            }
+            pipeline.del(createdKey(), readyKey(), claimedKey(), deadKey());
+            pipeline.sync();
         } catch (Exception e) {
             log.error("Failed to clear queue: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to clear queue", e);
         }
     }
 
-    /**
-     * Close the Redis connection pool.
-     */
     @Override
     public void close() {
         if (jedisPool != null && !jedisPool.isClosed()) {
-            try {
-                jedisPool.close();
-                log.debug("Redis queue database connection pool closed");
-            } catch (Exception e) {
-                log.warn("Error closing Redis connection pool: {}", e.getMessage());
-            }
+            jedisPool.close();
         }
     }
 
-    /**
-     * Serialize an object to byte array using Java serialization.
-     *
-     * @param item Item to serialize
-     * @return Serialized byte array
-     */
-    private byte[] serialize(T item) {
+    private Map<String, String> encodeMeta(QueueItem<T> item) {
+        Map<String, String> meta = new HashMap<>();
+        meta.put("uid", item.getUid());
+        meta.put("state", item.getState().name());
+        meta.put("createdAt", String.valueOf(item.getCreatedAtEpochSeconds()));
+        meta.put("updatedAt", String.valueOf(item.getUpdatedAtEpochSeconds()));
+        meta.put("nextAttemptAt", String.valueOf(item.getNextAttemptAtEpochSeconds()));
+        meta.put("claimedUntil", String.valueOf(item.getClaimedUntilEpochSeconds()));
+        meta.put("claimOwner", item.getClaimOwner() == null ? "" : item.getClaimOwner());
+        meta.put("retryCount", String.valueOf(item.getRetryCount()));
+        meta.put("protocol", item.getProtocol() == null ? "" : item.getProtocol());
+        meta.put("sessionUid", item.getSessionUid() == null ? "" : item.getSessionUid());
+        meta.put("lastError", item.getLastError() == null ? "" : item.getLastError());
+        return meta;
+    }
+
+    private QueueItem<T> decodeItem(Map<String, String> meta, byte[] payloadBytes) {
+        QueueItem<T> item = deserializeQueueItem(payloadBytes);
+        item.setState(QueueItemState.valueOf(meta.getOrDefault("state", QueueItemState.READY.name())));
+        item.setUpdatedAtEpochSeconds(parseLong(meta.get("updatedAt")));
+        item.setNextAttemptAtEpochSeconds(parseLong(meta.get("nextAttemptAt")));
+        item.setClaimedUntilEpochSeconds(parseLong(meta.get("claimedUntil")));
+        item.setClaimOwner(blankToNull(meta.get("claimOwner")));
+        item.setRetryCount((int) parseLong(meta.get("retryCount")));
+        item.setProtocol(blankToNull(meta.get("protocol")));
+        item.setSessionUid(blankToNull(meta.get("sessionUid")));
+        item.setLastError(blankToNull(meta.get("lastError")));
+        item.syncFromPayload();
+        return item;
+    }
+
+    private static long parseLong(String value) {
+        return value == null || value.isBlank() ? 0L : Long.parseLong(value);
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
+    }
+
+    private long readFirstScore(Jedis jedis, String zsetKey) {
+        List<redis.clients.jedis.resps.Tuple> tuples = jedis.zrangeWithScores(zsetKey, 0, 0);
+        if (tuples.isEmpty()) {
+            return 0L;
+        }
+        return (long) tuples.iterator().next().getScore();
+    }
+
+    private byte[] serializeObject(Serializable item) {
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
              ObjectOutputStream oos = new ObjectOutputStream(bos)) {
             oos.writeObject(item);
             return bos.toByteArray();
         } catch (IOException e) {
-            log.error("Failed to serialize item: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to serialize item", e);
+            throw new RuntimeException("Failed to serialize queue payload", e);
         }
     }
 
-    /**
-     * Deserialize a byte array to object using Java deserialization.
-     *
-     * @param data Byte array to deserialize
-     * @return Deserialized object
-     */
     @SuppressWarnings("unchecked")
-    private T deserialize(byte[] data) {
+    private QueueItem<T> deserializeQueueItem(byte[] data) {
         try (ByteArrayInputStream bis = new ByteArrayInputStream(data);
              ObjectInputStream ois = new ObjectInputStream(bis)) {
-            return (T) ois.readObject();
+            return (QueueItem<T>) ois.readObject();
         } catch (IOException | ClassNotFoundException e) {
-            log.error("Failed to deserialize item: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to deserialize item", e);
+            throw new RuntimeException("Failed to deserialize queue item", e);
         }
+    }
+
+    private String keyPrefix() {
+        return queueKey + ":item:";
+    }
+
+    private String metaKey(String uid) {
+        return keyPrefix() + uid + ":meta";
+    }
+
+    private String payloadKey(String uid) {
+        return keyPrefix() + uid + ":payload";
+    }
+
+    private String readyKey() {
+        return queueKey + ":ready";
+    }
+
+    private String claimedKey() {
+        return queueKey + ":claimed";
+    }
+
+    private String createdKey() {
+        return queueKey + ":created";
+    }
+
+    private String deadKey() {
+        return queueKey + ":dead";
     }
 }

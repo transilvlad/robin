@@ -21,6 +21,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -100,8 +102,7 @@ class ApiEndpointQueueControlsTest {
         assertEquals(2.0, result.get("queueSize"));
 
         assertEquals(2, queue.size());
-        assertEquals("test-1", queue.snapshot().get(0).getSession().getUID());
-        assertEquals("test-3", queue.snapshot().get(1).getSession().getUID());
+        assertEquals(Set.of("test-1", "test-3"), activeSessionUids(queue));
     }
 
     @Test
@@ -140,9 +141,7 @@ class ApiEndpointQueueControlsTest {
         assertEquals(3.0, result.get("queueSize"));
 
         assertEquals(3, queue.size());
-        assertEquals("test-1", queue.snapshot().get(0).getSession().getUID());
-        assertEquals("test-3", queue.snapshot().get(1).getSession().getUID());
-        assertEquals("test-5", queue.snapshot().get(2).getSession().getUID());
+        assertEquals(Set.of("test-1", "test-3", "test-5"), activeSessionUids(queue));
     }
 
     @Test
@@ -174,7 +173,7 @@ class ApiEndpointQueueControlsTest {
         assertEquals(1.0, result.get("queueSize"));
 
         assertEquals(1, queue.size());
-        assertEquals(1, relay.getRetryCount());
+        assertEquals(1, queue.getByUID(relay.getUID()).getRetryCount());
     }
 
     @Test
@@ -207,7 +206,8 @@ class ApiEndpointQueueControlsTest {
         assertEquals(1.0, result.get("queueSize"));
 
         assertEquals(1, queue.size());
-        assertEquals(keep.getSession().getUID(), queue.snapshot().getFirst().getSession().getUID());
+        assertEquals(Set.of(keep.getSession().getUID()), activeSessionUids(queue));
+        assertEquals(1, queue.stats().deadCount());
     }
 
     @Test
@@ -262,5 +262,11 @@ class ApiEndpointQueueControlsTest {
 
         assertEquals(400, response.statusCode());
         assertTrue(response.body().contains("Empty request body"));
+    }
+
+    private Set<String> activeSessionUids(PersistentQueue<RelaySession> queue) {
+        return queue.list(0, 100, com.mimecast.robin.queue.QueueListFilter.activeOnly()).items().stream()
+                .map(item -> item.getPayload().getSession().getUID())
+                .collect(Collectors.toSet());
     }
 }

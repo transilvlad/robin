@@ -7,7 +7,7 @@ import java.io.Serializable;
 
 /**
  * MariaDB implementation of QueueDatabase.
- * <p>A persistent FIFO queue backed by MariaDB using LONGBLOB for serialized storage.
+ * <p>A persistent scheduled work queue backed by MariaDB using LONGBLOB for serialized storage.
  * <p>Configuration is loaded from {@code Config.getServer().getQueue().getMapProperty("queueMariaDB")}.
  *
  * @param <T> Type of items stored in the queue, must be Serializable
@@ -48,8 +48,18 @@ public class QueueMariaDB<T extends Serializable> extends SQLQueueDatabase<T> {
     protected String getCreateTableSQL() {
         return "CREATE TABLE IF NOT EXISTS " + tableName + " (" +
                 "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
-                "data LONGBLOB NOT NULL, " +
-                "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" +
+                "queue_uid VARCHAR(191) NOT NULL UNIQUE, " +
+                "state VARCHAR(16) NOT NULL, " +
+                "next_attempt_at BIGINT NOT NULL, " +
+                "claimed_until BIGINT NOT NULL DEFAULT 0, " +
+                "claim_owner VARCHAR(255) NULL, " +
+                "created_epoch BIGINT NOT NULL, " +
+                "updated_epoch BIGINT NOT NULL, " +
+                "retry_count INT NOT NULL DEFAULT 0, " +
+                "protocol VARCHAR(64) NULL, " +
+                "session_uid VARCHAR(255) NULL, " +
+                "last_error TEXT NULL, " +
+                "data LONGBLOB NOT NULL" +
                 ") ENGINE=InnoDB";
     }
 }

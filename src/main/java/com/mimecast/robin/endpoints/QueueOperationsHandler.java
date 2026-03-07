@@ -2,6 +2,10 @@ package com.mimecast.robin.endpoints;
 
 import com.google.gson.Gson;
 import com.mimecast.robin.queue.PersistentQueue;
+import com.mimecast.robin.queue.QueueItem;
+import com.mimecast.robin.queue.QueueItemState;
+import com.mimecast.robin.queue.QueueListFilter;
+import com.mimecast.robin.queue.QueuePage;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.session.Session;
@@ -13,6 +17,7 @@ import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -100,7 +105,7 @@ public class QueueOperationsHandler {
             // Handle single UID.
             if (payload.containsKey("uid")) {
                 String uid = (String) payload.get("uid");
-                if (queue.removeByUID(uid)) {
+                if (queue.deleteByUID(uid)) {
                     deletedCount = 1;
                     log.info("Deleted queue item with UID {}", uid);
                 } else {
@@ -111,7 +116,7 @@ public class QueueOperationsHandler {
             else if (payload.containsKey("uids")) {
                 @SuppressWarnings("unchecked")
                 List<String> uids = (List<String>) payload.get("uids");
-                deletedCount = queue.removeByUIDs(uids);
+                deletedCount = queue.deleteByUIDs(uids);
                 log.info("Deleted {} queue items", deletedCount);
             } else {
                 endpoint.sendText(exchange, 400, "Missing 'uid' or 'uids' parameter");
@@ -134,7 +139,7 @@ public class QueueOperationsHandler {
     /**
      * Handles <b>POST /client/queue/retry</b> requests.
      *
-     * <p>Retries queue items by UID or UIDs (dequeue and re-enqueue with retry count bump).
+     * <p>Retries queue items by UID or UIDs by making them immediately ready again.
      * <p>Accepts JSON body with either "uid" (single string) or "uids" (array of strings).
      */
     public void handleRetry(HttpExchange exchange) throws IOException {
@@ -158,7 +163,6 @@ public class QueueOperationsHandler {
             }
 
             PersistentQueue<RelaySession> queue = PersistentQueue.getInstance();
-            List<RelaySession> items = queue.snapshot();
             List<String> targetUIDs = new ArrayList<>();
 
             // Collect target UIDs.
@@ -173,28 +177,18 @@ public class QueueOperationsHandler {
                 return;
             }
 
-            // Collect items to retry and remove them from queue.
-            List<RelaySession> toRetry = new ArrayList<>();
-            for (RelaySession item : items) {
-                if (targetUIDs.contains(item.getUID())) {
-                    toRetry.add(item);
+            int retriedCount = 0;
+            for (String uid : targetUIDs) {
+                if (queue.retryNow(uid)) {
+                    retriedCount++;
                 }
             }
 
-            // Remove items.
-            int removedCount = queue.removeByUIDs(targetUIDs);
-
-            // Re-enqueue with bumped retry count.
-            for (RelaySession relaySession : toRetry) {
-                relaySession.bumpRetryCount();
-                queue.enqueue(relaySession);
-            }
-
-            log.info("Retried {} queue items", toRetry.size());
+            log.info("Retried {} queue items", retriedCount);
 
             Map<String, Object> response = new HashMap<>();
             response.put("status", "OK");
-            response.put("retriedCount", toRetry.size());
+            response.put("retriedCount", retriedCount);
             response.put("queueSize", queue.size());
 
             String json = gson.toJson(response);
@@ -208,7 +202,7 @@ public class QueueOperationsHandler {
     /**
      * Handles <b>POST /client/queue/bounce</b> requests.
      *
-     * <p>Bounces queue items by UID or UIDs (remove and optionally generate bounce message).
+     * <p>Moves queue items by UID or UIDs to the dead state.
      * <p>Accepts JSON body with either "uid" (single string) or "uids" (array of strings).
      */
     public void handleBounce(HttpExchange exchange) throws IOException {
@@ -246,9 +240,12 @@ public class QueueOperationsHandler {
                 return;
             }
 
-            // Remove items (bounce = delete in this context).
-            // Future enhancement: generate actual bounce messages.
-            int bouncedCount = queue.removeByUIDs(targetUIDs);
+            int bouncedCount = 0;
+            for (String uid : targetUIDs) {
+                if (queue.markDead(uid, "Bounced by admin endpoint")) {
+                    bouncedCount++;
+                }
+            }
             log.info("Bounced {} queue items", bouncedCount);
 
             Map<String, Object> response = new HashMap<>();
@@ -296,16 +293,40 @@ public class QueueOperationsHandler {
             }
 
             PersistentQueue<RelaySession> queue = PersistentQueue.getInstance();
-            List<RelaySession> allItems = queue.snapshot();
+            QueueListFilter filter = QueueListFilter.activeOnly();
+            if (queryParams.containsKey("state")) {
+                String raw = queryParams.get("state");
+                EnumSet<QueueItemState> states = EnumSet.noneOf(QueueItemState.class);
+                for (String token : raw.split(",")) {
+                    try {
+                        states.add(QueueItemState.valueOf(token.trim().toUpperCase()));
+                    } catch (IllegalArgumentException ignored) {
+                    }
+                }
+                if (!states.isEmpty()) {
+                    filter.setStates(states);
+                }
+            }
+            if (queryParams.containsKey("protocol")) {
+                filter.setProtocol(queryParams.get("protocol"));
+            }
+            if (queryParams.containsKey("retryMin")) {
+                filter.setMinRetryCount(Integer.parseInt(queryParams.get("retryMin")));
+            }
+            if (queryParams.containsKey("retryMax")) {
+                filter.setMaxRetryCount(Integer.parseInt(queryParams.get("retryMax")));
+            }
 
             // Calculate pagination.
-            int total = allItems.size();
+            int offset = (page - 1) * limit;
+            QueuePage<RelaySession> listing = queue.list(offset, limit, filter);
+            int total = Math.toIntExact(listing.total());
             int startIndex = (page - 1) * limit;
             int endIndex = Math.min(startIndex + limit, total);
             int totalPages = (int) Math.ceil((double) total / limit);
 
             // Get page items.
-            List<RelaySession> items = startIndex < total ? allItems.subList(startIndex, endIndex) : new ArrayList<>();
+            List<QueueItem<RelaySession>> items = listing.items();
 
             // Load HTML template from resources.
             String template = endpoint.readResourceFile("queue-list-ui.html");
@@ -339,7 +360,8 @@ public class QueueOperationsHandler {
     /**
      * Builds an HTML row for a relay session in the queue list.
      */
-    private String buildQueueRow(RelaySession relaySession, int rowNumber) {
+    private String buildQueueRow(QueueItem<RelaySession> item, int rowNumber) {
+        RelaySession relaySession = item.getPayload();
         Session session = relaySession.getSession();
         List<MessageEnvelope> envs = session != null ? session.getEnvelopes() : null;
         int envCount = envs != null ? envs.size() : 0;
@@ -389,7 +411,7 @@ public class QueueOperationsHandler {
 
         String lastRetry = relaySession.getLastRetryTime() > 0 ? relaySession.getLastRetryDate() : "-";
         String sessionUID = session != null ? session.getUID() : "-";
-        String relayUID = relaySession.getUID();
+        String relayUID = item.getUid();
 
         // Load row template.
         String rowTemplate;

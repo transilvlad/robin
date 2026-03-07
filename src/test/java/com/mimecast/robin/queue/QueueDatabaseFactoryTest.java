@@ -3,14 +3,18 @@ package com.mimecast.robin.queue;
 import com.mimecast.robin.main.Factories;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-
 import org.junit.jupiter.api.parallel.Isolated;
 
-import static org.junit.jupiter.api.Assertions.*;
+import java.time.Instant;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Test class for the queue database factory system.
- * <p>Tests use in-memory database (all backends disabled in test resources config).
+ * Tests for the queue database factory system.
+ * <p>Tests use in-memory database when no persistent backend is configured.
  */
 @Isolated
 class QueueDatabaseFactoryTest {
@@ -21,38 +25,26 @@ class QueueDatabaseFactoryTest {
     void tearDown() {
         if (queue != null) {
             try {
-                // Clear any remaining items before closing
-                while (!queue.isEmpty()) {
-                    queue.dequeue();
-                }
+                queue.clear();
                 queue.close();
-            } catch (Exception e) {
-                // Ignore errors during test cleanup.
+            } catch (Exception ignored) {
             }
         }
-        // Reset factory to default.
         Factories.setQueueDatabase(null);
     }
 
     @Test
     void testDefaultInMemoryImplementation() {
-        // With test config, all backends are disabled, so should use in-memory
         queue = PersistentQueue.getInstance();
+        queue.clear();
 
         assertNotNull(queue);
-
-        // Clear queue in case other tests left items (singleton issue)
-        while (!queue.isEmpty()) {
-            queue.dequeue();
-        }
-
         assertTrue(queue.isEmpty());
         assertEquals(0, queue.size());
     }
 
     @Test
     void testInMemoryImplementation() {
-        // Explicitly set in-memory implementation
         Factories.setQueueDatabase(() -> {
             InMemoryQueueDatabase<RelaySession> db = new InMemoryQueueDatabase<>();
             db.initialize();
@@ -60,34 +52,25 @@ class QueueDatabaseFactoryTest {
         });
 
         queue = PersistentQueue.getInstance();
-
-        // Test basic operations
-        assertTrue(queue.isEmpty());
-        assertEquals(0, queue.size());
-
-        // Create a test RelaySession
         RelaySession testSession = new RelaySession(null);
 
-        // Test enqueue
         queue.enqueue(testSession);
         assertFalse(queue.isEmpty());
         assertEquals(1, queue.size());
 
-        // Test peek
-        RelaySession peeked = queue.peek();
-        assertNotNull(peeked);
-        assertEquals(1, queue.size()); // Size should not change after peek
+        QueuePage<RelaySession> page = queue.list(0, 10, QueueListFilter.activeOnly());
+        assertEquals(1, page.total());
+        assertEquals(1, page.items().size());
 
-        // Test dequeue
-        RelaySession dequeued = queue.dequeue();
-        assertNotNull(dequeued);
+        long now = Instant.now().getEpochSecond();
+        var claimed = queue.claimReady(1, now, "test", now + 60);
+        assertEquals(1, claimed.size());
+        assertTrue(queue.acknowledge(claimed.getFirst().getUid()));
         assertTrue(queue.isEmpty());
-        assertEquals(0, queue.size());
     }
 
     @Test
     void testFactoryResetBehavior() {
-        // First, set a custom factory
         Factories.setQueueDatabase(() -> {
             InMemoryQueueDatabase<RelaySession> db = new InMemoryQueueDatabase<>();
             db.initialize();
@@ -95,25 +78,22 @@ class QueueDatabaseFactoryTest {
         });
 
         queue = PersistentQueue.getInstance();
-        RelaySession testSession = new RelaySession(null);
-        queue.enqueue(testSession);
+        queue.enqueue(new RelaySession(null));
         assertEquals(1, queue.size());
         queue.close();
+        queue = null;
 
-        // Reset factory to null (should use default from config - in-memory for tests)
         Factories.setQueueDatabase(null);
 
-        // Create new queue instance
         queue = PersistentQueue.getInstance();
+        queue.clear();
 
-        // The queue should be empty since it's a new instance
         assertNotNull(queue);
         assertTrue(queue.isEmpty());
     }
 
     @Test
-    void testSnapshotFunctionality() {
-        // Use in-memory (default for tests)
+    void testListFunctionality() {
         Factories.setQueueDatabase(() -> {
             InMemoryQueueDatabase<RelaySession> db = new InMemoryQueueDatabase<>();
             db.initialize();
@@ -121,19 +101,13 @@ class QueueDatabaseFactoryTest {
         });
 
         queue = PersistentQueue.getInstance();
+        queue.enqueue(new RelaySession(null));
+        queue.enqueue(new RelaySession(null));
 
-        // Add multiple items
-        RelaySession session1 = new RelaySession(null);
-        RelaySession session2 = new RelaySession(null);
+        QueuePage<RelaySession> page = queue.list(0, 10, QueueListFilter.activeOnly());
 
-        queue.enqueue(session1);
-        queue.enqueue(session2);
-
-        // Test snapshot
-        var snapshot = queue.snapshot();
-        assertEquals(2, snapshot.size());
-
-        // Verify snapshot doesn't modify original queue
+        assertEquals(2, page.total());
+        assertEquals(2, page.items().size());
         assertEquals(2, queue.size());
         assertFalse(queue.isEmpty());
     }

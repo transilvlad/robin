@@ -1,11 +1,11 @@
 /**
- * A persistent queue for storing emails that could not be delivered.
+ * A persistent scheduled work queue for emails that could not be delivered.
  *
  * <p>This package provides multiple queue persistence backends for storing messages
  * <br>that could not be relayed. The queue backend is configured in {@code cfg/queue.json5}.
  *
- * <p>The {@link com.mimecast.robin.queue.PersistentQueue} is the main class for the persistent queue.
- * <br>It is used by the server to store emails that could not be delivered.
+ * <p>The {@link com.mimecast.robin.queue.PersistentQueue} is the main facade for queue persistence.
+ * <br>It stores relay sessions together with retry, claim, and state metadata.
  *
  * <h2>Supported Backends:</h2>
  * <ul>
@@ -26,14 +26,13 @@
  * </ol>
  *
  * <p>All backends implement the {@link com.mimecast.robin.queue.QueueDatabase} interface,
- * <br>providing FIFO queue operations, size checks, snapshots, and item removal capabilities.
+ * <br>providing ready-item claiming, acknowledgement, rescheduling, dead-lettering, and paged listing.
  *
- * <p>The {@link com.mimecast.robin.queue.relay.RelayQueueCron} processes the queue periodically
- * <br>with configurable retry scheduling for failed deliveries.
+ * <p>The {@link com.mimecast.robin.queue.RelayQueueCron} claims ready work periodically
+ * <br>and hands delivery to worker threads with lease-based recovery for failed consumers.
  *
  * @see com.mimecast.robin.queue.PersistentQueue
  * @see com.mimecast.robin.queue.QueueDatabase
- * @see com.mimecast.robin.queue.relay.RelayQueueCron
+ * @see com.mimecast.robin.queue.RelayQueueCron
  */
 package com.mimecast.robin.queue;
-

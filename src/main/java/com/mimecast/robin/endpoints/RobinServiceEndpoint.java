@@ -109,17 +109,18 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
 
     /**
      * Generates JSON representation of relay queue statistics.
-     *
-     * @return JSON object string containing queue size and retry histogram.
      */
     private String getQueueJson() {
-        long queueSize = RelayQueueCron.getQueueSize();
-        Map<Integer, Long> histogram = RelayQueueCron.getRetryHistogram();
-        String histogramJson = histogram.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .map(e -> String.format("\"%d\":%d", e.getKey(), e.getValue()))
-                .collect(Collectors.joining(",", "{", "}"));
-        return String.format("{\"size\":%d,\"retryHistogram\":%s}", queueSize, histogramJson);
+        var stats = RelayQueueCron.getQueueStats();
+        return String.format(
+                "{\"size\":%d,\"ready\":%d,\"claimed\":%d,\"dead\":%d,\"oldestReadyAtEpochSeconds\":%d,\"oldestClaimedAtEpochSeconds\":%d}",
+                stats.totalCount(),
+                stats.readyCount(),
+                stats.claimedCount(),
+                stats.deadCount(),
+                stats.oldestReadyAtEpochSeconds(),
+                stats.oldestClaimedAtEpochSeconds()
+        );
     }
 
     /**
@@ -133,9 +134,11 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
                 RetryScheduler.getFirstWaitMinutes(),
                 RetryScheduler.getGrowthFactor());
 
-        String cronJson = String.format("{\"initialDelaySeconds\":%d,\"periodSeconds\":%d,\"lastExecutionEpochSeconds\":%d,\"nextExecutionEpochSeconds\":%d}",
+        String cronJson = String.format("{\"initialDelaySeconds\":%d,\"periodSeconds\":%d,\"workerThreads\":%d,\"maxInFlight\":%d,\"lastExecutionEpochSeconds\":%d,\"nextExecutionEpochSeconds\":%d}",
                 RelayQueueCron.getInitialDelaySeconds(),
                 RelayQueueCron.getPeriodSeconds(),
+                RelayQueueCron.getWorkerThreads(),
+                RelayQueueCron.getMaxInFlight(),
                 RelayQueueCron.getLastExecutionEpochSeconds(),
                 RelayQueueCron.getNextExecutionEpochSeconds());
 
@@ -377,4 +380,3 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
                 .replace("'", "&#39;");
     }
 }
-

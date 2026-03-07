@@ -5,127 +5,134 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
- * RelayQueue queue cron job.
- * <p>Dequeues RelaySession items from the persistent queue and attempts delivery.
- * <p>Implements retry logic with exponential backoff and maximum retry limits.
- * <p>Handles processing of email delivery operations based on protocol.
- * <p>Relay feature if enabled and SMTP submissions will enqueue RelaySession items for processing here.
+ * Queue scheduler that claims ready work and hands it to delivery workers.
  */
 public class RelayQueueCron {
     private static final Logger log = LogManager.getLogger(RelayQueueCron.class);
 
-    // Scheduler configuration (seconds).
-    private static final int INITIAL_DELAY_SECONDS = Math.toIntExact(Config.getServer().getQueue().getLongProperty("queueInitialDelay", 10L));
-    private static final int PERIOD_SECONDS = Math.toIntExact(Config.getServer().getQueue().getLongProperty("queueInterval", 30L));
+    private static final int INITIAL_DELAY_SECONDS = Math.toIntExact(
+            Config.getServer().getQueue().getLongProperty("queueInitialDelay", 10L)
+    );
+    private static final int PERIOD_SECONDS = Math.toIntExact(
+            Config.getServer().getQueue().getLongProperty("queueInterval", 30L)
+    );
+    private static final int MAX_CLAIM_PER_TICK = Math.toIntExact(
+            Config.getServer().getQueue().getLongProperty("maxDequeuePerTick", 10L)
+    );
+    private static final int WORKER_THREADS = Math.toIntExact(
+            Config.getServer().getQueue().getLongProperty("workerThreads", (long) Math.max(2, Math.min(8, MAX_CLAIM_PER_TICK)))
+    );
+    private static final int MAX_IN_FLIGHT = Math.toIntExact(
+            Config.getServer().getQueue().getLongProperty("maxInFlight", (long) Math.max(WORKER_THREADS * 2, MAX_CLAIM_PER_TICK))
+    );
+    private static final int CLAIM_TIMEOUT_SECONDS = Math.toIntExact(
+            Config.getServer().getQueue().getLongProperty("claimTimeoutSeconds", 300L)
+    );
 
-    // Batch dequeue configuration (items per tick).
-    private static final int MAX_DEQUEUE_PER_TICK = Math.toIntExact(Config.getServer().getQueue().getLongProperty("maxDequeuePerTick", 10L));
-
-    // Shared state.
     private static volatile ScheduledExecutorService scheduler;
+    private static volatile ThreadPoolExecutor workerExecutor;
     private static volatile PersistentQueue<RelaySession> queue;
+    private static final String CONSUMER_ID = "robin-" + UUID.randomUUID();
 
-    // Timing info (epoch seconds).
     private static volatile long lastExecutionEpochSeconds = 0L;
     private static volatile long nextExecutionEpochSeconds = 0L;
 
-    /**
-     * Main method to start the cron job.
-     */
     public static synchronized void run() {
         if (scheduler != null) {
-            return; // Already running.
+            return;
         }
 
         queue = PersistentQueue.getInstance();
-        long initialQueueSize = queue.size();
-        log.info("RelayQueueCron starting: initialDelaySeconds={}, periodSeconds={}, initialQueueSize={}, maxDequeuePerTick={}",
-                INITIAL_DELAY_SECONDS, PERIOD_SECONDS, initialQueueSize, MAX_DEQUEUE_PER_TICK);
-
+        workerExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(WORKER_THREADS);
         scheduler = Executors.newScheduledThreadPool(1);
+
+        log.info("RelayQueueCron starting: initialDelaySeconds={}, periodSeconds={}, initialQueueSize={}, maxClaimPerTick={}, workerThreads={}, maxInFlight={}",
+                INITIAL_DELAY_SECONDS, PERIOD_SECONDS, queue.size(), MAX_CLAIM_PER_TICK, WORKER_THREADS, MAX_IN_FLIGHT);
 
         Runnable task = () -> {
             try {
                 long now = Instant.now().getEpochSecond();
                 lastExecutionEpochSeconds = now;
-                nextExecutionEpochSeconds = lastExecutionEpochSeconds + PERIOD_SECONDS;
+                nextExecutionEpochSeconds = now + PERIOD_SECONDS;
 
-                // Delegate to RelayDequeue for processing
+                int released = queue.releaseExpiredClaims(now);
+                if (released > 0) {
+                    log.info("Released {} expired queue claims", released);
+                }
+
+                int inFlight = workerExecutor.getActiveCount() + workerExecutor.getQueue().size();
+                int claimBudget = Math.min(MAX_CLAIM_PER_TICK, Math.max(0, MAX_IN_FLIGHT - inFlight));
+                if (claimBudget <= 0) {
+                    return;
+                }
+
                 RelayDequeue dequeue = new RelayDequeue(queue);
-                dequeue.processBatch(MAX_DEQUEUE_PER_TICK, now);
-
+                long claimUntil = now + CLAIM_TIMEOUT_SECONDS;
+                for (QueueItem<RelaySession> item : queue.claimReady(claimBudget, now, CONSUMER_ID, claimUntil)) {
+                    workerExecutor.submit(() -> dequeue.processClaimedItem(item, Instant.now().getEpochSecond()));
+                }
             } catch (Exception e) {
-                log.error("RelayQueueCron task error: {}", e.getMessage());
+                log.error("RelayQueueCron task error: {}", e.getMessage(), e);
             }
         };
 
-        // Schedule the task to run every minute after a minute.
         nextExecutionEpochSeconds = Instant.now().getEpochSecond() + INITIAL_DELAY_SECONDS;
         scheduler.scheduleAtFixedRate(task, INITIAL_DELAY_SECONDS, PERIOD_SECONDS, TimeUnit.SECONDS);
-        log.info("RelayQueueCron scheduled: initialDelaySeconds={}, periodSeconds={}", INITIAL_DELAY_SECONDS, PERIOD_SECONDS);
 
-        // Add shutdown hook to close resources.
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
-                log.info("RelayQueueCron shutdown initiated");
                 if (scheduler != null) {
                     scheduler.shutdown();
-                    log.debug("Scheduler shutdown requested");
+                }
+                if (workerExecutor != null) {
+                    workerExecutor.shutdown();
                 }
             } finally {
                 if (queue != null) {
                     queue.close();
-                    log.debug("Queue closed");
                 }
             }
         }));
     }
 
-    /**
-     * Get current queue size.
-     */
     public static long getQueueSize() {
         PersistentQueue<RelaySession> q = queue != null ? queue : PersistentQueue.getInstance();
         return q.size();
     }
 
-    /**
-     * Build a histogram of retryCount -> number of items.
-     */
-    public static Map<Integer, Long> getRetryHistogram() {
-        Map<Integer, Long> histogram = new HashMap<>();
+    public static QueueStats getQueueStats() {
         PersistentQueue<RelaySession> q = queue != null ? queue : PersistentQueue.getInstance();
-        for (RelaySession s : q.snapshot()) {
-            int retry = s.getRetryCount();
-            histogram.put(retry, histogram.getOrDefault(retry, 0L) + 1L);
-        }
-        return histogram;
+        return q.stats();
     }
 
-    /** Getters for timing info */
     public static long getLastExecutionEpochSeconds() {
         return lastExecutionEpochSeconds;
     }
 
-    /** Get next scheduled execution time (epoch seconds). */
     public static long getNextExecutionEpochSeconds() {
         return nextExecutionEpochSeconds;
     }
 
-    /** Getters for scheduler configuration */
     public static int getInitialDelaySeconds() {
         return INITIAL_DELAY_SECONDS;
     }
 
-    /** Get period between executions (seconds). */
     public static int getPeriodSeconds() {
         return PERIOD_SECONDS;
+    }
+
+    public static int getWorkerThreads() {
+        return WORKER_THREADS;
+    }
+
+    public static int getMaxInFlight() {
+        return MAX_IN_FLIGHT;
     }
 }

@@ -6,16 +6,13 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.Closeable;
 import java.io.Serializable;
+import java.time.Instant;
 import java.util.List;
 
 /**
- * A persistent FIFO queue that delegates to a QueueDatabase implementation.
- * <p>Uses the Factory pattern to allow different database backends (MapDB, MariaDB, PostgreSQL, or InMemory).
- * Backend selection is configuration-driven via {@link QueueFactory}.
- * <p>This class implements the Singleton pattern. All code should use {@link #getInstance()} to obtain
- * the queue instance, which will be backed by the configured database implementation.
+ * Persistent queue facade for relay sessions and queue administration.
  *
- * @param <T> Type of items stored in the queue, must be Serializable
+ * @param <T> payload type
  */
 public class PersistentQueue<T extends Serializable> implements Closeable {
 
@@ -23,16 +20,8 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
 
     private final QueueDatabase<T> database;
 
-    // Singleton instance.
     private static PersistentQueue<RelaySession> instance;
 
-    /**
-     * Get the singleton instance of PersistentQueue using configuration-based backend selection.
-     * <p>The backend is selected by {@link QueueFactory} based on configuration in queue.json5.
-     * Backend priority: MapDB → MariaDB → PostgreSQL → InMemory.
-     *
-     * @return The PersistentQueue instance
-     */
     @SuppressWarnings("unchecked")
     public static synchronized PersistentQueue<RelaySession> getInstance() {
         if (instance == null) {
@@ -41,133 +30,111 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
         return instance;
     }
 
-    /**
-     * Constructs a new PersistentQueue instance.
-     * <p>Private constructor to enforce singleton pattern.
-     * Uses {@link Factories#getQueueDatabase()} which delegates to {@link QueueFactory}.
-     */
     @SuppressWarnings("unchecked")
     private PersistentQueue() {
         this.database = (QueueDatabase<T>) Factories.getQueueDatabase();
     }
 
     /**
-     * Add an item to the tail of the queue.
-     *
-     * @param item Item to enqueue
-     * @return Self for method chaining
+     * Enqueues a payload as a ready queue item.
      */
-    public PersistentQueue<T> enqueue(T item) {
-        database.enqueue(item);
-        return this;
+    public QueueItem<T> enqueue(T item) {
+        return database.enqueue(QueueItem.ready(item));
     }
 
     /**
-     * Remove and return the head of the queue, or null if empty.
-     *
-     * @return The head item or null if empty
+     * Claims ready items.
      */
-    public T dequeue() {
-        return database.dequeue();
+    public List<QueueItem<T>> claimReady(int limit, long nowEpochSeconds, String consumerId, long claimUntilEpochSeconds) {
+        return database.claimReady(limit, nowEpochSeconds, consumerId, claimUntilEpochSeconds);
     }
 
     /**
-     * Peek at the head without removing.
-     *
-     * @return The head item or null if empty
+     * Acknowledges a completed item.
      */
-    public T peek() {
-        return database.peek();
+    public boolean acknowledge(String uid) {
+        return database.acknowledge(uid);
     }
 
     /**
-     * Check if the queue is empty.
-     *
-     * @return true if the queue is empty
+     * Reschedules an item for a future retry.
      */
-    public boolean isEmpty() {
-        return database.isEmpty();
+    public boolean reschedule(QueueItem<T> item, long nextAttemptAtEpochSeconds, String lastError) {
+        return database.reschedule(item, nextAttemptAtEpochSeconds, lastError);
     }
 
     /**
-     * Get the size of the queue.
-     *
-     * @return The number of items in the queue
+     * Releases expired claims.
+     */
+    public int releaseExpiredClaims(long nowEpochSeconds) {
+        return database.releaseExpiredClaims(nowEpochSeconds);
+    }
+
+    /**
+     * Marks an item as dead.
+     */
+    public boolean markDead(String uid, String lastError) {
+        return database.markDead(uid, lastError);
+    }
+
+    /**
+     * Active queue size.
      */
     public long size() {
         return database.size();
     }
 
-    /**
-     * Take a snapshot copy of current values for read-only inspection (e.g., service/health).
-     *
-     * @return Immutable list of all items currently in the queue
-     */
-    public List<T> snapshot() {
-        return database.snapshot();
+    public QueueStats stats() {
+        return database.stats();
     }
 
-    /**
-     * Remove an item from the queue by index (0-based).
-     *
-     * @param index The index of the item to remove
-     * @return true if item was removed, false if index was out of bounds
-     */
-    public boolean removeByIndex(int index) {
-        return database.removeByIndex(index);
+    public QueuePage<T> list(int offset, int limit, QueueListFilter filter) {
+        return database.list(offset, limit, filter);
     }
 
-    /**
-     * Remove items from the queue by indices (0-based).
-     *
-     * @param indices The indices of items to remove
-     * @return Number of items successfully removed
-     */
-    public int removeByIndices(List<Integer> indices) {
-        return database.removeByIndices(indices);
+    public QueueItem<T> getByUID(String uid) {
+        return database.getByUID(uid);
     }
 
-    /**
-     * Remove an item from the queue by UID (for RelaySession).
-     *
-     * @param uid The UID of the item to remove
-     * @return true if item was removed, false if not found
-     */
-    public boolean removeByUID(String uid) {
-        return database.removeByUID(uid);
+    public boolean deleteByUID(String uid) {
+        return database.deleteByUID(uid);
     }
 
-    /**
-     * Remove items from the queue by UIDs (for RelaySession).
-     *
-     * @param uids The UIDs of items to remove
-     * @return Number of items successfully removed
-     */
-    public int removeByUIDs(List<String> uids) {
-        return database.removeByUIDs(uids);
+    public int deleteByUIDs(List<String> uids) {
+        return database.deleteByUIDs(uids);
     }
 
-    /**
-     * Clear all items from the queue.
-     */
     public void clear() {
         database.clear();
     }
 
-    /**
-     * Close the database and reset the singleton instance.
-     * <p>After calling close(), the next call to {@link #getInstance()} will create a new instance.
-     * <p>This method is synchronized to prevent race conditions with {@link #getInstance()}.
-     */
+    public boolean isEmpty() {
+        return size() == 0;
+    }
+
+    public boolean retryNow(String uid) {
+        QueueItem<T> item = database.getByUID(uid);
+        if (item == null) {
+            return false;
+        }
+        long now = Instant.now().getEpochSecond();
+        if (item.getPayload() instanceof RelaySession relaySession) {
+            relaySession.bumpRetryCount();
+            item.setPayload((T) relaySession);
+        } else {
+            item.setRetryCount(item.getRetryCount() + 1);
+        }
+        item.setLastError(null);
+        return database.reschedule(item, now, null);
+    }
+
     @Override
     public synchronized void close() {
         try {
             database.close();
         } catch (Exception e) {
-            // Log the error but don't propagate it to maintain close() contract.
             log.error("Error closing queue database: {}", e.getMessage());
         } finally {
-            // Set instance to null after closing to prevent race conditions
             instance = null;
         }
     }

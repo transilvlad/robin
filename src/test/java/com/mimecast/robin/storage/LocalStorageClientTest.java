@@ -120,7 +120,7 @@ class LocalStorageClientTest {
         // Clean up the queue if we enqueued a bounce (uses in-memory queue from test config).
         if (param != 0) {
             try {
-                PersistentQueue.getInstance().dequeue();
+                PersistentQueue.getInstance().clear();
             } catch (Exception ignored) {}
         }
     }

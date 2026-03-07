@@ -1,17 +1,24 @@
 package com.mimecast.robin.queue;
 
+import com.mimecast.robin.smtp.session.Session;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
-import java.util.Arrays;
+import java.time.Instant;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Test class for RedisQueueDatabase.
+ * Tests for RedisQueueDatabase.
  * <p>These tests require a Redis instance running on localhost:6379.
  * <p>Tests are only run if REDIS_TEST_ENABLED environment variable is set.
  */
@@ -22,13 +29,11 @@ class RedisQueueDatabaseTest {
 
     @BeforeEach
     void setUp() {
-        // Create database instance with test configuration
         database = new RedisQueueDatabase<>();
         try {
             database.initialize();
-            database.clear(); // Clean slate for each test
+            database.clear();
         } catch (Exception e) {
-            // Skip tests if Redis is not available
             org.junit.jupiter.api.Assumptions.assumeTrue(false, "Redis not available: " + e.getMessage());
         }
     }
@@ -39,280 +44,160 @@ class RedisQueueDatabaseTest {
             try {
                 database.clear();
                 database.close();
-            } catch (Exception e) {
-                // Ignore errors during cleanup
+            } catch (Exception ignored) {
             }
         }
     }
 
     @Test
-    void testEnqueueDequeue() {
-        RelaySession session1 = new RelaySession(null);
-        RelaySession session2 = new RelaySession(null);
+    void testEnqueueClaimAndAcknowledge() {
+        RelaySession session1 = relaySession("session-1");
+        RelaySession session2 = relaySession("session-2");
 
-        // Test enqueue
-        database.enqueue(session1);
-        database.enqueue(session2);
-        assertEquals(2, database.size());
-        assertFalse(database.isEmpty());
-
-        // Test dequeue (FIFO order)
-        RelaySession dequeued1 = database.dequeue();
-        assertNotNull(dequeued1);
-        assertEquals(1, database.size());
-
-        RelaySession dequeued2 = database.dequeue();
-        assertNotNull(dequeued2);
-        assertEquals(0, database.size());
-        assertTrue(database.isEmpty());
-
-        // Dequeue from empty queue
-        RelaySession dequeued3 = database.dequeue();
-        assertNull(dequeued3);
-    }
-
-    @Test
-    void testPeek() {
-        assertTrue(database.isEmpty());
-
-        // Peek on empty queue
-        RelaySession peeked = database.peek();
-        assertNull(peeked);
-
-        // Add items
-        RelaySession session1 = new RelaySession(null);
-        RelaySession session2 = new RelaySession(null);
-        database.enqueue(session1);
-        database.enqueue(session2);
-
-        // Peek should return first item without removing
-        RelaySession peeked1 = database.peek();
-        assertNotNull(peeked1);
-        assertEquals(2, database.size()); // Size unchanged
-
-        RelaySession peeked2 = database.peek();
-        assertNotNull(peeked2);
-        assertEquals(2, database.size()); // Size still unchanged
-    }
-
-    @Test
-    void testSize() {
-        assertEquals(0, database.size());
-        assertTrue(database.isEmpty());
-
-        database.enqueue(new RelaySession(null));
-        assertEquals(1, database.size());
-        assertFalse(database.isEmpty());
-
-        database.enqueue(new RelaySession(null));
+        database.enqueue(QueueItem.ready(session1));
+        database.enqueue(QueueItem.ready(session2));
         assertEquals(2, database.size());
 
-        database.dequeue();
-        assertEquals(1, database.size());
+        long now = Instant.now().getEpochSecond();
+        List<QueueItem<RelaySession>> claimed = database.claimReady(10, now, "redis-test", now + 60);
 
-        database.dequeue();
-        assertEquals(0, database.size());
-        assertTrue(database.isEmpty());
-    }
-
-    @Test
-    void testSnapshot() {
-        // Empty snapshot
-        List<RelaySession> snapshot = database.snapshot();
-        assertNotNull(snapshot);
-        assertEquals(0, snapshot.size());
-
-        // Add items
-        RelaySession session1 = new RelaySession(null);
-        RelaySession session2 = new RelaySession(null);
-        RelaySession session3 = new RelaySession(null);
-        database.enqueue(session1);
-        database.enqueue(session2);
-        database.enqueue(session3);
-
-        // Test snapshot
-        snapshot = database.snapshot();
-        assertEquals(3, snapshot.size());
-
-        // Verify queue is unchanged
-        assertEquals(3, database.size());
-        assertFalse(database.isEmpty());
-    }
-
-    @Test
-    void testRemoveByIndex() {
-        // Test invalid index
-        assertFalse(database.removeByIndex(-1));
-        assertFalse(database.removeByIndex(0));
-
-        // Add items
-        RelaySession session1 = new RelaySession(null);
-        RelaySession session2 = new RelaySession(null);
-        RelaySession session3 = new RelaySession(null);
-        database.enqueue(session1);
-        database.enqueue(session2);
-        database.enqueue(session3);
-        assertEquals(3, database.size());
-
-        // Remove middle item (index 1)
-        assertTrue(database.removeByIndex(1));
-        assertEquals(2, database.size());
-
-        // Remove first item (index 0)
-        assertTrue(database.removeByIndex(0));
-        assertEquals(1, database.size());
-
-        // Remove last remaining item
-        assertTrue(database.removeByIndex(0));
-        assertEquals(0, database.size());
-        assertTrue(database.isEmpty());
-
-        // Test out of bounds
-        assertFalse(database.removeByIndex(0));
-    }
-
-    @Test
-    void testRemoveByIndices() {
-        // Test null and empty list
-        assertEquals(0, database.removeByIndices(null));
-        assertEquals(0, database.removeByIndices(Arrays.asList()));
-
-        // Add items
-        for (int i = 0; i < 5; i++) {
-            database.enqueue(new RelaySession(null));
+        assertEquals(2, claimed.size());
+        assertEquals(2, database.stats().claimedCount());
+        for (QueueItem<RelaySession> item : claimed) {
+            assertEquals(QueueItemState.CLAIMED, item.getState());
+            assertTrue(database.acknowledge(item.getUid()));
         }
-        assertEquals(5, database.size());
 
-        // Remove multiple items by indices
-        int removed = database.removeByIndices(Arrays.asList(1, 3));
-        assertEquals(2, removed);
-        assertEquals(3, database.size());
-
-        // Test with invalid indices
-        removed = database.removeByIndices(Arrays.asList(-1, 10, 1));
-        assertEquals(1, removed); // Only index 1 is valid
-        assertEquals(2, database.size());
+        assertEquals(0, database.size());
+        assertEquals(0, database.stats().claimedCount());
     }
 
     @Test
-    void testRemoveByUID() {
-        // Test with null UID
-        assertFalse(database.removeByUID(null));
+    void testListReturnsActiveItems() {
+        database.enqueue(QueueItem.ready(relaySession("session-1")));
+        database.enqueue(QueueItem.ready(relaySession("session-2")));
+        database.enqueue(QueueItem.ready(relaySession("session-3")));
 
-        // Add items with unique UIDs
-        RelaySession session1 = new RelaySession(null);
-        RelaySession session2 = new RelaySession(null);
-        RelaySession session3 = new RelaySession(null);
-        
-        database.enqueue(session1);
-        database.enqueue(session2);
-        database.enqueue(session3);
-        assertEquals(3, database.size());
+        QueuePage<RelaySession> page = database.list(0, 10, QueueListFilter.activeOnly());
 
-        // Remove by UID
-        String uid2 = session2.getUID();
-        assertTrue(database.removeByUID(uid2));
-        assertEquals(2, database.size());
-
-        // Try to remove same UID again
-        assertFalse(database.removeByUID(uid2));
-        assertEquals(2, database.size());
-
-        // Remove by non-existent UID
-        assertFalse(database.removeByUID("non-existent-uid"));
-        assertEquals(2, database.size());
+        assertEquals(3, page.total());
+        assertEquals(3, page.items().size());
+        assertEquals(Set.of("session-1", "session-2", "session-3"), page.items().stream()
+                .map(item -> item.getPayload().getSession().getUID())
+                .collect(Collectors.toSet()));
     }
 
     @Test
-    void testRemoveByUIDs() {
-        // Test with null and empty list
-        assertEquals(0, database.removeByUIDs(null));
-        assertEquals(0, database.removeByUIDs(Arrays.asList()));
+    void testRescheduleMakesClaimedItemReadyAgain() {
+        RelaySession relaySession = relaySession("retry");
+        QueueItem<RelaySession> item = database.enqueue(QueueItem.ready(relaySession));
+        long now = Instant.now().getEpochSecond();
+        QueueItem<RelaySession> claimed = database.claimReady(1, now, "redis-test", now + 60).getFirst();
 
-        // Add items
-        RelaySession session1 = new RelaySession(null);
-        RelaySession session2 = new RelaySession(null);
-        RelaySession session3 = new RelaySession(null);
-        RelaySession session4 = new RelaySession(null);
-        
-        database.enqueue(session1);
-        database.enqueue(session2);
-        database.enqueue(session3);
-        database.enqueue(session4);
-        assertEquals(4, database.size());
+        relaySession.bumpRetryCount();
+        claimed.setPayload(relaySession).setRetryCount(relaySession.getRetryCount());
+        long nextAttempt = now + 120;
 
-        // Remove by UIDs
-        List<String> uids = Arrays.asList(session1.getUID(), session3.getUID());
-        int removed = database.removeByUIDs(uids);
+        assertTrue(database.reschedule(claimed, nextAttempt, "temporary failure"));
+
+        QueueItem<RelaySession> updated = database.getByUID(item.getUid());
+        assertNotNull(updated);
+        assertEquals(QueueItemState.READY, updated.getState());
+        assertEquals(1, updated.getRetryCount());
+        assertEquals(nextAttempt, updated.getNextAttemptAtEpochSeconds());
+        assertEquals("temporary failure", updated.getLastError());
+    }
+
+    @Test
+    void testReleaseExpiredClaims() {
+        QueueItem<RelaySession> item = database.enqueue(QueueItem.ready(relaySession("expired")));
+        long now = Instant.now().getEpochSecond();
+        database.claimReady(1, now, "redis-test", now - 1);
+
+        int released = database.releaseExpiredClaims(now);
+
+        assertEquals(1, released);
+        QueueItem<RelaySession> updated = database.getByUID(item.getUid());
+        assertNotNull(updated);
+        assertEquals(QueueItemState.READY, updated.getState());
+        assertEquals(1, database.stats().readyCount());
+        assertEquals(0, database.stats().claimedCount());
+    }
+
+    @Test
+    void testDeleteByUID() {
+        QueueItem<RelaySession> first = database.enqueue(QueueItem.ready(relaySession("session-1")));
+        QueueItem<RelaySession> second = database.enqueue(QueueItem.ready(relaySession("session-2")));
+        QueueItem<RelaySession> third = database.enqueue(QueueItem.ready(relaySession("session-3")));
+
+        assertTrue(database.deleteByUID(second.getUid()));
+        assertFalse(database.deleteByUID(second.getUid()));
+        assertFalse(database.deleteByUID("missing"));
+        assertEquals(2, database.size());
+        assertEquals(Set.of(first.getUid(), third.getUid()), database.list(0, 10, QueueListFilter.activeOnly()).items().stream()
+                .map(QueueItem::getUid)
+                .collect(Collectors.toSet()));
+    }
+
+    @Test
+    void testDeleteByUIDs() {
+        QueueItem<RelaySession> first = database.enqueue(QueueItem.ready(relaySession("session-1")));
+        QueueItem<RelaySession> second = database.enqueue(QueueItem.ready(relaySession("session-2")));
+        QueueItem<RelaySession> third = database.enqueue(QueueItem.ready(relaySession("session-3")));
+        QueueItem<RelaySession> fourth = database.enqueue(QueueItem.ready(relaySession("session-4")));
+
+        int removed = database.deleteByUIDs(List.of(first.getUid(), third.getUid(), "missing"));
+
         assertEquals(2, removed);
         assertEquals(2, database.size());
+        assertEquals(Set.of(second.getUid(), fourth.getUid()), database.list(0, 10, QueueListFilter.activeOnly()).items().stream()
+                .map(QueueItem::getUid)
+                .collect(Collectors.toSet()));
+    }
 
-        // Try to remove already removed UIDs
-        removed = database.removeByUIDs(uids);
-        assertEquals(0, removed);
-        assertEquals(2, database.size());
+    @Test
+    void testMarkDeadMovesItemOutOfActiveQueue() {
+        QueueItem<RelaySession> item = database.enqueue(QueueItem.ready(relaySession("dead")));
+
+        assertTrue(database.markDead(item.getUid(), "permanent failure"));
+
+        QueueItem<RelaySession> updated = database.getByUID(item.getUid());
+        assertNotNull(updated);
+        assertEquals(0, database.size());
+        assertEquals(QueueItemState.DEAD, updated.getState());
+        assertEquals(1, database.stats().deadCount());
+        assertEquals(0, database.stats().readyCount());
     }
 
     @Test
     void testClear() {
-        // Clear empty queue
+        database.enqueue(QueueItem.ready(relaySession("session-1")));
+        database.enqueue(QueueItem.ready(relaySession("session-2")));
+        database.enqueue(QueueItem.ready(relaySession("session-3")));
+
         database.clear();
+
         assertEquals(0, database.size());
-
-        // Add items
-        database.enqueue(new RelaySession(null));
-        database.enqueue(new RelaySession(null));
-        database.enqueue(new RelaySession(null));
-        assertEquals(3, database.size());
-
-        // Clear queue
-        database.clear();
-        assertEquals(0, database.size());
-        assertTrue(database.isEmpty());
-    }
-
-    @Test
-    void testFIFOOrder() {
-        // Create sessions with identifiable properties
-        RelaySession session1 = new RelaySession(null);
-        RelaySession session2 = new RelaySession(null);
-        RelaySession session3 = new RelaySession(null);
-
-        // Enqueue in order
-        database.enqueue(session1);
-        database.enqueue(session2);
-        database.enqueue(session3);
-
-        // Dequeue should maintain FIFO order
-        RelaySession dequeued1 = database.dequeue();
-        assertEquals(session1.getUID(), dequeued1.getUID());
-
-        RelaySession dequeued2 = database.dequeue();
-        assertEquals(session2.getUID(), dequeued2.getUID());
-
-        RelaySession dequeued3 = database.dequeue();
-        assertEquals(session3.getUID(), dequeued3.getUID());
-
-        assertTrue(database.isEmpty());
+        assertEquals(0, database.stats().readyCount());
+        assertTrue(database.list(0, 10, QueueListFilter.activeOnly()).items().isEmpty());
+        assertNull(database.getByUID("missing"));
     }
 
     @Test
     void testLargeQueue() {
-        // Test with a larger number of items
         int itemCount = 100;
         for (int i = 0; i < itemCount; i++) {
-            database.enqueue(new RelaySession(null));
+            database.enqueue(QueueItem.ready(relaySession("session-" + i)));
         }
+
+        QueuePage<RelaySession> page = database.list(0, itemCount, QueueListFilter.activeOnly());
+
         assertEquals(itemCount, database.size());
+        assertEquals(itemCount, page.total());
+        assertEquals(itemCount, page.items().size());
+    }
 
-        // Test snapshot with large queue
-        List<RelaySession> snapshot = database.snapshot();
-        assertEquals(itemCount, snapshot.size());
-
-        // Dequeue all items
-        for (int i = 0; i < itemCount; i++) {
-            assertNotNull(database.dequeue());
-        }
-        assertTrue(database.isEmpty());
+    private RelaySession relaySession(String sessionUid) {
+        return new RelaySession(new Session().setUID(sessionUid));
     }
 }

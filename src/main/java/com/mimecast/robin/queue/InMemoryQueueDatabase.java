@@ -1,194 +1,210 @@
 package com.mimecast.robin.queue;
 
 import java.io.Serializable;
+import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 
 /**
- * In-memory implementation of QueueDatabase for testing or temporary queues.
- * <p>This implementation does not persist data to disk and is lost on application restart.
- * <p>Uses {@link CopyOnWriteArrayList} for thread-safe FIFO operations with indexed access support.
+ * In-memory scheduled work queue used in tests.
  *
- * @param <T> Type of items stored in the queue, must be Serializable
+ * @param <T> payload type
  */
 public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatabase<T> {
 
-    private final CopyOnWriteArrayList<T> queue = new CopyOnWriteArrayList<>();
+    private final Map<String, QueueItem<T>> items = new LinkedHashMap<>();
+    private final NavigableMap<String, String> createdIndex = new TreeMap<>();
+    private final NavigableMap<String, String> readyIndex = new TreeMap<>();
+    private final NavigableMap<String, String> claimedIndex = new TreeMap<>();
 
-    /**
-     * Initialize the database connection/resources.
-     * <p>No initialization needed for in-memory implementation.
-     */
     @Override
-    public void initialize() {
-        // No initialization needed for in-memory implementation.
+    public synchronized void initialize() {
+        // No-op.
     }
 
-    /**
-     * Add an item to the tail of the queue.
-     *
-     * @param item The item to enqueue
-     */
     @Override
-    public void enqueue(T item) {
-        queue.add(item);
+    public synchronized QueueItem<T> enqueue(QueueItem<T> item) {
+        upsert(item.readyAt(item.getNextAttemptAtEpochSeconds()).syncFromPayload());
+        return item;
     }
 
-    /**
-     * Remove and return the head of the queue, or null if empty.
-     *
-     * @return The head item or null if empty
-     */
     @Override
-    public T dequeue() {
-        if (queue.isEmpty()) {
-            return null;
+    public synchronized List<QueueItem<T>> claimReady(int limit, long nowEpochSeconds, String consumerId,
+                                                      long claimUntilEpochSeconds) {
+        List<QueueItem<T>> claimed = new ArrayList<>();
+        if (limit <= 0) {
+            return claimed;
         }
-        return queue.remove(0);
-    }
 
-    /**
-     * Peek at the head without removing.
-     *
-     * @return The head item or null if empty
-     */
-    @Override
-    public T peek() {
-        if (queue.isEmpty()) {
-            return null;
+        List<String> keys = new ArrayList<>(readyIndex.headMap(sortKey(nowEpochSeconds, Long.MAX_VALUE, "~"), true).keySet());
+        for (String key : keys) {
+            if (claimed.size() >= limit) {
+                break;
+            }
+            String uid = readyIndex.remove(key);
+            QueueItem<T> item = items.get(uid);
+            if (item == null || item.getState() != QueueItemState.READY) {
+                continue;
+            }
+            item.claim(consumerId, claimUntilEpochSeconds);
+            claimedIndex.put(sortKey(item.getClaimedUntilEpochSeconds(), item.getCreatedAtEpochSeconds(), uid), uid);
+            claimed.add(item);
         }
-        return queue.get(0);
+        return claimed;
     }
 
-    /**
-     * Check if the queue is empty.
-     *
-     * @return true if the queue is empty
-     */
     @Override
-    public boolean isEmpty() {
-        return queue.isEmpty();
+    public synchronized boolean acknowledge(String uid) {
+        return deleteByUID(uid);
     }
 
-    /**
-     * Get the size of the queue.
-     *
-     * @return The number of items in the queue
-     */
     @Override
-    public long size() {
-        return queue.size();
-    }
-
-    /**
-     * Take a snapshot copy of current values for read-only inspection.
-     *
-     * @return Immutable list of all items in the queue
-     */
-    @Override
-    public List<T> snapshot() {
-        return new ArrayList<>(queue);
-    }
-
-    /**
-     * Remove an item from the queue by index (0-based).
-     *
-     * @param index The index of the item to remove
-     * @return true if item was removed, false if index was out of bounds
-     */
-    @Override
-    public boolean removeByIndex(int index) {
-        if (index < 0 || index >= queue.size()) {
+    public synchronized boolean reschedule(QueueItem<T> item, long nextAttemptAtEpochSeconds, String lastError) {
+        QueueItem<T> existing = items.get(item.getUid());
+        if (existing == null) {
             return false;
         }
-        
-        queue.remove(index);
+        removeIndexes(existing);
+        existing.setPayload(item.getPayload())
+                .setRetryCount(item.getRetryCount())
+                .setProtocol(item.getProtocol())
+                .setSessionUid(item.getSessionUid())
+                .setLastError(lastError)
+                .readyAt(nextAttemptAtEpochSeconds);
+        upsert(existing);
         return true;
     }
 
-    /**
-     * Remove items from the queue by indices (0-based).
-     * <p>Indices are processed in descending order to avoid index shifting issues.
-     *
-     * @param indices The indices of items to remove
-     * @return Number of items successfully removed
-     */
     @Override
-    public int removeByIndices(List<Integer> indices) {
-        if (indices == null || indices.isEmpty()) {
-            return 0;
-        }
-        
-        // Sort indices in descending order to avoid index shifting issues
-        List<Integer> sortedIndices = new ArrayList<>(indices);
-        sortedIndices.sort(Comparator.reverseOrder());
-        
-        int removed = 0;
-        for (int index : sortedIndices) {
-            if (removeByIndex(index)) {
-                removed++;
+    public synchronized int releaseExpiredClaims(long nowEpochSeconds) {
+        int released = 0;
+        List<String> keys = new ArrayList<>(claimedIndex.headMap(sortKey(nowEpochSeconds, Long.MAX_VALUE, "~"), true).keySet());
+        for (String key : keys) {
+            String uid = claimedIndex.remove(key);
+            QueueItem<T> item = items.get(uid);
+            if (item == null || item.getState() != QueueItemState.CLAIMED) {
+                continue;
             }
+            item.readyAt(nowEpochSeconds);
+            readyIndex.put(sortKey(item.getNextAttemptAtEpochSeconds(), item.getCreatedAtEpochSeconds(), uid), uid);
+            released++;
         }
-        return removed;
+        return released;
     }
 
-    /**
-     * Remove an item from the queue by UID (for RelaySession).
-     *
-     * @param uid The UID of the item to remove
-     * @return true if item was removed, false if not found
-     */
     @Override
-    public boolean removeByUID(String uid) {
-        if (uid == null) return false;
-        for (int i = 0; i < queue.size(); i++) {
-            T item = queue.get(i);
-            if (item instanceof RelaySession relaySession) {
-                if (uid.equals(relaySession.getUID())) {
-                    queue.remove(i);
-                    return true;
-                }
-            }
+    public synchronized boolean markDead(String uid, String lastError) {
+        QueueItem<T> item = items.get(uid);
+        if (item == null) {
+            return false;
         }
-        return false;
+        removeIndexes(item);
+        item.dead(lastError);
+        createdIndex.put(sortKey(item.getCreatedAtEpochSeconds(), item.getCreatedAtEpochSeconds(), uid), uid);
+        return true;
     }
 
-    /**
-     * Remove items from the queue by UIDs (for RelaySession).
-     *
-     * @param uids The UIDs of items to remove
-     * @return Number of items successfully removed
-     */
     @Override
-    public int removeByUIDs(List<String> uids) {
+    public synchronized long size() {
+        return items.values().stream().filter(QueueItem::isActive).count();
+    }
+
+    @Override
+    public synchronized QueueStats stats() {
+        long ready = readyIndex.size();
+        long claimed = claimedIndex.size();
+        long dead = items.size() - ready - claimed;
+        long oldestReady = readyIndex.isEmpty() ? 0L : parseEpoch(readyIndex.firstKey());
+        long oldestClaimed = claimedIndex.isEmpty() ? 0L : parseEpoch(claimedIndex.firstKey());
+        return new QueueStats(ready, claimed, dead, ready + claimed, oldestReady, oldestClaimed);
+    }
+
+    @Override
+    public synchronized QueuePage<T> list(int offset, int limit, QueueListFilter filter) {
+        List<QueueItem<T>> all = new ArrayList<>();
+        for (String key : createdIndex.keySet()) {
+            QueueItem<T> item = items.get(createdIndex.get(key));
+            if (item != null && (filter == null || filter.matches(item))) {
+                all.add(item);
+            }
+        }
+
+        int safeOffset = Math.max(0, offset);
+        int safeLimit = Math.max(0, limit);
+        int end = Math.min(all.size(), safeOffset + safeLimit);
+        List<QueueItem<T>> slice = safeOffset >= all.size() ? List.of() : new ArrayList<>(all.subList(safeOffset, end));
+        return new QueuePage<>(all.size(), slice);
+    }
+
+    @Override
+    public synchronized QueueItem<T> getByUID(String uid) {
+        return items.get(uid);
+    }
+
+    @Override
+    public synchronized boolean deleteByUID(String uid) {
+        QueueItem<T> item = items.remove(uid);
+        if (item == null) {
+            return false;
+        }
+        removeIndexes(item);
+        return true;
+    }
+
+    @Override
+    public synchronized int deleteByUIDs(List<String> uids) {
         if (uids == null || uids.isEmpty()) {
             return 0;
         }
         int removed = 0;
-        for (String uid : uids) {
-            if (removeByUID(uid)) {
+        for (String uid : new LinkedHashSet<>(uids)) {
+            if (deleteByUID(uid)) {
                 removed++;
             }
         }
         return removed;
     }
 
-    /**
-     * Clear all items from the queue.
-     */
     @Override
-    public void clear() {
-        queue.clear();
+    public synchronized void clear() {
+        items.clear();
+        createdIndex.clear();
+        readyIndex.clear();
+        claimedIndex.clear();
     }
 
-    /**
-     * Close the database.
-     * <p>For in-memory implementation, this clears the queue.
-     */
     @Override
-    public void close() {
+    public synchronized void close() {
         clear();
+    }
+
+    private void upsert(QueueItem<T> item) {
+        items.put(item.getUid(), item);
+        createdIndex.put(sortKey(item.getCreatedAtEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()), item.getUid());
+        if (item.getState() == QueueItemState.READY) {
+            readyIndex.put(sortKey(item.getNextAttemptAtEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()), item.getUid());
+        } else if (item.getState() == QueueItemState.CLAIMED) {
+            claimedIndex.put(sortKey(item.getClaimedUntilEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()), item.getUid());
+        }
+    }
+
+    private void removeIndexes(QueueItem<T> item) {
+        createdIndex.remove(sortKey(item.getCreatedAtEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()));
+        readyIndex.remove(sortKey(item.getNextAttemptAtEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()));
+        claimedIndex.remove(sortKey(item.getClaimedUntilEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()));
+    }
+
+    private static String sortKey(long primaryEpochSeconds, long secondaryEpochSeconds, String uid) {
+        return String.format("%020d|%020d|%s", primaryEpochSeconds, secondaryEpochSeconds, uid);
+    }
+
+    private static long parseEpoch(String key) {
+        int end = key.indexOf('|');
+        return end < 0 ? Instant.now().getEpochSecond() : Long.parseLong(key.substring(0, end));
     }
 }
