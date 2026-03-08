@@ -21,13 +21,8 @@ services:
     environment:
       JAVA_TOOL_OPTIONS: "-Dnetworkaddress.cache.negative.ttl=300 -Dsun.net.inetaddr.negative.ttl=300 -Dlog4j2.asyncLoggerWaitStrategy=Timeout -Dlog4j2.asyncLoggerTimeout=1000 ${JAVA_TOOL_OPTIONS:-}"
     volumes:
-      # Robin configuration - LDA-specific dovecot.json5, rest from .shared
-      - ./cfg/dovecot.json5:/usr/local/robin/cfg/dovecot.json5:ro
-      - ../.shared/robin/cfg/log4j2.xml:/usr/local/robin/cfg/log4j2.xml:ro
-      - ../.shared/robin/cfg/queue.json5:/usr/local/robin/cfg/queue.json5:ro
-      - ../.shared/robin/cfg/relay.json5:/usr/local/robin/cfg/relay.json5:ro
-      - ../.shared/robin/cfg/server.json5:/usr/local/robin/cfg/server.json5:ro
-      - ../.shared/robin/cfg/storage.json5:/usr/local/robin/cfg/storage.json5:ro
+      # Robin configuration - LDA-specific dovecot.json5 plus local copies of shared perf config.
+      - ./cfg:/usr/local/robin/cfg:ro
       # Robin logs and storage
       - robin-store:/usr/local/robin/store
       # Dovecot configuration from .perf/robin-dovecot

@@ -1,0 +1,10 @@
+{
+  // Storage configuration (no virus/spam scanning for performance testing).
+  enabled: true,
+  autoDelete: true,
+  localMailbox: false,
+  disableRenameHeader: true,
+  path: "/usr/local/robin/store/robin/",
+  inboundFolder: "new",
+  clean: false
+}
