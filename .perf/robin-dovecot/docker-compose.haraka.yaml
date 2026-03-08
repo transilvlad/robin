@@ -58,7 +58,6 @@ services:
 
   dovecot:
     image: dovecot/dovecot:latest
-    container_name: dovecot
     user: "0:0"
     cap_add:
       - CHOWN
@@ -86,7 +85,6 @@ services:
     build:
       context: ../../
       dockerfile: ./.perf/robin-dovecot/haraka/Dockerfile
-    container_name: haraka
     networks:
       - haraka-net
     depends_on:

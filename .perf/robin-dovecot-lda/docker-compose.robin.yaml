@@ -12,7 +12,6 @@
 
 services:
   robin-lda:
-    container_name: robin-dovecot-lda
     build:
       context: ../../
       dockerfile: ./.perf/robin-dovecot-lda/robin.Dockerfile

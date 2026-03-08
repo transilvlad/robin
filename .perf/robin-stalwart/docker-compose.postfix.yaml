@@ -4,7 +4,6 @@
 services:
   postgres:
     image: postgres:latest
-    container_name: postgres
     command:
       - "postgres"
       - "-c"
@@ -47,7 +46,6 @@ services:
 
   stalwart:
     image: stalwartlabs/stalwart:latest
-    container_name: stalwart
     user: "0:0"
     volumes:
       - ./stalwart/etc:/opt/stalwart/etc
@@ -70,7 +68,6 @@ services:
     build:
       context: ../../
       dockerfile: .perf/.shared/postfix/Dockerfile
-    container_name: postfix
     volumes:
       - ../.shared/postfix/etc/postfix:/etc/postfix
     tmpfs:

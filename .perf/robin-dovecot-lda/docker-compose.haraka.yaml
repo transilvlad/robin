@@ -3,7 +3,6 @@
 
 services:
   haraka-dovecot-lda:
-    container_name: haraka-dovecot-lda
     build:
       context: ../../
       dockerfile: ./.perf/robin-dovecot-lda/haraka.Dockerfile

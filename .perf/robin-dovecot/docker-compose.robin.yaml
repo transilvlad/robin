@@ -58,7 +58,6 @@ services:
 
   dovecot:
     image: dovecot/dovecot:latest
-    container_name: dovecot
     user: "0:0"
     cap_add:
       - CHOWN
@@ -84,7 +83,6 @@ services:
 
   robin:
     image: robin-robin-mta:latest
-    container_name: robin
     environment:
       JAVA_TOOL_OPTIONS: "-Dnetworkaddress.cache.negative.ttl=300 -Dsun.net.inetaddr.negative.ttl=300 -Dlog4j2.asyncLoggerWaitStrategy=Timeout -Dlog4j2.asyncLoggerTimeout=1000 ${JAVA_TOOL_OPTIONS:-}"   # Optional JFR/profiling flags (off by default)
     volumes:

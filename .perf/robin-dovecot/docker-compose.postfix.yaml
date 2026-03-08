@@ -19,7 +19,6 @@ services:
 
   postgres:
     image: postgres:latest
-    container_name: postgres
     command:
       - "postgres"
       - "-c"
@@ -59,7 +58,6 @@ services:
 
   dovecot:
     image: dovecot/dovecot:latest
-    container_name: dovecot
     user: "0:0"
     cap_add:
       - CHOWN
@@ -89,7 +87,6 @@ services:
     build:
       context: ../../
       dockerfile: .perf/.shared/postfix/Dockerfile
-    container_name: postfix
     volumes:
       - ../.shared/postfix/etc/postfix:/etc/postfix
       - dovecot-data:/var/mail/vhosts
