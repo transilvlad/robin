@@ -2,6 +2,21 @@
 # This stack includes: Postfix + Dovecot + PostgreSQL
 
 services:
+  dovecot-mail-init:
+    image: alpine:3.20
+    user: "0:0"
+    command:
+      - /bin/sh
+      - -lc
+      - |
+        set -eu
+        mkdir -p /var/mail/vhosts/example.com
+        chown -R 5000:5000 /var/mail/vhosts
+        chmod 2775 /var/mail/vhosts /var/mail/vhosts/example.com
+    volumes:
+      - dovecot-data:/var/mail/vhosts
+    restart: "no"
+
   postgres:
     image: postgres:latest
     container_name: postgres
@@ -23,7 +38,7 @@ services:
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - ../.shared/db-init:/docker-entrypoint-initdb.d:ro
-      - ../../store/postgres:/var/lib/postgresql
+      - postgres-data:/var/lib/postgresql
       - ../../log/postgres:/var/log/postgresql
     networks:
       postfix-net:
@@ -43,7 +58,7 @@ services:
       - CHOWN
     volumes:
       - ./dovecot/etc:/etc/dovecot
-      - ../../store/dovecot:/var/mail/vhosts
+      - dovecot-data:/var/mail/vhosts
       - ../../log/dovecot:/var/log
       - dovecot-sockets:/var/run/dovecot
       - postfix-spool:/var/spool/postfix
@@ -52,6 +67,8 @@ services:
         aliases:
           - lmtp-backend
     depends_on:
+      dovecot-mail-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
     healthcheck:
@@ -67,7 +84,7 @@ services:
     container_name: postfix
     volumes:
       - ../.shared/postfix/etc/postfix:/etc/postfix
-      - ../../store/dovecot:/var/mail/vhosts
+      - dovecot-data:/var/mail/vhosts
       - ../../log/postfix:/var/log/postfix
       - dovecot-sockets:/var/run/dovecot
       - postfix-spool:/var/spool/postfix
@@ -92,5 +109,7 @@ networks:
     driver: bridge
 
 volumes:
+  postgres-data:
+  dovecot-data:
   dovecot-sockets:  # Shared volume for UNIX socket communication
   postfix-spool:    # Shared Postfix spool directory

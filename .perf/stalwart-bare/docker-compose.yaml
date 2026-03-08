@@ -25,7 +25,7 @@ services:
     volumes:
       - ../.shared/db-init-stalwart/03-create-stalwart-tables.sql:/docker-entrypoint-initdb.d/01-create-stalwart-tables.sql:ro
       - ../.shared/db-init-stalwart/04-create-stalwart-users.sql:/docker-entrypoint-initdb.d/02-create-stalwart-users.sql:ro
-      - ../../store/postgres:/var/lib/postgresql
+      - postgres-data:/var/lib/postgresql
       - ../../log/postgres:/var/log/postgresql
     networks:
       stalwart-bare-net:
@@ -43,7 +43,7 @@ services:
     user: "0:0"
     volumes:
       - ./stalwart/etc:/opt/stalwart/etc
-      - ../../store/stalwart:/opt/stalwart/data
+      - stalwart-data:/opt/stalwart/data
       - ../../log/stalwart:/var/log
     networks:
       - stalwart-bare-net
@@ -61,4 +61,6 @@ networks:
   stalwart-bare-net:
     driver: bridge
 
-volumes: {}
+volumes:
+  postgres-data:
+  stalwart-data:

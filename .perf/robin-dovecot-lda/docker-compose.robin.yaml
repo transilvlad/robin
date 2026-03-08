@@ -30,12 +30,12 @@ services:
       - ../.shared/robin/cfg/storage.json5:/usr/local/robin/cfg/storage.json5:ro
       # Robin logs and storage
       - ../../log/robin:/var/log/robin
-      - ../../store/robin:/usr/local/robin/store
+      - robin-store:/usr/local/robin/store
       # Dovecot configuration from .perf/robin-dovecot
       - ../robin-dovecot/dovecot/etc:/etc/dovecot:ro
       # Dovecot logs and mail storage
       - ../../log/dovecot:/var/log/dovecot
-      - ../../store/dovecot:/var/mail/vhosts
+      - dovecot-data:/var/mail/vhosts
     tmpfs:
       - /usr/local/robin/store/robin/tmp:size=256m
     depends_on:
@@ -77,7 +77,7 @@ services:
       POSTGRES_PASSWORD: robin
     volumes:
       - ../../log/postgres:/var/log
-      - ../../store/postgres:/var/lib/postgresql
+      - postgres-data:/var/lib/postgresql
       - ../.shared/db-init:/docker-entrypoint-initdb.d:ro
     ports:
       - "5432:5432"
@@ -94,3 +94,8 @@ services:
 networks:
   robin-dovecot-lda-net:
     driver: bridge
+
+volumes:
+  postgres-data:
+  dovecot-data:
+  robin-store:

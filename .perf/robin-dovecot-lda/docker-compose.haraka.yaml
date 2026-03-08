@@ -10,7 +10,7 @@ services:
     volumes:
       - ../robin-dovecot/dovecot/etc:/etc/dovecot:ro
       - ../../log/dovecot:/var/log/dovecot
-      - ../../store/dovecot:/var/mail/vhosts
+      - dovecot-data:/var/mail/vhosts
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,7 +46,7 @@ services:
       POSTGRES_PASSWORD: robin
     volumes:
       - ../../log/postgres:/var/log
-      - ../../store/postgres:/var/lib/postgresql
+      - postgres-data:/var/lib/postgresql
       - ../.shared/db-init:/docker-entrypoint-initdb.d:ro
     ports:
       - "5432:5432"
@@ -63,3 +63,7 @@ services:
 networks:
   robin-dovecot-lda-net:
     driver: bridge
+
+volumes:
+  postgres-data:
+  dovecot-data:
