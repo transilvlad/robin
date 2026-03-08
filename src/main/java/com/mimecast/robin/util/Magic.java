@@ -14,12 +14,13 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * Magic processors.
@@ -27,6 +28,14 @@ import java.util.stream.Collectors;
 @SuppressWarnings({"unchecked", "rawtypes"})
 public class Magic {
     private static final Logger log = LogManager.getLogger(Magic.class);
+    private static final ThreadLocal<SimpleDateFormat> YYMD_FORMAT = ThreadLocal.withInitial(
+            () -> new SimpleDateFormat("yyyyMMdd", Config.getProperties().getLocale())
+    );
+    private static final ThreadLocal<SimpleDateFormat> RFC_DATE_FORMAT = ThreadLocal.withInitial(
+            () -> new SimpleDateFormat("E, d MMM yyyy HH:mm:ss Z", Config.getProperties().getLocale())
+    );
+    private static final Map<String, Object> STATIC_MAGIC_VALUES = buildStaticMagicValues();
+    private static final List<String> JVM_ARGUMENT_KEYS = buildJvmArgumentKeys();
 
     /**
      * Magic variable pattern.
@@ -45,31 +54,52 @@ public class Magic {
      */
     public static void putMagic(Session session) {
         session.putMagic("robinUid", session.getUID());
-        session.putMagic("robinYymd", new SimpleDateFormat("yyyyMMdd").format(new Date()));
-        session.putMagic("robinDate", new SimpleDateFormat("E, d MMM yyyy HH:mm:ss Z", Config.getProperties().getLocale()).format(new Date()));
+        Date now = new Date();
+        session.putMagic("robinYymd", YYMD_FORMAT.get().format(now));
+        session.putMagic("robinDate", RFC_DATE_FORMAT.get().format(now));
 
-        // Add magic properties.
-        for (Map.Entry<String, Object> entry : Config.getProperties().getMap().entrySet()) {
-            if (entry.getValue() instanceof String) {
-                session.putMagic(entry.getKey(), entry.getValue());
-
-            } else if (entry.getValue() instanceof List) {
-                session.putMagic(entry.getKey(), ((List) entry.getValue()).stream()
-                        .filter(o -> o instanceof String)
-                        .collect(Collectors.toList()));
-            }
+        for (Map.Entry<String, Object> entry : STATIC_MAGIC_VALUES.entrySet()) {
+            session.putMagic(entry.getKey(), entry.getValue());
         }
 
-        // Add magic arguments.
-        List<String> args = ManagementFactory.getRuntimeMXBean().getInputArguments()
-                .stream()
-                .filter(s -> s.startsWith("-D"))
-                .map(s -> s.replace("-D", "").replaceAll("=.*", ""))
-                .collect(Collectors.toList());
-
-        for (String key : args) {
+        for (String key : JVM_ARGUMENT_KEYS) {
             session.putMagic(key, Config.getProperties().getStringProperty(key));
         }
+    }
+
+    private static Map<String, Object> buildStaticMagicValues() {
+        Map<String, Object> staticValues = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : Config.getProperties().getMap().entrySet()) {
+            Object value = entry.getValue();
+            if (value instanceof String) {
+                staticValues.put(entry.getKey(), value);
+                continue;
+            }
+
+            if (value instanceof List<?> listValue) {
+                List<String> strings = new ArrayList<>(listValue.size());
+                for (Object item : listValue) {
+                    if (item instanceof String stringValue) {
+                        strings.add(stringValue);
+                    }
+                }
+                staticValues.put(entry.getKey(), strings);
+            }
+        }
+        return staticValues;
+    }
+
+    private static List<String> buildJvmArgumentKeys() {
+        List<String> keys = new ArrayList<>();
+        for (String argument : ManagementFactory.getRuntimeMXBean().getInputArguments()) {
+            if (!argument.startsWith("-D")) {
+                continue;
+            }
+
+            int equalsIndex = argument.indexOf('=');
+            keys.add(equalsIndex > 2 ? argument.substring(2, equalsIndex) : argument.substring(2));
+        }
+        return keys;
     }
 
     /**
@@ -155,9 +185,12 @@ public class Magic {
             value = (String) session.getMagic(magicName);
 
         } else if (session.getMagic(magicName) instanceof List) {
-            List<String> values = (List<String>) ((List) session.getMagic(magicName)).stream()
-                    .filter(v -> v instanceof String)
-                    .collect(Collectors.toList());
+            List<String> values = new ArrayList<>();
+            for (Object entry : (List<?>) session.getMagic(magicName)) {
+                if (entry instanceof String stringValue) {
+                    values.add(stringValue);
+                }
+            }
 
             int key = "?".equals(row) ?
                     Random.no(values.size()) - 1 :

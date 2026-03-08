@@ -29,8 +29,7 @@ class MagicInputStreamTest {
         envelope.addHeader("mail", "peter@example.com");
         envelope.addHeader("rcpt", "gamora@example.com");
 
-        FileInputStream file = new FileInputStream(envelope.getFile());
-        magic = new MagicInputStream(file, envelope);
+        magic = new MagicInputStream(new BufferedInputStream(new FileInputStream(envelope.getFile()), 8192), envelope);
     }
 
     @Test

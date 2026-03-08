@@ -41,7 +41,8 @@ public class FileMimePart extends MimePart {
      */
     public FileMimePart(File file) throws IOException {
         this.file = file;
-        body = new FileInputStream(file);
+        body = new BufferedInputStream(new FileInputStream(file), defaultBufferSize);
+        body.mark(defaultBufferSize);
     }
 
     /**

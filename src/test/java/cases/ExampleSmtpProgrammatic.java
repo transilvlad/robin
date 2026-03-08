@@ -16,6 +16,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import javax.naming.ConfigurationException;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.Closeable;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -41,30 +43,32 @@ public class ExampleSmtpProgrammatic {
         try (Closeable ignored = () -> Files.delete(path)) {
 
             // Build MIME.
-            new EmailBuilder(new Session(), new MessageEnvelope())
-                    .addHeader("Subject", "Robin wrote")
-                    .addHeader("To", "Sir Robin <robin@example.com>")
-                    .addHeader("From", "Lady Robin <lady@example.com>")
-                    .addHeader("X-Robin-Filename", "the.robins.eml")
+            try (BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(path.toFile()), 8192)) {
+                new EmailBuilder(new Session(), new MessageEnvelope())
+                        .addHeader("Subject", "Robin wrote")
+                        .addHeader("To", "Sir Robin <robin@example.com>")
+                        .addHeader("From", "Lady Robin <lady@example.com>")
+                        .addHeader("X-Robin-Filename", "the.robins.eml")
 
-                    .addPart(new TextMimePart(("Mon chéri,\r\n" +
-                            "\r\n" +
-                            "Please review this lovely blog post i have written about myself.\r\n" +
-                            "Huge ego, right?\r\n" +
-                            "\r\n" +
-                            "Kisses,\r\n" +
-                            "Your Robin.").getBytes())
-                            .addHeader("Content-Type", "text/plain; charset=\"ISO-8859-1\"")
-                            .addHeader("Content-Transfer-Encoding", "quoted-printable")
-                    )
+                        .addPart(new TextMimePart(("Mon chéri,\r\n" +
+                                "\r\n" +
+                                "Please review this lovely blog post i have written about myself.\r\n" +
+                                "Huge ego, right?\r\n" +
+                                "\r\n" +
+                                "Kisses,\r\n" +
+                                "Your Robin.").getBytes())
+                                .addHeader("Content-Type", "text/plain; charset=\"ISO-8859-1\"")
+                                .addHeader("Content-Transfer-Encoding", "quoted-printable")
+                        )
 
-                    .addPart(
-                            new FileMimePart("src/test/resources/mime/robin.article.pdf")
-                                    .addHeader("Content-Type", "application/pdf; name=\"article.pdf\"")
-                                    .addHeader("Content-Disposition", "attachment; filename=\"article.pdf\"")
-                                    .addHeader("Content-Transfer-Encoding", "base64")
-                    )
-                    .writeTo(new FileOutputStream(path.toFile()));
+                        .addPart(
+                                new FileMimePart("src/test/resources/mime/robin.article.pdf")
+                                        .addHeader("Content-Type", "application/pdf; name=\"article.pdf\"")
+                                        .addHeader("Content-Disposition", "attachment; filename=\"article.pdf\"")
+                                        .addHeader("Content-Transfer-Encoding", "base64")
+                        )
+                        .writeTo(outputStream);
+            }
 
             // Session configuration.
             Session session = new Session()
@@ -84,7 +88,7 @@ public class ExampleSmtpProgrammatic {
             MessageEnvelope envelope = new MessageEnvelope();
             envelope.setMail("robin@example.com");
             envelope.getRcpts().add("lady@example.com");
-            envelope.setStream(new FileInputStream(path.toFile())); // Email temp file is streamed here.
+            envelope.setStream(new BufferedInputStream(new FileInputStream(path.toFile()), 8192)); // Email temp file is streamed here.
 
             // Envelope assertions.
             List<List<String>> smtpAssertions = new ArrayList<>();

@@ -36,6 +36,7 @@ import java.util.concurrent.ExecutorService;
  */
 public class LocalStorageClient implements StorageClient {
     protected static final Logger log = LogManager.getLogger(LocalStorageClient.class);
+    private static final int FILE_BUFFER_SIZE = 8192;
 
     /**
      * Enablement.
@@ -113,7 +114,7 @@ public class LocalStorageClient implements StorageClient {
     public OutputStream getStream() throws FileNotFoundException {
         if (config.getStorage().getBooleanProperty("enabled")) {
             if (PathUtils.makePath(getPath())) {
-                stream = new FileOutputStream(getFile());
+                stream = new BufferedOutputStream(new FileOutputStream(getFile()), FILE_BUFFER_SIZE);
             } else {
                 log.error("Storage path could not be created");
             }
@@ -156,52 +157,45 @@ public class LocalStorageClient implements StorageClient {
                 stream.flush();
                 stream.close();
 
-                // Parse email for further processing.
-                try (EmailParser emailParser = new EmailParser(getFile()).parse()) {
-                    parser = emailParser;
+                parser = null;
+                MessageEnvelope envelope = getCurrentEnvelope();
+                if (envelope != null) {
+                    envelope.setFile(getFile());
+                }
 
-                    // Rename file if X-Robin-Filename header exists and feature enabled.
-                    if (!config.getStorage().getBooleanProperty("disableRenameHeader")) {
-                        rename();
-                    }
+                boolean parseHeadersOnly = shouldParseHeadersOnly(envelope);
+                boolean parseFullEmail = isFullEmailParseRequired();
+                if (parseHeadersOnly || parseFullEmail) {
+                    try (EmailParser emailParser = new EmailParser(getFile()).parse(!parseFullEmail)) {
+                        parser = emailParser;
 
-                    // Set email path to current envelope if any.
-                    if (!connection.getSession().getEnvelopes().isEmpty()) {
-                        MessageEnvelope envelope = connection.getSession().getEnvelopes().getLast();
-                        envelope.setFile(getFile());
-
-                        // Extract key headers for bot processing before parser is closed.
-                        // Bots run asynchronously and cannot safely access the parser after it's closed.
-                        Optional<MimeHeader> replyTo = parser.getHeaders().get("Reply-To");
-                        replyTo.ifPresent(header -> envelope.addHeader("X-Parsed-Reply-To", header.getValue()));
-
-                        Optional<MimeHeader> from = parser.getHeaders().get("From");
-                        from.ifPresent(header -> envelope.addHeader("X-Parsed-From", header.getValue()));
-                    }
-                    log.info("Storage file saved to: {}", getFile());
-
-                    // Run storage processors.
-                    for (Callable<StorageProcessor> storageProcessor : Factories.getStorageProcessors()) {
-                        try {
-                            StorageProcessor processor = storageProcessor.call();
-
-                            if (!processor.process(connection, parser)) {
-                                return false;
+                        if (!config.getStorage().getBooleanProperty("disableRenameHeader")) {
+                            rename();
+                            if (envelope != null) {
+                                envelope.setFile(getFile());
                             }
-                        } catch (Exception e) {
-                            log.error("Storage processor error: {}", e.getMessage());
+                        }
+
+                        if (envelope != null && envelope.hasBotAddresses()) {
+                            copyBotHeaders(envelope);
+                        }
+
+                        if (!runStorageProcessors()) {
                             return false;
                         }
                     }
-
-                    // Process bot addresses if any.
-                    // Note: Parser is passed as null to prevent async bots from accessing
-                    // a closed resource. Bots should use envelope headers instead.
-                    processBotAddresses(connection, null);
-
-                    // Relay email if X-Robin-Relay or relay configuration or direction outbound enabled.
-                    relay();
+                } else if (!runStorageProcessors()) {
+                    return false;
                 }
+
+                log.info("Storage file saved to: {}", getFile());
+
+                // Process bot addresses if any.
+                // Parser is intentionally not shared with async bot execution.
+                processBotAddresses(connection, null);
+
+                // Relay email if X-Robin-Relay or relay configuration or direction outbound enabled.
+                relay();
             }
         } catch (IOException e) {
             log.error("Storage unable to store the email: {}", e.getMessage());
@@ -209,6 +203,48 @@ public class LocalStorageClient implements StorageClient {
         }
 
         return true;
+    }
+
+    private boolean runStorageProcessors() {
+        for (Callable<StorageProcessor> storageProcessor : Factories.getStorageProcessors()) {
+            try {
+                StorageProcessor processor = storageProcessor.call();
+                if (!processor.process(connection, parser)) {
+                    return false;
+                }
+            } catch (Exception e) {
+                log.error("Storage processor error: {}", e.getMessage());
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private MessageEnvelope getCurrentEnvelope() {
+        if (connection.getSession().getEnvelopes().isEmpty()) {
+            return null;
+        }
+        return connection.getSession().getEnvelopes().getLast();
+    }
+
+    private boolean shouldParseHeadersOnly(MessageEnvelope envelope) {
+        return Config.getServer().isChaosHeaders()
+                || !config.getStorage().getBooleanProperty("disableRenameHeader")
+                || (envelope != null && envelope.hasBotAddresses());
+    }
+
+    private boolean isFullEmailParseRequired() {
+        var clamAvConfig = config.getClamAV();
+        return clamAvConfig.getBooleanProperty("enabled")
+                && clamAvConfig.getBooleanProperty("scanAttachments");
+    }
+
+    private void copyBotHeaders(MessageEnvelope envelope) {
+        Optional<MimeHeader> replyTo = parser.getHeaders().get("Reply-To");
+        replyTo.ifPresent(header -> envelope.addHeader("X-Parsed-Reply-To", header.getValue()));
+
+        Optional<MimeHeader> from = parser.getHeaders().get("From");
+        from.ifPresent(header -> envelope.addHeader("X-Parsed-From", header.getValue()));
     }
 
     /**

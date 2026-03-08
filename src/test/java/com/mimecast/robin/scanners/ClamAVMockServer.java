@@ -284,7 +284,7 @@ public class ClamAVMockServer {
         boolean infected = false;
         File f = new File(filePath);
         if (f.isFile()) {
-            try (InputStream fis = new FileInputStream(f)) {
+            try (InputStream fis = new BufferedInputStream(new FileInputStream(f), 8192)) {
                 byte[] buf = fis.readNBytes(8192);
                 String data = new String(buf, StandardCharsets.UTF_8);
                 if (data.contains(EICAR_TEST_SIGNATURE) || data.contains(SIMULATED_VIRUS_MARKER)) infected = true;

@@ -15,6 +15,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.naming.ConfigurationException;
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -127,7 +128,7 @@ class ChaosHeadersIntegrationTest {
      * @throws IOException If writing fails.
      */
     private void writeEmailWithChaosHeader(String chaosHeader) throws IOException {
-        try (FileOutputStream fos = new FileOutputStream(tempEmailFile)) {
+        try (BufferedOutputStream fos = new BufferedOutputStream(new FileOutputStream(tempEmailFile), 8192)) {
             fos.write("From: sender@example.com\r\n".getBytes(StandardCharsets.UTF_8));
             fos.write("To: recipient@example.com\r\n".getBytes(StandardCharsets.UTF_8));
             fos.write("Subject: Test with chaos header\r\n".getBytes(StandardCharsets.UTF_8));

@@ -7,9 +7,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import javax.net.ssl.*;
-import java.io.FileInputStream;
+import java.io.BufferedInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.security.GeneralSecurityException;
@@ -229,11 +230,11 @@ public class DefaultTLSSocket implements TLSSocket {
      *
      * @return Keystore.
      */
-    private FileInputStream getKeyStore() {
+    private InputStream getKeyStore() {
         try {
             String path = Config.getProperties().getStringProperty("javax.net.ssl.keyStore");
             if (StringUtils.isNotBlank(path)) {
-                return new FileInputStream(path);
+                return new BufferedInputStream(new java.io.FileInputStream(path), 8192);
             }
         } catch (FileNotFoundException e) {
             log.error("Error getting keystore.");

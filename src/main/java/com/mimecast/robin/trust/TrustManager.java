@@ -6,7 +6,7 @@ import org.apache.logging.log4j.Logger;
 
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
-import java.io.FileInputStream;
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -42,7 +42,7 @@ public class TrustManager implements X509TrustManager {
 
         // Load the trust store from the specified file.
         KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
-        try (FileInputStream fis = new FileInputStream(Config.getServer().getTrustStore())) {
+        try (BufferedInputStream fis = new BufferedInputStream(Files.newInputStream(Paths.get(Config.getServer().getTrustStore())), 8192)) {
             trustStore.load(fis, trustStorePassword.toCharArray());
         } catch (IOException e) {
             log.error("Error reading trust store file: {}", e.getMessage());

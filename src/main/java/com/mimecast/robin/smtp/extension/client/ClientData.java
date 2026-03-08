@@ -21,6 +21,7 @@ import java.util.*;
  * DATA extension processor.
  */
 public class ClientData extends ClientProcessor {
+    private static final int FILE_BUFFER_SIZE = 8192;
 
     /**
      * MessageEnvelope instance.
@@ -91,23 +92,25 @@ public class ClientData extends ClientProcessor {
             Path path = Files.createTempFile("robin-", ".eml");
             try (Closeable ignored = () -> Files.delete(path)) {
                 Magic.putTransactionMagic(messageID, connection.getSession()); // Put magic early for EmailBuilder use.
-                new EmailBuilder(connection.getSession(), envelope)
-                        .setLogTextPartsBody((new LoggingConfig(Config.getProperties().getMapProperty("logging"))
-                                .getBooleanProperty("textPartBody", false)))
-                        .buildMime()
-                        .writeTo(new FileOutputStream(path.toFile()));
+                try (BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(path.toFile()), FILE_BUFFER_SIZE)) {
+                    new EmailBuilder(connection.getSession(), envelope)
+                            .setLogTextPartsBody((new LoggingConfig(Config.getProperties().getMapProperty("logging"))
+                                    .getBooleanProperty("textPartBody", false)))
+                            .buildMime()
+                            .writeTo(outputStream);
+                }
 
-                inputStream = new FileInputStream(path.toFile());
+                inputStream = new BufferedInputStream(new FileInputStream(path.toFile()), FILE_BUFFER_SIZE);
             }
 
         } else if (envelope.getFile() != null) {
             log.debug("Sending email from file: {}", envelope.getFile());
-            inputStream = new FileInputStream(envelope.getFile());
+            inputStream = new BufferedInputStream(new FileInputStream(envelope.getFile()), FILE_BUFFER_SIZE);
 
         } else if (envelope.getFolder() != null) {
             String file = envelope.getFolderFile();
             log.debug("Sending email from file: {}", file);
-            inputStream = new FileInputStream(file);
+            inputStream = new BufferedInputStream(new FileInputStream(file), FILE_BUFFER_SIZE);
 
         } else if (envelope.getStream() != null) {
             log.debug("Sending email from stream.");

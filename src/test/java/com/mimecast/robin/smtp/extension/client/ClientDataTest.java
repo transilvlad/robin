@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import javax.naming.ConfigurationException;
+import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -86,7 +87,10 @@ class ClientDataTest {
 
     @Test
     void processDataWithStream() throws IOException {
-        processDataWithOptionalFileOrStream(null, new FileInputStream("src/test/resources/mime/lipsum.eml"));
+        processDataWithOptionalFileOrStream(
+                null,
+                new BufferedInputStream(new FileInputStream("src/test/resources/mime/lipsum.eml"), 8192)
+        );
     }
 
     void processDataWithOptionalFileOrStream(String file, InputStream stream) throws IOException {
@@ -212,7 +216,7 @@ class ClientDataTest {
         if (stream) {
             envelope.setFile("src/test/resources/mime/lipsum.eml");
         } else {
-            envelope.setStream(new FileInputStream("src/test/resources/mime/lipsum.eml"));
+            envelope.setStream(new BufferedInputStream(new FileInputStream("src/test/resources/mime/lipsum.eml"), 8192));
         }
         envelope.setChunkSize(512);
         envelope.setChunkBdat(chunkBdat);

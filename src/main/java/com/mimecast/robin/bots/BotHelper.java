@@ -13,6 +13,7 @@ import com.mimecast.robin.smtp.session.Session;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -30,6 +31,7 @@ import java.util.List;
  */
 public class BotHelper {
     private static final Logger log = LogManager.getLogger(BotHelper.class);
+    private static final int FILE_BUFFER_SIZE = 8192;
 
     /**
      * Strips token and reply address from bot address.
@@ -76,7 +78,7 @@ public class BotHelper {
         Path emailFile = storePath.resolve(filename);
 
         // Write email to disk.
-        try (FileOutputStream fos = new FileOutputStream(emailFile.toFile())) {
+        try (BufferedOutputStream fos = new BufferedOutputStream(new FileOutputStream(emailFile.toFile()), FILE_BUFFER_SIZE)) {
             emailStream.writeTo(fos);
             log.debug("Wrote bot response email to store: {}", emailFile);
         }

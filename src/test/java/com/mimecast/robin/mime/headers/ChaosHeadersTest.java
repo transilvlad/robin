@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -193,7 +194,7 @@ class ChaosHeadersTest {
      * @throws IOException If writing fails.
      */
     private void writeEmailWithHeaders(String... headers) throws IOException {
-        try (FileOutputStream fos = new FileOutputStream(tempEmailFile)) {
+        try (BufferedOutputStream fos = new BufferedOutputStream(new FileOutputStream(tempEmailFile), 8192)) {
             for (String header : headers) {
                 fos.write((header + "\r\n").getBytes(StandardCharsets.UTF_8));
             }
