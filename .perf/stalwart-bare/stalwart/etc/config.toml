@@ -18,7 +18,8 @@ password = "robin"
 timeout = "15s"
 
 [store."postgresql".pool]
-max-connections = 50
+max-connections = 100
+workers = 8
 
 [store."postgresql".tls]
 enable = false
@@ -67,6 +68,10 @@ description = "description"
 secret = "secret"
 quota = "quota"
 class = "type"
+
+# Global Performance Settings
+[global]
+thread-pool = 16
 
 # Server Configuration
 [server]

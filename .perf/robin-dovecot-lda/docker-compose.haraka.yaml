@@ -9,8 +9,9 @@ services:
       dockerfile: ./.perf/robin-dovecot-lda/haraka.Dockerfile
     volumes:
       - ../robin-dovecot/dovecot/etc:/etc/dovecot:ro
-      - ../../log/dovecot:/var/log/dovecot
       - dovecot-data:/var/mail/vhosts
+    tmpfs:
+      - /var/log/dovecot:size=64m
     depends_on:
       postgres:
         condition: service_healthy
@@ -37,17 +38,33 @@ services:
       - "-c"
       - "logging_collector=on"
       - "-c"
-      - "log_directory=/var/log"
+      - "log_directory=/var/log/postgresql"
       - "-c"
-      - "log_filename=postgresql-%Y-%m-%d.log"
+      - "log_filename=postgresql.log"
+      - "-c"
+      - "log_destination=stderr"
+      - "-c"
+      - "max_connections=300"
+      - "-c"
+      - "shared_buffers=512MB"
+      - "-c"
+      - "effective_cache_size=1536MB"
+      - "-c"
+      - "work_mem=8MB"
+      - "-c"
+      - "maintenance_work_mem=128MB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
     environment:
       POSTGRES_DB: robin
       POSTGRES_USER: robin
       POSTGRES_PASSWORD: robin
+      PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
-      - ../../log/postgres:/var/log
       - postgres-data:/var/lib/postgresql
       - ../.shared/db-init:/docker-entrypoint-initdb.d:ro
+    tmpfs:
+      - /var/log/postgresql:size=32m
     ports:
       - "5432:5432"
     networks:
