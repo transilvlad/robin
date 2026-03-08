@@ -58,7 +58,8 @@ services:
     volumes:
       - ./dovecot/etc:/etc/dovecot
       - dovecot-data:/var/mail/vhosts
-      - ../../log/dovecot:/var/log
+    tmpfs:
+      - /var/log:size=64m
     networks:
       robin-net:
         aliases:

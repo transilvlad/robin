@@ -59,9 +59,10 @@ services:
     volumes:
       - ./dovecot/etc:/etc/dovecot
       - dovecot-data:/var/mail/vhosts
-      - ../../log/dovecot:/var/log
       - dovecot-sockets:/var/run/dovecot
       - postfix-spool:/var/spool/postfix
+    tmpfs:
+      - /var/log:size=64m
     networks:
       postfix-net:
         aliases:
