@@ -9,11 +9,6 @@ import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
 import redis.clients.jedis.Pipeline;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -67,7 +62,7 @@ public class RedisQueueDatabase<T extends Serializable> implements QueueDatabase
             Pipeline pipeline = jedis.pipelined();
             pipeline.del(payloadKey(uid));
             pipeline.del(metaKey(uid));
-            pipeline.set(payloadKey(uid).getBytes(), serializeObject(item));
+            pipeline.set(payloadKey(uid).getBytes(), QueuePayloadCodec.serialize(item.getPayload()));
             Map<String, String> meta = encodeMeta(item.readyAt(item.getNextAttemptAtEpochSeconds()).syncFromPayload());
             pipeline.hset(metaKey(uid), meta);
             pipeline.zadd(createdKey(), item.getCreatedAtEpochSeconds(), uid);
@@ -131,7 +126,7 @@ public class RedisQueueDatabase<T extends Serializable> implements QueueDatabase
         try (Jedis jedis = jedisPool.getResource()) {
             item.readyAt(nextAttemptAtEpochSeconds).setLastError(lastError).syncFromPayload();
             Pipeline pipeline = jedis.pipelined();
-            pipeline.set(payloadKey(item.getUid()).getBytes(), serializeObject(item));
+            pipeline.set(payloadKey(item.getUid()).getBytes(), QueuePayloadCodec.serialize(item.getPayload()));
             pipeline.hset(metaKey(item.getUid()), encodeMeta(item));
             pipeline.zrem(claimedKey(), item.getUid());
             pipeline.zadd(readyKey(), nextAttemptAtEpochSeconds, item.getUid());
@@ -333,7 +328,11 @@ public class RedisQueueDatabase<T extends Serializable> implements QueueDatabase
     }
 
     private QueueItem<T> decodeItem(Map<String, String> meta, byte[] payloadBytes) {
-        QueueItem<T> item = deserializeQueueItem(payloadBytes);
+        QueueItem<T> item = QueueItem.restore(
+                meta.get("uid"),
+                parseLong(meta.get("createdAt")),
+                QueuePayloadCodec.deserialize(payloadBytes)
+        );
         item.setState(QueueItemState.valueOf(meta.getOrDefault("state", QueueItemState.READY.name())));
         item.setUpdatedAtEpochSeconds(parseLong(meta.get("updatedAt")));
         item.setNextAttemptAtEpochSeconds(parseLong(meta.get("nextAttemptAt")));
@@ -361,26 +360,6 @@ public class RedisQueueDatabase<T extends Serializable> implements QueueDatabase
             return 0L;
         }
         return (long) tuples.iterator().next().getScore();
-    }
-
-    private byte[] serializeObject(Serializable item) {
-        try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
-             ObjectOutputStream oos = new ObjectOutputStream(bos)) {
-            oos.writeObject(item);
-            return bos.toByteArray();
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to serialize queue payload", e);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private QueueItem<T> deserializeQueueItem(byte[] data) {
-        try (ByteArrayInputStream bis = new ByteArrayInputStream(data);
-             ObjectInputStream ois = new ObjectInputStream(bis)) {
-            return (QueueItem<T>) ois.readObject();
-        } catch (IOException | ClassNotFoundException e) {
-            throw new RuntimeException("Failed to deserialize queue item", e);
-        }
     }
 
     private String keyPrefix() {

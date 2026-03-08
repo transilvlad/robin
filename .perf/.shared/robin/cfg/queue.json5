@@ -4,5 +4,17 @@
   enabled: true,
   queueInitialDelay: 1,         // Start draining queued LMTP deliveries almost immediately.
   queueInterval: 1,             // Run dequeue every second during perf tests.
-  maxDequeuePerTick: 250        // Drain large queued batches quickly enough to keep up with load.
+  maxDequeuePerTick: 250,       // Drain large queued batches quickly enough to keep up with load.
+
+  queueMapDB: {
+    enabled: false
+  },
+
+  queuePgSQL: {
+    enabled: true,
+    jdbcUrl: "jdbc:postgresql://postgres-backend:5432/robin",
+    username: "robin",
+    password: "robin",
+    tableName: "relay_queue"
+  }
 }

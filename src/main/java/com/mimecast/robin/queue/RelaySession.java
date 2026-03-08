@@ -22,7 +22,7 @@ public class RelaySession implements Serializable {
      * Unique identifier for this relay session.
      * This is final and cannot be changed, unlike the session UID which can be duplicated.
      */
-    private final String uid = UUID.randomUUID().toString();
+    private final String uid;
 
     /**
      * Session.
@@ -57,7 +57,7 @@ public class RelaySession implements Serializable {
     /**
      * Session creation time (epoch seconds).
      */
-    private final long createTime = Instant.now().getEpochSecond();
+    private final long createTime;
 
     /**
      * Last retry bump time (epoch seconds).
@@ -68,12 +68,36 @@ public class RelaySession implements Serializable {
      * Constructs a new RelaySession instance.
      */
     public RelaySession(Session session) {
+        this(session, UUID.randomUUID().toString(), Instant.now().getEpochSecond());
+    }
+
+    private RelaySession(Session session, String uid, long createTime) {
+        this.uid = uid;
+        this.createTime = createTime;
         this.session = session;
 
         // Default to relay config value.
         this.maxRetryCount = Math.toIntExact(
             Config.getServer().getRelay().getLongProperty("maxRetryCount", 30L)
         );
+    }
+
+    /**
+     * Restores a relay session from persisted queue payload state.
+     */
+    public static RelaySession restore(Session session, String uid, String protocol, String mailbox, String poolKey,
+                                       int retryCount, int maxRetryCount, long createTime, long lastRetryTime) {
+        RelaySession relaySession = new RelaySession(session, uid, createTime);
+        relaySession.protocol = protocol;
+        relaySession.mailbox = mailbox;
+        relaySession.poolKey = poolKey;
+        relaySession.retryCount = retryCount;
+        relaySession.maxRetryCount = maxRetryCount;
+        relaySession.lastRetryTime = lastRetryTime;
+        if (session != null) {
+            session.setRetry(retryCount);
+        }
+        return relaySession;
     }
 
     /**

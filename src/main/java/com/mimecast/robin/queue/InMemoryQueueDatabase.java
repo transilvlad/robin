@@ -1,7 +1,6 @@
 package com.mimecast.robin.queue;
 
 import java.io.Serializable;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -18,9 +17,9 @@ import java.util.TreeMap;
 public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatabase<T> {
 
     private final Map<String, QueueItem<T>> items = new LinkedHashMap<>();
-    private final NavigableMap<String, String> createdIndex = new TreeMap<>();
-    private final NavigableMap<String, String> readyIndex = new TreeMap<>();
-    private final NavigableMap<String, String> claimedIndex = new TreeMap<>();
+    private final NavigableMap<IndexKey, String> createdIndex = new TreeMap<>();
+    private final NavigableMap<IndexKey, String> readyIndex = new TreeMap<>();
+    private final NavigableMap<IndexKey, String> claimedIndex = new TreeMap<>();
 
     @Override
     public synchronized void initialize() {
@@ -41,8 +40,8 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
             return claimed;
         }
 
-        List<String> keys = new ArrayList<>(readyIndex.headMap(sortKey(nowEpochSeconds, Long.MAX_VALUE, "~"), true).keySet());
-        for (String key : keys) {
+        List<IndexKey> keys = new ArrayList<>(readyIndex.headMap(indexKey(nowEpochSeconds, Long.MAX_VALUE, "\uFFFF"), true).keySet());
+        for (IndexKey key : keys) {
             if (claimed.size() >= limit) {
                 break;
             }
@@ -52,7 +51,7 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
                 continue;
             }
             item.claim(consumerId, claimUntilEpochSeconds);
-            claimedIndex.put(sortKey(item.getClaimedUntilEpochSeconds(), item.getCreatedAtEpochSeconds(), uid), uid);
+            claimedIndex.put(indexKey(item.getClaimedUntilEpochSeconds(), item.getCreatedAtEpochSeconds(), uid), uid);
             claimed.add(item);
         }
         return claimed;
@@ -83,15 +82,15 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
     @Override
     public synchronized int releaseExpiredClaims(long nowEpochSeconds) {
         int released = 0;
-        List<String> keys = new ArrayList<>(claimedIndex.headMap(sortKey(nowEpochSeconds, Long.MAX_VALUE, "~"), true).keySet());
-        for (String key : keys) {
+        List<IndexKey> keys = new ArrayList<>(claimedIndex.headMap(indexKey(nowEpochSeconds, Long.MAX_VALUE, "\uFFFF"), true).keySet());
+        for (IndexKey key : keys) {
             String uid = claimedIndex.remove(key);
             QueueItem<T> item = items.get(uid);
             if (item == null || item.getState() != QueueItemState.CLAIMED) {
                 continue;
             }
             item.readyAt(nowEpochSeconds);
-            readyIndex.put(sortKey(item.getNextAttemptAtEpochSeconds(), item.getCreatedAtEpochSeconds(), uid), uid);
+            readyIndex.put(indexKey(item.getNextAttemptAtEpochSeconds(), item.getCreatedAtEpochSeconds(), uid), uid);
             released++;
         }
         return released;
@@ -105,7 +104,7 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
         }
         removeIndexes(item);
         item.dead(lastError);
-        createdIndex.put(sortKey(item.getCreatedAtEpochSeconds(), item.getCreatedAtEpochSeconds(), uid), uid);
+        createdIndex.put(indexKey(item.getCreatedAtEpochSeconds(), item.getCreatedAtEpochSeconds(), uid), uid);
         return true;
     }
 
@@ -119,15 +118,15 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
         long ready = readyIndex.size();
         long claimed = claimedIndex.size();
         long dead = items.size() - ready - claimed;
-        long oldestReady = readyIndex.isEmpty() ? 0L : parseEpoch(readyIndex.firstKey());
-        long oldestClaimed = claimedIndex.isEmpty() ? 0L : parseEpoch(claimedIndex.firstKey());
+        long oldestReady = readyIndex.isEmpty() ? 0L : readyIndex.firstKey().primaryEpochSeconds;
+        long oldestClaimed = claimedIndex.isEmpty() ? 0L : claimedIndex.firstKey().primaryEpochSeconds;
         return new QueueStats(ready, claimed, dead, ready + claimed, oldestReady, oldestClaimed);
     }
 
     @Override
     public synchronized QueuePage<T> list(int offset, int limit, QueueListFilter filter) {
         List<QueueItem<T>> all = new ArrayList<>();
-        for (String key : createdIndex.keySet()) {
+        for (IndexKey key : createdIndex.keySet()) {
             QueueItem<T> item = items.get(createdIndex.get(key));
             if (item != null && (filter == null || filter.matches(item))) {
                 all.add(item);
@@ -185,26 +184,48 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
 
     private void upsert(QueueItem<T> item) {
         items.put(item.getUid(), item);
-        createdIndex.put(sortKey(item.getCreatedAtEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()), item.getUid());
+        createdIndex.put(indexKey(item.getCreatedAtEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()), item.getUid());
         if (item.getState() == QueueItemState.READY) {
-            readyIndex.put(sortKey(item.getNextAttemptAtEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()), item.getUid());
+            readyIndex.put(indexKey(item.getNextAttemptAtEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()), item.getUid());
         } else if (item.getState() == QueueItemState.CLAIMED) {
-            claimedIndex.put(sortKey(item.getClaimedUntilEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()), item.getUid());
+            claimedIndex.put(indexKey(item.getClaimedUntilEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()), item.getUid());
         }
     }
 
     private void removeIndexes(QueueItem<T> item) {
-        createdIndex.remove(sortKey(item.getCreatedAtEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()));
-        readyIndex.remove(sortKey(item.getNextAttemptAtEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()));
-        claimedIndex.remove(sortKey(item.getClaimedUntilEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()));
+        createdIndex.remove(indexKey(item.getCreatedAtEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()));
+        readyIndex.remove(indexKey(item.getNextAttemptAtEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()));
+        claimedIndex.remove(indexKey(item.getClaimedUntilEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()));
     }
 
-    private static String sortKey(long primaryEpochSeconds, long secondaryEpochSeconds, String uid) {
-        return String.format("%020d|%020d|%s", primaryEpochSeconds, secondaryEpochSeconds, uid);
+    private static IndexKey indexKey(long primaryEpochSeconds, long secondaryEpochSeconds, String uid) {
+        return new IndexKey(primaryEpochSeconds, secondaryEpochSeconds, uid);
     }
 
-    private static long parseEpoch(String key) {
-        int end = key.indexOf('|');
-        return end < 0 ? Instant.now().getEpochSecond() : Long.parseLong(key.substring(0, end));
+    private static final class IndexKey implements Comparable<IndexKey> {
+        private final long primaryEpochSeconds;
+        private final long secondaryEpochSeconds;
+        private final String uid;
+
+        private IndexKey(long primaryEpochSeconds, long secondaryEpochSeconds, String uid) {
+            this.primaryEpochSeconds = primaryEpochSeconds;
+            this.secondaryEpochSeconds = secondaryEpochSeconds;
+            this.uid = uid;
+        }
+
+        @Override
+        public int compareTo(IndexKey other) {
+            int primaryCompare = Long.compare(primaryEpochSeconds, other.primaryEpochSeconds);
+            if (primaryCompare != 0) {
+                return primaryCompare;
+            }
+
+            int secondaryCompare = Long.compare(secondaryEpochSeconds, other.secondaryEpochSeconds);
+            if (secondaryCompare != 0) {
+                return secondaryCompare;
+            }
+
+            return uid.compareTo(other.uid);
+        }
     }
 }

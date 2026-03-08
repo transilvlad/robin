@@ -5,11 +5,6 @@ import com.zaxxer.hikari.HikariDataSource;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -183,7 +178,7 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
             statement.setString(5, item.getProtocol());
             statement.setString(6, item.getSessionUid());
             setNullableString(statement, 7, lastError);
-            statement.setBytes(8, serializeObject(item));
+            statement.setBytes(8, QueuePayloadCodec.serialize(item.getPayload()));
             statement.setString(9, item.getUid());
             return statement.executeUpdate() > 0;
         } catch (SQLException e) {
@@ -371,11 +366,15 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
         setNullableString(statement, 9, item.getProtocol());
         setNullableString(statement, 10, item.getSessionUid());
         setNullableString(statement, 11, item.getLastError());
-        statement.setBytes(12, serializeObject(item));
+        statement.setBytes(12, QueuePayloadCodec.serialize(item.getPayload()));
     }
 
     private QueueItem<T> readItem(ResultSet rs) throws SQLException {
-        QueueItem<T> item = deserializeQueueItem(rs.getBytes("data"));
+        QueueItem<T> item = QueueItem.restore(
+                rs.getString("queue_uid"),
+                rs.getLong("created_epoch"),
+                QueuePayloadCodec.deserialize(rs.getBytes("data"))
+        );
         item.setState(QueueItemState.valueOf(rs.getString("state")));
         item.setNextAttemptAtEpochSeconds(rs.getLong("next_attempt_at"));
         item.setClaimedUntilEpochSeconds(rs.getLong("claimed_until"));
@@ -486,26 +485,6 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
             statement.setNull(index, Types.VARCHAR);
         } else {
             statement.setString(index, value);
-        }
-    }
-
-    private byte[] serializeObject(Serializable item) {
-        try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
-             ObjectOutputStream oos = new ObjectOutputStream(bos)) {
-            oos.writeObject(item);
-            return bos.toByteArray();
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to serialize queue payload", e);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private QueueItem<T> deserializeQueueItem(byte[] data) {
-        try (ByteArrayInputStream bis = new ByteArrayInputStream(data);
-             ObjectInputStream ois = new ObjectInputStream(bis)) {
-            return (QueueItem<T>) ois.readObject();
-        } catch (IOException | ClassNotFoundException e) {
-            throw new RuntimeException("Failed to deserialize queue item", e);
         }
     }
 

@@ -234,7 +234,7 @@ All backends share these common queue configuration options in `queue.json5`:
     jdbcUrl: "jdbc:postgresql://db.example.com:5432/robin_queue",
     username: "robin_user",
     password: "secure_password",
-    tableName: "relay_queue"
+    tableName: "queue_items"
   }
 }
 ```
@@ -255,7 +255,7 @@ All backends share these common queue configuration options in `queue.json5`:
     jdbcUrl: "jdbc:mariadb://db.example.com:3306/robin",
     username: "robin_user",
     password: "secure_password",
-    tableName: "relay_queue"
+    tableName: "queue_items"
   }
 }
 ```

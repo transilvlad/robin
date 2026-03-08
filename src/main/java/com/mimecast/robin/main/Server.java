@@ -20,7 +20,7 @@ import com.mimecast.robin.util.VaultClientFactory;
 import com.mimecast.robin.util.VaultMagicProvider;
 
 import javax.naming.ConfigurationException;
-import java.io.FileInputStream;
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
@@ -384,7 +384,7 @@ public class Server extends Foundation {
 
         // Load certificate chain.
         Collection<? extends Certificate> certs;
-        try (FileInputStream fis = new FileInputStream(certPath)) {
+        try (BufferedInputStream fis = new BufferedInputStream(Files.newInputStream(Path.of(certPath)), 8192)) {
             certs = cf.generateCertificates(fis);
         }
 

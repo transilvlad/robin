@@ -44,6 +44,13 @@ public class QueueItem<T extends Serializable> implements Serializable {
         return new QueueItem<>(extractUid(payload), now, payload).syncFromPayload();
     }
 
+    /**
+     * Restores a persisted queue item using stored metadata and payload.
+     */
+    public static <T extends Serializable> QueueItem<T> restore(String uid, long createdAtEpochSeconds, T payload) {
+        return new QueueItem<>(uid, createdAtEpochSeconds, payload).syncFromPayload();
+    }
+
     private static <T extends Serializable> String extractUid(T payload) {
         if (payload instanceof RelaySession relaySession) {
             return relaySession.getUID();

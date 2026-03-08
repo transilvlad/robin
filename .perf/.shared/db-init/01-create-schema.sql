@@ -30,19 +30,8 @@ CREATE TABLE IF NOT EXISTS auto_aliases (
     UNIQUE(source, destination)
 );
 
-CREATE TABLE IF NOT EXISTS relay_queue (
-    id SERIAL PRIMARY KEY,
-    envelope BYTEA NOT NULL,
-    attempts INTEGER DEFAULT 0,
-    max_attempts INTEGER DEFAULT 3,
-    next_attempt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_error TEXT
-);
-
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_active ON users(active);
 CREATE INDEX IF NOT EXISTS idx_aliases_source ON aliases(source);
 CREATE INDEX IF NOT EXISTS idx_auto_aliases_source ON auto_aliases(source);
-CREATE INDEX IF NOT EXISTS idx_relay_queue_next_attempt ON relay_queue(next_attempt);
