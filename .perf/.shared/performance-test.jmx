@@ -18,14 +18,9 @@
             <stringProp name="Argument.value">2525</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
-          <elementProp name="MAIL_FROM" elementType="Argument">
-            <stringProp name="Argument.name">MAIL_FROM</stringProp>
-            <stringProp name="Argument.value">tony@example.com</stringProp>
-            <stringProp name="Argument.metadata">=</stringProp>
-          </elementProp>
-          <elementProp name="RCPT_TO" elementType="Argument">
-            <stringProp name="Argument.name">RCPT_TO</stringProp>
-            <stringProp name="Argument.value">pepper@example.com</stringProp>
+          <elementProp name="WORKLOAD_CSV" elementType="Argument">
+            <stringProp name="Argument.name">WORKLOAD_CSV</stringProp>
+            <stringProp name="Argument.value">${__P(workloadCsv,../.shared/benchmark-workload.csv)}</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
         </collectionProp>
@@ -47,6 +42,18 @@
         <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
       </ThreadGroup>
       <hashTree>
+        <CSVDataSet guiclass="TestBeanGUI" testclass="CSVDataSet" testname="Benchmark Workload" enabled="true">
+          <stringProp name="delimiter">,</stringProp>
+          <stringProp name="fileEncoding"></stringProp>
+          <stringProp name="filename">${WORKLOAD_CSV}</stringProp>
+          <boolProp name="ignoreFirstLine">true</boolProp>
+          <boolProp name="quotedData">false</boolProp>
+          <boolProp name="recycle">true</boolProp>
+          <stringProp name="shareMode">shareMode.all</stringProp>
+          <boolProp name="stopThread">false</boolProp>
+          <stringProp name="variableNames">MAIL_FROM,RCPT_TO</stringProp>
+        </CSVDataSet>
+        <hashTree/>
         <SmtpSampler guiclass="SmtpSamplerGui" testclass="SmtpSampler" testname="SMTP Sampler" enabled="true">
           <stringProp name="SMTPSampler.server">${SMTP_HOST}</stringProp>
           <stringProp name="SMTPSampler.serverPort">${SMTP_PORT}</stringProp>

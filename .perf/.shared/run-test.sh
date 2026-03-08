@@ -7,6 +7,8 @@ set -e
 COMPOSE_FILE=${COMPOSE_FILE:-docker-compose.robin.yaml}
 JMETER_TEST="../.shared/performance-test.jmx"
 RESULTS_DIR="./results"
+BENCHMARK_USERS_CSV="../.shared/benchmark-users.csv"
+BENCHMARK_WORKLOAD_CSV="../.shared/benchmark-workload.csv"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 THREADS=${THREADS:-200}
 LOOPS=${LOOPS:-1}
@@ -60,6 +62,59 @@ echo_warning() {
 
 resolve_compose_container_id() {
     docker-compose -f "$COMPOSE_FILE" ps -q "$1" 2>/dev/null | head -1
+}
+
+csv_rows() {
+    tail -n +2 "$1" | grep -v '^[[:space:]]*$'
+}
+
+sum_dovecot_mailboxes() {
+    local container_id="$1"
+    local total=0
+    local status count
+
+    while IFS=, read -r email _; do
+        status="$(docker exec "$container_id" doveadm mailbox status -u "$email" messages INBOX 2>/dev/null || true)"
+        count="$(printf '%s\n' "$status" | sed -n 's/.*messages=\([0-9][0-9]*\).*/\1/p' | tail -1)"
+        if [[ -z "$count" ]]; then
+            count=0
+        fi
+        total=$((total + count))
+    done < <(csv_rows "$BENCHMARK_USERS_CSV")
+
+    echo "$total"
+}
+
+sum_imap_mailboxes() {
+    local total=0
+    local output count
+
+    while IFS=, read -r email password; do
+        output="$(python3 ../.scripts/imap-tool.py --host 127.0.0.1 --port "${IMAP_PORT}" --user "$email" --pass "$password" --folder INBOX 2>/dev/null || true)"
+        count="$(printf '%s\n' "$output" | sed -n 's/^Message count: \([0-9][0-9]*\)$/\1/p' | tail -1)"
+        if [[ -z "$count" ]]; then
+            count=0
+        fi
+        total=$((total + count))
+    done < <(csv_rows "$BENCHMARK_USERS_CSV")
+
+    echo "$total"
+}
+
+sum_mailboxes() {
+    if [[ "$BACKEND" == "stalwart" ]]; then
+        sum_imap_mailboxes
+        return
+    fi
+
+    DOVECOT_CONTAINER_ID="$(resolve_compose_container_id "${DOVECOT_SERVICE}")"
+    if [[ -z "$DOVECOT_CONTAINER_ID" ]]; then
+        echo_warning "Could not resolve Dovecot container for mailbox counting"
+        echo 0
+        return
+    fi
+
+    sum_dovecot_mailboxes "$DOVECOT_CONTAINER_ID"
 }
 
 uses_queued_robin_dovecot() {
@@ -182,6 +237,11 @@ echo
 # Create results directory.
 mkdir -p "$RESULTS_DIR"
 
+if [[ ! -f "$BENCHMARK_USERS_CSV" || ! -f "$BENCHMARK_WORKLOAD_CSV" ]]; then
+    echo_error "Benchmark workload files are missing"
+    exit 1
+fi
+
 # Check if containers are already running.
 if docker-compose -f "$COMPOSE_FILE" ps | grep -q "Up"; then
     echo_warning "Containers are already running. Using existing setup."
@@ -214,31 +274,19 @@ fi
 echo_info "Checking container health..."
 docker-compose -f "$COMPOSE_FILE" ps
 
-# Clear any existing emails from previous tests.
-echo_info "Cleaning previous test data from ${BACKEND}..."
+# Keep mailbox state warm across the run series. Only queue state resets between queued Robin runs.
+echo_info "Preparing sustained benchmark state for ${BACKEND}..."
 reset_queued_state
-if [[ "$USE_IMAP" == true ]]; then
-    python3 ../.scripts/imap-tool.py \
-        --host 127.0.0.1 \
-        --port ${IMAP_PORT} \
-        --user pepper@example.com \
-        --pass potts \
-        --folder INBOX \
-        --delete-all 2>/dev/null || true
-else
-    DOVECOT_CONTAINER_ID="$(resolve_compose_container_id "${DOVECOT_SERVICE}")"
-    if [[ -n "$DOVECOT_CONTAINER_ID" ]]; then
-        docker exec "$DOVECOT_CONTAINER_ID" doveadm expunge -u pepper@example.com mailbox INBOX all 2>/dev/null || true
-    else
-        echo_warning "Could not resolve Dovecot container for mailbox cleanup"
-    fi
-fi
+BASELINE_EMAIL_COUNT=$(sum_mailboxes)
+EXPECTED_EMAIL_COUNT=$((BASELINE_EMAIL_COUNT + TOTAL_EMAILS))
+echo_info "Benchmark recipient pool baseline: ${BASELINE_EMAIL_COUNT} messages across $(csv_rows "$BENCHMARK_USERS_CSV" | wc -l) mailboxes"
 
 # Run JMeter test.
 echo_info "Starting JMeter performance test..."
 echo_info "  Threads: ${THREADS}"
 echo_info "  Emails per thread: ${LOOPS}"
 echo_info "  Total emails: ${TOTAL_EMAILS}"
+echo_info "  Workload CSV: ${BENCHMARK_WORKLOAD_CSV}"
 echo_info "  Results: ${RESULTS_DIR}/${TEST_NAME}-${TIMESTAMP}"
 echo_info "  JMeter log: ${RESULTS_DIR}/jmeter-${TIMESTAMP}.log"
 echo
@@ -250,6 +298,7 @@ JMETER_LOG="${RESULTS_DIR}/jmeter-${TIMESTAMP}.log"
 jmeter -n -t "$JMETER_TEST" \
   -Jthreads="${THREADS}" \
   -Jloops="${LOOPS}" \
+  -JworkloadCsv="${BENCHMARK_WORKLOAD_CSV}" \
   -l "$RESULTS_FILE" \
   -j "$JMETER_LOG" \
   -e -o "$REPORT_DIR"
@@ -266,36 +315,22 @@ else
 fi
 
 # Count delivered emails.
-echo_info "Verifying email delivery..."
-if [[ "$USE_IMAP" == true ]]; then
-    # Use IMAP for Stalwart
-    EMAIL_COUNT=$(python3 ../.scripts/imap-tool.py \
-        --host 127.0.0.1 \
-        --port ${IMAP_PORT} \
-        --user pepper@example.com \
-        --pass potts \
-        --folder INBOX 2>/dev/null | grep "Message count:" | awk '{print $3}')
-
-    echo_info "Emails delivered to ${BACKEND}: ${EMAIL_COUNT}"
-
-    if [ "$EMAIL_COUNT" -eq "${TOTAL_EMAILS}" ] 2>/dev/null; then
-        echo_success "All ${TOTAL_EMAILS} emails delivered successfully!"
-    else
-        echo_warning "Email count mismatch: expected ${TOTAL_EMAILS}, got ${EMAIL_COUNT}"
-    fi
-else
-    # For Dovecot: verify from JMeter results (Dovecot container too minimal for file counting)
-    SUCCESS_COUNT=$(grep ",true," "$RESULTS_FILE" 2>/dev/null | wc -l)
-    echo_info "JMeter successful deliveries: ${SUCCESS_COUNT}/${TOTAL_EMAILS}"
-
-    if [ "$SUCCESS_COUNT" -eq "${TOTAL_EMAILS}" ] 2>/dev/null; then
-        echo_success "All ${TOTAL_EMAILS} emails accepted by MTA!"
-    else
-        echo_warning "Delivery count mismatch: expected ${TOTAL_EMAILS}, got ${SUCCESS_COUNT}"
-    fi
-fi
-
 wait_for_queue_drain || true
+
+echo_info "Verifying email delivery..."
+EMAIL_COUNT=$(sum_mailboxes)
+DELIVERED_DELTA=$((EMAIL_COUNT - BASELINE_EMAIL_COUNT))
+SUCCESS_COUNT=$(grep ",true," "$RESULTS_FILE" 2>/dev/null | wc -l)
+
+echo_info "Messages in benchmark recipient pool: ${EMAIL_COUNT}"
+echo_info "Messages added this run: ${DELIVERED_DELTA}/${TOTAL_EMAILS}"
+echo_info "JMeter successful deliveries: ${SUCCESS_COUNT}/${TOTAL_EMAILS}"
+
+if [ "$EMAIL_COUNT" -eq "${EXPECTED_EMAIL_COUNT}" ] 2>/dev/null; then
+    echo_success "All ${TOTAL_EMAILS} emails were delivered to the benchmark recipient pool"
+else
+    echo_warning "Mailbox count mismatch: expected cumulative ${EXPECTED_EMAIL_COUNT}, got ${EMAIL_COUNT}"
+fi
 
 echo
 echo_info "📊 Test Results Summary"
@@ -303,11 +338,10 @@ echo_info "━━━━━━━━━━━━━━━━━━━━━━━
 echo_info "  Backend:         ${BACKEND}"
 echo_info "  Compose File:    ${COMPOSE_FILE}"
 echo_info "  Total Emails:    ${TOTAL_EMAILS}"
-if [[ "$USE_IMAP" == true ]]; then
-    echo_info "  Emails Delivered: ${EMAIL_COUNT}"
-else
-    echo_info "  MTA Accepted:    ${SUCCESS_COUNT}"
-fi
+echo_info "  Pool Baseline:   ${BASELINE_EMAIL_COUNT}"
+echo_info "  Pool Delivered:  ${EMAIL_COUNT}"
+echo_info "  Delta Delivered: ${DELIVERED_DELTA}"
+echo_info "  MTA Accepted:    ${SUCCESS_COUNT}"
 echo_info "  HTML Report:     ${REPORT_DIR}/index.html"
 echo_info "  JMeter Log:      ${JMETER_LOG}"
 echo_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
