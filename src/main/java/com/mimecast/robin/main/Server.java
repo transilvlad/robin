@@ -7,7 +7,7 @@ import com.mimecast.robin.db.SharedDataSource;
 import com.mimecast.robin.endpoints.ApiEndpoint;
 import com.mimecast.robin.endpoints.RobinServiceEndpoint;
 import com.mimecast.robin.metrics.MetricsCron;
-import com.mimecast.robin.queue.RelayQueueCron;
+import com.mimecast.robin.queue.RelayQueueService;
 import com.mimecast.robin.scanners.DkimSigningLookup;
 import com.mimecast.robin.smtp.SmtpListener;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
@@ -155,8 +155,8 @@ public class Server extends Foundation {
         // Clean storage directory on startup.
         StorageCleaner.clean(Config.getServer().getStorage());
 
-        // Start the relay queue cron job for processing queued messages.
-        RelayQueueCron.run();
+        // Start queued relay processing.
+        RelayQueueService.run();
 
         // Start the service endpoint for monitoring.
         try {

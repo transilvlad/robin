@@ -10,6 +10,7 @@ RESULTS_DIR="./results"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 THREADS=${THREADS:-200}
 LOOPS=${LOOPS:-1}
+QUEUE_DRAIN_TIMEOUT_SECONDS=${QUEUE_DRAIN_TIMEOUT_SECONDS:-300}
 
 show_usage() {
     cat <<EOF
@@ -59,6 +60,51 @@ echo_warning() {
 
 resolve_compose_container_id() {
     docker-compose -f "$COMPOSE_FILE" ps -q "$1" 2>/dev/null | head -1
+}
+
+uses_queued_robin_dovecot() {
+    [[ "$CURRENT_DIR" == "robin-dovecot" && "$COMPOSE_FILE" == *"docker-compose.robin.yaml" ]]
+}
+
+reset_queued_state() {
+    if ! uses_queued_robin_dovecot; then
+        return
+    fi
+
+    POSTGRES_CONTAINER_ID="$(resolve_compose_container_id "postgres")"
+    if [[ -n "$POSTGRES_CONTAINER_ID" ]]; then
+        docker exec "$POSTGRES_CONTAINER_ID" psql -U robin -d robin -c "truncate table relay_queue;" >/dev/null 2>&1 || true
+        echo_info "Reset queued relay state"
+    else
+        echo_warning "Could not resolve PostgreSQL container for queue reset"
+    fi
+}
+
+wait_for_queue_drain() {
+    if ! uses_queued_robin_dovecot; then
+        return 0
+    fi
+
+    echo_info "Waiting for queued LMTP drain..."
+    for _ in $(seq 1 "${QUEUE_DRAIN_TIMEOUT_SECONDS}"); do
+        QUEUE_SIZE=$(python3 - <<'PY'
+import json, urllib.request
+try:
+    data=json.load(urllib.request.urlopen('http://127.0.0.1:28080/health', timeout=2))
+    print(data['queue']['size'])
+except Exception:
+    print(-1)
+PY
+)
+        if [[ "$QUEUE_SIZE" == "0" ]]; then
+            echo_success "Queued relay drained to zero"
+            return 0
+        fi
+        sleep 1
+    done
+
+    echo_warning "Queued relay did not drain within ${QUEUE_DRAIN_TIMEOUT_SECONDS}s"
+    return 1
 }
 
 # Auto-detect backend and test name from directory and compose file.
@@ -170,6 +216,7 @@ docker-compose -f "$COMPOSE_FILE" ps
 
 # Clear any existing emails from previous tests.
 echo_info "Cleaning previous test data from ${BACKEND}..."
+reset_queued_state
 if [[ "$USE_IMAP" == true ]]; then
     python3 ../.scripts/imap-tool.py \
         --host 127.0.0.1 \
@@ -247,6 +294,8 @@ else
         echo_warning "Delivery count mismatch: expected ${TOTAL_EMAILS}, got ${SUCCESS_COUNT}"
     fi
 fi
+
+wait_for_queue_drain || true
 
 echo
 echo_info "📊 Test Results Summary"

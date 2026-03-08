@@ -28,11 +28,11 @@
  * <p>All backends implement the {@link com.mimecast.robin.queue.QueueDatabase} interface,
  * <br>providing ready-item claiming, acknowledgement, rescheduling, dead-lettering, and paged listing.
  *
- * <p>The {@link com.mimecast.robin.queue.RelayQueueCron} claims ready work periodically
- * <br>and hands delivery to worker threads with lease-based recovery for failed consumers.
+ * <p>The {@link com.mimecast.robin.queue.RelayQueueService} continuously claims ready work
+ * <br>and hands delivery to worker threads with periodic lease-based recovery for failed consumers.
  *
  * @see com.mimecast.robin.queue.PersistentQueue
  * @see com.mimecast.robin.queue.QueueDatabase
- * @see com.mimecast.robin.queue.RelayQueueCron
+ * @see com.mimecast.robin.queue.RelayQueueService
  */
 package com.mimecast.robin.queue;

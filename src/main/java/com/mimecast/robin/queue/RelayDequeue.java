@@ -7,6 +7,7 @@ import com.mimecast.robin.queue.relay.DovecotLdaClient;
 import com.mimecast.robin.smtp.EmailDelivery;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
+import com.mimecast.robin.storage.PooledLmtpDelivery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -17,17 +18,25 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Processes claimed relay queue items.
  */
 public class RelayDequeue {
     private static final Logger log = LogManager.getLogger(RelayDequeue.class);
+    private static final AtomicLong RESCHEDULE_COUNT = new AtomicLong(0);
 
     private final PersistentQueue<RelaySession> queue;
+    private final PooledLmtpDelivery pooledLmtpDelivery;
 
     public RelayDequeue(PersistentQueue<RelaySession> queue) {
+        this(queue, new PooledLmtpDelivery());
+    }
+
+    RelayDequeue(PersistentQueue<RelaySession> queue, PooledLmtpDelivery pooledLmtpDelivery) {
         this.queue = queue;
+        this.pooledLmtpDelivery = pooledLmtpDelivery;
     }
 
     /**
@@ -90,6 +99,8 @@ public class RelayDequeue {
         try {
             if ("dovecot-lda".equalsIgnoreCase(relaySession.getProtocol())) {
                 new DovecotLdaClient(relaySession).send();
+            } else if ("lmtp".equalsIgnoreCase(relaySession.getProtocol())) {
+                pooledLmtpDelivery.deliver(relaySession.getSession(), 1, 0);
             } else {
                 new EmailDelivery(relaySession.getSession()).send();
             }
@@ -155,7 +166,12 @@ public class RelayDequeue {
         int waitSeconds = RetryScheduler.getNextRetry(relaySession.getRetryCount());
         long nextAttempt = currentEpochSeconds + Math.max(waitSeconds, 0);
         queueItem.setPayload(relaySession).setRetryCount(relaySession.getRetryCount());
+        RESCHEDULE_COUNT.incrementAndGet();
         queue.reschedule(queueItem, nextAttempt, deriveLastError(relaySession));
+    }
+
+    public static long getRescheduleCount() {
+        return RESCHEDULE_COUNT.get();
     }
 
     void generateBounces(RelaySession relaySession) {

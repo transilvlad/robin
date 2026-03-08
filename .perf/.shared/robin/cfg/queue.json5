@@ -2,9 +2,11 @@
   // Queue configuration for performance testing.
   // Tuned for aggressive dequeue processing under high load.
   enabled: true,
-  queueInitialDelay: 1,         // Start draining queued LMTP deliveries almost immediately.
-  queueInterval: 1,             // Run dequeue every second during perf tests.
-  maxDequeuePerTick: 250,       // Drain large queued batches quickly enough to keep up with load.
+  startDelaySeconds: 1,         // Start draining queued LMTP deliveries almost immediately.
+  housekeepingIntervalSeconds: 1, // Release expired claims promptly during perf tests.
+  workerThreads: 32,            // Use pooled LMTP delivery with enough concurrency to outrun queue buildup.
+  maxInFlight: 32,              // Keep claimed work aligned with runnable worker capacity.
+  maxClaimBatch: 64,            // Claim in modest batches to avoid ballooning CLAIMED backlog.
 
   queueMapDB: {
     enabled: false

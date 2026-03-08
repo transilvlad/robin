@@ -4,6 +4,7 @@ import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
 import com.mimecast.robin.smtp.transaction.SessionTransactionList;
+import com.mimecast.robin.storage.PooledLmtpDelivery;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,7 +38,7 @@ class RelayDequeueTest {
     Path tempDir;
 
     private PersistentQueue<RelaySession> testQueue;
-    private TestRelayDequeue relayDequeue;
+    private RelayDequeue relayDequeue;
 
     @BeforeEach
     void setUp() {
@@ -81,6 +82,22 @@ class RelayDequeueTest {
     }
 
     @Test
+    void testProcessClaimedItemUsesPooledLmtpDeliveryForLmtpProtocol() {
+        RelaySession relaySession = relaySessionWithEnvelope("lmtp-success", List.of("tony@example.com"));
+        relaySession.setProtocol("lmtp");
+        TestPooledLmtpDelivery pooledDelivery = new TestPooledLmtpDelivery();
+        relayDequeue = new RelayDequeue(testQueue, pooledDelivery);
+        testQueue.enqueue(relaySession);
+        QueueItem<RelaySession> claimed = claimSingle(relaySession.getUID());
+
+        relayDequeue.processClaimedItem(claimed, Instant.now().getEpochSecond());
+
+        assertEquals(1, pooledDelivery.invocations);
+        assertEquals(0, testQueue.size());
+        assertNull(testQueue.getByUID(relaySession.getUID()));
+    }
+
+    @Test
     void testProcessClaimedItemReschedulesRetryableFailure() {
         RelaySession relaySession = relaySessionWithEnvelope("retry", List.of("tony@example.com", "pepper@example.com"));
         relayDequeue = new TestRelayDequeue(testQueue, session -> {
@@ -112,11 +129,12 @@ class RelayDequeueTest {
             relaySession.bumpRetryCount();
         }
 
-        relayDequeue = new TestRelayDequeue(testQueue, session -> {
+        TestRelayDequeue testRelayDequeue = new TestRelayDequeue(testQueue, session -> {
             EnvelopeTransactionList envTxList = new EnvelopeTransactionList();
             envTxList.addTransaction("RCPT", "RCPT TO:<tony@example.com>", "550 Mailbox unavailable", true);
             session.getSession().getSessionTransactionList().addEnvelope(envTxList);
         });
+        relayDequeue = testRelayDequeue;
 
         testQueue.enqueue(relaySession);
         QueueItem<RelaySession> claimed = claimSingle(relaySession.getUID());
@@ -128,7 +146,7 @@ class RelayDequeueTest {
         assertEquals(0, testQueue.size());
         assertEquals(QueueItemState.DEAD, updated.getState());
         assertEquals(1, testQueue.stats().deadCount());
-        assertEquals(1, relayDequeue.generatedBounceCount);
+        assertEquals(1, testRelayDequeue.generatedBounceCount);
     }
 
     @Test
@@ -347,6 +365,18 @@ class RelayDequeueTest {
         @Override
         void generateBounces(RelaySession relaySession) {
             generatedBounceCount += countRecipients(relaySession);
+        }
+    }
+
+    private static class TestPooledLmtpDelivery extends PooledLmtpDelivery {
+        private int invocations;
+
+        @Override
+        public boolean deliver(Session sourceSession, long maxAttempts, int retryDelaySeconds) {
+            invocations++;
+            sourceSession.getSessionTransactionList().clear();
+            sourceSession.getSessionTransactionList().addEnvelope(new EnvelopeTransactionList());
+            return true;
         }
     }
 }

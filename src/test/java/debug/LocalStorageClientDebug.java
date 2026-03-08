@@ -3,7 +3,7 @@ package debug;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Foundation;
 import com.mimecast.robin.main.Server;
-import com.mimecast.robin.queue.RelayQueueCron;
+import com.mimecast.robin.queue.RelayQueueService;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.connection.ConnectionMock;
@@ -54,7 +54,7 @@ public class LocalStorageClientDebug {
         server.getRelay().getMap().put("enabled", false);
         server.getStorage().getMap().put("autoDelete", true);
         server.getRspamd().getMap().put("enabled", true);
-        server.getQueue().getMap().put("queueInitialDelay", 0L); // No delay for testing.
+        server.getQueue().getMap().put("startDelaySeconds", 0L); // No delay for testing.
         server.getRspamd().getMap().put("rejectThreshold", 250.0); // Avoid SPAM rejection for testing.
 
         // Create a local storage client and write the test email to it.
@@ -77,7 +77,7 @@ public class LocalStorageClientDebug {
         // Run the relay queue cron to process the bot queue immediately.
         // Likely email delivery will fail unless your recipient server is reachable and accepts the email immediately.
         // In that case it will remain in the queue for retrying later.
-        RelayQueueCron.run();
+        RelayQueueService.run();
 
         // Close session to delete original email file.
         // Queued files are deleted by the queue processor when finished.

@@ -15,6 +15,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Connection pool for LMTP deliveries with actual connection reuse.
@@ -40,6 +41,9 @@ public class LmtpConnectionPool {
     private final long maxLifetimeMs;
     private final AtomicInteger totalConnections;
     private final AtomicInteger borrowedCount;
+    private final AtomicLong borrowTimeoutCount;
+    private final AtomicLong invalidationCount;
+    private final AtomicLong resetFailureCount;
 
     // Server configuration
     private final List<String> servers;
@@ -69,6 +73,9 @@ public class LmtpConnectionPool {
         this.idleConnections = new LinkedBlockingQueue<>(maxSize);
         this.totalConnections = new AtomicInteger(0);
         this.borrowedCount = new AtomicInteger(0);
+        this.borrowTimeoutCount = new AtomicLong(0);
+        this.invalidationCount = new AtomicLong(0);
+        this.resetFailureCount = new AtomicLong(0);
         this.maxIdleTimeMs = idleTimeoutSeconds * 1000L;
         this.maxLifetimeMs = maxLifetimeSeconds * 1000L;
 
@@ -133,6 +140,7 @@ public class LmtpConnectionPool {
             log.warn("Interrupted while waiting for connection");
         }
 
+        borrowTimeoutCount.incrementAndGet();
         log.warn("Timeout waiting for LMTP connection after {}s", borrowTimeoutSeconds);
         return null;
     }
@@ -188,6 +196,7 @@ public class LmtpConnectionPool {
         }
 
         borrowedCount.decrementAndGet();
+        invalidationCount.incrementAndGet();
         pooled.invalidate();
         closeConnection(pooled);
 
@@ -293,6 +302,7 @@ public class LmtpConnectionPool {
             ClientRset rset = new ClientRset();
             return rset.process(pooled.getConnection());
         } catch (IOException e) {
+            resetFailureCount.incrementAndGet();
             log.debug("RSET failed: {}", e.getMessage());
             return false;
         }
@@ -377,6 +387,33 @@ public class LmtpConnectionPool {
      */
     public int getActiveConnections() {
         return borrowedCount.get();
+    }
+
+    /**
+     * Gets the number of LMTP pool borrow timeouts.
+     *
+     * @return Borrow timeout count.
+     */
+    public long getBorrowTimeoutCount() {
+        return borrowTimeoutCount.get();
+    }
+
+    /**
+     * Gets the number of LMTP pool invalidations.
+     *
+     * @return Invalidation count.
+     */
+    public long getInvalidationCount() {
+        return invalidationCount.get();
+    }
+
+    /**
+     * Gets the number of RSET failures seen while returning pooled connections.
+     *
+     * @return Reset failure count.
+     */
+    public long getResetFailureCount() {
+        return resetFailureCount.get();
     }
 
     /**

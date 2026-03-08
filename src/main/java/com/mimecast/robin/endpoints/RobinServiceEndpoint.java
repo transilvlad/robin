@@ -5,8 +5,10 @@ import com.google.gson.GsonBuilder;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Server;
 import com.mimecast.robin.metrics.MetricsCron;
+import com.mimecast.robin.queue.RelayDequeue;
 import com.mimecast.robin.storage.LmtpConnectionPool;
-import com.mimecast.robin.queue.RelayQueueCron;
+import com.mimecast.robin.storage.PooledLmtpDelivery;
+import com.mimecast.robin.queue.RelayQueueService;
 import com.mimecast.robin.queue.RetryScheduler;
 import com.mimecast.robin.smtp.SmtpListener;
 import com.sun.net.httpserver.HttpExchange;
@@ -111,22 +113,23 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
      * Generates JSON representation of relay queue statistics.
      */
     private String getQueueJson() {
-        var stats = RelayQueueCron.getQueueStats();
+        var stats = RelayQueueService.getQueueStats();
         return String.format(
-                "{\"size\":%d,\"ready\":%d,\"claimed\":%d,\"dead\":%d,\"oldestReadyAtEpochSeconds\":%d,\"oldestClaimedAtEpochSeconds\":%d}",
+                "{\"size\":%d,\"ready\":%d,\"claimed\":%d,\"dead\":%d,\"oldestReadyAtEpochSeconds\":%d,\"oldestClaimedAtEpochSeconds\":%d,\"reschedules\":%d}",
                 stats.totalCount(),
                 stats.readyCount(),
                 stats.claimedCount(),
                 stats.deadCount(),
                 stats.oldestReadyAtEpochSeconds(),
-                stats.oldestClaimedAtEpochSeconds()
+                stats.oldestClaimedAtEpochSeconds(),
+                RelayDequeue.getRescheduleCount()
         );
     }
 
     /**
-     * Generates JSON representation of retry scheduler configuration and cron statistics.
+     * Generates JSON representation of retry scheduler configuration and queue service statistics.
      *
-     * @return JSON object string containing scheduler config and cron execution info.
+     * @return JSON object string containing scheduler config and queue service execution info.
      */
     private String getSchedulerJson() {
         String schedulerConfigJson = String.format("{\"totalRetries\":%d,\"firstWaitMinutes\":%d,\"growthFactor\":%.2f}",
@@ -134,15 +137,16 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
                 RetryScheduler.getFirstWaitMinutes(),
                 RetryScheduler.getGrowthFactor());
 
-        String cronJson = String.format("{\"initialDelaySeconds\":%d,\"periodSeconds\":%d,\"workerThreads\":%d,\"maxInFlight\":%d,\"lastExecutionEpochSeconds\":%d,\"nextExecutionEpochSeconds\":%d}",
-                RelayQueueCron.getInitialDelaySeconds(),
-                RelayQueueCron.getPeriodSeconds(),
-                RelayQueueCron.getWorkerThreads(),
-                RelayQueueCron.getMaxInFlight(),
-                RelayQueueCron.getLastExecutionEpochSeconds(),
-                RelayQueueCron.getNextExecutionEpochSeconds());
+        String serviceJson = String.format("{\"startDelaySeconds\":%d,\"housekeepingIntervalSeconds\":%d,\"workerThreads\":%d,\"maxInFlight\":%d,\"lastDispatchEpochSeconds\":%d,\"lastHousekeepingEpochSeconds\":%d,\"nextHousekeepingEpochSeconds\":%d}",
+                RelayQueueService.getStartDelaySeconds(),
+                RelayQueueService.getHousekeepingIntervalSeconds(),
+                RelayQueueService.getWorkerThreads(),
+                RelayQueueService.getMaxInFlight(),
+                RelayQueueService.getLastDispatchEpochSeconds(),
+                RelayQueueService.getLastHousekeepingEpochSeconds(),
+                RelayQueueService.getNextHousekeepingEpochSeconds());
 
-        return String.format("{\"config\":%s,\"cron\":%s}", schedulerConfigJson, cronJson);
+        return String.format("{\"config\":%s,\"service\":%s}", schedulerConfigJson, serviceJson);
     }
 
     /**
@@ -193,11 +197,17 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
             return "{\"enabled\":false}";
         }
 
-        return String.format("{\"enabled\":true,\"maxSize\":%d,\"total\":%d,\"idle\":%d,\"borrowed\":%d}",
+        return String.format("{\"enabled\":true,\"maxSize\":%d,\"total\":%d,\"idle\":%d,\"borrowed\":%d,\"borrowTimeouts\":%d,\"invalidations\":%d,\"resetFailures\":%d,\"transactionFailures\":%d,\"connectionFailures\":%d,\"deliverySuccesses\":%d}",
                 lmtpPool.getPoolSize(),
                 lmtpPool.getTotalConnections(),
                 lmtpPool.getIdleCount(),
-                lmtpPool.getBorrowedCount());
+                lmtpPool.getBorrowedCount(),
+                lmtpPool.getBorrowTimeoutCount(),
+                lmtpPool.getInvalidationCount(),
+                lmtpPool.getResetFailureCount(),
+                PooledLmtpDelivery.getTransactionFailureCount(),
+                PooledLmtpDelivery.getConnectionFailureCount(),
+                PooledLmtpDelivery.getSuccessCount());
     }
 
     /**
