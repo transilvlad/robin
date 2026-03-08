@@ -29,6 +29,27 @@ configs=(
   "Stalwart Bare|.perf/stalwart-bare|docker-compose.yaml"
 )
 
+run_one() {
+  local dir="$1"
+  local compose="$2"
+  local answer="$3"
+
+  bash -lc "
+    set -euo pipefail
+    cd '${dir}'
+    printf '%s\n' '${answer}' | COMPOSE_FILE='${compose}' THREADS='${THREADS}' LOOPS='${LOOPS}' '${SCRIPT_DIR}/run-test.sh'
+  "
+}
+
+latest_report_dir() {
+  local dir="$1"
+  bash -lc "
+    set -euo pipefail
+    cd '${dir}'
+    find results -maxdepth 1 -type d -name '*-report' -printf '%T@ %p\n' | sort -nr | head -1 | cut -d' ' -f2-
+  "
+}
+
 run_index=0
 for config in "${configs[@]}"; do
   IFS='|' read -r label rel_dir compose <<<"${config}"
@@ -36,28 +57,29 @@ for config in "${configs[@]}"; do
   run_index=$((run_index + 1))
   printf '\n[%02d/10] %s\n' "${run_index}" "${label}"
 
-  (
-    cd "${dir}"
-    docker compose -f "${compose}" down -v >/dev/null 2>&1 || true
+  bash -lc "
+    set -euo pipefail
+    cd '${dir}'
+    docker compose -f '${compose}' down -v >/dev/null 2>&1 || true
+    if grep -q '^[[:space:]]*build:' '${compose}'; then
+      docker compose -f '${compose}' build >/dev/null
+      docker compose -f '${compose}' up -d >/dev/null
+      sleep 35
+    fi
+  "
 
-    for run in 1 2 3 4 5; do
-      if [[ "${run}" -eq 1 ]] && grep -q '^[[:space:]]*build:' "${compose}"; then
-        docker compose -f "${compose}" build >/dev/null
-        docker compose -f "${compose}" up -d >/dev/null
-        sleep 35
-      fi
+  for run in 1 2 3 4 5; do
+    if [[ "${run}" -eq 5 ]]; then
+      answer="y"
+    else
+      answer="n"
+    fi
 
-      if [[ "${run}" -eq 5 ]]; then
-        answer="y"
-      else
-        answer="n"
-      fi
+    printf '  run %d/5\n' "${run}"
+    run_one "${dir}" "${compose}" "${answer}"
 
-      printf '  run %d/5\n' "${run}"
-      printf '%s\n' "${answer}" | COMPOSE_FILE="${compose}" THREADS="${THREADS}" LOOPS="${LOOPS}" "${SCRIPT_DIR}/run-test.sh"
-
-      report_dir="$(find results -maxdepth 1 -type d -name '*-report' -printf '%T@ %p\n' | sort -nr | head -1 | cut -d' ' -f2-)"
-      python3 - "${label}" "${rel_dir}" "${compose}" "${run}" "${report_dir}" "${RUNS_CSV}" <<'PY'
+    report_dir="$(latest_report_dir "${dir}")"
+    python3 - "${label}" "${rel_dir}" "${compose}" "${run}" "${report_dir}" "${RUNS_CSV}" <<'PY'
 import csv
 import json
 import sys
@@ -82,10 +104,13 @@ row = [
 with open(runs_csv, "a", newline="", encoding="utf-8") as fh:
     csv.writer(fh).writerow(row)
 PY
-    done
+  done
 
-    docker compose -f "${compose}" down -v >/dev/null 2>&1 || true
-  )
+  bash -lc "
+    set -euo pipefail
+    cd '${dir}'
+    docker compose -f '${compose}' down -v >/dev/null 2>&1 || true
+  "
 done
 
 python3 - "${RUNS_CSV}" "${SUMMARY_CSV}" "${SUMMARY_MD}" <<'PY'

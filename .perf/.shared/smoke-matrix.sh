@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 THREADS="${THREADS:-2}"
 LOOPS="${LOOPS:-2}"
+RUN_LOG="${RUN_LOG:-/tmp/perf-smoke-last.log}"
 
 configs=(
   "Robin + Dovecot LMTP (queued)|.perf/robin-dovecot|docker-compose.robin.yaml"
@@ -23,17 +24,18 @@ for config in "${configs[@]}"; do
   IFS='|' read -r label rel_dir compose <<<"${config}"
   dir="${ROOT}/${rel_dir}"
   printf '\n[SMOKE] %s\n' "${label}"
-  (
-    cd "${dir}"
-    docker compose -f "${compose}" down -v >/dev/null 2>&1 || true
-    if grep -q '^[[:space:]]*build:' "${compose}"; then
-      docker compose -f "${compose}" build >/dev/null
-      docker compose -f "${compose}" up -d >/dev/null
+  bash -lc "
+    set -euo pipefail
+    cd '${dir}'
+    docker compose -f '${compose}' down -v >/dev/null 2>&1 || true
+    if grep -q '^[[:space:]]*build:' '${compose}'; then
+      docker compose -f '${compose}' build >/dev/null
+      docker compose -f '${compose}' up -d >/dev/null
       sleep 35
     fi
-    printf 'y\n' | COMPOSE_FILE="${compose}" THREADS="${THREADS}" LOOPS="${LOOPS}" "${SCRIPT_DIR}/run-test.sh" >/tmp/perf-smoke-last.log
-    docker compose -f "${compose}" down -v >/dev/null 2>&1 || true
-  )
+    printf 'y\n' | COMPOSE_FILE='${compose}' THREADS='${THREADS}' LOOPS='${LOOPS}' '${SCRIPT_DIR}/run-test.sh' >'${RUN_LOG}'
+    docker compose -f '${compose}' down -v >/dev/null 2>&1 || true
+  "
   printf '[PASS] %s\n' "${label}"
 done
 

@@ -14,16 +14,6 @@ echo "Creating log directories..."
 mkdir -p "$SCRIPT_DIR/../log/"{postgres,dovecot,postfix,robin,stalwart}
 
 echo ""
-echo "Setting file permissions..."
-
-# Postfix requires dynamicmaps.cf to be owned by root
-if [ -f "$SCRIPT_DIR/.shared/postfix/etc/postfix/dynamicmaps.cf" ]; then
-    echo "  - Setting dynamicmaps.cf to root:root 644"
-    chown root:root "$SCRIPT_DIR/.shared/postfix/etc/postfix/dynamicmaps.cf"
-    chmod 644 "$SCRIPT_DIR/.shared/postfix/etc/postfix/dynamicmaps.cf"
-fi
-
-echo ""
 echo "✓ Initialization complete"
 echo ""
 echo "Directory structure created:"

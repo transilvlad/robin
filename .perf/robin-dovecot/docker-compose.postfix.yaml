@@ -88,7 +88,10 @@ services:
       context: ../../
       dockerfile: .perf/.shared/postfix/Dockerfile
     volumes:
-      - ../.shared/postfix/etc/postfix:/etc/postfix
+      - ../.shared/postfix/etc/postfix/main.cf:/etc/postfix/main.cf:ro
+      - ../.shared/postfix/etc/postfix/master.cf:/etc/postfix/master.cf:ro
+      - ../.shared/postfix/etc/postfix/pgsql-virtual-mailbox-domains.cf:/etc/postfix/pgsql-virtual-mailbox-domains.cf:ro
+      - ../.shared/postfix/etc/postfix/pgsql-virtual-mailbox-maps.cf:/etc/postfix/pgsql-virtual-mailbox-maps.cf:ro
       - dovecot-data:/var/mail/vhosts
       - dovecot-sockets:/var/run/dovecot
       - postfix-spool:/var/spool/postfix
