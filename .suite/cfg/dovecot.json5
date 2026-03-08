@@ -16,7 +16,13 @@
     userQuery: "SELECT home, uid, gid, maildir AS mail FROM users WHERE email = ?",
 
     // Query to list users for integration API.
-    usersQuery: "SELECT email FROM users"
+    usersQuery: "SELECT email FROM users",
+
+    // Query to check if a domain is served (returns any row if served).
+    domainQuery: "SELECT 1 FROM users WHERE email LIKE '%@' || ? UNION SELECT 1 FROM aliases WHERE source LIKE '%@' || ? UNION SELECT 1 FROM auto_aliases WHERE source LIKE '%@' || ?",
+
+    // Query to resolve aliases to real destination addresses.
+    aliasQuery: "SELECT destination FROM (SELECT destination, 0 as priority FROM aliases WHERE source = ? AND destination <> '' UNION SELECT email as destination, 1 as priority FROM users WHERE email = ? UNION SELECT destination, 2 as priority FROM auto_aliases WHERE source = ? AND destination <> '') AS t ORDER BY priority LIMIT 1"
   },
 
   // Disable socket authentication (we're using SQL).
