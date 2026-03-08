@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="../../"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 THREADS="${THREADS:-2}"
 LOOPS="${LOOPS:-2}"
 
@@ -25,7 +26,12 @@ for config in "${configs[@]}"; do
   (
     cd "${dir}"
     docker compose -f "${compose}" down -v >/dev/null 2>&1 || true
-    printf 'y\n' | COMPOSE_FILE="${compose}" THREADS="${THREADS}" LOOPS="${LOOPS}" ../.shared/run-test.sh >/tmp/perf-smoke-last.log
+    if grep -q '^[[:space:]]*build:' "${compose}"; then
+      docker compose -f "${compose}" build >/dev/null
+      docker compose -f "${compose}" up -d >/dev/null
+      sleep 35
+    fi
+    printf 'y\n' | COMPOSE_FILE="${compose}" THREADS="${THREADS}" LOOPS="${LOOPS}" "${SCRIPT_DIR}/run-test.sh" >/tmp/perf-smoke-last.log
     docker compose -f "${compose}" down -v >/dev/null 2>&1 || true
   )
   printf '[PASS] %s\n' "${label}"
