@@ -51,9 +51,14 @@ RUN apt-get update && apt-get install -y \
     dovecot-pgsql \
     && rm -rf /var/lib/apt/lists/*
 
-# Create necessary directories (dovecot user already created by package)
+# Create vmail user for LDA delivery.
+RUN groupadd -g 5000 vmail && \
+    useradd -u 5000 -g vmail -s /usr/sbin/nologin -d /var/mail vmail
+
+# Create necessary directories.
 RUN mkdir -p /var/mail/vhosts /var/lib/dovecot /run/dovecot \
-    && chown -R dovecot:dovecot /var/mail /var/lib/dovecot /run/dovecot
+    && chown -R vmail:vmail /var/mail \
+    && chown -R dovecot:dovecot /var/lib/dovecot /run/dovecot
 
 # Copy initialization scripts
 COPY .perf/robin-dovecot-lda/supervisord-robin.conf /etc/supervisor/conf.d/supervisord.conf

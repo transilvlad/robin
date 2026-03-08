@@ -49,6 +49,8 @@ fi
 mkdir -p /var/mail/vhosts
 if [ "$have_vmail" = "true" ]; then
   chown -R vmail:vmail /var/mail
+else
+  chown -R 5000:5000 /var/mail
 fi
 find /var/mail -type d -exec chmod 2775 {} \;
 find /var/mail -type f -exec chmod 0664 {} \;
