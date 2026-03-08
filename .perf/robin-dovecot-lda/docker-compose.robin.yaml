@@ -29,12 +29,12 @@ services:
       - ../.shared/robin/cfg/server.json5:/usr/local/robin/cfg/server.json5:ro
       - ../.shared/robin/cfg/storage.json5:/usr/local/robin/cfg/storage.json5:ro
       # Robin logs and storage
-      - ../../log/robin:/var/log/robin
       - robin-store:/usr/local/robin/store
       # Dovecot configuration from .perf/robin-dovecot
       - ../robin-dovecot/dovecot/etc:/etc/dovecot:ro
       - dovecot-data:/var/mail/vhosts
     tmpfs:
+      - /var/log:size=32m
       - /var/log/dovecot:size=64m
       - /usr/local/robin/store/robin/tmp:size=256m
     depends_on:

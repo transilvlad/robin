@@ -89,9 +89,9 @@ services:
       JAVA_TOOL_OPTIONS: "-Dnetworkaddress.cache.negative.ttl=300 -Dsun.net.inetaddr.negative.ttl=300 -Dlog4j2.asyncLoggerWaitStrategy=Timeout -Dlog4j2.asyncLoggerTimeout=1000 ${JAVA_TOOL_OPTIONS:-}"   # Optional JFR/profiling flags (off by default)
     volumes:
       - ./inline-cfg:/usr/local/robin/cfg
-      - ../../log:/var/log
       - robin-store:/usr/local/robin/store
     tmpfs:
+      - /var/log:size=32m
       - /usr/local/robin/store/robin/tmp:size=256m
     networks:
       - robin-net

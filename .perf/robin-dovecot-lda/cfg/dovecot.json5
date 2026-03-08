@@ -34,7 +34,7 @@
     ldaBinary: "/usr/lib/dovecot/dovecot-lda",
     inboxFolder: "INBOX",
     sentFolder: "Sent",
-    maxConcurrency: 100,
+    maxConcurrency: 32,
     ldaTimeoutSeconds: 30
   },
 
