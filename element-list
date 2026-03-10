@@ -54,5 +54,6 @@ com.mimecast.robin.smtp.transaction
 com.mimecast.robin.smtp.verb
 com.mimecast.robin.smtp.webhook
 com.mimecast.robin.storage
+com.mimecast.robin.storage.stalwart
 com.mimecast.robin.trust
 com.mimecast.robin.util
