@@ -1,16 +1,27 @@
 package com.mimecast.robin.smtp.session;
 
 import com.mimecast.robin.config.server.ProxyRule;
+import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Foundation;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.ProxyEmailDelivery;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.Isolated;
 
 import javax.naming.ConfigurationException;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.text.SimpleDateFormat;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -18,11 +29,19 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Session tests for proxy connection management.
  */
+@Execution(ExecutionMode.SAME_THREAD)
+@Isolated
 class SessionTest {
+    private static final String TEST_PROPERTIES_PATH = "src/test/resources/cfg/properties.json5";
 
     @BeforeAll
     static void before() throws ConfigurationException {
         Foundation.init("src/test/resources/cfg/");
+    }
+
+    @AfterEach
+    void afterEach() throws IOException {
+        Config.initProperties(TEST_PROPERTIES_PATH);
     }
 
     /**
@@ -251,5 +270,34 @@ class SessionTest {
         // Connection should now be for envelope2.
         assertTrue(retrieved.isForCurrentEnvelope(envelope2));
         assertFalse(retrieved.isForCurrentEnvelope(envelope1));
+    }
+
+    @Test
+    void testDateUsesCurrentConfiguredLocaleAfterPropertiesReload() throws IOException {
+        Path englishProperties = writePropertiesFile("en_US");
+        Path japaneseProperties = writePropertiesFile("ja_JP");
+
+        Config.initProperties(englishProperties.toString());
+        Session englishSession = new Session();
+        assertTrue(englishSession.getDate().contains(currentMonthMarker(Locale.US)));
+
+        Config.initProperties(japaneseProperties.toString());
+        Session japaneseSession = new Session();
+        assertTrue(japaneseSession.getDate().contains(currentMonthMarker(Locale.JAPAN)));
+        assertDoesNotThrow(() -> new SimpleDateFormat("E, d MMM yyyy HH:mm:ss Z", Locale.JAPAN)
+                .parse(japaneseSession.getDate()));
+    }
+
+    private Path writePropertiesFile(String locale) throws IOException {
+        Path path = Files.createTempFile("session-properties-", ".json5");
+        Files.writeString(path, "{\n" +
+                "  \"locale\": \"" + locale + "\"\n" +
+                "}\n");
+        path.toFile().deleteOnExit();
+        return path;
+    }
+
+    private String currentMonthMarker(Locale locale) {
+        return new SimpleDateFormat("MMM", locale).format(new Date());
     }
 }

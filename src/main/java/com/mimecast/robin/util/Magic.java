@@ -16,7 +16,6 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -28,13 +27,6 @@ import java.util.regex.Pattern;
 @SuppressWarnings({"unchecked", "rawtypes"})
 public class Magic {
     private static final Logger log = LogManager.getLogger(Magic.class);
-    private static final ThreadLocal<SimpleDateFormat> YYMD_FORMAT = ThreadLocal.withInitial(
-            () -> new SimpleDateFormat("yyyyMMdd", Config.getProperties().getLocale())
-    );
-    private static final ThreadLocal<SimpleDateFormat> RFC_DATE_FORMAT = ThreadLocal.withInitial(
-            () -> new SimpleDateFormat("E, d MMM yyyy HH:mm:ss Z", Config.getProperties().getLocale())
-    );
-    private static final Map<String, Object> STATIC_MAGIC_VALUES = buildStaticMagicValues();
     private static final List<String> JVM_ARGUMENT_KEYS = buildJvmArgumentKeys();
 
     /**
@@ -55,24 +47,24 @@ public class Magic {
     public static void putMagic(Session session) {
         session.putMagic("robinUid", session.getUID());
         Date now = new Date();
-        session.putMagic("robinYymd", YYMD_FORMAT.get().format(now));
-        session.putMagic("robinDate", RFC_DATE_FORMAT.get().format(now));
+        session.putMagic("robinYymd", new SimpleDateFormat("yyyyMMdd").format(now));
+        session.putMagic("robinDate", new SimpleDateFormat(
+                "E, d MMM yyyy HH:mm:ss Z",
+                Config.getProperties().getLocale()
+        ).format(now));
 
-        for (Map.Entry<String, Object> entry : STATIC_MAGIC_VALUES.entrySet()) {
-            session.putMagic(entry.getKey(), entry.getValue());
-        }
+        putConfiguredMagic(session);
 
         for (String key : JVM_ARGUMENT_KEYS) {
             session.putMagic(key, Config.getProperties().getStringProperty(key));
         }
     }
 
-    private static Map<String, Object> buildStaticMagicValues() {
-        Map<String, Object> staticValues = new LinkedHashMap<>();
+    private static void putConfiguredMagic(Session session) {
         for (Map.Entry<String, Object> entry : Config.getProperties().getMap().entrySet()) {
             Object value = entry.getValue();
             if (value instanceof String) {
-                staticValues.put(entry.getKey(), value);
+                session.putMagic(entry.getKey(), value);
                 continue;
             }
 
@@ -83,10 +75,9 @@ public class Magic {
                         strings.add(stringValue);
                     }
                 }
-                staticValues.put(entry.getKey(), strings);
+                session.putMagic(entry.getKey(), strings);
             }
         }
-        return staticValues;
     }
 
     private static List<String> buildJvmArgumentKeys() {

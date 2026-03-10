@@ -31,9 +31,6 @@ import java.util.*;
 @SuppressWarnings({"UnusedReturnValue", "rawtypes"})
 public class Session implements Serializable, Cloneable {
     private static final Logger log = LogManager.getLogger(Session.class);
-    private static final ThreadLocal<SimpleDateFormat> RFC_DATE_FORMAT = ThreadLocal.withInitial(
-            () -> new SimpleDateFormat("E, d MMM yyyy HH:mm:ss Z", Config.getProperties().getLocale())
-    );
 
     @Serial
     private static final long serialVersionUID = 1L;
@@ -365,7 +362,8 @@ public class Session implements Serializable, Cloneable {
      * Sets the date.
      */
     private void setDate() {
-        this.date = RFC_DATE_FORMAT.get().format(new Date());
+        this.date = new SimpleDateFormat("E, d MMM yyyy HH:mm:ss Z", Config.getProperties().getLocale())
+                .format(new Date());
     }
 
     /**

@@ -24,16 +24,6 @@ import java.util.stream.Stream;
 public class MessageEnvelope implements Serializable, Cloneable {
     @Serial
     private static final long serialVersionUID = 1L;
-    private static final Locale LOCALE = Config.getProperties().getLocale();
-    private static final ThreadLocal<SimpleDateFormat> RFC_DATE_FORMAT = ThreadLocal.withInitial(
-            () -> new SimpleDateFormat("E, d MMM yyyy HH:mm:ss Z", LOCALE)
-    );
-    private static final ThreadLocal<SimpleDateFormat> YYMD_FORMAT = ThreadLocal.withInitial(
-            () -> new SimpleDateFormat("yyyyMMdd", LOCALE)
-    );
-    private static final ThreadLocal<SimpleDateFormat> YEAR_FORMAT = ThreadLocal.withInitial(
-            () -> new SimpleDateFormat("yyyy", LOCALE)
-    );
 
     // Set MAIL FROM and RCPT TO.
     private String mail = null;
@@ -91,7 +81,8 @@ public class MessageEnvelope implements Serializable, Cloneable {
      * Constructs a new MessageEnvelope instance.
      */
     public MessageEnvelope() {
-        date = RFC_DATE_FORMAT.get().format(new Date());
+        date = new SimpleDateFormat("E, d MMM yyyy HH:mm:ss Z", Config.getProperties().getLocale())
+                .format(new Date());
         String now = String.valueOf(System.currentTimeMillis());
         String uid = UUID.randomUUID() + "-" + now;
 
@@ -123,7 +114,7 @@ public class MessageEnvelope implements Serializable, Cloneable {
      * @return Date string.
      */
     public String getYymd() {
-        return YYMD_FORMAT.get().format(new Date());
+        return new SimpleDateFormat("yyyyMMdd").format(new Date());
     }
 
     /**
@@ -132,7 +123,7 @@ public class MessageEnvelope implements Serializable, Cloneable {
      * @return Year string.
      */
     public String getYear() {
-        return YEAR_FORMAT.get().format(new Date());
+        return new SimpleDateFormat("yyyy").format(new Date());
     }
 
     /**
