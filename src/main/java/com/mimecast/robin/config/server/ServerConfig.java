@@ -3,6 +3,7 @@ package com.mimecast.robin.config.server;
 import com.google.gson.Gson;
 import com.mimecast.robin.config.BasicConfig;
 import com.mimecast.robin.config.DovecotConfig;
+import com.mimecast.robin.config.StalwartConfig;
 import com.mimecast.robin.config.ConfigFoundation;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.util.Magic;
@@ -41,6 +42,7 @@ public class ServerConfig extends ConfigFoundation {
         CONFIG_FILENAMES.put("queue", "queue.json5");
         CONFIG_FILENAMES.put("relay", "relay.json5");
         CONFIG_FILENAMES.put("dovecot", "dovecot.json5");
+        CONFIG_FILENAMES.put("stalwart", "stalwart.json5");
         CONFIG_FILENAMES.put("prometheus", "prometheus.json5");
         CONFIG_FILENAMES.put("users", "users.json5");
         CONFIG_FILENAMES.put("scenarios", "scenarios.json5");
@@ -485,6 +487,16 @@ public class ServerConfig extends ConfigFoundation {
     public DovecotConfig getDovecot() {
         loadExternalIfAbsent("dovecot", Map.class);
         return new DovecotConfig(getMapProperty("dovecot"));
+    }
+
+    /**
+     * Gets Stalwart direct-ingest config.
+     *
+     *  StalwartConfig instance.
+     */
+    public StalwartConfig getStalwart() {
+        loadExternalIfAbsent("stalwart", Map.class);
+        return new StalwartConfig(getMapProperty("stalwart"));
     }
 
     /**

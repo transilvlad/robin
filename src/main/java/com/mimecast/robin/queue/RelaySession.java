@@ -146,8 +146,9 @@ public class RelaySession implements Serializable {
         this.protocol = protocol;
 
         if ("dovecot-lda".equalsIgnoreCase(protocol)) {
-            // Update maxRetryCount from dovecot config for LDA delivery.
             this.maxRetryCount = Config.getServer().getDovecot().getMaxRetryCount();
+        } else if ("stalwart-direct".equalsIgnoreCase(protocol)) {
+            this.maxRetryCount = Config.getServer().getStalwart().getMaxRetryCount();
         }
         return this;
     }

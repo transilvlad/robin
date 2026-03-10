@@ -1,0 +1,17 @@
+{
+  enabled: false,
+  inline: true,
+  baseUrl: "http://127.0.0.1:8080",
+  managementBaseUrl: "",
+  username: "admin",
+  password: "notMyPassword",
+  connectTimeoutSeconds: 1,
+  readTimeoutSeconds: 1,
+  writeTimeoutSeconds: 1,
+  lookupCacheTtlSeconds: 60,
+  lookupCacheMaxEntries: 128,
+  maxConcurrentRequests: 4,
+  failureBehaviour: "retry",
+  maxRetryCount: 3,
+  inboxMailboxId: "0"
+}

@@ -5,6 +5,7 @@ import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.queue.bounce.BounceMessageGenerator;
 import com.mimecast.robin.queue.relay.DovecotLdaClient;
 import com.mimecast.robin.smtp.EmailDelivery;
+import com.mimecast.robin.storage.StalwartDirectDelivery;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
 import com.mimecast.robin.storage.PooledLmtpDelivery;
@@ -29,14 +30,21 @@ public class RelayDequeue {
 
     private final PersistentQueue<RelaySession> queue;
     private final PooledLmtpDelivery pooledLmtpDelivery;
+    private final StalwartDirectDelivery stalwartDirectDelivery;
 
     public RelayDequeue(PersistentQueue<RelaySession> queue) {
-        this(queue, new PooledLmtpDelivery());
+        this(queue, new PooledLmtpDelivery(), new StalwartDirectDelivery());
     }
 
     RelayDequeue(PersistentQueue<RelaySession> queue, PooledLmtpDelivery pooledLmtpDelivery) {
+        this(queue, pooledLmtpDelivery, new StalwartDirectDelivery());
+    }
+
+    RelayDequeue(PersistentQueue<RelaySession> queue, PooledLmtpDelivery pooledLmtpDelivery,
+                 StalwartDirectDelivery stalwartDirectDelivery) {
         this.queue = queue;
         this.pooledLmtpDelivery = pooledLmtpDelivery;
+        this.stalwartDirectDelivery = stalwartDirectDelivery;
     }
 
     /**
@@ -102,6 +110,8 @@ public class RelayDequeue {
                 new DovecotLdaClient(relaySession).send();
             } else if ("lmtp".equalsIgnoreCase(relaySession.getProtocol())) {
                 pooledLmtpDelivery.deliver(relaySession.getSession(), 1, 0);
+            } else if ("stalwart-direct".equalsIgnoreCase(relaySession.getProtocol())) {
+                stalwartDirectDelivery.deliver(relaySession.getSession(), 1, 0);
             } else {
                 new EmailDelivery(relaySession.getSession()).send();
             }
