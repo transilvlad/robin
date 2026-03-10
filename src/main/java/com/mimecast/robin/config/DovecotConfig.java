@@ -369,6 +369,7 @@ public class DovecotConfig extends BasicConfig {
     public static class SaveLda {
 
         private final boolean enabled;
+        private final boolean inline;
         private final String ldaBinary;
         private final String inboxFolder;
         private final String sentFolder;
@@ -382,6 +383,7 @@ public class DovecotConfig extends BasicConfig {
          */
         public SaveLda(Map<String, Object> map) {
             this.enabled = Boolean.TRUE.equals(map.getOrDefault("enabled", false));
+            this.inline = !Boolean.FALSE.equals(map.getOrDefault("inline", true));
             this.ldaBinary = map.getOrDefault("ldaBinary", "/usr/libexec/dovecot/dovecot-lda").toString();
             this.inboxFolder = map.getOrDefault("inboxFolder", "INBOX").toString();
             this.sentFolder = map.getOrDefault("sentFolder", "Sent").toString();
@@ -395,6 +397,13 @@ public class DovecotConfig extends BasicConfig {
          * @return True if enabled, false otherwise.
          */
         public boolean isEnabled() { return enabled; }
+
+        /**
+         * Gets whether SMTP accept should wait for LDA completion.
+         *
+         * @return True to deliver inline, false to enqueue for async relay.
+         */
+        public boolean isInline() { return inline; }
 
         /**
          * Gets path to Dovecot LDA binary.

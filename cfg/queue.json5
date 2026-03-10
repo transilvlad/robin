@@ -12,8 +12,10 @@
   // MapDB is enabled by default for file-based queue persistence.
   queueMapDB: {
     enabled: true,
+
     // Queue file to use for persisting messages that could not be relayed.
     queueFile: "/usr/local/robin/relayQueue.db",
+
     // Concurrency scale for MapDB (defaults to 32 if not specified).
     concurrencyScale: 32
   },

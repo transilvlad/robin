@@ -81,6 +81,9 @@
     // Enable LDA delivery backend (default: false).
     enabled: false,
 
+    // Deliver during SMTP receipt when true, or queue for async relay when false.
+    inline: false,
+
     // Path to Dovecot LDA binary.
     ldaBinary: "/usr/libexec/dovecot/dovecot-lda",
 

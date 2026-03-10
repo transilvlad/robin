@@ -176,6 +176,30 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
                 connection.getSession().getUID());
     }
 
+    private void enqueueLdaDelivery(Connection connection, MessageEnvelope envelope,
+                                    List<String> recipients, String folder) {
+        RelaySession relaySession = new RelaySession(Factories.getSession())
+                .setProtocol("dovecot-lda")
+                .setMailbox(folder);
+
+        relaySession.getSession().setDirection(connection.getSession().getDirection());
+
+        MessageEnvelope queuedEnvelope = new MessageEnvelope()
+                .setFile(envelope.getFile())
+                .setMail(envelope.getMail())
+                .setRcpts(new ArrayList<>(recipients));
+
+        relaySession.getSession().addEnvelope(queuedEnvelope);
+        QueueFiles.persistEnvelopeFiles(relaySession);
+        PersistentQueue.getInstance().enqueue(relaySession);
+
+        log.info("Queued Dovecot LDA delivery for sender={} recipients={} folder={} uid={}",
+                envelope.getMail(),
+                String.join(",", recipients),
+                folder,
+                connection.getSession().getUID());
+    }
+
     /**
      * Save email to LDA backend.
      * <p>
@@ -219,6 +243,11 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
                 String.join(",", nonBotRecipients),
                 connection.getSession().isOutbound(),
                 folder);
+
+        if (!config.getDovecot().getSaveLda().isInline()) {
+            enqueueLdaDelivery(connection, envelope, nonBotRecipients, folder);
+            return;
+        }
 
         // Invoke Dovecot LDA delivery.
         DovecotLdaClient client = new DovecotLdaClient(
