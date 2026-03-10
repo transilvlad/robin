@@ -1,5 +1,5 @@
-# Docker Compose for Postfix + Stalwart Performance Testing
-# This stack tests Postfix delivering to Stalwart LMTP
+# Docker Compose for Robin MTA + Stalwart direct-ingest performance testing
+# This stack tests Robin MTA importing mail into Stalwart using its HTTP/JMAP ingest path.
 
 services:
   postgres:
@@ -24,7 +24,6 @@ services:
       POSTGRES_DB: robin
       POSTGRES_USER: robin
       POSTGRES_PASSWORD: robin
-      POSTGRES_MAX_CONNECTIONS: 300
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - ../.shared/db-init/01-create-schema.sql:/docker-entrypoint-initdb.d/01-create-schema.sql:ro
@@ -35,7 +34,7 @@ services:
     tmpfs:
       - /var/log:size=32m
     networks:
-      postfix-stalwart-net:
+      robin-stalwart-direct-net:
         aliases:
           - postgres-backend
     healthcheck:
@@ -48,53 +47,58 @@ services:
     image: stalwartlabs/stalwart:latest
     user: "0:0"
     volumes:
-      - ./stalwart/etc:/opt/stalwart/etc
+      - ../robin-stalwart/stalwart/etc:/opt/stalwart/etc
       - stalwart-data:/opt/stalwart/data
     tmpfs:
       - /var/log:size=32m
     networks:
-      postfix-stalwart-net:
+      robin-stalwart-direct-net:
         aliases:
-          - lmtp-backend
+          - stalwart-backend
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "2143:143"   # IMAP for test verification
-    # Health check disabled - Stalwart container lacks standard tools (nc, ps, wget, curl)
-    # Container logs show LMTP/IMAP listeners start successfully
+      - "2143:143"
+      - "28081:8080"
 
-  postfix:
-    build:
-      context: ../../
-      dockerfile: .perf/.shared/postfix/Dockerfile
+  robin:
+    image: robin-robin-mta:latest
+    platform: linux/amd64
+    environment:
+      JAVA_TOOL_OPTIONS: "-Dnetworkaddress.cache.negative.ttl=300 -Dsun.net.inetaddr.negative.ttl=300 -Dlog4j2.asyncLoggerWaitStrategy=Timeout -Dlog4j2.asyncLoggerTimeout=1000 ${JAVA_TOOL_OPTIONS:-}"
     volumes:
-      - ./postfix/main.cf:/etc/postfix/main.cf:ro
-      - ../.shared/postfix/etc/postfix/master.cf:/etc/postfix/master.cf:ro
-      - ../.shared/postfix/etc/postfix/pgsql-virtual-mailbox-domains.cf:/etc/postfix/pgsql-virtual-mailbox-domains.cf:ro
-      - ../.shared/postfix/etc/postfix/pgsql-virtual-mailbox-maps.cf:/etc/postfix/pgsql-virtual-mailbox-maps.cf:ro
+      - ../.shared/robin/cfg:/usr/local/robin/cfg
+      - ./robin-cfg/dovecot.json5:/usr/local/robin/cfg/dovecot.json5:ro
+      - ./robin-cfg/queue.json5:/usr/local/robin/cfg/queue.json5:ro
+      - ./robin-cfg/stalwart.json5:/usr/local/robin/cfg/stalwart.json5:ro
+      - robin-store:/usr/local/robin/store
     tmpfs:
-      - /var/log/postfix:size=32m
+      - /var/log:size=32m
+      - /usr/local/robin/store/robin/tmp:size=256m
     networks:
-      - postfix-stalwart-net
+      - robin-stalwart-direct-net
     depends_on:
       stalwart:
-        condition: service_started  # Changed from service_healthy - Stalwart has no health check
+        condition: service_started
       postgres:
         condition: service_healthy
     ports:
-      - "2525:25"     # SMTP (aligned with Robin stack)
+      - "2525:25"
+      - "28080:8080"
+      - "28090:8090"
     healthcheck:
-      test: ["CMD-SHELL", "postfix status || exit 1"]
+      test: ["CMD", "nc", "-z", "localhost", "25"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 30s
 
 networks:
-  postfix-stalwart-net:
+  robin-stalwart-direct-net:
     driver: bridge
 
 volumes:
   postgres-data:
   stalwart-data:
+  robin-store:

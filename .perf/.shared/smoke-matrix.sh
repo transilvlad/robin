@@ -8,16 +8,18 @@ LOOPS="${LOOPS:-2}"
 RUN_LOG="${RUN_LOG:-/tmp/perf-smoke-last.log}"
 
 configs=(
+  "Stalwart Bare|.perf/stalwart-bare|docker-compose.yaml"
+  "Robin Bare|.perf/robin-bare|docker-compose.yaml"
+  "Robin + Stalwart|.perf/robin-stalwart|docker-compose.robin.yaml"
+  "Robin + Stalwart (direct ingest)|.perf/robin-stalwart-direct|docker-compose.robin.yaml"
   "Robin + Dovecot LMTP (queued)|.perf/robin-dovecot|docker-compose.robin.yaml"
   "Robin + Dovecot LMTP (inline)|.perf/robin-dovecot|docker-compose.robin-inline.yaml"
   "Robin + Dovecot LDA|.perf/robin-dovecot-lda|docker-compose.robin.yaml"
-  "Postfix + Dovecot LMTP|.perf/robin-dovecot|docker-compose.postfix.yaml"
-  "Postfix + Dovecot LDA|.perf/robin-dovecot-lda|docker-compose.postfix.yaml"
   "Haraka + Dovecot LMTP|.perf/robin-dovecot|docker-compose.haraka.yaml"
-  "Haraka + Dovecot LDA|.perf/robin-dovecot-lda|docker-compose.haraka.yaml"
-  "Robin + Stalwart|.perf/robin-stalwart|docker-compose.robin.yaml"
+  "Postfix + Dovecot LDA|.perf/robin-dovecot-lda|docker-compose.postfix.yaml"
+  "Postfix + Dovecot LMTP|.perf/robin-dovecot|docker-compose.postfix.yaml"
   "Postfix + Stalwart|.perf/robin-stalwart|docker-compose.postfix.yaml"
-  "Stalwart Bare|.perf/stalwart-bare|docker-compose.yaml"
+  "Haraka + Dovecot LDA|.perf/robin-dovecot-lda|docker-compose.haraka.yaml"
 )
 
 for config in "${configs[@]}"; do

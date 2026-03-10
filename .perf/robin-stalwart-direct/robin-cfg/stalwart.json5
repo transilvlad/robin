@@ -1,0 +1,22 @@
+{
+  enabled: true,
+  inline: true,
+
+  baseUrl: "http://stalwart-backend:8080",
+  managementBaseUrl: "http://stalwart-backend:8080",
+
+  username: "admin",
+  password: "benchmark",
+
+  connectTimeoutSeconds: 10,
+  readTimeoutSeconds: 30,
+  writeTimeoutSeconds: 30,
+
+  lookupCacheTtlSeconds: 300,
+  lookupCacheMaxEntries: 4096,
+  maxConcurrentRequests: 64,
+
+  failureBehaviour: "retry",
+  maxRetryCount: 10,
+  inboxMailboxId: "0"
+}

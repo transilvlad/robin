@@ -71,6 +71,7 @@ services:
       JAVA_TOOL_OPTIONS: "-Dnetworkaddress.cache.negative.ttl=300 -Dsun.net.inetaddr.negative.ttl=300 -Dlog4j2.asyncLoggerWaitStrategy=Timeout -Dlog4j2.asyncLoggerTimeout=1000 ${JAVA_TOOL_OPTIONS:-}"
     volumes:
       - ../.shared/robin/cfg:/usr/local/robin/cfg
+      - ./robin-cfg/dovecot.json5:/usr/local/robin/cfg/dovecot.json5:ro
       - robin-store:/usr/local/robin/store
     tmpfs:
       - /var/log:size=32m

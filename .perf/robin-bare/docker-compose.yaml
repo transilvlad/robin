@@ -1,0 +1,30 @@
+# Docker Compose for Robin Bare Performance Testing
+# This stack tests Robin receiving SMTP and storing messages locally only.
+
+services:
+  robin:
+    image: robin-robin-mta:latest
+    environment:
+      JAVA_TOOL_OPTIONS: "-Dnetworkaddress.cache.negative.ttl=300 -Dsun.net.inetaddr.negative.ttl=300 -Dlog4j2.asyncLoggerWaitStrategy=Timeout -Dlog4j2.asyncLoggerTimeout=1000 ${JAVA_TOOL_OPTIONS:-}"
+    volumes:
+      - ../.shared/robin/cfg:/usr/local/robin/cfg
+      - ./cfg/dovecot.json5:/usr/local/robin/cfg/dovecot.json5:ro
+      - ./cfg/queue.json5:/usr/local/robin/cfg/queue.json5:ro
+      - ./cfg/storage.json5:/usr/local/robin/cfg/storage.json5:ro
+      - robin-store:/usr/local/robin/store
+    tmpfs:
+      - /var/log:size=32m
+      - /usr/local/robin/store/robin/tmp:size=256m
+    ports:
+      - "2525:25"
+      - "28080:8080"
+      - "28090:8090"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "25"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  robin-store:

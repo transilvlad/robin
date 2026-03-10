@@ -1,0 +1,9 @@
+{
+  enabled: true,
+  autoDelete: true,
+  localMailbox: true,
+  disableRenameHeader: true,
+  path: "/usr/local/robin/store/robin/",
+  inboundFolder: "new",
+  clean: false
+}

@@ -28,6 +28,7 @@
     connectionPoolSize: 64,               // Enough headroom over worker concurrency without creating a large idle pool.
     connectionPoolTimeoutSeconds: 180,    // Max wait time for connection.
     connectionIdleTimeoutSeconds: 270,    // Close idle connections after 4.5 minutes.
-    connectionMaxLifetimeSeconds: 1800    // Close connections after 30 minutes max.
+    connectionMaxLifetimeSeconds: 1800,   // Close connections after 30 minutes max.
+    connectionMaxMessagesPerConnection: 100 // Recycle pooled LMTP connections after 100 envelopes.
   }
 }

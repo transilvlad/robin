@@ -17,16 +17,18 @@ label,dir,compose,run,throughput,avg_latency,min_latency,max_latency,error_count
 EOF
 
 configs=(
+  "Stalwart Bare|.perf/stalwart-bare|docker-compose.yaml"
+  "Robin Bare|.perf/robin-bare|docker-compose.yaml"
+  "Robin + Stalwart|.perf/robin-stalwart|docker-compose.robin.yaml"
+  "Robin + Stalwart (direct ingest)|.perf/robin-stalwart-direct|docker-compose.robin.yaml"
   "Robin + Dovecot LMTP (queued)|.perf/robin-dovecot|docker-compose.robin.yaml"
   "Robin + Dovecot LMTP (inline)|.perf/robin-dovecot|docker-compose.robin-inline.yaml"
   "Robin + Dovecot LDA|.perf/robin-dovecot-lda|docker-compose.robin.yaml"
-  "Postfix + Dovecot LMTP|.perf/robin-dovecot|docker-compose.postfix.yaml"
-  "Postfix + Dovecot LDA|.perf/robin-dovecot-lda|docker-compose.postfix.yaml"
   "Haraka + Dovecot LMTP|.perf/robin-dovecot|docker-compose.haraka.yaml"
-  "Haraka + Dovecot LDA|.perf/robin-dovecot-lda|docker-compose.haraka.yaml"
-  "Robin + Stalwart|.perf/robin-stalwart|docker-compose.robin.yaml"
+  "Postfix + Dovecot LDA|.perf/robin-dovecot-lda|docker-compose.postfix.yaml"
+  "Postfix + Dovecot LMTP|.perf/robin-dovecot|docker-compose.postfix.yaml"
   "Postfix + Stalwart|.perf/robin-stalwart|docker-compose.postfix.yaml"
-  "Stalwart Bare|.perf/stalwart-bare|docker-compose.yaml"
+  "Haraka + Dovecot LDA|.perf/robin-dovecot-lda|docker-compose.haraka.yaml"
 )
 
 run_one() {
@@ -46,7 +48,10 @@ latest_report_dir() {
   bash -lc "
     set -euo pipefail
     cd '${dir}'
-    find results -maxdepth 1 -type d -name '*-report' -printf '%T@ %p\n' | sort -nr | head -1 | cut -d' ' -f2-
+    latest=\$(ls -td results/*-report 2>/dev/null | head -1)
+    if [[ -n \"\${latest}\" ]]; then
+      printf '%s/%s\n' '${dir}' \"\${latest}\"
+    fi
   "
 }
 
@@ -55,7 +60,7 @@ for config in "${configs[@]}"; do
   IFS='|' read -r label rel_dir compose <<<"${config}"
   dir="${ROOT}/${rel_dir}"
   run_index=$((run_index + 1))
-  printf '\n[%02d/10] %s\n' "${run_index}" "${label}"
+  printf '\n[%02d/%02d] %s\n' "${run_index}" "${#configs[@]}" "${label}"
 
   bash -lc "
     set -euo pipefail

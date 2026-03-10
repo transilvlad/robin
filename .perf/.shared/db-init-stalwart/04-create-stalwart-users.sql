@@ -1,232 +1,138 @@
 -- Sustained perf users with a shared benchmark password hash.
 -- Plain-text benchmark password: benchmark
 
--- tony@example.com
 INSERT INTO accounts (name, secret, description, type, quota, active) VALUES
-    ('tony@example.com',
-     '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0',
-     'Tony Stark',
-     'individual',
-     0,
-     true)
+    ('user01@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user01', 'individual', 0, true),
+    ('user02@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user02', 'individual', 0, true),
+    ('user03@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user03', 'individual', 0, true),
+    ('user04@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user04', 'individual', 0, true),
+    ('user05@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user05', 'individual', 0, true),
+    ('user06@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user06', 'individual', 0, true),
+    ('user07@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user07', 'individual', 0, true),
+    ('user08@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user08', 'individual', 0, true),
+    ('user09@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user09', 'individual', 0, true),
+    ('user10@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user10', 'individual', 0, true),
+    ('user11@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user11', 'individual', 0, true),
+    ('user12@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user12', 'individual', 0, true),
+    ('user13@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user13', 'individual', 0, true),
+    ('user14@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user14', 'individual', 0, true),
+    ('user15@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user15', 'individual', 0, true),
+    ('user16@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user16', 'individual', 0, true),
+    ('user17@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user17', 'individual', 0, true),
+    ('user18@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user18', 'individual', 0, true),
+    ('user19@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user19', 'individual', 0, true),
+    ('user20@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user20', 'individual', 0, true),
+    ('user21@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user21', 'individual', 0, true),
+    ('user22@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user22', 'individual', 0, true),
+    ('user23@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user23', 'individual', 0, true),
+    ('user24@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user24', 'individual', 0, true),
+    ('user25@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user25', 'individual', 0, true),
+    ('user26@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user26', 'individual', 0, true),
+    ('user27@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user27', 'individual', 0, true),
+    ('user28@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user28', 'individual', 0, true),
+    ('user29@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user29', 'individual', 0, true),
+    ('user30@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user30', 'individual', 0, true),
+    ('user31@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user31', 'individual', 0, true),
+    ('user32@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user32', 'individual', 0, true),
+    ('user33@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user33', 'individual', 0, true),
+    ('user34@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user34', 'individual', 0, true),
+    ('user35@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user35', 'individual', 0, true),
+    ('user36@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user36', 'individual', 0, true),
+    ('user37@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user37', 'individual', 0, true),
+    ('user38@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user38', 'individual', 0, true),
+    ('user39@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user39', 'individual', 0, true),
+    ('user40@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user40', 'individual', 0, true),
+    ('user41@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user41', 'individual', 0, true),
+    ('user42@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user42', 'individual', 0, true),
+    ('user43@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user43', 'individual', 0, true),
+    ('user44@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user44', 'individual', 0, true),
+    ('user45@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user45', 'individual', 0, true),
+    ('user46@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user46', 'individual', 0, true),
+    ('user47@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user47', 'individual', 0, true),
+    ('user48@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user48', 'individual', 0, true),
+    ('user49@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user49', 'individual', 0, true),
+    ('user50@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user50', 'individual', 0, true),
+    ('user51@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user51', 'individual', 0, true),
+    ('user52@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user52', 'individual', 0, true),
+    ('user53@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user53', 'individual', 0, true),
+    ('user54@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user54', 'individual', 0, true),
+    ('user55@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user55', 'individual', 0, true),
+    ('user56@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user56', 'individual', 0, true),
+    ('user57@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user57', 'individual', 0, true),
+    ('user58@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user58', 'individual', 0, true),
+    ('user59@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user59', 'individual', 0, true),
+    ('user60@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user60', 'individual', 0, true),
+    ('user61@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user61', 'individual', 0, true),
+    ('user62@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user62', 'individual', 0, true),
+    ('user63@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user63', 'individual', 0, true),
+    ('user64@example.com', '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0', 'user64', 'individual', 0, true)
 ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO emails (name, address, type) VALUES
-    ('tony@example.com', 'tony@example.com', 'primary')
-ON CONFLICT (name, address) DO NOTHING;
-
--- pepper@example.com
-INSERT INTO accounts (name, secret, description, type, quota, active) VALUES
-    ('pepper@example.com',
-     '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0',
-     'Pepper Potts',
-     'individual',
-     0,
-     true)
-ON CONFLICT (name) DO NOTHING;
-
-INSERT INTO emails (name, address, type) VALUES
-    ('pepper@example.com', 'pepper@example.com', 'primary')
-ON CONFLICT (name, address) DO NOTHING;
-
--- happy@example.com
-INSERT INTO accounts (name, secret, description, type, quota, active) VALUES
-    ('happy@example.com',
-     '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0',
-     'Happy Hogan',
-     'individual',
-     0,
-     true)
-ON CONFLICT (name) DO NOTHING;
-
-INSERT INTO emails (name, address, type) VALUES
-    ('happy@example.com', 'happy@example.com', 'primary')
-ON CONFLICT (name, address) DO NOTHING;
-
--- rhodey@example.com
-INSERT INTO accounts (name, secret, description, type, quota, active) VALUES
-    ('rhodey@example.com',
-     '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0',
-     'James Rhodes',
-     'individual',
-     0,
-     true)
-ON CONFLICT (name) DO NOTHING;
-
-INSERT INTO emails (name, address, type) VALUES
-    ('rhodey@example.com', 'rhodey@example.com', 'primary')
-ON CONFLICT (name, address) DO NOTHING;
-
--- natasha@example.com
-INSERT INTO accounts (name, secret, description, type, quota, active) VALUES
-    ('natasha@example.com',
-     '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0',
-     'Natasha Romanoff',
-     'individual',
-     0,
-     true)
-ON CONFLICT (name) DO NOTHING;
-
-INSERT INTO emails (name, address, type) VALUES
-    ('natasha@example.com', 'natasha@example.com', 'primary')
-ON CONFLICT (name, address) DO NOTHING;
-
--- bruce@example.com
-INSERT INTO accounts (name, secret, description, type, quota, active) VALUES
-    ('bruce@example.com',
-     '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0',
-     'Bruce Banner',
-     'individual',
-     0,
-     true)
-ON CONFLICT (name) DO NOTHING;
-
-INSERT INTO emails (name, address, type) VALUES
-    ('bruce@example.com', 'bruce@example.com', 'primary')
-ON CONFLICT (name, address) DO NOTHING;
-
--- steve@example.com
-INSERT INTO accounts (name, secret, description, type, quota, active) VALUES
-    ('steve@example.com',
-     '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0',
-     'Steve Rogers',
-     'individual',
-     0,
-     true)
-ON CONFLICT (name) DO NOTHING;
-
-INSERT INTO emails (name, address, type) VALUES
-    ('steve@example.com', 'steve@example.com', 'primary')
-ON CONFLICT (name, address) DO NOTHING;
-
--- thor@example.com
-INSERT INTO accounts (name, secret, description, type, quota, active) VALUES
-    ('thor@example.com',
-     '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0',
-     'Thor Odinson',
-     'individual',
-     0,
-     true)
-ON CONFLICT (name) DO NOTHING;
-
-INSERT INTO emails (name, address, type) VALUES
-    ('thor@example.com', 'thor@example.com', 'primary')
-ON CONFLICT (name, address) DO NOTHING;
-
--- clint@example.com
-INSERT INTO accounts (name, secret, description, type, quota, active) VALUES
-    ('clint@example.com',
-     '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0',
-     'Clint Barton',
-     'individual',
-     0,
-     true)
-ON CONFLICT (name) DO NOTHING;
-
-INSERT INTO emails (name, address, type) VALUES
-    ('clint@example.com', 'clint@example.com', 'primary')
-ON CONFLICT (name, address) DO NOTHING;
-
--- wanda@example.com
-INSERT INTO accounts (name, secret, description, type, quota, active) VALUES
-    ('wanda@example.com',
-     '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0',
-     'Wanda Maximoff',
-     'individual',
-     0,
-     true)
-ON CONFLICT (name) DO NOTHING;
-
-INSERT INTO emails (name, address, type) VALUES
-    ('wanda@example.com', 'wanda@example.com', 'primary')
-ON CONFLICT (name, address) DO NOTHING;
-
--- vision@example.com
-INSERT INTO accounts (name, secret, description, type, quota, active) VALUES
-    ('vision@example.com',
-     '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0',
-     'Vision',
-     'individual',
-     0,
-     true)
-ON CONFLICT (name) DO NOTHING;
-
-INSERT INTO emails (name, address, type) VALUES
-    ('vision@example.com', 'vision@example.com', 'primary')
-ON CONFLICT (name, address) DO NOTHING;
-
--- peter@example.com
-INSERT INTO accounts (name, secret, description, type, quota, active) VALUES
-    ('peter@example.com',
-     '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0',
-     'Peter Parker',
-     'individual',
-     0,
-     true)
-ON CONFLICT (name) DO NOTHING;
-
-INSERT INTO emails (name, address, type) VALUES
-    ('peter@example.com', 'peter@example.com', 'primary')
-ON CONFLICT (name, address) DO NOTHING;
-
--- scott@example.com
-INSERT INTO accounts (name, secret, description, type, quota, active) VALUES
-    ('scott@example.com',
-     '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0',
-     'Scott Lang',
-     'individual',
-     0,
-     true)
-ON CONFLICT (name) DO NOTHING;
-
-INSERT INTO emails (name, address, type) VALUES
-    ('scott@example.com', 'scott@example.com', 'primary')
-ON CONFLICT (name, address) DO NOTHING;
-
--- hope@example.com
-INSERT INTO accounts (name, secret, description, type, quota, active) VALUES
-    ('hope@example.com',
-     '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0',
-     'Hope van Dyne',
-     'individual',
-     0,
-     true)
-ON CONFLICT (name) DO NOTHING;
-
-INSERT INTO emails (name, address, type) VALUES
-    ('hope@example.com', 'hope@example.com', 'primary')
-ON CONFLICT (name, address) DO NOTHING;
-
--- carol@example.com
-INSERT INTO accounts (name, secret, description, type, quota, active) VALUES
-    ('carol@example.com',
-     '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0',
-     'Carol Danvers',
-     'individual',
-     0,
-     true)
-ON CONFLICT (name) DO NOTHING;
-
-INSERT INTO emails (name, address, type) VALUES
-    ('carol@example.com', 'carol@example.com', 'primary')
-ON CONFLICT (name, address) DO NOTHING;
-
--- sam@example.com
-INSERT INTO accounts (name, secret, description, type, quota, active) VALUES
-    ('sam@example.com',
-     '$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0',
-     'Sam Wilson',
-     'individual',
-     0,
-     true)
-ON CONFLICT (name) DO NOTHING;
-
-INSERT INTO emails (name, address, type) VALUES
-    ('sam@example.com', 'sam@example.com', 'primary')
-ON CONFLICT (name, address) DO NOTHING;
-
--- Aliases for testing (admin and postmaster point to tony).
-INSERT INTO emails (name, address, type) VALUES
-    ('tony@example.com', 'admin@example.com', 'alias'),
-    ('tony@example.com', 'postmaster@example.com', 'alias')
+    ('user01@example.com', 'user01@example.com', 'primary'),
+    ('user02@example.com', 'user02@example.com', 'primary'),
+    ('user03@example.com', 'user03@example.com', 'primary'),
+    ('user04@example.com', 'user04@example.com', 'primary'),
+    ('user05@example.com', 'user05@example.com', 'primary'),
+    ('user06@example.com', 'user06@example.com', 'primary'),
+    ('user07@example.com', 'user07@example.com', 'primary'),
+    ('user08@example.com', 'user08@example.com', 'primary'),
+    ('user09@example.com', 'user09@example.com', 'primary'),
+    ('user10@example.com', 'user10@example.com', 'primary'),
+    ('user11@example.com', 'user11@example.com', 'primary'),
+    ('user12@example.com', 'user12@example.com', 'primary'),
+    ('user13@example.com', 'user13@example.com', 'primary'),
+    ('user14@example.com', 'user14@example.com', 'primary'),
+    ('user15@example.com', 'user15@example.com', 'primary'),
+    ('user16@example.com', 'user16@example.com', 'primary'),
+    ('user17@example.com', 'user17@example.com', 'primary'),
+    ('user18@example.com', 'user18@example.com', 'primary'),
+    ('user19@example.com', 'user19@example.com', 'primary'),
+    ('user20@example.com', 'user20@example.com', 'primary'),
+    ('user21@example.com', 'user21@example.com', 'primary'),
+    ('user22@example.com', 'user22@example.com', 'primary'),
+    ('user23@example.com', 'user23@example.com', 'primary'),
+    ('user24@example.com', 'user24@example.com', 'primary'),
+    ('user25@example.com', 'user25@example.com', 'primary'),
+    ('user26@example.com', 'user26@example.com', 'primary'),
+    ('user27@example.com', 'user27@example.com', 'primary'),
+    ('user28@example.com', 'user28@example.com', 'primary'),
+    ('user29@example.com', 'user29@example.com', 'primary'),
+    ('user30@example.com', 'user30@example.com', 'primary'),
+    ('user31@example.com', 'user31@example.com', 'primary'),
+    ('user32@example.com', 'user32@example.com', 'primary'),
+    ('user33@example.com', 'user33@example.com', 'primary'),
+    ('user34@example.com', 'user34@example.com', 'primary'),
+    ('user35@example.com', 'user35@example.com', 'primary'),
+    ('user36@example.com', 'user36@example.com', 'primary'),
+    ('user37@example.com', 'user37@example.com', 'primary'),
+    ('user38@example.com', 'user38@example.com', 'primary'),
+    ('user39@example.com', 'user39@example.com', 'primary'),
+    ('user40@example.com', 'user40@example.com', 'primary'),
+    ('user41@example.com', 'user41@example.com', 'primary'),
+    ('user42@example.com', 'user42@example.com', 'primary'),
+    ('user43@example.com', 'user43@example.com', 'primary'),
+    ('user44@example.com', 'user44@example.com', 'primary'),
+    ('user45@example.com', 'user45@example.com', 'primary'),
+    ('user46@example.com', 'user46@example.com', 'primary'),
+    ('user47@example.com', 'user47@example.com', 'primary'),
+    ('user48@example.com', 'user48@example.com', 'primary'),
+    ('user49@example.com', 'user49@example.com', 'primary'),
+    ('user50@example.com', 'user50@example.com', 'primary'),
+    ('user51@example.com', 'user51@example.com', 'primary'),
+    ('user52@example.com', 'user52@example.com', 'primary'),
+    ('user53@example.com', 'user53@example.com', 'primary'),
+    ('user54@example.com', 'user54@example.com', 'primary'),
+    ('user55@example.com', 'user55@example.com', 'primary'),
+    ('user56@example.com', 'user56@example.com', 'primary'),
+    ('user57@example.com', 'user57@example.com', 'primary'),
+    ('user58@example.com', 'user58@example.com', 'primary'),
+    ('user59@example.com', 'user59@example.com', 'primary'),
+    ('user60@example.com', 'user60@example.com', 'primary'),
+    ('user61@example.com', 'user61@example.com', 'primary'),
+    ('user62@example.com', 'user62@example.com', 'primary'),
+    ('user63@example.com', 'user63@example.com', 'primary'),
+    ('user64@example.com', 'user64@example.com', 'primary'),
+    ('user01@example.com', 'admin@example.com', 'alias'),
+    ('user01@example.com', 'postmaster@example.com', 'alias')
 ON CONFLICT (name, address) DO NOTHING;

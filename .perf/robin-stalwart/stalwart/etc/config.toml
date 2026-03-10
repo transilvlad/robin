@@ -1,217 +1,1511 @@
-#################################
-# Stalwart Performance Test Configuration
-# Location: .perf-stalwart/stalwart/etc/config.toml
-#
-# This configuration sets up Stalwart as an LMTP/IMAP server for performance
-# testing Robin MTA and Postfix. SMTP listeners are intentionally omitted as
-# we're testing MTAs, not Stalwart's SMTP capabilities.
-#################################
+auth.arc.seal = false
+auth.arc.verify = "disable"
+auth.dkim.sign = false
+auth.dkim.verify = "disable"
+auth.dmarc.verify = "disable"
+auth.iprev.verify = "disable"
+auth.spf.verify.ehlo = "disable"
+auth.spf.verify.mail-from = "disable"
+authentication.fallback-admin.secret = "$6$robinperf$VB.gop5u3QbJSw0pS8yYEFTdlOgZaA7FLk9AZdxUo52M1R2LdJTNd.uFeCN.QscWPWUdfRzu.zONvD4BYJLxU0"
+authentication.fallback-admin.user = "admin"
+authentication.master.allow = false
+cache.dns.mx.size = 10485760
+cache.dns.ptr.size = 2097152
+cache.dns.txt.size = 10485760
+cache.email.size = 104857600
+config.local-keys.0000 = "store.*"
+config.local-keys.0001 = "directory.*"
+config.local-keys.0002 = "tracer.*"
+config.local-keys.0003 = "!server.blocked-ip.*"
+config.local-keys.0004 = "!server.allowed-ip.*"
+config.local-keys.0005 = "server.*"
+config.local-keys.0006 = "authentication.*"
+config.local-keys.0007 = "auth.*"
+config.local-keys.0008 = "session.*"
+config.local-keys.0009 = "queue.*"
+config.local-keys.0010 = "cache.*"
+config.local-keys.0011 = "global.*"
+config.local-keys.0012 = "imap.*"
+config.local-keys.0013 = "spam-filter.*"
+config.local-keys.0014 = "config.local-keys.*"
+config.local-keys.0015 = "storage.data"
+config.local-keys.0016 = "storage.blob"
+config.local-keys.0017 = "storage.lookup"
+config.local-keys.0018 = "storage.fts"
+config.local-keys.0019 = "storage.directory"
+config.local-keys.0020 = "certificate.*"
+directory.postgresql.columns.class = "type"
+directory.postgresql.columns.description = "description"
+directory.postgresql.columns.name = "name"
+directory.postgresql.columns.quota = "quota"
+directory.postgresql.columns.secret = "secret"
+directory.postgresql.store = "postgresql"
+directory.postgresql.type = "sql"
+global.thread-pool = 16
+imap.auth.allow-plain-text = true
+queue.connection.default.description = "Default connection settings"
+queue.connection.default.timeout.connect = "5m"
+queue.hash = 64
+queue.limiter.inbound.0000.enable = false
+queue.limiter.inbound.ip.enable = false
+queue.limiter.inbound.ip.key = "remote_ip"
+queue.limiter.inbound.ip.rate = "5/1s"
+queue.limiter.inbound.sender.enable = false
+queue.limiter.inbound.sender.key.0 = "sender_domain"
+queue.limiter.inbound.sender.key.1 = "rcpt"
+queue.limiter.inbound.sender.rate = "25/1h"
+queue.path = "/opt/stalwart/queue"
+queue.quota.size.enable = true
+queue.quota.size.messages = 100000
+queue.quota.size.size = 10737418240
+queue.route.local.description = "Local delivery route"
+queue.route.local.type = "local"
+queue.route.mx.description = "MX delivery route"
+queue.route.mx.ip-lookup = "ipv4_then_ipv6"
+queue.route.mx.limits.multihomed = 2
+queue.route.mx.limits.mx = 5
+queue.route.mx.type = "mx"
+queue.schedule.dsn.description = "Delivery Status Notification delivery schedule"
+queue.schedule.dsn.expire-type = "attempts"
+queue.schedule.dsn.max-attempts = 10
+queue.schedule.dsn.queue-name = "dsn"
+queue.schedule.dsn.retry.0 = "15m"
+queue.schedule.dsn.retry.1 = "30m"
+queue.schedule.dsn.retry.2 = "1h"
+queue.schedule.dsn.retry.3 = "2h"
+queue.schedule.expire = "24h"
+queue.schedule.local.description = "Local delivery schedule"
+queue.schedule.local.expire = "3d"
+queue.schedule.local.expire-type = "ttl"
+queue.schedule.local.notify.0 = "1d"
+queue.schedule.local.notify.1 = "3d"
+queue.schedule.local.queue-name = "local"
+queue.schedule.local.retry.0 = "2m"
+queue.schedule.local.retry.1 = "5m"
+queue.schedule.local.retry.2 = "10m"
+queue.schedule.local.retry.3 = "15m"
+queue.schedule.local.retry.4 = "30m"
+queue.schedule.local.retry.5 = "1h"
+queue.schedule.local.retry.6 = "2h"
+queue.schedule.notify.0000 = "1h"
+queue.schedule.notify.0001 = "6h"
+queue.schedule.notify.0002 = "12h"
+queue.schedule.remote.description = "Remote delivery schedule"
+queue.schedule.remote.expire = "3d"
+queue.schedule.remote.expire-type = "ttl"
+queue.schedule.remote.notify.0 = "1d"
+queue.schedule.remote.notify.1 = "3d"
+queue.schedule.remote.queue-name = "remote"
+queue.schedule.remote.retry.0 = "2m"
+queue.schedule.remote.retry.1 = "5m"
+queue.schedule.remote.retry.2 = "10m"
+queue.schedule.remote.retry.3 = "15m"
+queue.schedule.remote.retry.4 = "30m"
+queue.schedule.remote.retry.5 = "1h"
+queue.schedule.remote.retry.6 = "2h"
+queue.schedule.report.description = "DMARC and TLS report delivery schedule"
+queue.schedule.report.expire-type = "attempts"
+queue.schedule.report.max-attempts = 8
+queue.schedule.report.queue-name = "report"
+queue.schedule.report.retry.0 = "30m"
+queue.schedule.report.retry.1 = "1h"
+queue.schedule.report.retry.2 = "2h"
+queue.schedule.retry.0000 = "1s"
+queue.schedule.retry.0001 = "5s"
+queue.schedule.retry.0002 = "10s"
+queue.schedule.retry.0003 = "30s"
+queue.schedule.retry.0004 = "1m"
+queue.schedule.retry.0005 = "5m"
+queue.schedule.retry.0006 = "10m"
+queue.schedule.retry.0007 = "30m"
+queue.schedule.retry.0008 = "1h"
+queue.schedule.retry.0009 = "2h"
+queue.tls.default.allow-invalid-certs = false
+queue.tls.default.description = "Default TLS settings"
+queue.tls.invalid-tls.allow-invalid-certs = true
+queue.tls.invalid-tls.description = "Allow invalid TLS certificates"
+queue.virtual.dsn.description = "Delivery Status Notification delivery queue"
+queue.virtual.dsn.threads-per-node = 5
+queue.virtual.local.description = "Local delivery queue"
+queue.virtual.local.threads-per-node = 25
+queue.virtual.remote.description = "Remote delivery queue"
+queue.virtual.remote.threads-per-node = 50
+queue.virtual.report.description = "DMARC and TLS report delivery queue"
+queue.virtual.report.threads-per-node = 5
+server.hostname = "perf-stalwart"
+server.listener.http.bind.0000 = "[::]:8080"
+server.listener.http.max-connections = 100
+server.listener.http.protocol = "http"
+server.listener.http.socket.nodelay = true
+server.listener.http.socket.reuse-addr = true
+server.listener.http.socket.reuse-port = true
+server.listener.http.tls.implicit = false
+server.listener.imap.bind.0000 = "[::]:143"
+server.listener.imap.max-connections = 200
+server.listener.imap.protocol = "imap"
+server.listener.imap.socket.backlog = 200
+server.listener.imap.socket.nodelay = true
+server.listener.imap.socket.reuse-addr = true
+server.listener.imap.socket.reuse-port = true
+server.listener.imap.tls.implicit = false
+server.listener.lmtp.bind.0000 = "[::]:24"
+server.listener.lmtp.max-connections = 400
+server.listener.lmtp.protocol = "lmtp"
+server.listener.lmtp.socket.backlog = 500
+server.listener.lmtp.socket.nodelay = true
+server.listener.lmtp.socket.reuse-addr = true
+server.listener.lmtp.socket.reuse-port = true
+session.auth.directories.0000 = "postgresql"
+session.auth.require.0000.eq = "lmtp"
+session.auth.require.0000.if = "listener"
+session.auth.require.0000.then = false
+session.auth.require.0001.else = true
+session.data.limits.received-headers = 50
+session.data.limits.size = 10485760
+session.data.max-message-size = 10485760
+session.rcpt.directories.0000 = "postgresql"
+session.rcpt.lmtp.directories.0000 = "postgresql"
+session.rcpt.max-recipients = 100
+session.rcpt.relay = false
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.enable = true
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.scope = "domain"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0000.if = "octets[0] != 127"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0000.then = false
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0001.if = "octets[3] == 2"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0001.then = "'DBL_SPAM'"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0002.if = "octets[3] == 4"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0002.then = "'DBL_PHISH'"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0003.if = "octets[3] == 5"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0003.then = "'DBL_MALWARE'"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0004.if = "octets[3] == 6"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0004.then = "'DBL_BOTNET'"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0005.if = "octets[3] == 102"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0005.then = "'DBL_ABUSE'"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0006.if = "octets[3] == 103"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0006.then = "'DBL_ABUSE_REDIR'"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0007.if = "octets[3] == 104"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0007.then = "'DBL_ABUSE_PHISH'"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0008.if = "octets[3] == 105"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0008.then = "'DBL_ABUSE_MALWARE'"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0009.if = "octets[3] == 106"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0009.then = "'DBL_ABUSE_BOTNET'"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0010.if = "octets[3] == 254"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0010.then = "'DBL_BLOCKED_OPENRESOLVER'"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0011.if = "octets[3] == 255"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0011.then = "'DBL_BLOCKED'"
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.tag.0012.else = false
+spam-filter.dnsbl.server.stwt_dbl_spamhaus_domain.zone = "value + '.dbl.spamhaus.org'"
+spam-filter.dnsbl.server.stwt_dnswl_ip.enable = true
+spam-filter.dnsbl.server.stwt_dnswl_ip.scope = "ip"
+spam-filter.dnsbl.server.stwt_dnswl_ip.tag.0000.if = "octets[0] != 127"
+spam-filter.dnsbl.server.stwt_dnswl_ip.tag.0000.then = false
+spam-filter.dnsbl.server.stwt_dnswl_ip.tag.0001.if = "octets[3] == 0"
+spam-filter.dnsbl.server.stwt_dnswl_ip.tag.0001.then = "'RCVD_IN_DNSWL_NONE'"
+spam-filter.dnsbl.server.stwt_dnswl_ip.tag.0002.if = "octets[3] == 1"
+spam-filter.dnsbl.server.stwt_dnswl_ip.tag.0002.then = "'RCVD_IN_DNSWL_LOW'"
+spam-filter.dnsbl.server.stwt_dnswl_ip.tag.0003.if = "octets[3] == 2"
+spam-filter.dnsbl.server.stwt_dnswl_ip.tag.0003.then = "'RCVD_IN_DNSWL_MED'"
+spam-filter.dnsbl.server.stwt_dnswl_ip.tag.0004.if = "octets[3] == 3"
+spam-filter.dnsbl.server.stwt_dnswl_ip.tag.0004.then = "'RCVD_IN_DNSWL_HI'"
+spam-filter.dnsbl.server.stwt_dnswl_ip.tag.0005.if = "octets[3] == 255"
+spam-filter.dnsbl.server.stwt_dnswl_ip.tag.0005.then = "'DNSWL_BLOCKED'"
+spam-filter.dnsbl.server.stwt_dnswl_ip.tag.0006.else = false
+spam-filter.dnsbl.server.stwt_dnswl_ip.zone = "ip_reverse + '.list.dnswl.org'"
+spam-filter.dnsbl.server.stwt_dwl_dnswl_domain.enable = true
+spam-filter.dnsbl.server.stwt_dwl_dnswl_domain.scope = "domain"
+spam-filter.dnsbl.server.stwt_dwl_dnswl_domain.tag.0000.if = "octets[0] != 127"
+spam-filter.dnsbl.server.stwt_dwl_dnswl_domain.tag.0000.then = false
+spam-filter.dnsbl.server.stwt_dwl_dnswl_domain.tag.0001.if = "octets[3] == 0"
+spam-filter.dnsbl.server.stwt_dwl_dnswl_domain.tag.0001.then = "'DWL_DNSWL_NONE'"
+spam-filter.dnsbl.server.stwt_dwl_dnswl_domain.tag.0002.if = "octets[3] == 1"
+spam-filter.dnsbl.server.stwt_dwl_dnswl_domain.tag.0002.then = "'DWL_DNSWL_LOW'"
+spam-filter.dnsbl.server.stwt_dwl_dnswl_domain.tag.0003.if = "octets[3] == 2"
+spam-filter.dnsbl.server.stwt_dwl_dnswl_domain.tag.0003.then = "'DWL_DNSWL_MED'"
+spam-filter.dnsbl.server.stwt_dwl_dnswl_domain.tag.0004.if = "octets[3] == 3"
+spam-filter.dnsbl.server.stwt_dwl_dnswl_domain.tag.0004.then = "'DWL_DNSWL_HI'"
+spam-filter.dnsbl.server.stwt_dwl_dnswl_domain.tag.0005.if = "octets[3] == 255"
+spam-filter.dnsbl.server.stwt_dwl_dnswl_domain.tag.0005.then = "'DWL_DNSWL_BLOCKED'"
+spam-filter.dnsbl.server.stwt_dwl_dnswl_domain.tag.0006.else = false
+spam-filter.dnsbl.server.stwt_dwl_dnswl_domain.zone.0000.if = "location == 'dkim_pass'"
+spam-filter.dnsbl.server.stwt_dwl_dnswl_domain.zone.0000.then = "value + '.dwl.dnswl.org'"
+spam-filter.dnsbl.server.stwt_dwl_dnswl_domain.zone.0001.else = false
+spam-filter.dnsbl.server.stwt_msbl_ebl_email.enable = true
+spam-filter.dnsbl.server.stwt_msbl_ebl_email.scope = "email"
+spam-filter.dnsbl.server.stwt_msbl_ebl_email.tag.0000.if = "octets[0] != 127"
+spam-filter.dnsbl.server.stwt_msbl_ebl_email.tag.0000.then = false
+spam-filter.dnsbl.server.stwt_msbl_ebl_email.tag.0001.if = "octets[2] == 0 && (octets[3] == 2 || octets[3] == 3)"
+spam-filter.dnsbl.server.stwt_msbl_ebl_email.tag.0001.then = "'MSBL_EBL'"
+spam-filter.dnsbl.server.stwt_msbl_ebl_email.tag.0002.if = "octets[2] == 1 && (octets[3] == 2 || octets[3] == 3)"
+spam-filter.dnsbl.server.stwt_msbl_ebl_email.tag.0002.then = "'MSBL_EBL_GREY'"
+spam-filter.dnsbl.server.stwt_msbl_ebl_email.tag.0003.else = false
+spam-filter.dnsbl.server.stwt_msbl_ebl_email.zone = "hash(email, 'sha1') + '.ebl.msbl.org'"
+spam-filter.dnsbl.server.stwt_rbl_barracuda_ip.enable = true
+spam-filter.dnsbl.server.stwt_rbl_barracuda_ip.scope = "ip"
+spam-filter.dnsbl.server.stwt_rbl_barracuda_ip.tag.0000.if = "!is_empty(ip)"
+spam-filter.dnsbl.server.stwt_rbl_barracuda_ip.tag.0000.then = "'RBL_BARRACUDA'"
+spam-filter.dnsbl.server.stwt_rbl_barracuda_ip.tag.0001.else = false
+spam-filter.dnsbl.server.stwt_rbl_barracuda_ip.zone.0000.if = "location == 'tcp'"
+spam-filter.dnsbl.server.stwt_rbl_barracuda_ip.zone.0000.then = "ip_reverse + '.b.barracudacentral.org'"
+spam-filter.dnsbl.server.stwt_rbl_barracuda_ip.zone.0001.else = false
+spam-filter.dnsbl.server.stwt_rbl_blocklistde_ip.enable = true
+spam-filter.dnsbl.server.stwt_rbl_blocklistde_ip.scope = "ip"
+spam-filter.dnsbl.server.stwt_rbl_blocklistde_ip.tag.0000.if = "!is_empty(ip) && location == 'tcp'"
+spam-filter.dnsbl.server.stwt_rbl_blocklistde_ip.tag.0000.then = "'RBL_BLOCKLISTDE'"
+spam-filter.dnsbl.server.stwt_rbl_blocklistde_ip.tag.0001.if = "!is_empty(ip)"
+spam-filter.dnsbl.server.stwt_rbl_blocklistde_ip.tag.0001.then = "'RECEIVED_BLOCKLISTDE'"
+spam-filter.dnsbl.server.stwt_rbl_blocklistde_ip.tag.0002.else = false
+spam-filter.dnsbl.server.stwt_rbl_blocklistde_ip.zone = "ip_reverse + '.bl.blocklist.de'"
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.enable = true
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.scope = "ip"
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.tag.0000.if = "octets[0] != 127"
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.tag.0000.then = false
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.tag.0001.if = "octets[3] == 10"
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.tag.0001.then = "'RBL_MAILSPIKE_WORST'"
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.tag.0002.if = "octets[3] == 11"
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.tag.0002.then = "'RBL_MAILSPIKE_VERYBAD'"
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.tag.0003.if = "octets[3] == 12"
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.tag.0003.then = "'RBL_MAILSPIKE_BAD'"
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.tag.0004.if = "octets[3] >= 13 && octets[3] <= 16"
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.tag.0004.then = "'RWL_MAILSPIKE_NEUTRAL'"
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.tag.0005.if = "octets[3] == 17"
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.tag.0005.then = "'RWL_MAILSPIKE_POSSIBLE'"
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.tag.0006.if = "octets[3] == 18"
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.tag.0006.then = "'RWL_MAILSPIKE_GOOD'"
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.tag.0007.if = "octets[3] == 19"
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.tag.0007.then = "'RWL_MAILSPIKE_VERYGOOD'"
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.tag.0008.if = "octets[3] == 20"
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.tag.0008.then = "'RWL_MAILSPIKE_EXCELLENT'"
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.tag.0009.else = false
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.zone.0000.if = "location == 'tcp'"
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.zone.0000.then = "ip_reverse + '.rep.mailspike.net'"
+spam-filter.dnsbl.server.stwt_rbl_mailspike_ip.zone.0001.else = false
+spam-filter.dnsbl.server.stwt_rbl_sem_ip.enable = true
+spam-filter.dnsbl.server.stwt_rbl_sem_ip.scope = "ip"
+spam-filter.dnsbl.server.stwt_rbl_sem_ip.tag.0000.if = "!is_empty(ip)"
+spam-filter.dnsbl.server.stwt_rbl_sem_ip.tag.0000.then = "'RBL_SEM'"
+spam-filter.dnsbl.server.stwt_rbl_sem_ip.tag.0001.else = false
+spam-filter.dnsbl.server.stwt_rbl_sem_ip.zone.0000.if = "location == 'tcp' && is_v4"
+spam-filter.dnsbl.server.stwt_rbl_sem_ip.zone.0000.then = "ip_reverse + '.bl.spameatingmonkey.net'"
+spam-filter.dnsbl.server.stwt_rbl_sem_ip.zone.0001.if = "location == 'tcp' && is_v6"
+spam-filter.dnsbl.server.stwt_rbl_sem_ip.zone.0001.then = "ip_reverse + '.bl.ipv6.spameatingmonkey.net'"
+spam-filter.dnsbl.server.stwt_rbl_sem_ip.zone.0002.else = false
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.enable = false
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.scope = "ip"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0000.if = "octets[0] != 127"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0000.then = false
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0001.if = "octets[3] == 1"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0001.then = "'RBL_SENDERSCORE_BOT'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0002.if = "octets[3] == 2"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0002.then = "'RBL_SENDERSCORE_NA'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0003.if = "octets[3] == 3"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0003.then = "'RBL_SENDERSCORE_NA_BOT'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0004.if = "octets[3] == 4"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0004.then = "'RBL_SENDERSCORE_PRST'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0005.if = "octets[3] == 5"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0005.then = "'RBL_SENDERSCORE_PRST_BOT'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0006.if = "octets[3] == 6"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0006.then = "'RBL_SENDERSCORE_PRST_NA'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0007.if = "octets[3] == 7"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0007.then = "'RBL_SENDERSCORE_PRST_NA_BOT'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0008.if = "octets[3] == 8"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0008.then = "'RBL_SENDERSCORE_SUS_ATT'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0009.if = "octets[3] == 10"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0009.then = "'RBL_SENDERSCORE_SUS_ATT_NA'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0010.if = "octets[3] == 11"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0010.then = "'RBL_SENDERSCORE_SUS_ATT_NA_BOT'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0011.if = "octets[3] == 14"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0011.then = "'RBL_SENDERSCORE_SUS_ATT_PRST_NA'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0012.if = "octets[3] == 15"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0012.then = "'RBL_SENDERSCORE_SUS_ATT_PRST_NA_BOT'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0013.if = "octets[3] == 16"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0013.then = "'RBL_SENDERSCORE_SCORE'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0014.if = "octets[3] == 18"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0014.then = "'RBL_SENDERSCORE_SCORE_NA'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0015.if = "octets[3] == 20"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0015.then = "'RBL_SENDERSCORE_SCORE_PRST'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0016.if = "octets[3] == 22"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0016.then = "'RBL_SENDERSCORE_SCORE_PRST_NA'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0017.if = "octets[3] == 26"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0017.then = "'RBL_SENDERSCORE_SCORE_SUS_ATT_NA'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0018.if = "octets[3] == 255"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0018.then = "'RBL_SENDERSCORE_BLOCKED'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.tag.0019.else = false
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.zone.0000.if = "location == 'tcp'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.zone.0000.then = "ip_reverse + '.bl.score.senderscore.com'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_ip.zone.0001.else = false
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.enable = true
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.scope = "ip"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0000.if = "octets[0] != 127"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0000.then = false
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0001.if = "octets[3] < 10"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0001.then = "'RBL_SENDERSCORE_REPUT_0'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0002.if = "octets[3] >= 10 && octets[3] <= 19"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0002.then = "'RBL_SENDERSCORE_REPUT_1'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0003.if = "octets[3] >= 20 && octets[3] <= 29"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0003.then = "'RBL_SENDERSCORE_REPUT_2'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0004.if = "octets[3] >= 30 && octets[3] <= 39"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0004.then = "'RBL_SENDERSCORE_REPUT_3'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0005.if = "octets[3] >= 40 && octets[3] <= 49"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0005.then = "'RBL_SENDERSCORE_REPUT_4'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0006.if = "octets[3] >= 50 && octets[3] <= 59"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0006.then = "'RBL_SENDERSCORE_REPUT_5'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0007.if = "octets[3] >= 60 && octets[3] <= 69"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0007.then = "'RBL_SENDERSCORE_REPUT_6'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0008.if = "octets[3] >= 70 && octets[3] <= 79"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0008.then = "'RBL_SENDERSCORE_REPUT_7'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0009.if = "octets[3] >= 80 && octets[3] <= 89"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0009.then = "'RBL_SENDERSCORE_REPUT_8'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0010.if = "octets[3] >= 90 && octets[3] <= 100"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0010.then = "'RBL_SENDERSCORE_REPUT_9'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0011.if = "octets[3] == 255"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0011.then = "'RBL_SENDERSCORE_REPUT_BLOCKED'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.tag.0012.else = false
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.zone.0000.if = "location == 'tcp'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.zone.0000.then = "ip_reverse + '.score.senderscore.com'"
+spam-filter.dnsbl.server.stwt_rbl_senderscore_reput_ip.zone.0001.else = false
+spam-filter.dnsbl.server.stwt_rbl_spamcop_ip.enable = true
+spam-filter.dnsbl.server.stwt_rbl_spamcop_ip.scope = "ip"
+spam-filter.dnsbl.server.stwt_rbl_spamcop_ip.tag.0000.if = "!is_empty(ip)"
+spam-filter.dnsbl.server.stwt_rbl_spamcop_ip.tag.0000.then = "'RBL_SPAMCOP'"
+spam-filter.dnsbl.server.stwt_rbl_spamcop_ip.tag.0001.else = false
+spam-filter.dnsbl.server.stwt_rbl_spamcop_ip.zone.0000.if = "location == 'tcp'"
+spam-filter.dnsbl.server.stwt_rbl_spamcop_ip.zone.0000.then = "ip_reverse + '.bl.spamcop.net'"
+spam-filter.dnsbl.server.stwt_rbl_spamcop_ip.zone.0001.else = false
+spam-filter.dnsbl.server.stwt_rbl_spamhaus_ip.enable = true
+spam-filter.dnsbl.server.stwt_rbl_spamhaus_ip.scope = "ip"
+spam-filter.dnsbl.server.stwt_rbl_spamhaus_ip.tag.0000.if = "octets[0] != 127"
+spam-filter.dnsbl.server.stwt_rbl_spamhaus_ip.tag.0000.then = false
+spam-filter.dnsbl.server.stwt_rbl_spamhaus_ip.tag.0001.if = "octets[3] == 2"
+spam-filter.dnsbl.server.stwt_rbl_spamhaus_ip.tag.0001.then = "if_then(location == 'tcp', 'RBL_SPAMHAUS_SBL', 'RECEIVED_SPAMHAUS_SBL')"
+spam-filter.dnsbl.server.stwt_rbl_spamhaus_ip.tag.0002.if = "octets[3] == 3"
+spam-filter.dnsbl.server.stwt_rbl_spamhaus_ip.tag.0002.then = "if_then(location == 'tcp', 'RBL_SPAMHAUS_CSS', 'RECEIVED_SPAMHAUS_CSS')"
+spam-filter.dnsbl.server.stwt_rbl_spamhaus_ip.tag.0003.if = "octets[3] >= 4 && octets[3] <= 7"
+spam-filter.dnsbl.server.stwt_rbl_spamhaus_ip.tag.0003.then = "if_then(location == 'tcp', 'RBL_SPAMHAUS_XBL', 'RECEIVED_SPAMHAUS_XBL')"
+spam-filter.dnsbl.server.stwt_rbl_spamhaus_ip.tag.0004.if = "octets[3] == 9"
+spam-filter.dnsbl.server.stwt_rbl_spamhaus_ip.tag.0004.then = "if_then(location == 'tcp', 'RBL_SPAMHAUS_DROP', 'RECEIVED_SPAMHAUS_DROP')"
+spam-filter.dnsbl.server.stwt_rbl_spamhaus_ip.tag.0005.if = "(octets[3] == 10 || octets[3] == 11)"
+spam-filter.dnsbl.server.stwt_rbl_spamhaus_ip.tag.0005.then = "if_then(location == 'tcp', 'RBL_SPAMHAUS_PBL', 'RECEIVED_SPAMHAUS_PBL')"
+spam-filter.dnsbl.server.stwt_rbl_spamhaus_ip.tag.0006.if = "octets[3] == 254"
+spam-filter.dnsbl.server.stwt_rbl_spamhaus_ip.tag.0006.then = "if_then(location == 'tcp', 'RBL_SPAMHAUS_BLOCKED_OPENRESOLVER', 'RECEIVED_SPAMHAUS_BLOCKED_OPENRESOLVER')"
+spam-filter.dnsbl.server.stwt_rbl_spamhaus_ip.tag.0007.if = "octets[3] == 255"
+spam-filter.dnsbl.server.stwt_rbl_spamhaus_ip.tag.0007.then = "if_then(location == 'tcp', 'RBL_SPAMHAUS_BLOCKED', 'RECEIVED_SPAMHAUS_BLOCKED')"
+spam-filter.dnsbl.server.stwt_rbl_spamhaus_ip.tag.0008.else = false
+spam-filter.dnsbl.server.stwt_rbl_spamhaus_ip.zone = "ip_reverse + '.zen.spamhaus.org'"
+spam-filter.dnsbl.server.stwt_rbl_virusfree_ip.enable = true
+spam-filter.dnsbl.server.stwt_rbl_virusfree_ip.scope = "ip"
+spam-filter.dnsbl.server.stwt_rbl_virusfree_ip.tag.0000.if = "ip == '127.0.0.2'"
+spam-filter.dnsbl.server.stwt_rbl_virusfree_ip.tag.0000.then = "'RBL_VIRUSFREE_BOTNET'"
+spam-filter.dnsbl.server.stwt_rbl_virusfree_ip.tag.0001.else = false
+spam-filter.dnsbl.server.stwt_rbl_virusfree_ip.zone.0000.if = "location == 'tcp'"
+spam-filter.dnsbl.server.stwt_rbl_virusfree_ip.zone.0000.then = "ip_reverse + '.bip.virusfree.cz'"
+spam-filter.dnsbl.server.stwt_rbl_virusfree_ip.zone.0001.else = false
+spam-filter.dnsbl.server.stwt_sem_uribl.enable = true
+spam-filter.dnsbl.server.stwt_sem_uribl.scope = "domain"
+spam-filter.dnsbl.server.stwt_sem_uribl.tag.0000.if = "ip == '127.0.0.2'"
+spam-filter.dnsbl.server.stwt_sem_uribl.tag.0000.then = "'SEM_URIBL'"
+spam-filter.dnsbl.server.stwt_sem_uribl.tag.0001.else = false
+spam-filter.dnsbl.server.stwt_sem_uribl.zone = "value + '.uribl.spameatingmonkey.net'"
+spam-filter.dnsbl.server.stwt_sem_uribl_fresh15.enable = true
+spam-filter.dnsbl.server.stwt_sem_uribl_fresh15.scope = "domain"
+spam-filter.dnsbl.server.stwt_sem_uribl_fresh15.tag.0000.if = "ip == '127.0.0.2'"
+spam-filter.dnsbl.server.stwt_sem_uribl_fresh15.tag.0000.then = "'SEM_URIBL_FRESH15'"
+spam-filter.dnsbl.server.stwt_sem_uribl_fresh15.tag.0001.else = false
+spam-filter.dnsbl.server.stwt_sem_uribl_fresh15.zone = "value + '.fresh15.spameatingmonkey.net'"
+spam-filter.dnsbl.server.stwt_surbl_domain.enable = true
+spam-filter.dnsbl.server.stwt_surbl_domain.scope = "domain"
+spam-filter.dnsbl.server.stwt_surbl_domain.tag.0000.if = "octets[3] == 128"
+spam-filter.dnsbl.server.stwt_surbl_domain.tag.0000.then = "'CRACKED_SURBL'"
+spam-filter.dnsbl.server.stwt_surbl_domain.tag.0001.if = "octets[3] == 64"
+spam-filter.dnsbl.server.stwt_surbl_domain.tag.0001.then = "'ABUSE_SURBL'"
+spam-filter.dnsbl.server.stwt_surbl_domain.tag.0002.if = "octets[3] == 32"
+spam-filter.dnsbl.server.stwt_surbl_domain.tag.0002.then = "'CT_SURBL'"
+spam-filter.dnsbl.server.stwt_surbl_domain.tag.0003.if = "octets[3] == 16"
+spam-filter.dnsbl.server.stwt_surbl_domain.tag.0003.then = "'MW_SURBL_MULTI'"
+spam-filter.dnsbl.server.stwt_surbl_domain.tag.0004.if = "octets[3] == 8"
+spam-filter.dnsbl.server.stwt_surbl_domain.tag.0004.then = "'PH_SURBL_MULTI'"
+spam-filter.dnsbl.server.stwt_surbl_domain.tag.0005.if = "octets[3] == 4"
+spam-filter.dnsbl.server.stwt_surbl_domain.tag.0005.then = "'DM_SURBL'"
+spam-filter.dnsbl.server.stwt_surbl_domain.tag.0006.if = "octets[3] == 1"
+spam-filter.dnsbl.server.stwt_surbl_domain.tag.0006.then = "'SURBL_BLOCKED'"
+spam-filter.dnsbl.server.stwt_surbl_domain.tag.0007.else = false
+spam-filter.dnsbl.server.stwt_surbl_domain.zone = "value + '.multi.surbl.org'"
+spam-filter.dnsbl.server.stwt_surbl_hashbl_domain.enable = true
+spam-filter.dnsbl.server.stwt_surbl_hashbl_domain.scope = "url"
+spam-filter.dnsbl.server.stwt_surbl_hashbl_domain.tag.0000.if = "octets[0] != 127"
+spam-filter.dnsbl.server.stwt_surbl_hashbl_domain.tag.0000.then = false
+spam-filter.dnsbl.server.stwt_surbl_hashbl_domain.tag.0001.if = "octets[3] == 8"
+spam-filter.dnsbl.server.stwt_surbl_hashbl_domain.tag.0001.then = "'SURBL_HASHBL_PHISH'"
+spam-filter.dnsbl.server.stwt_surbl_hashbl_domain.tag.0002.if = "octets[3] == 16"
+spam-filter.dnsbl.server.stwt_surbl_hashbl_domain.tag.0002.then = "'SURBL_HASHBL_MALWARE'"
+spam-filter.dnsbl.server.stwt_surbl_hashbl_domain.tag.0003.if = "octets[3] == 64"
+spam-filter.dnsbl.server.stwt_surbl_hashbl_domain.tag.0003.then = "'SURBL_HASHBL_ABUSE'"
+spam-filter.dnsbl.server.stwt_surbl_hashbl_domain.tag.0004.if = "octets[3] == 128"
+spam-filter.dnsbl.server.stwt_surbl_hashbl_domain.tag.0004.then = "'SURBL_HASHBL_CRACKED'"
+spam-filter.dnsbl.server.stwt_surbl_hashbl_domain.tag.0005.if = "octets[2] == 1"
+spam-filter.dnsbl.server.stwt_surbl_hashbl_domain.tag.0005.then = "'SURBL_HASHBL_EMAIL'"
+spam-filter.dnsbl.server.stwt_surbl_hashbl_domain.tag.0006.else = false
+spam-filter.dnsbl.server.stwt_surbl_hashbl_domain.zone.0000.if = "key_exists('surbl-hashbl', host)"
+spam-filter.dnsbl.server.stwt_surbl_hashbl_domain.zone.0000.then = "hash(host + path, 'md5') + '.hashbl.surbl.org'"
+spam-filter.dnsbl.server.stwt_surbl_hashbl_domain.zone.0001.else = false
+spam-filter.dnsbl.server.stwt_uribl_domain.enable = true
+spam-filter.dnsbl.server.stwt_uribl_domain.scope = "domain"
+spam-filter.dnsbl.server.stwt_uribl_domain.tag.0000.if = "octets[3] == 1"
+spam-filter.dnsbl.server.stwt_uribl_domain.tag.0000.then = "'URIBL_BLOCKED'"
+spam-filter.dnsbl.server.stwt_uribl_domain.tag.0001.if = "octets[3] == 2"
+spam-filter.dnsbl.server.stwt_uribl_domain.tag.0001.then = "'URIBL_BLACK'"
+spam-filter.dnsbl.server.stwt_uribl_domain.tag.0002.if = "octets[3] == 4"
+spam-filter.dnsbl.server.stwt_uribl_domain.tag.0002.then = "'URIBL_GREY'"
+spam-filter.dnsbl.server.stwt_uribl_domain.tag.0003.if = "octets[3] == 8"
+spam-filter.dnsbl.server.stwt_uribl_domain.tag.0003.then = "'URIBL_RED'"
+spam-filter.dnsbl.server.stwt_uribl_domain.tag.0004.else = false
+spam-filter.dnsbl.server.stwt_uribl_domain.zone = "value + '.multi.uribl.com'"
+spam-filter.enable = false
+spam-filter.list.file-extensions.7x = "AR"
+spam-filter.list.file-extensions.ace = "BAD|AR"
+spam-filter.list.file-extensions.ade = "BAD"
+spam-filter.list.file-extensions.adp = "BAD"
+spam-filter.list.file-extensions.alz = "AR"
+spam-filter.list.file-extensions.app = "BAD"
+spam-filter.list.file-extensions.arj = "BAD|AR"
+spam-filter.list.file-extensions.asp = "BAD"
+spam-filter.list.file-extensions.asx = "BAD"
+spam-filter.list.file-extensions.bas = "BAD"
+spam-filter.list.file-extensions.bat = "BAD"
+spam-filter.list.file-extensions.bz2 = "AR"
+spam-filter.list.file-extensions.cab = "BAD|AR"
+spam-filter.list.file-extensions.chm = "BAD"
+spam-filter.list.file-extensions.cmd = "BAD"
+spam-filter.list.file-extensions.cnt = "BAD"
+spam-filter.list.file-extensions.com = "BAD"
+spam-filter.list.file-extensions.cpl = "BAD"
+spam-filter.list.file-extensions.csh = "BAD"
+spam-filter.list.file-extensions.diagcab = "BAD"
+spam-filter.list.file-extensions.docm = "BAD"
+spam-filter.list.file-extensions.docx = "NZ"
+spam-filter.list.file-extensions.egg = "AR"
+spam-filter.list.file-extensions.exe = "BAD"
+spam-filter.list.file-extensions.fxp = "BAD"
+spam-filter.list.file-extensions.gadget = "BAD"
+spam-filter.list.file-extensions.grp = "BAD"
+spam-filter.list.file-extensions.hlp = "BAD"
+spam-filter.list.file-extensions.hpj = "BAD"
+spam-filter.list.file-extensions.hta = "BAD|NZ"
+spam-filter.list.file-extensions.htm = "text/html|BAD"
+spam-filter.list.file-extensions.html = "text/html|BAD"
+spam-filter.list.file-extensions.inf = "BAD"
+spam-filter.list.file-extensions.ins = "BAD"
+spam-filter.list.file-extensions.iso = "BAD"
+spam-filter.list.file-extensions.isp = "BAD"
+spam-filter.list.file-extensions.its = "BAD"
+spam-filter.list.file-extensions.jar = "BAD|NZ"
+spam-filter.list.file-extensions.jnlp = "BAD"
+spam-filter.list.file-extensions.js = "BAD|NZ"
+spam-filter.list.file-extensions.jse = "BAD"
+spam-filter.list.file-extensions.ksh = "BAD"
+spam-filter.list.file-extensions.lib = "BAD"
+spam-filter.list.file-extensions.lnk = "BAD"
+spam-filter.list.file-extensions.lz = "AR"
+spam-filter.list.file-extensions.mad = "BAD"
+spam-filter.list.file-extensions.maf = "BAD"
+spam-filter.list.file-extensions.mag = "BAD"
+spam-filter.list.file-extensions.mam = "BAD"
+spam-filter.list.file-extensions.maq = "BAD"
+spam-filter.list.file-extensions.mar = "BAD"
+spam-filter.list.file-extensions.mas = "BAD"
+spam-filter.list.file-extensions.mat = "BAD"
+spam-filter.list.file-extensions.mau = "BAD"
+spam-filter.list.file-extensions.mav = "BAD"
+spam-filter.list.file-extensions.maw = "BAD"
+spam-filter.list.file-extensions.mcf = "BAD"
+spam-filter.list.file-extensions.mda = "BAD"
+spam-filter.list.file-extensions.mdb = "BAD"
+spam-filter.list.file-extensions.mde = "BAD"
+spam-filter.list.file-extensions.mdt = "BAD"
+spam-filter.list.file-extensions.mdw = "BAD"
+spam-filter.list.file-extensions.mdz = "BAD"
+spam-filter.list.file-extensions.msc = "BAD"
+spam-filter.list.file-extensions.msh = "BAD"
+spam-filter.list.file-extensions.msh1 = "BAD"
+spam-filter.list.file-extensions.msh1xml = "BAD"
+spam-filter.list.file-extensions.msh2 = "BAD"
+spam-filter.list.file-extensions.msh2xml = "BAD"
+spam-filter.list.file-extensions.mshxml = "BAD"
+spam-filter.list.file-extensions.msi = "BAD"
+spam-filter.list.file-extensions.msp = "BAD"
+spam-filter.list.file-extensions.mst = "BAD"
+spam-filter.list.file-extensions.msu = "BAD"
+spam-filter.list.file-extensions.nsh = "BAD"
+spam-filter.list.file-extensions.ops = "BAD"
+spam-filter.list.file-extensions.osd = "BAD"
+spam-filter.list.file-extensions.pcd = "BAD"
+spam-filter.list.file-extensions.pdf = "application/pdf|application/x-pdf|NZ"
+spam-filter.list.file-extensions.pif = "BAD"
+spam-filter.list.file-extensions.pl = "BAD"
+spam-filter.list.file-extensions.plg = "BAD"
+spam-filter.list.file-extensions.pptm = "BAD"
+spam-filter.list.file-extensions.pptx = "NZ"
+spam-filter.list.file-extensions.prf = "BAD"
+spam-filter.list.file-extensions.prg = "BAD"
+spam-filter.list.file-extensions.printerexport = "BAD"
+spam-filter.list.file-extensions.ps1 = "BAD"
+spam-filter.list.file-extensions.ps1xml = "BAD"
+spam-filter.list.file-extensions.ps2 = "BAD"
+spam-filter.list.file-extensions.ps2xml = "BAD"
+spam-filter.list.file-extensions.psc1 = "BAD"
+spam-filter.list.file-extensions.psc2 = "BAD"
+spam-filter.list.file-extensions.psd1 = "BAD"
+spam-filter.list.file-extensions.psdm1 = "BAD"
+spam-filter.list.file-extensions.pst = "BAD"
+spam-filter.list.file-extensions.rar = "AR"
+spam-filter.list.file-extensions.reg = "BAD"
+spam-filter.list.file-extensions.scf = "BAD"
+spam-filter.list.file-extensions.scr = "BAD"
+spam-filter.list.file-extensions.sct = "BAD"
+spam-filter.list.file-extensions.sfx = "BAD"
+spam-filter.list.file-extensions.shb = "BAD"
+spam-filter.list.file-extensions.shs = "BAD"
+spam-filter.list.file-extensions.shtm = "text/html|BAD"
+spam-filter.list.file-extensions.shtml = "text/html|BAD"
+spam-filter.list.file-extensions.sys = "BAD"
+spam-filter.list.file-extensions.theme = "BAD"
+spam-filter.list.file-extensions.txt = "text/plain|message/disposition-notification|text/rfc822-headers"
+spam-filter.list.file-extensions.url = "BAD"
+spam-filter.list.file-extensions.vb = "BAD"
+spam-filter.list.file-extensions.vbe = "BAD"
+spam-filter.list.file-extensions.vbp = "BAD"
+spam-filter.list.file-extensions.vbs = "BAD|NZ"
+spam-filter.list.file-extensions.vsmacros = "BAD"
+spam-filter.list.file-extensions.vss = "BAD"
+spam-filter.list.file-extensions.vst = "BAD"
+spam-filter.list.file-extensions.vsw = "BAD"
+spam-filter.list.file-extensions.vxd = "BAD"
+spam-filter.list.file-extensions.webpnp = "BAD"
+spam-filter.list.file-extensions.website = "BAD"
+spam-filter.list.file-extensions.ws = "BAD"
+spam-filter.list.file-extensions.wsc = "BAD"
+spam-filter.list.file-extensions.wsf = "NZ"
+spam-filter.list.file-extensions.wsh = "BAD"
+spam-filter.list.file-extensions.xbap = "BAD"
+spam-filter.list.file-extensions.xll = "BAD"
+spam-filter.list.file-extensions.xlsm = "BAD"
+spam-filter.list.file-extensions.xlsx = "NZ"
+spam-filter.list.file-extensions.xnk = "BAD"
+spam-filter.list.file-extensions.xz = "AR"
+spam-filter.list.file-extensions.zip = "AR"
+spam-filter.list.scores.ABUSE_FROM_INJECTOR = 2.0
+spam-filter.list.scores.ABUSE_SURBL = 5.0
+spam-filter.list.scores.ARC_ALLOW = 0.0
+spam-filter.list.scores.ARC_DNSFAIL = 0.0
+spam-filter.list.scores.ARC_INVALID = 0.5
+spam-filter.list.scores.ARC_NA = 0.0
+spam-filter.list.scores.ARC_REJECT = 1.0
+spam-filter.list.scores.ARC_SIGNED = 0.0
+spam-filter.list.scores.AUTH_NA = 1.0
+spam-filter.list.scores.AUTH_NA_OR_FAIL = 1.0
+spam-filter.list.scores.AUTOGEN_PHP_SPAMMY = 1.0
+spam-filter.list.scores.BAD_CTE_7BIT = 3.5
+spam-filter.list.scores.BLOCKED_DOMAIN = "reject"
+spam-filter.list.scores.BODY_URI_ONLY = 2.0
+spam-filter.list.scores.BOGUS_ENCRYPTED_AND_TEXT = 10.0
+spam-filter.list.scores.BOUNCE = -0.1
+spam-filter.list.scores.BOUNCE_NO_AUTH = 1.0
+spam-filter.list.scores.BROKEN_CONTENT_TYPE = 1.5
+spam-filter.list.scores.COMPLETELY_EMPTY = 7.0
+spam-filter.list.scores.COMPROMISED_ACCT_BULK = 3.0
+spam-filter.list.scores.CRACKED_SURBL = 5.0
+spam-filter.list.scores.CTE_CASE = 0.5
+spam-filter.list.scores.CTYPE_MISSING_DISPOSITION = 4.0
+spam-filter.list.scores.CTYPE_MIXED_BOGUS = 1.0
+spam-filter.list.scores.CT_EXTRA_SEMI = 1.0
+spam-filter.list.scores.DATA_URI_OBFU = 2.0
+spam-filter.list.scores.DATE_IN_FUTURE = 4.0
+spam-filter.list.scores.DATE_IN_PAST = 1.0
+spam-filter.list.scores.DBL_ABUSE = 5.0
+spam-filter.list.scores.DBL_ABUSE_BOTNET = 6.5
+spam-filter.list.scores.DBL_ABUSE_MALWARE = 6.5
+spam-filter.list.scores.DBL_ABUSE_PHISH = 6.5
+spam-filter.list.scores.DBL_ABUSE_REDIR = 5.0
+spam-filter.list.scores.DBL_BLOCKED = 0.0
+spam-filter.list.scores.DBL_BLOCKED_OPENRESOLVER = 0.0
+spam-filter.list.scores.DBL_BOTNET = 7.5
+spam-filter.list.scores.DBL_MALWARE = 7.5
+spam-filter.list.scores.DBL_PHISH = 7.5
+spam-filter.list.scores.DBL_SPAM = 6.5
+spam-filter.list.scores.DCC_BULK = 3.0
+spam-filter.list.scores.DIRECT_TO_MX = 2.0
+spam-filter.list.scores.DISPOSABLE_CC = 0.0
+spam-filter.list.scores.DISPOSABLE_DNT = 0.5
+spam-filter.list.scores.DISPOSABLE_ENV_FROM = 0.0
+spam-filter.list.scores.DISPOSABLE_FROM = 0.0
+spam-filter.list.scores.DISPOSABLE_REPLYTO = 0.0
+spam-filter.list.scores.DISPOSABLE_TO = 0.0
+spam-filter.list.scores.DKIM_ALLOW = -0.2
+spam-filter.list.scores.DKIM_NA = 0.0
+spam-filter.list.scores.DKIM_PERMFAIL = 0.0
+spam-filter.list.scores.DKIM_REJECT = 1.0
+spam-filter.list.scores.DKIM_SIGNED = 0.0
+spam-filter.list.scores.DKIM_TEMPFAIL = 0.0
+spam-filter.list.scores.DMARC_BAD_POLICY = 0.5
+spam-filter.list.scores.DMARC_DNSFAIL = 0.0
+spam-filter.list.scores.DMARC_NA = 1.0
+spam-filter.list.scores.DMARC_POLICY_ALLOW = -0.5
+spam-filter.list.scores.DMARC_POLICY_ALLOW_WITH_FAILURES = 0.0
+spam-filter.list.scores.DMARC_POLICY_QUARANTINE = 1.5
+spam-filter.list.scores.DMARC_POLICY_REJECT = 4.0
+spam-filter.list.scores.DMARC_POLICY_SOFTFAIL = 0.1
+spam-filter.list.scores.DNSWL_BLOCKED = 0.0
+spam-filter.list.scores.DWL_DNSWL_BLOCKED = 0.0
+spam-filter.list.scores.DWL_DNSWL_HI = -3.5
+spam-filter.list.scores.DWL_DNSWL_LOW = -1.0
+spam-filter.list.scores.DWL_DNSWL_MED = -2.0
+spam-filter.list.scores.DWL_DNSWL_NONE = 0.0
+spam-filter.list.scores.EMPTY_SUBJECT = 1.0
+spam-filter.list.scores.ENCRYPTED_PGP = -0.5
+spam-filter.list.scores.ENCRYPTED_SMIME = -0.5
+spam-filter.list.scores.ENV_FROM_INVALID = 2.0
+spam-filter.list.scores.EXT_CSS = 1.0
+spam-filter.list.scores.FAKE_REPLY = 1.0
+spam-filter.list.scores.FORGED_RCVD_TRAIL = 1.0
+spam-filter.list.scores.FORGED_RECIPIENTS = 2.0
+spam-filter.list.scores.FORGED_RECIPIENTS_MAILLIST = 0.0
+spam-filter.list.scores.FORGED_SENDER = 0.3
+spam-filter.list.scores.FORGED_SENDER_MAILLIST = 0.0
+spam-filter.list.scores.FREEMAIL_AFF = 4.0
+spam-filter.list.scores.FREEMAIL_CC = 0.0
+spam-filter.list.scores.FREEMAIL_DNT = 0.0
+spam-filter.list.scores.FREEMAIL_ENV_FROM = 0.0
+spam-filter.list.scores.FREEMAIL_FROM = 0.0
+spam-filter.list.scores.FREEMAIL_REPLY_TO = 0.0
+spam-filter.list.scores.FREEMAIL_REPLY_TO_NEQ_FROM_DOM = 3.0
+spam-filter.list.scores.FREEMAIL_TO = 0.0
+spam-filter.list.scores.FROMHOST_NORES_A_OR_MX = 1.5
+spam-filter.list.scores.FROM_BOUNCE = 0.0
+spam-filter.list.scores.FROM_DN_EQ_ADDR = 1.0
+spam-filter.list.scores.FROM_EQ_ENV_FROM = 0.0
+spam-filter.list.scores.FROM_EXCESS_BASE64 = 1.5
+spam-filter.list.scores.FROM_EXCESS_QP = 1.2
+spam-filter.list.scores.FROM_HAS_DN = 0.0
+spam-filter.list.scores.FROM_INVALID = 2.0
+spam-filter.list.scores.FROM_NAME_EXCESS_SPACE = 1.0
+spam-filter.list.scores.FROM_NAME_HAS_TITLE = 1.0
+spam-filter.list.scores.FROM_NEEDS_ENCODING = 1.0
+spam-filter.list.scores.FROM_NEQ_DISPLAY_NAME = 4.0
+spam-filter.list.scores.FROM_NEQ_ENV_FROM = 0.0
+spam-filter.list.scores.FROM_NO_DN = 0.0
+spam-filter.list.scores.FROM_SERVICE_ACCT = 1.0
+spam-filter.list.scores.GTUBE_TEST = 1000.0
+spam-filter.list.scores.HACKED_WP_PHISHING = 4.5
+spam-filter.list.scores.HAS_ANON_DOMAIN = 0.1
+spam-filter.list.scores.HAS_ATTACHMENT = 0.0
+spam-filter.list.scores.HAS_DATA_URI = 0.0
+spam-filter.list.scores.HAS_GOOGLE_FIREBASE_URL = 2.0
+spam-filter.list.scores.HAS_GOOGLE_REDIR = 1.0
+spam-filter.list.scores.HAS_GUC_PROXY_URI = 1.0
+spam-filter.list.scores.HAS_IPFS_GATEWAY_URL = 6.0
+spam-filter.list.scores.HAS_LIST_UNSUB = -0.01
+spam-filter.list.scores.HAS_ONION_URI = 0.0
+spam-filter.list.scores.HAS_PHPMAILER_SIG = 0.0
+spam-filter.list.scores.HAS_REPLYTO = 0.0
+spam-filter.list.scores.HAS_SEO_WORD = 0.0
+spam-filter.list.scores.HAS_WP_URI = 0.0
+spam-filter.list.scores.HAS_X_AS = 0.0
+spam-filter.list.scores.HAS_X_GMSV = 0.0
+spam-filter.list.scores.HAS_X_PRIO_FIVE = 0.0
+spam-filter.list.scores.HAS_X_PRIO_ONE = 0.0
+spam-filter.list.scores.HAS_X_PRIO_THREE = 0.0
+spam-filter.list.scores.HAS_X_PRIO_TWO = 0.0
+spam-filter.list.scores.HAS_X_PRIO_ZERO = 0.0
+spam-filter.list.scores.HEADER_EMPTY_DELIMITER = 1.0
+spam-filter.list.scores.HEADER_FORGED_MDN = 2.0
+spam-filter.list.scores.HEADER_RCONFIRM_MISMATCH = 2.0
+spam-filter.list.scores.HELO_BAREIP = 3.0
+spam-filter.list.scores.HELO_IPREV_MISMATCH = 1.0
+spam-filter.list.scores.HELO_IP_A = 1.0
+spam-filter.list.scores.HELO_NORES_A_OR_MX = 0.3
+spam-filter.list.scores.HELO_NOT_FQDN = 2.0
+spam-filter.list.scores.HIDDEN_SOURCE_OBJ = 2.0
+spam-filter.list.scores.HOMOGRAPH_URL = 5.0
+spam-filter.list.scores.HTML_META_REFRESH_URL = 5.0
+spam-filter.list.scores.HTML_SHORT_LINK_IMG_1 = 2.0
+spam-filter.list.scores.HTML_SHORT_LINK_IMG_2 = 1.0
+spam-filter.list.scores.HTML_SHORT_LINK_IMG_3 = 0.5
+spam-filter.list.scores.HTML_TEXT_IMG_RATIO = 1.0
+spam-filter.list.scores.HTML_UNBALANCED_TAG = 0.5
+spam-filter.list.scores.HTTP_TO_HTTPS = 0.5
+spam-filter.list.scores.HTTP_TO_IP = 1.0
+spam-filter.list.scores.INFO_TO_INFO_LU = 2.0
+spam-filter.list.scores.INVALID_DATE = 1.5
+spam-filter.list.scores.INVALID_FROM_8BIT = 6.0
+spam-filter.list.scores.INVALID_MSGID = 1.7
+spam-filter.list.scores.KLMS_SPAM = 5.0
+spam-filter.list.scores.LLM_COMMERCIAL_HIGH = 3.0
+spam-filter.list.scores.LLM_COMMERCIAL_LOW = 0.5
+spam-filter.list.scores.LLM_COMMERCIAL_MEDIUM = 2.0
+spam-filter.list.scores.LLM_HARMFUL_HIGH = 3.0
+spam-filter.list.scores.LLM_HARMFUL_LOW = 0.5
+spam-filter.list.scores.LLM_HARMFUL_MEDIUM = 2.0
+spam-filter.list.scores.LLM_LEGITIMATE_HIGH = -3.0
+spam-filter.list.scores.LLM_LEGITIMATE_LOW = -0.5
+spam-filter.list.scores.LLM_LEGITIMATE_MEDIUM = -2.0
+spam-filter.list.scores.LLM_UNSOLICITED_HIGH = 3.0
+spam-filter.list.scores.LLM_UNSOLICITED_LOW = 0.5
+spam-filter.list.scores.LLM_UNSOLICITED_MEDIUM = 2.0
+spam-filter.list.scores.LONG_SUBJ = 3.0
+spam-filter.list.scores.MAILLIST = -0.2
+spam-filter.list.scores.MANY_INVISIBLE_PARTS = 1.0
+spam-filter.list.scores.MID_BARE_IP = 2.0
+spam-filter.list.scores.MID_CONTAINS_FROM = 1.0
+spam-filter.list.scores.MID_CONTAINS_TO = 1.0
+spam-filter.list.scores.MID_MISSING_BRACKETS = 1.0
+spam-filter.list.scores.MID_RHS_IP_LITERAL = 1.0
+spam-filter.list.scores.MID_RHS_MATCH_FROM = 1.0
+spam-filter.list.scores.MID_RHS_MATCH_FROMTLD = 0.0
+spam-filter.list.scores.MID_RHS_MATCH_TO = 1.0
+spam-filter.list.scores.MID_RHS_NOT_FQDN = 0.5
+spam-filter.list.scores.MID_RHS_WWW = 0.5
+spam-filter.list.scores.MIME_ARCHIVE_IN_ARCHIVE = 5.0
+spam-filter.list.scores.MIME_BAD = 1.0
+spam-filter.list.scores.MIME_BAD_ATTACHMENT = 4.0
+spam-filter.list.scores.MIME_BAD_EXTENSION = 2.0
+spam-filter.list.scores.MIME_BAD_EXT_WITH_BAD_UNICODE = 8.0
+spam-filter.list.scores.MIME_BAD_UNICODE = 8.0
+spam-filter.list.scores.MIME_BASE64_TEXT = 0.1
+spam-filter.list.scores.MIME_BASE64_TEXT_BOGUS = 1.0
+spam-filter.list.scores.MIME_DOUBLE_BAD_EXTENSION = 2.0
+spam-filter.list.scores.MIME_GOOD = -0.1
+spam-filter.list.scores.MIME_HEADER_CTYPE_ONLY = 2.0
+spam-filter.list.scores.MIME_HTML_ONLY = 0.2
+spam-filter.list.scores.MIME_MA_MISSING_HTML = 1.0
+spam-filter.list.scores.MIME_MA_MISSING_TEXT = 2.0
+spam-filter.list.scores.MISSING_CHARSET = 0.5
+spam-filter.list.scores.MISSING_DATE = 1.0
+spam-filter.list.scores.MISSING_ESSENTIAL_HEADERS = 7.0
+spam-filter.list.scores.MISSING_FROM = 2.0
+spam-filter.list.scores.MISSING_MID = 2.5
+spam-filter.list.scores.MISSING_MIME_VERSION = 2.0
+spam-filter.list.scores.MISSING_SUBJECT = 2.0
+spam-filter.list.scores.MISSING_TO = 2.0
+spam-filter.list.scores.MIXED_CHARSET = 2.0
+spam-filter.list.scores.MIXED_CHARSET_URL = 7.0
+spam-filter.list.scores.MSBL_EBL = 7.5
+spam-filter.list.scores.MSBL_EBL_GREY = 0.5
+spam-filter.list.scores.MULTIPLE_FROM = 8.0
+spam-filter.list.scores.MULTIPLE_UNIQUE_HEADERS = 7.0
+spam-filter.list.scores.MV_CASE = 0.5
+spam-filter.list.scores.MW_SURBL_MULTI = 7.5
+spam-filter.list.scores.NO_SPACE_IN_FROM = 1.0
+spam-filter.list.scores.PARTS_DIFFER = 1.0
+spam-filter.list.scores.PHISHED_OPENPHISH = 7.0
+spam-filter.list.scores.PHISHED_PHISHTANK = 7.0
+spam-filter.list.scores.PHISHING = 4.0
+spam-filter.list.scores.PHISH_EMOTION = 1.0
+spam-filter.list.scores.PH_SURBL_MULTI = 7.5
+spam-filter.list.scores.PRECEDENCE_BULK = 0.0
+spam-filter.list.scores.PREVIOUSLY_DELIVERED = 0.0
+spam-filter.list.scores.PROB_HAM_HIGH = -8.0
+spam-filter.list.scores.PROB_HAM_LOW = -2.0
+spam-filter.list.scores.PROB_HAM_MEDIUM = -6.0
+spam-filter.list.scores.PROB_SPAM_HIGH = 8.0
+spam-filter.list.scores.PROB_SPAM_LOW = 2.0
+spam-filter.list.scores.PROB_SPAM_MEDIUM = 6.0
+spam-filter.list.scores.PROB_SPAM_UNCERTAIN = 0.0
+spam-filter.list.scores.PYZOR = 3.5
+spam-filter.list.scores.RBL_BARRACUDA = 4.0
+spam-filter.list.scores.RBL_BLOCKLISTDE = 4.0
+spam-filter.list.scores.RBL_MAILSPIKE_BAD = 1.0
+spam-filter.list.scores.RBL_MAILSPIKE_VERYBAD = 1.5
+spam-filter.list.scores.RBL_MAILSPIKE_WORST = 2.0
+spam-filter.list.scores.RBL_SEM = 1.0
+spam-filter.list.scores.RBL_SEM_IPV6 = 1.0
+spam-filter.list.scores.RBL_SENDERSCORE_BLOCKED = 0.0
+spam-filter.list.scores.RBL_SENDERSCORE_BOT = 2.0
+spam-filter.list.scores.RBL_SENDERSCORE_NA = 0.0
+spam-filter.list.scores.RBL_SENDERSCORE_NA_BOT = 1.0
+spam-filter.list.scores.RBL_SENDERSCORE_PRST = 2.0
+spam-filter.list.scores.RBL_SENDERSCORE_PRST_BOT = 3.0
+spam-filter.list.scores.RBL_SENDERSCORE_PRST_NA = 2.0
+spam-filter.list.scores.RBL_SENDERSCORE_PRST_NA_BOT = 3.0
+spam-filter.list.scores.RBL_SENDERSCORE_REPUT_0 = 4.0
+spam-filter.list.scores.RBL_SENDERSCORE_REPUT_1 = 3.5
+spam-filter.list.scores.RBL_SENDERSCORE_REPUT_2 = 3.0
+spam-filter.list.scores.RBL_SENDERSCORE_REPUT_3 = 2.5
+spam-filter.list.scores.RBL_SENDERSCORE_REPUT_4 = 2.0
+spam-filter.list.scores.RBL_SENDERSCORE_REPUT_5 = 1.5
+spam-filter.list.scores.RBL_SENDERSCORE_REPUT_6 = 1.0
+spam-filter.list.scores.RBL_SENDERSCORE_REPUT_7 = 0.5
+spam-filter.list.scores.RBL_SENDERSCORE_REPUT_8 = 0.0
+spam-filter.list.scores.RBL_SENDERSCORE_REPUT_9 = -1.0
+spam-filter.list.scores.RBL_SENDERSCORE_REPUT_BLOCKED = 0.0
+spam-filter.list.scores.RBL_SENDERSCORE_REPUT_UNKNOWN = 0.0
+spam-filter.list.scores.RBL_SENDERSCORE_SCORE = 2.0
+spam-filter.list.scores.RBL_SENDERSCORE_SCORE_NA = 2.0
+spam-filter.list.scores.RBL_SENDERSCORE_SCORE_PRST = 4.0
+spam-filter.list.scores.RBL_SENDERSCORE_SCORE_PRST_NA = 4.0
+spam-filter.list.scores.RBL_SENDERSCORE_SCORE_SUS_ATT_NA = 3.0
+spam-filter.list.scores.RBL_SENDERSCORE_SUS_ATT = 1.0
+spam-filter.list.scores.RBL_SENDERSCORE_SUS_ATT_NA = 1.0
+spam-filter.list.scores.RBL_SENDERSCORE_SUS_ATT_NA_BOT = 1.5
+spam-filter.list.scores.RBL_SENDERSCORE_SUS_ATT_PRST_NA = 3.0
+spam-filter.list.scores.RBL_SENDERSCORE_SUS_ATT_PRST_NA_BOT = 3.5
+spam-filter.list.scores.RBL_SPAMCOP = 4.0
+spam-filter.list.scores.RBL_SPAMHAUS_BLOCKED = 0.0
+spam-filter.list.scores.RBL_SPAMHAUS_BLOCKED_OPENRESOLVER = 0.0
+spam-filter.list.scores.RBL_SPAMHAUS_CSS = 2.0
+spam-filter.list.scores.RBL_SPAMHAUS_DROP = 7.0
+spam-filter.list.scores.RBL_SPAMHAUS_PBL = 2.0
+spam-filter.list.scores.RBL_SPAMHAUS_SBL = 4.0
+spam-filter.list.scores.RBL_SPAMHAUS_XBL = 4.0
+spam-filter.list.scores.RBL_VIRUSFREE_BOTNET = 2.0
+spam-filter.list.scores.RCPT_BOUNCEMOREONE = 1.5
+spam-filter.list.scores.RCPT_COUNT_FIVE = 0.0
+spam-filter.list.scores.RCPT_COUNT_GT_50 = 1.0
+spam-filter.list.scores.RCPT_COUNT_ONE = 0.0
+spam-filter.list.scores.RCPT_COUNT_SEVEN = 0.0
+spam-filter.list.scores.RCPT_COUNT_THREE = 0.0
+spam-filter.list.scores.RCPT_COUNT_TWELVE = 0.0
+spam-filter.list.scores.RCPT_COUNT_TWO = 0.0
+spam-filter.list.scores.RCPT_COUNT_ZERO = 0.0
+spam-filter.list.scores.RCPT_DOMAIN_IN_MESSAGE = 2.0
+spam-filter.list.scores.RCPT_DOMAIN_IN_SUBJECT = 2.0
+spam-filter.list.scores.RCPT_IN_SUBJECT = 3.0
+spam-filter.list.scores.RCPT_LOCAL_IN_SUBJECT = 2.0
+spam-filter.list.scores.RCVD_COUNT_FIVE = 0.0
+spam-filter.list.scores.RCVD_COUNT_ONE = 0.0
+spam-filter.list.scores.RCVD_COUNT_SEVEN = 0.0
+spam-filter.list.scores.RCVD_COUNT_THREE = 0.0
+spam-filter.list.scores.RCVD_COUNT_TWELVE = 0.0
+spam-filter.list.scores.RCVD_COUNT_TWO = 0.0
+spam-filter.list.scores.RCVD_COUNT_ZERO = 0.1
+spam-filter.list.scores.RCVD_DKIM_ARC_DNSWL_HI = -1.0
+spam-filter.list.scores.RCVD_DKIM_ARC_DNSWL_MED = -0.5
+spam-filter.list.scores.RCVD_DOUBLE_IP_SPAM = 2.0
+spam-filter.list.scores.RCVD_HELO_USER = 3.0
+spam-filter.list.scores.RCVD_ILLEGAL_CHARS = 4.0
+spam-filter.list.scores.RCVD_IN_DNSWL_HI = -0.5
+spam-filter.list.scores.RCVD_IN_DNSWL_LOW = -0.1
+spam-filter.list.scores.RCVD_IN_DNSWL_MED = -0.2
+spam-filter.list.scores.RCVD_IN_DNSWL_NONE = 0.0
+spam-filter.list.scores.RCVD_NO_TLS_LAST = 0.1
+spam-filter.list.scores.RCVD_TLS_ALL = 0.0
+spam-filter.list.scores.RCVD_TLS_LAST = 0.0
+spam-filter.list.scores.RCVD_UNAUTH_PBL = 2.0
+spam-filter.list.scores.RCVD_VIA_SMTP_AUTH = 0.0
+spam-filter.list.scores.RDNS_DNSFAIL = 0.0
+spam-filter.list.scores.RDNS_NONE = 2.0
+spam-filter.list.scores.RECEIVED_BLOCKLISTDE = 3.0
+spam-filter.list.scores.RECEIVED_SPAMHAUS_BLOCKED = 0.0
+spam-filter.list.scores.RECEIVED_SPAMHAUS_BLOCKED_OPENRESOLVER = 0.0
+spam-filter.list.scores.RECEIVED_SPAMHAUS_CSS = 1.0
+spam-filter.list.scores.RECEIVED_SPAMHAUS_PBL = 0.0
+spam-filter.list.scores.RECEIVED_SPAMHAUS_SBL = 3.0
+spam-filter.list.scores.RECEIVED_SPAMHAUS_XBL = 1.0
+spam-filter.list.scores.REDIRECTOR_URL = 0.0
+spam-filter.list.scores.REDIRECTOR_URL_ONLY = 1.0
+spam-filter.list.scores.REPLYTO_ADDR_EQ_FROM = 0.0
+spam-filter.list.scores.REPLYTO_DN_EQ_FROM_DN = 0.0
+spam-filter.list.scores.REPLYTO_DOM_EQ_FROM_DOM = 0.0
+spam-filter.list.scores.REPLYTO_DOM_NEQ_FROM_DOM = 0.0
+spam-filter.list.scores.REPLYTO_EMAIL_HAS_TITLE = 2.0
+spam-filter.list.scores.REPLYTO_EQ_FROM = 0.0
+spam-filter.list.scores.REPLYTO_EQ_TO_ADDR = 5.0
+spam-filter.list.scores.REPLYTO_EXCESS_BASE64 = 1.5
+spam-filter.list.scores.REPLYTO_EXCESS_QP = 1.2
+spam-filter.list.scores.REPLYTO_UNPARSABLE = 1.0
+spam-filter.list.scores.RWL_MAILSPIKE_EXCELLENT = -0.4
+spam-filter.list.scores.RWL_MAILSPIKE_GOOD = -0.1
+spam-filter.list.scores.RWL_MAILSPIKE_NEUTRAL = 0.0
+spam-filter.list.scores.RWL_MAILSPIKE_POSSIBLE = 0.0
+spam-filter.list.scores.RWL_MAILSPIKE_VERYGOOD = -0.2
+spam-filter.list.scores.SEM_URIBL = 3.5
+spam-filter.list.scores.SEM_URIBL_FRESH15 = 3.0
+spam-filter.list.scores.SEO_SPAM = 5.0
+spam-filter.list.scores.SHORT_PART_BAD_HEADERS = 7.0
+spam-filter.list.scores.SIGNED_PGP = -2.0
+spam-filter.list.scores.SIGNED_SMIME = -2.0
+spam-filter.list.scores.SINGLE_SHORT_PART = 0.0
+spam-filter.list.scores.SORTED_RECIPS = 3.5
+spam-filter.list.scores.SPAM_FLAG = 5.0
+spam-filter.list.scores.SPAM_TRAP = 15.0
+spam-filter.list.scores.SPF_ALLOW = -0.2
+spam-filter.list.scores.SPF_DNSFAIL = 0.0
+spam-filter.list.scores.SPF_FAIL = 1.0
+spam-filter.list.scores.SPF_NA = 0.0
+spam-filter.list.scores.SPF_NEUTRAL = 0.0
+spam-filter.list.scores.SPF_PERMFAIL = 0.0
+spam-filter.list.scores.SPF_SOFTFAIL = 0.0
+spam-filter.list.scores.SPOOF_DISPLAY_NAME = 8.0
+spam-filter.list.scores.SPOOF_REPLYTO = 6.0
+spam-filter.list.scores.SUBJECT_ENDS_EXCLAIM = 0.0
+spam-filter.list.scores.SUBJECT_ENDS_QUESTION = 1.0
+spam-filter.list.scores.SUBJECT_ENDS_SPACES = 0.5
+spam-filter.list.scores.SUBJECT_HAS_CURRENCY = 1.0
+spam-filter.list.scores.SUBJECT_HAS_EXCLAIM = 0.0
+spam-filter.list.scores.SUBJECT_HAS_QUESTION = 0.0
+spam-filter.list.scores.SUBJECT_NEEDS_ENCODING = 1.0
+spam-filter.list.scores.SUBJ_ALL_CAPS = 3.0
+spam-filter.list.scores.SUBJ_BOUNCE_WORDS = 0.0
+spam-filter.list.scores.SUBJ_EXCESS_BASE64 = 1.5
+spam-filter.list.scores.SUBJ_EXCESS_QP = 1.2
+spam-filter.list.scores.SURBL_BLOCKED = 0.0
+spam-filter.list.scores.SURBL_HASHBL_ABUSE = 5.0
+spam-filter.list.scores.SURBL_HASHBL_CRACKED = 5.0
+spam-filter.list.scores.SURBL_HASHBL_EMAIL = 5.0
+spam-filter.list.scores.SURBL_HASHBL_MALWARE = 6.5
+spam-filter.list.scores.SURBL_HASHBL_PHISH = 6.5
+spam-filter.list.scores.SUSPICIOUS_AUTH_ORIGIN = 0.0
+spam-filter.list.scores.SUSPICIOUS_MDN = 2.0
+spam-filter.list.scores.SUSPICIOUS_RECIPS = 1.5
+spam-filter.list.scores.SUSPICIOUS_URL = 5.0
+spam-filter.list.scores.TAGGED_FROM = 0.0
+spam-filter.list.scores.TAGGED_RCPT = 0.0
+spam-filter.list.scores.THREAD_HIJACKING_FROM_INJECTOR = 2.0
+spam-filter.list.scores.TO_DN_ALL = 0.0
+spam-filter.list.scores.TO_DN_EQ_ADDR_ALL = 0.0
+spam-filter.list.scores.TO_DN_EQ_ADDR_SOME = 0.0
+spam-filter.list.scores.TO_DN_NONE = 0.0
+spam-filter.list.scores.TO_DN_RECIPIENTS = 2.0
+spam-filter.list.scores.TO_DN_SOME = 0.0
+spam-filter.list.scores.TO_DOM_EQ_FROM_DOM = 0.0
+spam-filter.list.scores.TO_EQ_FROM = 0.0
+spam-filter.list.scores.TO_EXCESS_BASE64 = 1.5
+spam-filter.list.scores.TO_EXCESS_QP = 1.2
+spam-filter.list.scores.TO_MATCH_ENVRCPT_ALL = 0.0
+spam-filter.list.scores.TO_MATCH_ENVRCPT_SOME = 0.0
+spam-filter.list.scores.TO_NEEDS_ENCODING = 1.0
+spam-filter.list.scores.TO_WRAPPED_IN_SPACES = 2.0
+spam-filter.list.scores.TRUSTED_DOMAIN = -7.0
+spam-filter.list.scores.TRUSTED_REPLY = -7.0
+spam-filter.list.scores.UNDISC_RCPT = 3.0
+spam-filter.list.scores.UNDISC_RCPTS_BULK = 3.0
+spam-filter.list.scores.UNITEDINTERNET_SPAM = 5.0
+spam-filter.list.scores.UNPARSABLE_URL = 0.5
+spam-filter.list.scores.URIBL_BLACK = 7.5
+spam-filter.list.scores.URIBL_BLOCKED = 0.0
+spam-filter.list.scores.URIBL_GREY = 2.5
+spam-filter.list.scores.URIBL_RED = 0.5
+spam-filter.list.scores.URI_COUNT_ODD = 0.5
+spam-filter.list.scores.URI_HIDDEN_PATH = 1.0
+spam-filter.list.scores.URL_IN_SUBJECT = 4.0
+spam-filter.list.scores.URL_ONLY = 2.2
+spam-filter.list.scores.URL_REDIRECTOR_NESTED = 1.0
+spam-filter.list.scores.VIOLATED_DIRECT_SPF = 3.5
+spam-filter.list.scores.WP_COMPROMISED = 0.0
+spam-filter.list.scores.WWW_DOT_DOMAIN = 0.5
+spam-filter.list.scores.XM_CASE = 0.5
+spam-filter.list.scores.XM_UA_NO_VERSION = 0.01
+spam-filter.list.scores.X_PHP_EVAL = 4.0
+spam-filter.list.scores.ZERO_WIDTH_SPACE_URL = 7.0
+spam-filter.llm.categories.0000 = "Unsolicited"
+spam-filter.llm.categories.0001 = "Commercial"
+spam-filter.llm.categories.0002 = "Harmful"
+spam-filter.llm.categories.0003 = "Legitimate"
+spam-filter.llm.confidence.0000 = "High"
+spam-filter.llm.confidence.0001 = "Medium"
+spam-filter.llm.confidence.0002 = "Low"
+spam-filter.llm.enable = false
+spam-filter.llm.index.category = 0
+spam-filter.llm.index.confidence = 1
+spam-filter.llm.index.explanation = 2
+spam-filter.llm.model = ""
+spam-filter.llm.prompt = '''You are an AI assistant specialized in analyzing email content to detect unsolicited, commercial, or harmful messages. Your task is to examine the provided email, including its subject line, and determine if it falls into any of these categories. Please follow these steps:
 
-# Storage Backend Configuration
-[store."postgresql"]
-type = "postgresql"
-host = "postgres-backend"
-port = 5432
-database = "robin"
-user = "robin"
-password = "robin"
-timeout = "15s"
+- Carefully read the entire email content, including the subject line.
+- Look for indicators of unsolicited messages, such as:
+   * Lack of prior relationship or consent
+   * Mass-mailing characteristics
+   * Vague or misleading sender information
+- Identify commercial content by checking for:
+   * Promotional language
+   * Product or service offerings
+   * Call-to-action for purchases
+- Detect potentially harmful content by searching for:
+   * Phishing attempts (requests for personal information, suspicious links)
+   * Malware indicators (suspicious attachments, urgent calls to action)
+   * Scams or fraudulent schemes
+- Analyze the overall tone, intent, and legitimacy of the email.
+- Determine the most appropriate single category for the email: Unsolicited, Commercial, Harmful, or Legitimate.
+- Assess your confidence level in this determination: High, Medium, or Low.
+- Provide a brief explanation for your determination.
+- Format your response as follows, separated by commas: Category,Confidence,Explanation
+  * Example: Unsolicited,High,The email contains mass-mailing characteristics without any prior relationship context.
 
-# PostgreSQL Connection Pool (optimized for high concurrency)
-[store."postgresql".pool]
-max-connections = 100
-workers = 8
-
-[store."postgresql".tls]
-enable = false
-allow-invalid-certs = false
-
-# SQL Queries for Directory Lookups (PostgreSQL uses $1, $2 placeholders)
-[store."postgresql".query]
-# Retrieve account details by name
-name = "SELECT name, type, description, secret, quota FROM accounts WHERE name = $1 AND active = true"
-
-# Fetch groups that an account is a member of
-members = "SELECT member_of FROM group_members WHERE name = $1"
-
-# Retrieve account name(s) associated with an email address
-recipients = "SELECT name FROM emails WHERE address = $1"
-
-# Retrieve email addresses for an account (primary first, then aliases)
-emails = "SELECT address FROM emails WHERE name = $1 ORDER BY type DESC"
-
-# Verify account credentials
-verify = "SELECT name FROM accounts WHERE name = $1 AND secret = $2 AND active = true"
-
-# RocksDB Storage (embedded, for message store)
-[store."rocksdb"]
-type = "rocksdb"
-path = "/opt/stalwart/data"
-compression = "lz4"
-
-# Set RocksDB as data, blob, lookup, and FTS store
-[storage]
-data = "rocksdb"
-blob = "rocksdb"
-lookup = "rocksdb"
-fts = "rocksdb"
-directory = "postgresql"
-
-# Directory Configuration (PostgreSQL-backed authentication)
-[directory."postgresql"]
-type = "sql"
-store = "postgresql"
-
-# Column Mappings
-[directory."postgresql".columns]
-name = "name"
-description = "description"
-secret = "secret"
-quota = "quota"
-class = "type"
-
-# Global Performance Settings
-[global]
-# Thread pool for CPU-intensive tasks (default: number of CPUs)
-# Set higher for better parallelism during high load
-thread-pool = 16
-
-# Cache Configuration (optimized for high performance)
-[cache.email]
-size = 104857600  # 100 MB (increased from default 50 MB)
-
-[cache.dns.txt]
-size = 10485760  # 10 MB (increased from default 5 MB)
-
-[cache.dns.mx]
-size = 10485760  # 10 MB (increased from default 5 MB)
-
-[cache.dns.ptr]
-size = 2097152  # 2 MB (increased from default 1 MB)
-
-# Server Configuration
-[server]
-hostname = "perf-stalwart"
-
-# LMTP Listener (port 24 for MTA delivery)
-[server.listener."lmtp"]
-bind = ["[::]:24"]
-protocol = "lmtp"
-max-connections = 400
-
-# LMTP listener socket options (performance tuning)
-[server.listener."lmtp".socket]
-backlog = 500
-reuse-addr = true
-reuse-port = true
-nodelay = true
-
-# IMAP Listener (port 143 for test verification with STARTTLS)
-[server.listener."imap"]
-bind = ["[::]:143"]
-protocol = "imap"
-max-connections = 200
-tls.implicit = false
-
-# IMAP listener socket options
-[server.listener."imap".socket]
-backlog = 200
-reuse-addr = true
-reuse-port = true
-nodelay = true
-
-# HTTP/JMAP Listener (port 8080 for web admin interface)
-[server.listener."http"]
-bind = ["[::]:8080"]
-protocol = "http"
-max-connections = 100
-tls.implicit = false
-
-# HTTP listener socket options
-[server.listener."http".socket]
-reuse-addr = true
-reuse-port = true
-nodelay = true
-
-# IMAP authentication settings - allow auth with STARTTLS
-[imap.auth]
-allow-plain-text = true
-
-# Disable SMTP listeners (not needed for performance test)
-# Simply omit [server.listener."smtp"] sections
-
-# Authentication Configuration
-[authentication]
-fallback-admin = false
-
-[authentication.master]
-allow = false
-
-# Use PostgreSQL directory for authentication
-[session.auth]
-directories = ["postgresql"]
-# Allow unauthenticated LMTP connections from Robin
-require = [{if = "listener", eq = "lmtp", then = false}, {else = true}]
-
-# Session Configuration
-[session.rcpt]
-directories = ["postgresql"]
-relay = false
-max-recipients = 100
-
-# LMTP Configuration
-[session.rcpt.lmtp]
-directories = ["postgresql"]
-
-[session.data]
-max-message-size = 10485760  # 10 MB (aligned with Robin/Postfix)
-
-[session.data.limits]
-size = 10485760
-received-headers = 50
-
-# Queue Configuration (minimal for LMTP)
-[queue]
-path = "/opt/stalwart/queue"
-hash = 64
-
-[queue.schedule]
-retry = ["1s", "5s", "10s", "30s", "1m", "5m", "10m", "30m", "1h", "2h"]
-notify = ["1h", "6h", "12h"]
-expire = "24h"
-
-# Local delivery routing (deliver to internal mailbox store)
-[queue.route."local"]
-type = "local"
-
-# Disable spam filtering for performance testing
-[spam-filter]
-enable = false
-
-# Disable spam filter in DATA stage
-[session.data.script]
-# Remove default spam-filter script from DATA stage
-
-# Disable rate limiting for performance testing (new syntax)
-[[queue.limiter.inbound]]
-enable = false
-
-# Logging Configuration
-# File-based logging with daily rotation
-[tracer.log]
-type = "log"
-path = "/var/log"
-prefix = "stalwart.log"
-rotate = "daily"
-level = "info"
-ansi = false
-multiline = false
-lossy = false
-enable = true
-
-# Also keep stdout for Docker logs
-[tracer.stdout]
-type = "stdout"
-level = "info"
-ansi = false
-enable = true
+Here's the email to analyze, please provide your analysis based on the above instructions, ensuring your response is in the specified comma-separated format:'''
+spam-filter.llm.separator = ","
+spam-filter.llm.temperature = 0.5
+spam-filter.rule.stwt_arc_signed.condition.0000.if = "$X_HDR_ARC_SEAL"
+spam-filter.rule.stwt_arc_signed.condition.0000.then = "'ARC_SIGNED'"
+spam-filter.rule.stwt_arc_signed.condition.0001.else = false
+spam-filter.rule.stwt_arc_signed.enable = true
+spam-filter.rule.stwt_arc_signed.priority = 1021
+spam-filter.rule.stwt_arc_signed.scope = "any"
+spam-filter.rule.stwt_auth_na.condition.0000.if = "$DKIM_NA && $SPF_NA && $DMARC_NA && $ARC_NA"
+spam-filter.rule.stwt_auth_na.condition.0000.then = "'AUTH_NA'"
+spam-filter.rule.stwt_auth_na.condition.0001.else = false
+spam-filter.rule.stwt_auth_na.enable = true
+spam-filter.rule.stwt_auth_na.priority = 1004
+spam-filter.rule.stwt_auth_na.scope = "any"
+spam-filter.rule.stwt_auth_na_fail.condition.0000.if = "!($DKIM_NA && $SPF_NA && $DMARC_NA && $ARC_NA) && ($DKIM_NA || $DKIM_TEMPFAIL || $DKIM_PERMFAIL) && ($SPF_NA || $SPF_DNSFAIL) && $DMARC_NA && ($ARC_NA || $ARC_DNSFAIL)"
+spam-filter.rule.stwt_auth_na_fail.condition.0000.then = "'AUTH_NA_OR_FAIL'"
+spam-filter.rule.stwt_auth_na_fail.condition.0001.else = false
+spam-filter.rule.stwt_auth_na_fail.enable = true
+spam-filter.rule.stwt_auth_na_fail.priority = 1005
+spam-filter.rule.stwt_auth_na_fail.scope = "any"
+spam-filter.rule.stwt_autogen_php_spammy.condition.0000.if = "($X_HDR_X_PHP_ORIGINATING_SCRIPT || $HAS_PHPMAILER_SIG || $X_HDR_X_PHP_SCRIPT) && ($SUBJECT_ENDS_QUESTION || $SUBJECT_ENDS_EXCLAIM || $MANY_INVISIBLE_PARTS)"
+spam-filter.rule.stwt_autogen_php_spammy.condition.0000.then = "'AUTOGEN_PHP_SPAMMY'"
+spam-filter.rule.stwt_autogen_php_spammy.condition.0001.else = false
+spam-filter.rule.stwt_autogen_php_spammy.enable = true
+spam-filter.rule.stwt_autogen_php_spammy.priority = 1013
+spam-filter.rule.stwt_autogen_php_spammy.scope = "any"
+spam-filter.rule.stwt_blocked_domain.condition.0000.if = "key_exists('blocked-domains', from.domain)"
+spam-filter.rule.stwt_blocked_domain.condition.0000.then = "'BLOCKED_DOMAIN'"
+spam-filter.rule.stwt_blocked_domain.condition.0001.else = false
+spam-filter.rule.stwt_blocked_domain.enable = true
+spam-filter.rule.stwt_blocked_domain.priority = 17
+spam-filter.rule.stwt_blocked_domain.scope = "any"
+spam-filter.rule.stwt_bounce.condition.0000.if = "is_empty(env_from) && ($IS_DSN || $HAS_MESSAGE_PARTS || ($X_HDR_X_MDDSN_MESSAGE && contains_ignore_case(from.name, 'mdaemon')))"
+spam-filter.rule.stwt_bounce.condition.0000.then = "'BOUNCE'"
+spam-filter.rule.stwt_bounce.condition.0001.else = false
+spam-filter.rule.stwt_bounce.enable = true
+spam-filter.rule.stwt_bounce.priority = 14
+spam-filter.rule.stwt_bounce.scope = "any"
+spam-filter.rule.stwt_bounce_no_auth.condition.0000.if = "($AUTH_NA || $AUTH_NA_OR_FAIL) && ($BOUNCE || $SUBJ_BOUNCE_WORDS)"
+spam-filter.rule.stwt_bounce_no_auth.condition.0000.then = "'BOUNCE_NO_AUTH'"
+spam-filter.rule.stwt_bounce_no_auth.condition.0001.else = false
+spam-filter.rule.stwt_bounce_no_auth.enable = true
+spam-filter.rule.stwt_bounce_no_auth.priority = 1006
+spam-filter.rule.stwt_bounce_no_auth.scope = "any"
+spam-filter.rule.stwt_bounce_subject.condition.0000.if = "!$BOUNCE && is_empty(env_from) && $SUBJ_BOUNCE_WORDS && (contains(from.local, 'postmaster') || contains(from.local, 'mailer-daemon'))"
+spam-filter.rule.stwt_bounce_subject.condition.0000.then = "'BOUNCE'"
+spam-filter.rule.stwt_bounce_subject.condition.0001.else = false
+spam-filter.rule.stwt_bounce_subject.enable = true
+spam-filter.rule.stwt_bounce_subject.priority = 21
+spam-filter.rule.stwt_bounce_subject.scope = "any"
+spam-filter.rule.stwt_compromised_acct_bulk.condition.0000.if = "($X_HDR_X_ORIGINATING_IP || $RCVD_VIA_SMTP_AUTH) && $DCC_BULK"
+spam-filter.rule.stwt_compromised_acct_bulk.condition.0000.then = "'COMPROMISED_ACCT_BULK'"
+spam-filter.rule.stwt_compromised_acct_bulk.condition.0001.else = false
+spam-filter.rule.stwt_compromised_acct_bulk.enable = true
+spam-filter.rule.stwt_compromised_acct_bulk.priority = 1008
+spam-filter.rule.stwt_compromised_acct_bulk.scope = "any"
+spam-filter.rule.stwt_direct_to_mx.condition.0000.if = "$RCVD_COUNT_ZERO && !$RCVD_VIA_SMTP_AUTH && ($X_HDR_USER_AGENT || $X_HDR_X_MAILER)"
+spam-filter.rule.stwt_direct_to_mx.condition.0000.then = "'DIRECT_TO_MX'"
+spam-filter.rule.stwt_direct_to_mx.condition.0001.else = false
+spam-filter.rule.stwt_direct_to_mx.enable = true
+spam-filter.rule.stwt_direct_to_mx.priority = 1029
+spam-filter.rule.stwt_direct_to_mx.scope = "any"
+spam-filter.rule.stwt_dkim_signed.condition.0000.if = "$X_HDR_DKIM_SIGNATURE"
+spam-filter.rule.stwt_dkim_signed.condition.0000.then = "'DKIM_SIGNED'"
+spam-filter.rule.stwt_dkim_signed.condition.0001.else = false
+spam-filter.rule.stwt_dkim_signed.enable = true
+spam-filter.rule.stwt_dkim_signed.priority = 1020
+spam-filter.rule.stwt_dkim_signed.scope = "any"
+spam-filter.rule.stwt_dmarc_allow_with_fail.condition.0000.if = "$DMARC_POLICY_ALLOW && ($SPF_SOFTFAIL || $SPF_FAIL || $DKIM_REJECT)"
+spam-filter.rule.stwt_dmarc_allow_with_fail.condition.0000.then = "'DMARC_POLICY_ALLOW_WITH_FAILURES'"
+spam-filter.rule.stwt_dmarc_allow_with_fail.condition.0001.else = false
+spam-filter.rule.stwt_dmarc_allow_with_fail.enable = true
+spam-filter.rule.stwt_dmarc_allow_with_fail.priority = 1003
+spam-filter.rule.stwt_dmarc_allow_with_fail.scope = "any"
+spam-filter.rule.stwt_fake_reply.condition.0000.if = "contains_ignore_case(['re', 'aw', 'antw', 'sv'], split_once(subject, ':')[0]) && !$X_HDR_IN_REPLY_TO && !$X_HDR_REFERENCES"
+spam-filter.rule.stwt_fake_reply.condition.0000.then = "'FAKE_REPLY'"
+spam-filter.rule.stwt_fake_reply.condition.0001.else = false
+spam-filter.rule.stwt_fake_reply.enable = true
+spam-filter.rule.stwt_fake_reply.priority = 24
+spam-filter.rule.stwt_fake_reply.scope = "any"
+spam-filter.rule.stwt_forged_rcpt_list.condition.0000.if = "$FORGED_RECIPIENTS && $MAILLIST"
+spam-filter.rule.stwt_forged_rcpt_list.condition.0000.then = "'FORGED_RECIPIENTS_MAILLIST'"
+spam-filter.rule.stwt_forged_rcpt_list.condition.0001.else = false
+spam-filter.rule.stwt_forged_rcpt_list.enable = true
+spam-filter.rule.stwt_forged_rcpt_list.priority = 1001
+spam-filter.rule.stwt_forged_rcpt_list.scope = "any"
+spam-filter.rule.stwt_forged_sender_list.condition.0000.if = "$FORGED_SENDER && $MAILLIST"
+spam-filter.rule.stwt_forged_sender_list.condition.0000.then = "'FORGED_SENDER_MAILLIST'"
+spam-filter.rule.stwt_forged_sender_list.condition.0001.else = false
+spam-filter.rule.stwt_forged_sender_list.enable = true
+spam-filter.rule.stwt_forged_sender_list.priority = 1002
+spam-filter.rule.stwt_forged_sender_list.scope = "any"
+spam-filter.rule.stwt_free_or_disp.condition.0000.if = "!contains(['env_from', 'from', 'reply_to', 'to', 'cc', 'bcc', 'dnt'], location) || is_empty(sld)"
+spam-filter.rule.stwt_free_or_disp.condition.0000.then = false
+spam-filter.rule.stwt_free_or_disp.condition.0001.if = "key_exists('stwt_free_domains', domain)"
+spam-filter.rule.stwt_free_or_disp.condition.0001.then = "'FREEMAIL_' + to_uppercase(location)"
+spam-filter.rule.stwt_free_or_disp.condition.0002.if = "key_exists('stwt_disposable_domains', domain)"
+spam-filter.rule.stwt_free_or_disp.condition.0002.then = "'DISPOSABLE_' + to_uppercase(location)"
+spam-filter.rule.stwt_free_or_disp.condition.0003.else = false
+spam-filter.rule.stwt_free_or_disp.enable = true
+spam-filter.rule.stwt_free_or_disp.priority = 63
+spam-filter.rule.stwt_free_or_disp.scope = "email"
+spam-filter.rule.stwt_freemail_aff.condition.0000.if = "($FREEMAIL_FROM || $FREEMAIL_ENV_FROM || $FREEMAIL_REPLY_TO) && ($TO_DN_RECIPIENTS || $UNDISC_RCPT) && ($FROM_NAME_HAS_TITLE || $FREEMAIL_REPLY_TO_NEQ_FROM_DOM)"
+spam-filter.rule.stwt_freemail_aff.condition.0000.then = "'FREEMAIL_AFF'"
+spam-filter.rule.stwt_freemail_aff.condition.0001.else = false
+spam-filter.rule.stwt_freemail_aff.enable = true
+spam-filter.rule.stwt_freemail_aff.priority = 1017
+spam-filter.rule.stwt_freemail_aff.scope = "any"
+spam-filter.rule.stwt_freemail_rto_neq_dom.condition.0000.if = "$FREEMAIL_REPLY_TO && from.domain != reply_to.domain"
+spam-filter.rule.stwt_freemail_rto_neq_dom.condition.0000.then = "'FREEMAIL_REPLY_TO_NEQ_FROM_DOM'"
+spam-filter.rule.stwt_freemail_rto_neq_dom.condition.0001.else = false
+spam-filter.rule.stwt_freemail_rto_neq_dom.enable = true
+spam-filter.rule.stwt_freemail_rto_neq_dom.priority = 1022
+spam-filter.rule.stwt_freemail_rto_neq_dom.scope = "any"
+spam-filter.rule.stwt_from_name_space.condition.0000.if = "contains(from.name, '  ')"
+spam-filter.rule.stwt_from_name_space.condition.0000.then = "'FROM_NAME_EXCESS_SPACE'"
+spam-filter.rule.stwt_from_name_space.condition.0001.else = false
+spam-filter.rule.stwt_from_name_space.enable = true
+spam-filter.rule.stwt_from_name_space.priority = 13
+spam-filter.rule.stwt_from_name_space.scope = "any"
+spam-filter.rule.stwt_hacked_wp_phishing.condition.0000.if = "($X_HDR_X_PHP_ORIGINATING_SCRIPT || $HAS_PHPMAILER_SIG) && $HAS_WP_URI && ($PHISHING || $CRACKED_SURBL || $PH_SURBL_MULTI || $DBL_PHISH || $DBL_ABUSE_PHISH || $URIBL_BLACK || $PHISHED_OPENPHISH || $PHISHED_PHISHTANK)"
+spam-filter.rule.stwt_hacked_wp_phishing.condition.0000.then = "'HACKED_WP_PHISHING'"
+spam-filter.rule.stwt_hacked_wp_phishing.condition.0001.else = false
+spam-filter.rule.stwt_hacked_wp_phishing.enable = true
+spam-filter.rule.stwt_hacked_wp_phishing.priority = 1007
+spam-filter.rule.stwt_hacked_wp_phishing.scope = "any"
+spam-filter.rule.stwt_has_anon_domain.condition.0000.if = "$HAS_GUC_PROXY_URI || $URIBL_RED || $DBL_ABUSE_REDIR || $HAS_ONION_URI"
+spam-filter.rule.stwt_has_anon_domain.condition.0000.then = "'HAS_ANON_DOMAIN'"
+spam-filter.rule.stwt_has_anon_domain.condition.0001.else = false
+spam-filter.rule.stwt_has_anon_domain.enable = true
+spam-filter.rule.stwt_has_anon_domain.priority = 1015
+spam-filter.rule.stwt_has_anon_domain.scope = "any"
+spam-filter.rule.stwt_has_google_url.condition.0000.if = "ends_with(host, 'googleusercontent.com') && starts_with(path_query, '/proxy/')"
+spam-filter.rule.stwt_has_google_url.condition.0000.then = "'HAS_GUC_PROXY_URI'"
+spam-filter.rule.stwt_has_google_url.condition.0001.if = "ends_with(host, 'firebasestorage.googleapis.com')"
+spam-filter.rule.stwt_has_google_url.condition.0001.then = "'HAS_GOOGLE_FIREBASE_URL'"
+spam-filter.rule.stwt_has_google_url.condition.0002.if = "starts_with(sld, 'google.') && contains(path_query, 'url?')"
+spam-filter.rule.stwt_has_google_url.condition.0002.then = "'HAS_GOOGLE_REDIR'"
+spam-filter.rule.stwt_has_google_url.condition.0003.else = false
+spam-filter.rule.stwt_has_google_url.enable = true
+spam-filter.rule.stwt_has_google_url.priority = 52
+spam-filter.rule.stwt_has_google_url.scope = "url"
+spam-filter.rule.stwt_has_phpmailer_sig.condition.0000.if = "name_lower == 'x-mailer' && contains(value_lower, 'phpmailer')"
+spam-filter.rule.stwt_has_phpmailer_sig.condition.0000.then = "'HAS_PHPMAILER_SIG'"
+spam-filter.rule.stwt_has_phpmailer_sig.condition.0001.else = false
+spam-filter.rule.stwt_has_phpmailer_sig.enable = true
+spam-filter.rule.stwt_has_phpmailer_sig.priority = 71
+spam-filter.rule.stwt_has_phpmailer_sig.scope = "header"
+spam-filter.rule.stwt_has_seo_word.condition.0000.if = "contains(subject.words, 'SEO') || contains(body.words, 'SEO')"
+spam-filter.rule.stwt_has_seo_word.condition.0000.then = "'HAS_SEO_WORD'"
+spam-filter.rule.stwt_has_seo_word.condition.0001.else = false
+spam-filter.rule.stwt_has_seo_word.enable = true
+spam-filter.rule.stwt_has_seo_word.priority = 1027
+spam-filter.rule.stwt_has_seo_word.scope = "any"
+spam-filter.rule.stwt_has_title.condition.0000.if = "is_intersect(['mr.', 'mrs.', 'ms.', 'dr.', 'prof.', 'rev.', 'hon.'], split(to_lowercase(from.name), ' '))"
+spam-filter.rule.stwt_has_title.condition.0000.then = "'FROM_NAME_HAS_TITLE'"
+spam-filter.rule.stwt_has_title.condition.0001.if = "is_intersect(['mr.', 'mrs.', 'ms.', 'dr.', 'prof.', 'rev.', 'hon.'], split(to_lowercase(reply_to.name), ' '))"
+spam-filter.rule.stwt_has_title.condition.0001.then = "'REPLYTO_EMAIL_HAS_TITLE'"
+spam-filter.rule.stwt_has_title.condition.0002.else = false
+spam-filter.rule.stwt_has_title.enable = true
+spam-filter.rule.stwt_has_title.priority = 12
+spam-filter.rule.stwt_has_title.scope = "any"
+spam-filter.rule.stwt_has_x_as.condition.0000.if = "name_lower == 'x-authenticated-sender' && contains(value, ': ')"
+spam-filter.rule.stwt_has_x_as.condition.0000.then = "'HAS_X_AS'"
+spam-filter.rule.stwt_has_x_as.condition.0001.else = false
+spam-filter.rule.stwt_has_x_as.enable = true
+spam-filter.rule.stwt_has_x_as.priority = 61
+spam-filter.rule.stwt_has_x_as.scope = "header"
+spam-filter.rule.stwt_has_x_gmsv.condition.0000.if = "name_lower == 'x-get-message-sender-via' && contains(value_lower, 'authenticated_id:')"
+spam-filter.rule.stwt_has_x_gmsv.condition.0000.then = "'HAS_X_GMSV'"
+spam-filter.rule.stwt_has_x_gmsv.condition.0001.else = false
+spam-filter.rule.stwt_has_x_gmsv.enable = true
+spam-filter.rule.stwt_has_x_gmsv.priority = 62
+spam-filter.rule.stwt_has_x_gmsv.scope = "header"
+spam-filter.rule.stwt_hidden_source_obj.condition.0000.if = "contains(['x-source', 'x-source-args', 'x-source-dir'], name_lower) && contains(value, '../')"
+spam-filter.rule.stwt_hidden_source_obj.condition.0000.then = "'HIDDEN_SOURCE_OBJ'"
+spam-filter.rule.stwt_hidden_source_obj.condition.0001.else = false
+spam-filter.rule.stwt_hidden_source_obj.enable = true
+spam-filter.rule.stwt_hidden_source_obj.priority = 63
+spam-filter.rule.stwt_hidden_source_obj.scope = "header"
+spam-filter.rule.stwt_hidden_source_php.condition.0000.if = "contains(value, '../') && contains(['x-php-originating-script', 'x-php-script'], name_lower)"
+spam-filter.rule.stwt_hidden_source_php.condition.0000.then = "'HIDDEN_SOURCE_OBJ'"
+spam-filter.rule.stwt_hidden_source_php.condition.0001.else = false
+spam-filter.rule.stwt_hidden_source_php.enable = true
+spam-filter.rule.stwt_hidden_source_php.priority = 65
+spam-filter.rule.stwt_hidden_source_php.scope = "header"
+spam-filter.rule.stwt_info_info_lu.condition.0000.if = "contains(['to', 'cc', 'bcc'], location) && local == 'info' && from.local == 'info' && $X_HDR_LIST_UNSUBSCRIBE"
+spam-filter.rule.stwt_info_info_lu.condition.0000.then = "'INFO_TO_INFO_LU'"
+spam-filter.rule.stwt_info_info_lu.condition.0001.else = false
+spam-filter.rule.stwt_info_info_lu.enable = true
+spam-filter.rule.stwt_info_info_lu.priority = 61
+spam-filter.rule.stwt_info_info_lu.scope = "email"
+spam-filter.rule.stwt_ipfs_or_onion.condition.0000.if = "(contains(host, 'ipfs.') || contains(path_query, '/ipfs')) && contains(path_query, '/qm')"
+spam-filter.rule.stwt_ipfs_or_onion.condition.0000.then = "'HAS_IPFS_GATEWAY_URL'"
+spam-filter.rule.stwt_ipfs_or_onion.condition.0001.if = "ends_with(host, '.onion')"
+spam-filter.rule.stwt_ipfs_or_onion.condition.0001.then = "'HAS_ONION_URI'"
+spam-filter.rule.stwt_ipfs_or_onion.condition.0002.else = false
+spam-filter.rule.stwt_ipfs_or_onion.enable = true
+spam-filter.rule.stwt_ipfs_or_onion.priority = 53
+spam-filter.rule.stwt_ipfs_or_onion.scope = "url"
+spam-filter.rule.stwt_klms_spam.condition.0000.if = "name_lower == 'x-klms-antispam-status' && contains(value_lower, 'spam')"
+spam-filter.rule.stwt_klms_spam.condition.0000.then = "'KLMS_SPAM'"
+spam-filter.rule.stwt_klms_spam.condition.0001.else = false
+spam-filter.rule.stwt_klms_spam.enable = true
+spam-filter.rule.stwt_klms_spam.priority = 68
+spam-filter.rule.stwt_klms_spam.scope = "header"
+spam-filter.rule.stwt_long_subj.condition.0000.if = "len(subject) > 200"
+spam-filter.rule.stwt_long_subj.condition.0000.then = "'LONG_SUBJ'"
+spam-filter.rule.stwt_long_subj.condition.0001.else = false
+spam-filter.rule.stwt_long_subj.enable = true
+spam-filter.rule.stwt_long_subj.priority = 23
+spam-filter.rule.stwt_long_subj.scope = "any"
+spam-filter.rule.stwt_mime_bad_ext_with_bad_unicode.condition.0000.if = "$MIME_BAD_EXTENSION && $MIME_BAD_UNICODE"
+spam-filter.rule.stwt_mime_bad_ext_with_bad_unicode.condition.0000.then = "'MIME_BAD_EXT_WITH_BAD_UNICODE'"
+spam-filter.rule.stwt_mime_bad_ext_with_bad_unicode.condition.0001.else = false
+spam-filter.rule.stwt_mime_bad_ext_with_bad_unicode.enable = true
+spam-filter.rule.stwt_mime_bad_ext_with_bad_unicode.priority = 1026
+spam-filter.rule.stwt_mime_bad_ext_with_bad_unicode.scope = "any"
+spam-filter.rule.stwt_phish_emotion.condition.0000.if = "($PHISHING || $DBL_PHISH || $PHISHED_OPENPHISH || $PHISHED_PHISHTANK) && ($SUBJECT_ENDS_QUESTION || $SUBJECT_ENDS_EXCLAIM)"
+spam-filter.rule.stwt_phish_emotion.condition.0000.then = "'PHISH_EMOTION'"
+spam-filter.rule.stwt_phish_emotion.condition.0001.else = false
+spam-filter.rule.stwt_phish_emotion.enable = true
+spam-filter.rule.stwt_phish_emotion.priority = 1014
+spam-filter.rule.stwt_phish_emotion.scope = "any"
+spam-filter.rule.stwt_phished_open.condition.0000.if = "key_exists('stwt_openphish', url)"
+spam-filter.rule.stwt_phished_open.condition.0000.then = "'PHISHED_OPENPHISH'"
+spam-filter.rule.stwt_phished_open.condition.0001.else = false
+spam-filter.rule.stwt_phished_open.enable = true
+spam-filter.rule.stwt_phished_open.priority = 50
+spam-filter.rule.stwt_phished_open.scope = "url"
+spam-filter.rule.stwt_phished_tank.condition.0000.if = "key_exists('stwt_phishtank', url)"
+spam-filter.rule.stwt_phished_tank.condition.0000.then = "'PHISHED_PHISHTANK'"
+spam-filter.rule.stwt_phished_tank.condition.0001.else = false
+spam-filter.rule.stwt_phished_tank.enable = true
+spam-filter.rule.stwt_phished_tank.priority = 51
+spam-filter.rule.stwt_phished_tank.scope = "url"
+spam-filter.rule.stwt_r_undisc_rcpt.condition.0000.if = "contains(['to', 'cc', 'bcc'], name_lower) && contains(raw_lower, 'undisclosed')"
+spam-filter.rule.stwt_r_undisc_rcpt.condition.0000.then = "'UNDISC_RCPT'"
+spam-filter.rule.stwt_r_undisc_rcpt.condition.0001.else = false
+spam-filter.rule.stwt_r_undisc_rcpt.enable = true
+spam-filter.rule.stwt_r_undisc_rcpt.priority = 60
+spam-filter.rule.stwt_r_undisc_rcpt.scope = "header"
+spam-filter.rule.stwt_rcpt_domain_in_message.condition.0000.if = "$RCPT_DOMAIN_IN_SUBJECT && ($RCPT_DOMAIN_IN_BODY || $RCPT_IN_BODY)"
+spam-filter.rule.stwt_rcpt_domain_in_message.condition.0000.then = "'RCPT_DOMAIN_IN_MESSAGE'"
+spam-filter.rule.stwt_rcpt_domain_in_message.condition.0001.else = false
+spam-filter.rule.stwt_rcpt_domain_in_message.enable = true
+spam-filter.rule.stwt_rcpt_domain_in_message.priority = 15
+spam-filter.rule.stwt_rcpt_domain_in_message.scope = "any"
+spam-filter.rule.stwt_rcvd_dkim_arc_dnswl_hi.condition.0000.if = "($DKIM_ALLOW || $ARC_ALLOW) && $RCVD_IN_DNSWL_HI"
+spam-filter.rule.stwt_rcvd_dkim_arc_dnswl_hi.condition.0000.then = "'RCVD_DKIM_ARC_DNSWL_HI'"
+spam-filter.rule.stwt_rcvd_dkim_arc_dnswl_hi.condition.0001.else = false
+spam-filter.rule.stwt_rcvd_dkim_arc_dnswl_hi.enable = true
+spam-filter.rule.stwt_rcvd_dkim_arc_dnswl_hi.priority = 1012
+spam-filter.rule.stwt_rcvd_dkim_arc_dnswl_hi.scope = "any"
+spam-filter.rule.stwt_rcvd_dkim_arc_dnswl_med.condition.0000.if = "($DKIM_ALLOW || $ARC_ALLOW) && $RCVD_IN_DNSWL_MED"
+spam-filter.rule.stwt_rcvd_dkim_arc_dnswl_med.condition.0000.then = "'RCVD_DKIM_ARC_DNSWL_MED'"
+spam-filter.rule.stwt_rcvd_dkim_arc_dnswl_med.condition.0001.else = false
+spam-filter.rule.stwt_rcvd_dkim_arc_dnswl_med.enable = true
+spam-filter.rule.stwt_rcvd_dkim_arc_dnswl_med.priority = 1011
+spam-filter.rule.stwt_rcvd_dkim_arc_dnswl_med.scope = "any"
+spam-filter.rule.stwt_rcvd_unauth_pbl.condition.0000.if = "$RECEIVED_SPAMHAUS_PBL && !$RCVD_VIA_SMTP_AUTH"
+spam-filter.rule.stwt_rcvd_unauth_pbl.condition.0000.then = "'RCVD_UNAUTH_PBL'"
+spam-filter.rule.stwt_rcvd_unauth_pbl.condition.0001.else = false
+spam-filter.rule.stwt_rcvd_unauth_pbl.enable = true
+spam-filter.rule.stwt_rcvd_unauth_pbl.priority = 1010
+spam-filter.rule.stwt_rcvd_unauth_pbl.scope = "any"
+spam-filter.rule.stwt_redirector_url_only.condition.0000.if = "$URL_ONLY && $REDIRECTOR_URL"
+spam-filter.rule.stwt_redirector_url_only.condition.0000.then = "'REDIRECTOR_URL_ONLY'"
+spam-filter.rule.stwt_redirector_url_only.condition.0001.else = false
+spam-filter.rule.stwt_redirector_url_only.enable = true
+spam-filter.rule.stwt_redirector_url_only.priority = 1018
+spam-filter.rule.stwt_redirector_url_only.scope = "any"
+spam-filter.rule.stwt_sabuse_from_injector.condition.0000.if = "$SUSPICIOUS_AUTH_ORIGIN && ($RCVD_HELO_USER || $FAKE_REPLY || $HAS_IPFS_GATEWAY_URL || $HTML_SHORT_LINK_IMG_1)"
+spam-filter.rule.stwt_sabuse_from_injector.condition.0000.then = "'ABUSE_FROM_INJECTOR'"
+spam-filter.rule.stwt_sabuse_from_injector.condition.0001.else = false
+spam-filter.rule.stwt_sabuse_from_injector.enable = true
+spam-filter.rule.stwt_sabuse_from_injector.priority = 1025
+spam-filter.rule.stwt_sabuse_from_injector.scope = "any"
+spam-filter.rule.stwt_seo_spam.condition.0000.if = "$HAS_SEO_WORD && ($RCPT_DOMAIN_IN_BODY || $RCPT_IN_BODY || $FREEMAIL_FROM)"
+spam-filter.rule.stwt_seo_spam.condition.0000.then = "'SEO_SPAM'"
+spam-filter.rule.stwt_seo_spam.condition.0001.else = false
+spam-filter.rule.stwt_seo_spam.enable = true
+spam-filter.rule.stwt_seo_spam.priority = 1028
+spam-filter.rule.stwt_seo_spam.scope = "any"
+spam-filter.rule.stwt_short_bad_headers.condition.0000.if = "$MISSING_ESSENTIAL_HEADERS && $SINGLE_SHORT_PART"
+spam-filter.rule.stwt_short_bad_headers.condition.0000.then = "'SHORT_PART_BAD_HEADERS'"
+spam-filter.rule.stwt_short_bad_headers.condition.0001.else = false
+spam-filter.rule.stwt_short_bad_headers.enable = true
+spam-filter.rule.stwt_short_bad_headers.priority = 1000
+spam-filter.rule.stwt_short_bad_headers.scope = "any"
+spam-filter.rule.stwt_short_link_img.condition.0000.if = "!$HAS_LINK_TO_LARGE_IMG"
+spam-filter.rule.stwt_short_link_img.condition.0000.then = false
+spam-filter.rule.stwt_short_link_img.condition.0001.if = "$HTML_SHORT_1"
+spam-filter.rule.stwt_short_link_img.condition.0001.then = "'HTML_SHORT_LINK_IMG_1'"
+spam-filter.rule.stwt_short_link_img.condition.0002.if = "$HTML_SHORT_2"
+spam-filter.rule.stwt_short_link_img.condition.0002.then = "'HTML_SHORT_LINK_IMG_2'"
+spam-filter.rule.stwt_short_link_img.condition.0003.if = "$HTML_SHORT_3"
+spam-filter.rule.stwt_short_link_img.condition.0003.then = "'HTML_SHORT_LINK_IMG_3'"
+spam-filter.rule.stwt_short_link_img.condition.0004.else = false
+spam-filter.rule.stwt_short_link_img.enable = true
+spam-filter.rule.stwt_short_link_img.priority = 1030
+spam-filter.rule.stwt_short_link_img.scope = "any"
+spam-filter.rule.stwt_spam_flag.condition.0000.if = "contains(['x-spam', 'x-spam-flag', 'x-spam-status'], name_lower) && (contains(value_lower, 'yes') || contains(value_lower, 'true') || contains(value_lower, 'spam'))"
+spam-filter.rule.stwt_spam_flag.condition.0000.then = "'SPAM_FLAG'"
+spam-filter.rule.stwt_spam_flag.condition.0001.else = false
+spam-filter.rule.stwt_spam_flag.enable = true
+spam-filter.rule.stwt_spam_flag.priority = 67
+spam-filter.rule.stwt_spam_flag.scope = "header"
+spam-filter.rule.stwt_subj_bounce_words.condition.0000.if = '''(contains(subject, 'delivery') && 
+            (contains(subject, 'failed') || 
+             contains(subject, 'report') || 
+             contains(subject, 'status') || 
+             contains(subject, 'warning'))) ||
+         (contains(subject, 'failure') && 
+            (contains(subject, 'delivery') || 
+             contains(subject, 'notice') || 
+             contains(subject, 'mail') )) ||
+         (contains(subject, 'delivered') &&
+            (contains(subject, 'couldn\'t be') || 
+             contains(subject, 'could not be') || 
+             contains(subject, 'hasn\'t been') || 
+             contains(subject, 'has not been'))) ||
+         contains(subject, 'returned mail') ||
+         contains(subject, 'undeliverable') || 
+         contains(subject, 'undelivered')'''
+spam-filter.rule.stwt_subj_bounce_words.condition.0000.then = "'SUBJ_BOUNCE_WORDS'"
+spam-filter.rule.stwt_subj_bounce_words.condition.0001.else = false
+spam-filter.rule.stwt_subj_bounce_words.enable = true
+spam-filter.rule.stwt_subj_bounce_words.priority = 20
+spam-filter.rule.stwt_subj_bounce_words.scope = "any"
+spam-filter.rule.stwt_subject_has_symbols.condition.0000.if = "ends_with(trim(subject), '!')"
+spam-filter.rule.stwt_subject_has_symbols.condition.0000.then = "'SUBJECT_ENDS_EXCLAIM'"
+spam-filter.rule.stwt_subject_has_symbols.condition.0001.if = "ends_with(trim(subject), '?')"
+spam-filter.rule.stwt_subject_has_symbols.condition.0001.then = "'SUBJECT_ENDS_QUESTION'"
+spam-filter.rule.stwt_subject_has_symbols.condition.0002.if = "contains(subject, '!')"
+spam-filter.rule.stwt_subject_has_symbols.condition.0002.then = "'SUBJECT_HAS_EXCLAIM'"
+spam-filter.rule.stwt_subject_has_symbols.condition.0003.if = "contains(subject, '?')"
+spam-filter.rule.stwt_subject_has_symbols.condition.0003.then = "'SUBJECT_HAS_QUESTION'"
+spam-filter.rule.stwt_subject_has_symbols.condition.0004.else = false
+spam-filter.rule.stwt_subject_has_symbols.enable = true
+spam-filter.rule.stwt_subject_has_symbols.priority = 22
+spam-filter.rule.stwt_subject_has_symbols.scope = "any"
+spam-filter.rule.stwt_suspicious_auth_origin.condition.0000.if = "($X_HDR_X_ORIGINATING_IP || $RCVD_VIA_SMTP_AUTH) && ($RECEIVED_SPAMHAUS_PBL || $RECEIVED_SPAMHAUS_XBL || $RECEIVED_SPAMHAUS_SBL || $RECEIVED_BLOCKLISTDE)"
+spam-filter.rule.stwt_suspicious_auth_origin.condition.0000.then = "'SUSPICIOUS_AUTH_ORIGIN'"
+spam-filter.rule.stwt_suspicious_auth_origin.condition.0001.else = false
+spam-filter.rule.stwt_suspicious_auth_origin.enable = true
+spam-filter.rule.stwt_suspicious_auth_origin.priority = 1024
+spam-filter.rule.stwt_suspicious_auth_origin.scope = "any"
+spam-filter.rule.stwt_suspicious_mdn.condition.0000.if = "($FREEMAIL_DNT || $DISPOSABLE_DNT) && !($FREEMAIL_FROM || $FREEMAIL_ENV_FROM)"
+spam-filter.rule.stwt_suspicious_mdn.condition.0000.then = "'SUSPICIOUS_MDN'"
+spam-filter.rule.stwt_suspicious_mdn.condition.0001.else = false
+spam-filter.rule.stwt_suspicious_mdn.enable = true
+spam-filter.rule.stwt_suspicious_mdn.priority = 1023
+spam-filter.rule.stwt_suspicious_mdn.scope = "any"
+spam-filter.rule.stwt_svc_or_tagged.condition.0000.if = "is_intersect(['www-data', 'anonymous', 'ftp', 'apache', 'nobody', 'guest', 'nginx', 'web', 'www'], [from.local, env_from.local, reply_to.local])"
+spam-filter.rule.stwt_svc_or_tagged.condition.0000.then = "'FROM_SERVICE_ACCT'"
+spam-filter.rule.stwt_svc_or_tagged.condition.0001.if = "contains(from.local, '+')"
+spam-filter.rule.stwt_svc_or_tagged.condition.0001.then = "'TAGGED_FROM'"
+spam-filter.rule.stwt_svc_or_tagged.condition.0002.else = false
+spam-filter.rule.stwt_svc_or_tagged.enable = true
+spam-filter.rule.stwt_svc_or_tagged.priority = 10
+spam-filter.rule.stwt_svc_or_tagged.scope = "any"
+spam-filter.rule.stwt_tagged_rcpt.condition.0000.if = "contains(['to', 'cc', 'bcc'], location) && contains(local, '+')"
+spam-filter.rule.stwt_tagged_rcpt.condition.0000.then = "'TAGGED_RCPT'"
+spam-filter.rule.stwt_tagged_rcpt.condition.0001.else = false
+spam-filter.rule.stwt_tagged_rcpt.enable = true
+spam-filter.rule.stwt_tagged_rcpt.priority = 62
+spam-filter.rule.stwt_tagged_rcpt.scope = "email"
+spam-filter.rule.stwt_thread_hijacking.condition.0000.if = "$FAKE_REPLY && $RCVD_VIA_SMTP_AUTH && (!$RECEIVED_SPAMHAUS_PBL || $RECEIVED_SPAMHAUS_XBL || $RECEIVED_SPAMHAUS_SBL)"
+spam-filter.rule.stwt_thread_hijacking.condition.0000.then = "'THREAD_HIJACKING_FROM_INJECTOR'"
+spam-filter.rule.stwt_thread_hijacking.condition.0001.else = false
+spam-filter.rule.stwt_thread_hijacking.enable = true
+spam-filter.rule.stwt_thread_hijacking.priority = 1019
+spam-filter.rule.stwt_thread_hijacking.scope = "any"
+spam-filter.rule.stwt_to_dn_recipients.condition.0000.if = "contains(['to', 'cc', 'bcc'], location) && contains_ignore_case(name, 'recipient')"
+spam-filter.rule.stwt_to_dn_recipients.condition.0000.then = "'TO_DN_RECIPIENTS'"
+spam-filter.rule.stwt_to_dn_recipients.condition.0001.else = false
+spam-filter.rule.stwt_to_dn_recipients.enable = true
+spam-filter.rule.stwt_to_dn_recipients.priority = 60
+spam-filter.rule.stwt_to_dn_recipients.scope = "email"
+spam-filter.rule.stwt_trusted_domain.condition.0000.if = "$DMARC_POLICY_ALLOW && key_exists('trusted-domains', from.domain)"
+spam-filter.rule.stwt_trusted_domain.condition.0000.then = "'TRUSTED_DOMAIN'"
+spam-filter.rule.stwt_trusted_domain.condition.0001.else = false
+spam-filter.rule.stwt_trusted_domain.enable = true
+spam-filter.rule.stwt_trusted_domain.priority = 16
+spam-filter.rule.stwt_trusted_domain.scope = "any"
+spam-filter.rule.stwt_undisc_rcpts_bulk.condition.0000.if = "$DCC_BULK && ($MISSING_TO || $UNDISC_RCPT)"
+spam-filter.rule.stwt_undisc_rcpts_bulk.condition.0000.then = "'UNDISC_RCPTS_BULK'"
+spam-filter.rule.stwt_undisc_rcpts_bulk.condition.0001.else = false
+spam-filter.rule.stwt_undisc_rcpts_bulk.enable = true
+spam-filter.rule.stwt_undisc_rcpts_bulk.priority = 1009
+spam-filter.rule.stwt_undisc_rcpts_bulk.scope = "any"
+spam-filter.rule.stwt_unitedinternet_spam.condition.0000.if = "contains(['x-ui-filterresults', 'x-ui-out-filterresults', 'x-source-dir'], name_lower) && contains(value_lower, 'junk')"
+spam-filter.rule.stwt_unitedinternet_spam.condition.0000.then = "'UNITEDINTERNET_SPAM'"
+spam-filter.rule.stwt_unitedinternet_spam.condition.0001.else = false
+spam-filter.rule.stwt_unitedinternet_spam.enable = true
+spam-filter.rule.stwt_unitedinternet_spam.priority = 66
+spam-filter.rule.stwt_unitedinternet_spam.scope = "header"
+spam-filter.rule.stwt_uri_hidden_path.condition.0000.if = "contains(path_query, '/../') && !contains(path_query, '/well-known') && !contains(path_query, '/well_known')"
+spam-filter.rule.stwt_uri_hidden_path.condition.0000.then = "'URI_HIDDEN_PATH'"
+spam-filter.rule.stwt_uri_hidden_path.condition.0001.else = false
+spam-filter.rule.stwt_uri_hidden_path.enable = true
+spam-filter.rule.stwt_uri_hidden_path.priority = 55
+spam-filter.rule.stwt_uri_hidden_path.scope = "url"
+spam-filter.rule.stwt_violated_direct_spf.condition.0000.if = "($SPF_FAIL || $SPF_SOFTFAIL) && ($RCVD_COUNT_ZERO || $RCVD_NO_TLS_LAST)"
+spam-filter.rule.stwt_violated_direct_spf.condition.0000.then = "'VIOLATED_DIRECT_SPF'"
+spam-filter.rule.stwt_violated_direct_spf.condition.0001.else = false
+spam-filter.rule.stwt_violated_direct_spf.enable = true
+spam-filter.rule.stwt_violated_direct_spf.priority = 1016
+spam-filter.rule.stwt_violated_direct_spf.scope = "any"
+spam-filter.rule.stwt_wp_compromised.condition.0000.if = "starts_with(path, '/wp-content') || starts_with(path, '/wp-includes')"
+spam-filter.rule.stwt_wp_compromised.condition.0000.then = "'WP_COMPROMISED'"
+spam-filter.rule.stwt_wp_compromised.condition.0001.if = "starts_with(path, '/wp-')"
+spam-filter.rule.stwt_wp_compromised.condition.0001.then = "'HAS_WP_URI'"
+spam-filter.rule.stwt_wp_compromised.condition.0002.else = false
+spam-filter.rule.stwt_wp_compromised.enable = true
+spam-filter.rule.stwt_wp_compromised.priority = 54
+spam-filter.rule.stwt_wp_compromised.scope = "url"
+spam-filter.rule.stwt_www_domain.condition.0000.if = "starts_with(from.domain, 'www.') || starts_with(reply_to.domain, 'www.')"
+spam-filter.rule.stwt_www_domain.condition.0000.then = "'WWW_DOT_DOMAIN'"
+spam-filter.rule.stwt_www_domain.condition.0001.else = false
+spam-filter.rule.stwt_www_domain.enable = true
+spam-filter.rule.stwt_www_domain.priority = 11
+spam-filter.rule.stwt_www_domain.scope = "any"
+spam-filter.rule.stwt_x_php_eval.condition.0000.if = "contains(value_lower, 'eval()') && contains(['x-php-originating-script', 'x-php-script'], name_lower)"
+spam-filter.rule.stwt_x_php_eval.condition.0000.then = "'X_PHP_EVAL'"
+spam-filter.rule.stwt_x_php_eval.condition.0001.else = false
+spam-filter.rule.stwt_x_php_eval.enable = true
+spam-filter.rule.stwt_x_php_eval.priority = 64
+spam-filter.rule.stwt_x_php_eval.scope = "header"
+spam-filter.rule.stwt_xm_case.condition.0000.if = "name_lower == 'x-mailer' && name != 'X-Mailer'"
+spam-filter.rule.stwt_xm_case.condition.0000.then = "'XM_CASE'"
+spam-filter.rule.stwt_xm_case.condition.0001.else = false
+spam-filter.rule.stwt_xm_case.enable = true
+spam-filter.rule.stwt_xm_case.priority = 69
+spam-filter.rule.stwt_xm_case.scope = "header"
+spam-filter.rule.stwt_xm_ua_no_version.condition.0000.if = "(name_lower == 'user_agent' || name_lower == 'x-mailer') && !is_empty(value) && !has_digits(value)"
+spam-filter.rule.stwt_xm_ua_no_version.condition.0000.then = "'XM_UA_NO_VERSION'"
+spam-filter.rule.stwt_xm_ua_no_version.condition.0001.else = false
+spam-filter.rule.stwt_xm_ua_no_version.enable = true
+spam-filter.rule.stwt_xm_ua_no_version.priority = 70
+spam-filter.rule.stwt_xm_ua_no_version.scope = "header"
+storage.blob = "rocksdb"
+storage.data = "rocksdb"
+storage.directory = "postgresql"
+storage.fts = "rocksdb"
+storage.lookup = "rocksdb"
+store.postgresql.database = "robin"
+store.postgresql.host = "postgres-backend"
+store.postgresql.password = "robin"
+store.postgresql.pool.max-connections = 100
+store.postgresql.pool.workers = 8
+store.postgresql.port = 5432
+store.postgresql.query.emails = "SELECT address FROM emails WHERE name = $1 ORDER BY type DESC"
+store.postgresql.query.members = "SELECT member_of FROM group_members WHERE name = $1"
+store.postgresql.query.name = "SELECT name, type, description, secret, quota FROM accounts WHERE name = $1 AND active = true"
+store.postgresql.query.recipients = "SELECT name FROM emails WHERE address = $1"
+store.postgresql.query.verify = "SELECT name FROM accounts WHERE name = $1 AND secret = $2 AND active = true"
+store.postgresql.timeout = "15s"
+store.postgresql.tls.allow-invalid-certs = false
+store.postgresql.tls.enable = false
+store.postgresql.type = "postgresql"
+store.postgresql.user = "robin"
+store.rocksdb.compression = "lz4"
+store.rocksdb.path = "/opt/stalwart/data"
+store.rocksdb.type = "rocksdb"
+tracer.log.ansi = false
+tracer.log.enable = true
+tracer.log.level = "warn"
+tracer.log.lossy = false
+tracer.log.multiline = false
+tracer.log.path = "/var/log"
+tracer.log.prefix = "stalwart.log"
+tracer.log.rotate = "daily"
+tracer.log.type = "log"
+tracer.stdout.ansi = false
+tracer.stdout.enable = true
+tracer.stdout.level = "warn"
+tracer.stdout.type = "stdout"

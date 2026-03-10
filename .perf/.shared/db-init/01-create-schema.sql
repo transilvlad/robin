@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
     uid INTEGER NOT NULL DEFAULT 5000,
     gid INTEGER NOT NULL DEFAULT 5000,
     home TEXT,
-    maildir TEXT,
+    mail_location TEXT,
     active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
