@@ -74,6 +74,60 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
     }
 
     @Override
+    public synchronized void applyMutations(QueueMutationBatch<T> batch) {
+        if (batch == null || batch.isEmpty()) {
+            return;
+        }
+
+        for (QueueMutation<T> mutation : batch.mutations()) {
+            if (mutation == null || mutation.item() == null) {
+                continue;
+            }
+
+            QueueItem<T> item = mutation.item();
+            switch (mutation.type()) {
+                case ACK -> deleteInternal(item.getUid());
+                case RESCHEDULE -> {
+                    QueueItem<T> existing = items.get(item.getUid());
+                    if (existing != null) {
+                        removeIndexes(existing);
+                        existing.setPayload(item.getPayload())
+                                .setRetryCount(item.getRetryCount())
+                                .setProtocol(item.getProtocol())
+                                .setSessionUid(item.getSessionUid())
+                                .setLastError(mutation.lastError())
+                                .readyAt(mutation.nextAttemptAtEpochSeconds());
+                        putItem(existing);
+                    }
+                }
+                case DEAD -> {
+                    QueueItem<T> existing = items.get(item.getUid());
+                    if (existing != null) {
+                        removeIndexes(existing);
+                        if (existing.getState() != QueueItemState.DEAD) {
+                            deadCount.set(deadCount.get() + 1L);
+                        }
+                        existing.setPayload(item.getPayload())
+                                .setRetryCount(item.getRetryCount())
+                                .setProtocol(item.getProtocol())
+                                .setSessionUid(item.getSessionUid())
+                                .dead(mutation.lastError());
+                        putItem(existing);
+                    }
+                }
+            }
+        }
+
+        for (T newItem : batch.newItems()) {
+            QueueItem<T> queueItem = QueueItem.ready(newItem);
+            removeIndexes(queueItem);
+            putItem(queueItem);
+        }
+
+        commit();
+    }
+
+    @Override
     public synchronized List<QueueItem<T>> claimReady(int limit, long nowEpochSeconds, String consumerId,
                                                       long claimUntilEpochSeconds) {
         List<QueueItem<T>> claimed = new ArrayList<>();
@@ -95,7 +149,7 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
             item.claim(consumerId, claimUntilEpochSeconds);
             items.put(uid, item);
             claimedIndex.put(sortKey(item.getClaimedUntilEpochSeconds(), item.getCreatedAtEpochSeconds(), uid), uid);
-            claimed.add(item);
+            claimed.add(copyItem(item));
         }
         commit();
         return claimed;
@@ -103,7 +157,7 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
 
     @Override
     public synchronized boolean acknowledge(String uid) {
-        boolean removed = deleteByUID(uid);
+        boolean removed = deleteInternal(uid);
         if (removed) {
             commit();
         }
@@ -112,20 +166,9 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
 
     @Override
     public synchronized boolean reschedule(QueueItem<T> item, long nextAttemptAtEpochSeconds, String lastError) {
-        QueueItem<T> existing = items.get(item.getUid());
-        if (existing == null) {
-            return false;
-        }
-        removeIndexes(existing);
-        existing.setPayload(item.getPayload())
-                .setRetryCount(item.getRetryCount())
-                .setProtocol(item.getProtocol())
-                .setSessionUid(item.getSessionUid())
-                .setLastError(lastError)
-                .readyAt(nextAttemptAtEpochSeconds);
-        putItem(existing);
-        commit();
-        return true;
+        boolean exists = items.containsKey(item.getUid());
+        applyMutations(new QueueMutationBatch<>(List.of(QueueMutation.reschedule(item, nextAttemptAtEpochSeconds, lastError)), List.of()));
+        return exists;
     }
 
     @Override
@@ -156,12 +199,7 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
         if (item == null) {
             return false;
         }
-        removeIndexes(item);
-        item.dead(lastError);
-        items.put(uid, item);
-        createdIndex.put(sortKey(item.getCreatedAtEpochSeconds(), item.getCreatedAtEpochSeconds(), uid), uid);
-        deadCount.set(deadCount.get() + 1L);
-        commit();
+        applyMutations(new QueueMutationBatch<>(List.of(QueueMutation.dead(item, lastError)), List.of()));
         return true;
     }
 
@@ -194,26 +232,22 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
         int safeLimit = Math.max(0, limit);
         int end = Math.min(all.size(), safeOffset + safeLimit);
         List<QueueItem<T>> slice = safeOffset >= all.size() ? List.of() : new ArrayList<>(all.subList(safeOffset, end));
-        return new QueuePage<>(all.size(), slice);
+        return new QueuePage<>(all.size(), slice.stream().map(this::copyItem).toList());
     }
 
     @Override
     public synchronized QueueItem<T> getByUID(String uid) {
-        return items.get(uid);
+        QueueItem<T> item = items.get(uid);
+        return item == null ? null : copyItem(item);
     }
 
     @Override
     public synchronized boolean deleteByUID(String uid) {
-        QueueItem<T> item = items.remove(uid);
-        if (item == null) {
-            return false;
+        boolean removed = deleteInternal(uid);
+        if (removed) {
+            commit();
         }
-        if (item.getState() == QueueItemState.DEAD) {
-            deadCount.set(Math.max(0L, deadCount.get() - 1L));
-        }
-        removeIndexes(item);
-        commit();
-        return true;
+        return removed;
     }
 
     @Override
@@ -223,9 +257,12 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
         }
         int removed = 0;
         for (String uid : new LinkedHashSet<>(uids)) {
-            if (deleteByUID(uid)) {
+            if (deleteInternal(uid)) {
                 removed++;
             }
+        }
+        if (removed > 0) {
+            commit();
         }
         return removed;
     }
@@ -256,6 +293,25 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
         }
     }
 
+    private QueueItem<T> copyItem(QueueItem<T> item) {
+        if (item == null) {
+            return null;
+        }
+        @SuppressWarnings("unchecked")
+        T payloadCopy = (T) QueuePayloadCodec.deserialize(QueuePayloadCodec.serialize(item.getPayload()));
+        QueueItem<T> copy = QueueItem.restore(item.getUid(), item.getCreatedAtEpochSeconds(), payloadCopy);
+        copy.setState(item.getState());
+        copy.setUpdatedAtEpochSeconds(item.getUpdatedAtEpochSeconds());
+        copy.setNextAttemptAtEpochSeconds(item.getNextAttemptAtEpochSeconds());
+        copy.setClaimedUntilEpochSeconds(item.getClaimedUntilEpochSeconds());
+        copy.setClaimOwner(item.getClaimOwner());
+        copy.setRetryCount(item.getRetryCount());
+        copy.setProtocol(item.getProtocol());
+        copy.setSessionUid(item.getSessionUid());
+        copy.setLastError(item.getLastError());
+        return copy;
+    }
+
     private void putItem(QueueItem<T> item) {
         items.put(item.getUid(), item);
         createdIndex.put(sortKey(item.getCreatedAtEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()), item.getUid());
@@ -264,6 +320,18 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
         } else if (item.getState() == QueueItemState.CLAIMED) {
             claimedIndex.put(sortKey(item.getClaimedUntilEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()), item.getUid());
         }
+    }
+
+    private boolean deleteInternal(String uid) {
+        QueueItem<T> item = items.remove(uid);
+        if (item == null) {
+            return false;
+        }
+        if (item.getState() == QueueItemState.DEAD) {
+            deadCount.set(Math.max(0L, deadCount.get() - 1L));
+        }
+        removeIndexes(item);
+        return true;
     }
 
     private void removeIndexes(QueueItem<T> item) {

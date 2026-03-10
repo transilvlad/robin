@@ -35,7 +35,8 @@ public class QueueMariaDB<T extends Serializable> extends SQLQueueDatabase<T> {
             mariaDBConfig.getStringProperty("jdbcUrl", "jdbc:mariadb://localhost:3306/robin"),
             mariaDBConfig.getStringProperty("username", "robin"),
             mariaDBConfig.getStringProperty("password", ""),
-            mariaDBConfig.getStringProperty("tableName", "queue")
+            mariaDBConfig.getStringProperty("tableName", "queue"),
+            Math.toIntExact(mariaDBConfig.getLongProperty("maxPoolSize", 16L))
         );
     }
 

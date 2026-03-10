@@ -137,11 +137,20 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
                 RetryScheduler.getFirstWaitMinutes(),
                 RetryScheduler.getGrowthFactor());
 
-        String serviceJson = String.format("{\"startDelaySeconds\":%d,\"housekeepingIntervalSeconds\":%d,\"workerThreads\":%d,\"maxInFlight\":%d,\"lastDispatchEpochSeconds\":%d,\"lastHousekeepingEpochSeconds\":%d,\"nextHousekeepingEpochSeconds\":%d}",
+        String serviceJson = String.format("{\"startDelaySeconds\":%d,\"housekeepingIntervalSeconds\":%d,\"workerThreads\":%d,\"maxInFlight\":%d,\"dispatchIdleMinMillis\":%d,\"dispatchIdleMaxMillis\":%d,\"currentDispatchIdleMillis\":%d,\"outcomeBatchSize\":%d,\"outcomeFlushMillis\":%d,\"currentOutcomeQueueDepth\":%d,\"currentInFlight\":%d,\"lastMutationBatchSize\":%d,\"lastMutationCommitDurationMillis\":%d,\"lastDispatchEpochSeconds\":%d,\"lastHousekeepingEpochSeconds\":%d,\"nextHousekeepingEpochSeconds\":%d}",
                 RelayQueueService.getStartDelaySeconds(),
                 RelayQueueService.getHousekeepingIntervalSeconds(),
                 RelayQueueService.getWorkerThreads(),
                 RelayQueueService.getMaxInFlight(),
+                RelayQueueService.getDispatchIdleMinMillis(),
+                RelayQueueService.getDispatchIdleMaxMillis(),
+                RelayQueueService.getCurrentDispatchIdleMillis(),
+                RelayQueueService.getOutcomeBatchSize(),
+                RelayQueueService.getOutcomeFlushMillis(),
+                RelayQueueService.getCurrentOutcomeQueueDepth(),
+                RelayQueueService.getCurrentInFlight(),
+                RelayQueueService.getLastMutationBatchSize(),
+                RelayQueueService.getLastMutationCommitDurationMillis(),
                 RelayQueueService.getLastDispatchEpochSeconds(),
                 RelayQueueService.getLastHousekeepingEpochSeconds(),
                 RelayQueueService.getNextHousekeepingEpochSeconds());
@@ -197,7 +206,7 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
             return "{\"enabled\":false}";
         }
 
-        return String.format("{\"enabled\":true,\"maxSize\":%d,\"total\":%d,\"idle\":%d,\"borrowed\":%d,\"borrowTimeouts\":%d,\"invalidations\":%d,\"resetFailures\":%d,\"transactionFailures\":%d,\"connectionFailures\":%d,\"deliverySuccesses\":%d}",
+        return String.format("{\"enabled\":true,\"maxSize\":%d,\"total\":%d,\"idle\":%d,\"borrowed\":%d,\"borrowTimeouts\":%d,\"invalidations\":%d,\"resetFailures\":%d,\"transactionFailures\":%d,\"connectionFailures\":%d,\"deliverySuccesses\":%d,\"maxMessagesPerConnection\":%d,\"retiredByMessageLimit\":%d}",
                 lmtpPool.getPoolSize(),
                 lmtpPool.getTotalConnections(),
                 lmtpPool.getIdleCount(),
@@ -207,7 +216,9 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
                 lmtpPool.getResetFailureCount(),
                 PooledLmtpDelivery.getTransactionFailureCount(),
                 PooledLmtpDelivery.getConnectionFailureCount(),
-                PooledLmtpDelivery.getSuccessCount());
+                PooledLmtpDelivery.getSuccessCount(),
+                lmtpPool.getMaxMessagesPerConnection(),
+                lmtpPool.getMessageLimitRetirementCount());
     }
 
     /**

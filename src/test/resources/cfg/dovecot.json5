@@ -67,7 +67,10 @@
     connectionIdleTimeoutSeconds: 270,
 
     // Close connections after this many seconds regardless of activity (default: 1800, i.e., 30 minutes).
-    connectionMaxLifetimeSeconds: 1800
+    connectionMaxLifetimeSeconds: 1800,
+
+    // Recycle pooled LMTP connections after this many envelopes (default: 100).
+    connectionMaxMessagesPerConnection: 100
   },
 
   // LDA backend configuration (optional).

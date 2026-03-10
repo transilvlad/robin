@@ -76,7 +76,7 @@ class PooledLmtpDeliveryTest {
     }
 
     private static class TestPooledLmtpDelivery extends PooledLmtpDelivery {
-        private LmtpConnectionPool pool = new LmtpConnectionPool(1, 1, 60, 60, List.of("127.0.0.1"), 24, false);
+        private LmtpConnectionPool pool = new LmtpConnectionPool(1, 1, 60, 60, 100, List.of("127.0.0.1"), 24, false);
         private int borrowCount;
         private int returnCount;
         private int invalidateCount;

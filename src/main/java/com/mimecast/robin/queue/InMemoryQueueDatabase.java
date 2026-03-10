@@ -33,6 +33,53 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
     }
 
     @Override
+    public synchronized void applyMutations(QueueMutationBatch<T> batch) {
+        if (batch == null || batch.isEmpty()) {
+            return;
+        }
+
+        for (QueueMutation<T> mutation : batch.mutations()) {
+            if (mutation == null || mutation.item() == null) {
+                continue;
+            }
+
+            QueueItem<T> item = mutation.item();
+            switch (mutation.type()) {
+                case ACK -> deleteInternal(item.getUid());
+                case RESCHEDULE -> {
+                    QueueItem<T> existing = items.get(item.getUid());
+                    if (existing != null) {
+                        removeIndexes(existing);
+                        existing.setPayload(item.getPayload())
+                                .setRetryCount(item.getRetryCount())
+                                .setProtocol(item.getProtocol())
+                                .setSessionUid(item.getSessionUid())
+                                .setLastError(mutation.lastError())
+                                .readyAt(mutation.nextAttemptAtEpochSeconds());
+                        upsert(existing);
+                    }
+                }
+                case DEAD -> {
+                    QueueItem<T> existing = items.get(item.getUid());
+                    if (existing != null) {
+                        removeIndexes(existing);
+                        existing.setPayload(item.getPayload())
+                                .setRetryCount(item.getRetryCount())
+                                .setProtocol(item.getProtocol())
+                                .setSessionUid(item.getSessionUid())
+                                .dead(mutation.lastError());
+                        upsert(existing);
+                    }
+                }
+            }
+        }
+
+        for (T newItem : batch.newItems()) {
+            enqueue(QueueItem.ready(newItem));
+        }
+    }
+
+    @Override
     public synchronized List<QueueItem<T>> claimReady(int limit, long nowEpochSeconds, String consumerId,
                                                       long claimUntilEpochSeconds) {
         List<QueueItem<T>> claimed = new ArrayList<>();
@@ -40,7 +87,7 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
             return claimed;
         }
 
-        List<IndexKey> keys = new ArrayList<>(readyIndex.headMap(indexKey(nowEpochSeconds, Long.MAX_VALUE, "\uFFFF"), true).keySet());
+        List<IndexKey> keys = new ArrayList<>(readyIndex.headMap(indexKey(nowEpochSeconds, Long.MAX_VALUE, "￿"), true).keySet());
         for (IndexKey key : keys) {
             if (claimed.size() >= limit) {
                 break;
@@ -52,37 +99,33 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
             }
             item.claim(consumerId, claimUntilEpochSeconds);
             claimedIndex.put(indexKey(item.getClaimedUntilEpochSeconds(), item.getCreatedAtEpochSeconds(), uid), uid);
-            claimed.add(item);
+            claimed.add(copyItem(item));
         }
         return claimed;
     }
 
     @Override
     public synchronized boolean acknowledge(String uid) {
-        return deleteByUID(uid);
+        QueueMutationBatch<T> batch = new QueueMutationBatch<>(
+                List.of(QueueMutation.acknowledge(QueueItem.restore(uid, 0L, null))),
+                List.of()
+        );
+        boolean existed = items.containsKey(uid);
+        applyMutations(batch);
+        return existed;
     }
 
     @Override
     public synchronized boolean reschedule(QueueItem<T> item, long nextAttemptAtEpochSeconds, String lastError) {
-        QueueItem<T> existing = items.get(item.getUid());
-        if (existing == null) {
-            return false;
-        }
-        removeIndexes(existing);
-        existing.setPayload(item.getPayload())
-                .setRetryCount(item.getRetryCount())
-                .setProtocol(item.getProtocol())
-                .setSessionUid(item.getSessionUid())
-                .setLastError(lastError)
-                .readyAt(nextAttemptAtEpochSeconds);
-        upsert(existing);
-        return true;
+        boolean existed = items.containsKey(item.getUid());
+        applyMutations(new QueueMutationBatch<>(List.of(QueueMutation.reschedule(item, nextAttemptAtEpochSeconds, lastError)), List.of()));
+        return existed;
     }
 
     @Override
     public synchronized int releaseExpiredClaims(long nowEpochSeconds) {
         int released = 0;
-        List<IndexKey> keys = new ArrayList<>(claimedIndex.headMap(indexKey(nowEpochSeconds, Long.MAX_VALUE, "\uFFFF"), true).keySet());
+        List<IndexKey> keys = new ArrayList<>(claimedIndex.headMap(indexKey(nowEpochSeconds, Long.MAX_VALUE, "￿"), true).keySet());
         for (IndexKey key : keys) {
             String uid = claimedIndex.remove(key);
             QueueItem<T> item = items.get(uid);
@@ -102,9 +145,7 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
         if (item == null) {
             return false;
         }
-        removeIndexes(item);
-        item.dead(lastError);
-        createdIndex.put(indexKey(item.getCreatedAtEpochSeconds(), item.getCreatedAtEpochSeconds(), uid), uid);
+        applyMutations(new QueueMutationBatch<>(List.of(QueueMutation.dead(item, lastError)), List.of()));
         return true;
     }
 
@@ -137,22 +178,18 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
         int safeLimit = Math.max(0, limit);
         int end = Math.min(all.size(), safeOffset + safeLimit);
         List<QueueItem<T>> slice = safeOffset >= all.size() ? List.of() : new ArrayList<>(all.subList(safeOffset, end));
-        return new QueuePage<>(all.size(), slice);
+        return new QueuePage<>(all.size(), slice.stream().map(this::copyItem).toList());
     }
 
     @Override
     public synchronized QueueItem<T> getByUID(String uid) {
-        return items.get(uid);
+        QueueItem<T> item = items.get(uid);
+        return item == null ? null : copyItem(item);
     }
 
     @Override
     public synchronized boolean deleteByUID(String uid) {
-        QueueItem<T> item = items.remove(uid);
-        if (item == null) {
-            return false;
-        }
-        removeIndexes(item);
-        return true;
+        return deleteInternal(uid);
     }
 
     @Override
@@ -162,7 +199,7 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
         }
         int removed = 0;
         for (String uid : new LinkedHashSet<>(uids)) {
-            if (deleteByUID(uid)) {
+            if (deleteInternal(uid)) {
                 removed++;
             }
         }
@@ -192,10 +229,38 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
         }
     }
 
+    private boolean deleteInternal(String uid) {
+        QueueItem<T> item = items.remove(uid);
+        if (item == null) {
+            return false;
+        }
+        removeIndexes(item);
+        return true;
+    }
+
     private void removeIndexes(QueueItem<T> item) {
         createdIndex.remove(indexKey(item.getCreatedAtEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()));
         readyIndex.remove(indexKey(item.getNextAttemptAtEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()));
         claimedIndex.remove(indexKey(item.getClaimedUntilEpochSeconds(), item.getCreatedAtEpochSeconds(), item.getUid()));
+    }
+
+    private QueueItem<T> copyItem(QueueItem<T> item) {
+        if (item == null) {
+            return null;
+        }
+        @SuppressWarnings("unchecked")
+        T payloadCopy = (T) QueuePayloadCodec.deserialize(QueuePayloadCodec.serialize(item.getPayload()));
+        QueueItem<T> copy = QueueItem.restore(item.getUid(), item.getCreatedAtEpochSeconds(), payloadCopy);
+        copy.setState(item.getState());
+        copy.setUpdatedAtEpochSeconds(item.getUpdatedAtEpochSeconds());
+        copy.setNextAttemptAtEpochSeconds(item.getNextAttemptAtEpochSeconds());
+        copy.setClaimedUntilEpochSeconds(item.getClaimedUntilEpochSeconds());
+        copy.setClaimOwner(item.getClaimOwner());
+        copy.setRetryCount(item.getRetryCount());
+        copy.setProtocol(item.getProtocol());
+        copy.setSessionUid(item.getSessionUid());
+        copy.setLastError(item.getLastError());
+        return copy;
     }
 
     private static IndexKey indexKey(long primaryEpochSeconds, long secondaryEpochSeconds, String uid) {

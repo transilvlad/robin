@@ -43,6 +43,16 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
     }
 
     /**
+     * Applies a batch of dequeue outcomes and derived enqueues.
+     */
+    public void applyMutations(QueueMutationBatch<T> batch) {
+        if (batch == null || batch.isEmpty()) {
+            return;
+        }
+        database.applyMutations(batch);
+    }
+
+    /**
      * Claims ready items.
      */
     public List<QueueItem<T>> claimReady(int limit, long nowEpochSeconds, String consumerId, long claimUntilEpochSeconds) {
@@ -112,6 +122,7 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
         return size() == 0;
     }
 
+    @SuppressWarnings("unchecked")
     public boolean retryNow(String uid) {
         QueueItem<T> item = database.getByUID(uid);
         if (item == null) {

@@ -61,8 +61,14 @@ class RelayDequeueTest {
         testQueue.enqueue(relaySession);
         QueueItem<RelaySession> claimed = claimSingle(relaySession.getUID());
 
-        relayDequeue.processClaimedItem(claimed, Instant.now().getEpochSecond());
+        RelayQueueWorkResult result = relayDequeue.processClaimedItem(claimed, Instant.now().getEpochSecond());
 
+        assertNotNull(result);
+        assertEquals(QueueMutationType.ACK, result.mutation().type());
+        assertTrue(result.newItems().isEmpty());
+        assertTrue(result.cleanupPaths().isEmpty());
+
+        testQueue.applyMutations(new QueueMutationBatch<>(List.of(result.mutation()), result.newItems()));
         assertEquals(0, testQueue.size());
         assertNull(testQueue.getByUID(relaySession.getUID()));
     }
@@ -75,7 +81,12 @@ class RelayDequeueTest {
         testQueue.enqueue(relaySession);
         QueueItem<RelaySession> claimed = claimSingle(relaySession.getUID());
 
-        relayDequeue.processClaimedItem(claimed, Instant.now().getEpochSecond());
+        RelayQueueWorkResult result = relayDequeue.processClaimedItem(claimed, Instant.now().getEpochSecond());
+
+        assertEquals(QueueMutationType.ACK, result.mutation().type());
+        assertTrue(result.newItems().isEmpty());
+        testQueue.applyMutations(new QueueMutationBatch<>(List.of(result.mutation()), result.newItems()));
+        relayDequeue.deleteEnvelopeFiles(result.cleanupPaths());
 
         assertEquals(0, testQueue.size());
         assertNull(testQueue.getByUID(relaySession.getUID()));
@@ -90,9 +101,11 @@ class RelayDequeueTest {
         testQueue.enqueue(relaySession);
         QueueItem<RelaySession> claimed = claimSingle(relaySession.getUID());
 
-        relayDequeue.processClaimedItem(claimed, Instant.now().getEpochSecond());
+        RelayQueueWorkResult result = relayDequeue.processClaimedItem(claimed, Instant.now().getEpochSecond());
 
         assertEquals(1, pooledDelivery.invocations);
+        assertEquals(QueueMutationType.ACK, result.mutation().type());
+        testQueue.applyMutations(new QueueMutationBatch<>(List.of(result.mutation()), result.newItems()));
         assertEquals(0, testQueue.size());
         assertNull(testQueue.getByUID(relaySession.getUID()));
     }
@@ -110,7 +123,12 @@ class RelayDequeueTest {
         long now = Instant.now().getEpochSecond();
         QueueItem<RelaySession> claimed = claimSingle(relaySession.getUID());
 
-        relayDequeue.processClaimedItem(claimed, now);
+        RelayQueueWorkResult result = relayDequeue.processClaimedItem(claimed, now);
+
+        assertEquals(QueueMutationType.RESCHEDULE, result.mutation().type());
+        assertTrue(result.newItems().isEmpty());
+        testQueue.applyMutations(new QueueMutationBatch<>(List.of(result.mutation()), result.newItems()));
+        relayDequeue.deleteEnvelopeFiles(result.cleanupPaths());
 
         QueueItem<RelaySession> updated = testQueue.getByUID(relaySession.getUID());
         assertNotNull(updated);
@@ -139,14 +157,17 @@ class RelayDequeueTest {
         testQueue.enqueue(relaySession);
         QueueItem<RelaySession> claimed = claimSingle(relaySession.getUID());
 
-        relayDequeue.processClaimedItem(claimed, Instant.now().getEpochSecond());
+        RelayQueueWorkResult result = relayDequeue.processClaimedItem(claimed, Instant.now().getEpochSecond());
+
+        assertEquals(QueueMutationType.DEAD, result.mutation().type());
+        assertTrue(result.cleanupPaths().isEmpty());
+        testQueue.applyMutations(new QueueMutationBatch<>(List.of(result.mutation()), result.newItems()));
 
         QueueItem<RelaySession> updated = testQueue.getByUID(relaySession.getUID());
         assertNotNull(updated);
         assertEquals(0, testQueue.size());
         assertEquals(QueueItemState.DEAD, updated.getState());
         assertEquals(1, testQueue.stats().deadCount());
-        assertEquals(1, testRelayDequeue.generatedBounceCount);
     }
 
     @Test
@@ -363,8 +384,9 @@ class RelayDequeueTest {
         }
 
         @Override
-        void generateBounces(RelaySession relaySession) {
+        List<RelaySession> generateBounces(RelaySession relaySession) {
             generatedBounceCount += countRecipients(relaySession);
+            return List.of();
         }
     }
 

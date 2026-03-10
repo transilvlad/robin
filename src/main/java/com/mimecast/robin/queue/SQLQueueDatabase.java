@@ -30,6 +30,7 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
     private final String jdbcUrl;
     private final String username;
     private final String password;
+    private final int maxPoolSize;
     private HikariDataSource dataSource;
 
     protected SQLQueueDatabase(DBConfig config) {
@@ -37,17 +38,12 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
         this.username = config.username;
         this.password = config.password;
         this.tableName = validateTableName(config.tableName);
+        this.maxPoolSize = config.maxPoolSize;
     }
 
     protected abstract String getDatabaseType();
 
     protected abstract String getCreateTableSQL();
-
-    protected String getSelectForClaimSQL() {
-        return "SELECT queue_uid FROM " + tableName
-                + " WHERE state = ? AND next_attempt_at <= ?"
-                + " ORDER BY next_attempt_at, created_epoch LIMIT ? FOR UPDATE SKIP LOCKED";
-    }
 
     protected List<String> getCreateIndexSQL() {
         return List.of(
@@ -64,7 +60,7 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
             config.setJdbcUrl(jdbcUrl);
             config.setUsername(username);
             config.setPassword(password);
-            config.setMaximumPoolSize(8);
+            config.setMaximumPoolSize(maxPoolSize);
             config.setMinimumIdle(1);
             config.setPoolName("robin-queue-" + getDatabaseType());
             this.dataSource = new HikariDataSource(config);
@@ -80,7 +76,7 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
                     }
                 }
             }
-            log.info("{} queue database initialized: table={}", getDatabaseType(), tableName);
+            log.info("{} queue database initialized: table={}, maxPoolSize={}", getDatabaseType(), tableName, maxPoolSize);
         } catch (SQLException e) {
             throw new RuntimeException("Failed to initialize " + getDatabaseType() + " queue database", e);
         }
@@ -88,12 +84,10 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
 
     @Override
     public QueueItem<T> enqueue(QueueItem<T> item) {
-        String sql = "INSERT INTO " + tableName + " (queue_uid, state, next_attempt_at, claimed_until, claim_owner,"
-                + " created_epoch, updated_epoch, retry_count, protocol, session_uid, last_error, data)"
-                + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = insertSql();
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
-            bindItem(statement, item);
+            bindItem(statement, item.readyAt(item.getNextAttemptAtEpochSeconds()).syncFromPayload());
             statement.executeUpdate();
             return item;
         } catch (SQLException e) {
@@ -103,53 +97,75 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
     }
 
     @Override
+    public void applyMutations(QueueMutationBatch<T> batch) {
+        if (batch == null || batch.isEmpty()) {
+            return;
+        }
+
+        try (Connection connection = dataSource.getConnection()) {
+            connection.setAutoCommit(false);
+
+            List<String> ackUids = new ArrayList<>();
+            List<QueueMutation<T>> reschedules = new ArrayList<>();
+            List<QueueMutation<T>> deadItems = new ArrayList<>();
+            for (QueueMutation<T> mutation : batch.mutations()) {
+                if (mutation == null || mutation.item() == null) {
+                    continue;
+                }
+                switch (mutation.type()) {
+                    case ACK -> ackUids.add(mutation.item().getUid());
+                    case RESCHEDULE -> reschedules.add(mutation);
+                    case DEAD -> deadItems.add(mutation);
+                }
+            }
+
+            deleteBatch(connection, ackUids);
+            updateReschedules(connection, reschedules);
+            updateDead(connection, deadItems);
+            insertNewItems(connection, batch.newItems());
+
+            connection.commit();
+        } catch (Exception e) {
+            log.error("Failed to apply queue mutations: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to apply queue mutations", e);
+        }
+    }
+
+    @Override
     public List<QueueItem<T>> claimReady(int limit, long nowEpochSeconds, String consumerId, long claimUntilEpochSeconds) {
         if (limit <= 0) {
             return List.of();
         }
 
-        String updateSql = "UPDATE " + tableName
-                + " SET state = ?, claim_owner = ?, claimed_until = ?, updated_epoch = ?"
-                + " WHERE queue_uid = ?";
+        if (!"PostgreSQL".equals(getDatabaseType())) {
+            return claimReadyLegacy(limit, nowEpochSeconds, consumerId, claimUntilEpochSeconds);
+        }
 
-        try (Connection connection = dataSource.getConnection()) {
-            connection.setAutoCommit(false);
-
-            List<String> claimedUids = new ArrayList<>();
-            try (PreparedStatement select = connection.prepareStatement(getSelectForClaimSQL())) {
-                select.setString(1, QueueItemState.READY.name());
-                select.setLong(2, nowEpochSeconds);
-                select.setInt(3, limit);
-                try (ResultSet rs = select.executeQuery()) {
-                    while (rs.next()) {
-                        claimedUids.add(rs.getString(1));
-                    }
+        String sql = "WITH claimed AS ("
+                + " SELECT queue_uid FROM " + tableName
+                + " WHERE state = ? AND next_attempt_at <= ?"
+                + " ORDER BY next_attempt_at, created_epoch LIMIT ? FOR UPDATE SKIP LOCKED"
+                + "), updated AS ("
+                + " UPDATE " + tableName + " q SET state = ?, claim_owner = ?, claimed_until = ?, updated_epoch = ?"
+                + " FROM claimed WHERE q.queue_uid = claimed.queue_uid"
+                + " RETURNING q.*"
+                + ") SELECT * FROM updated ORDER BY next_attempt_at, created_epoch";
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, QueueItemState.READY.name());
+            statement.setLong(2, nowEpochSeconds);
+            statement.setInt(3, limit);
+            statement.setString(4, QueueItemState.CLAIMED.name());
+            statement.setString(5, consumerId);
+            statement.setLong(6, claimUntilEpochSeconds);
+            statement.setLong(7, nowEpochSeconds);
+            try (ResultSet rs = statement.executeQuery()) {
+                List<QueueItem<T>> items = new ArrayList<>();
+                while (rs.next()) {
+                    items.add(readItem(rs));
                 }
+                return items;
             }
-
-            if (claimedUids.isEmpty()) {
-                connection.commit();
-                return List.of();
-            }
-
-            try (PreparedStatement update = connection.prepareStatement(updateSql)) {
-                for (String uid : claimedUids) {
-                    update.setString(1, QueueItemState.CLAIMED.name());
-                    update.setString(2, consumerId);
-                    update.setLong(3, claimUntilEpochSeconds);
-                    update.setLong(4, nowEpochSeconds);
-                    update.setString(5, uid);
-                    update.addBatch();
-                }
-                update.executeBatch();
-            }
-
-            List<QueueItem<T>> items = fetchByUIDs(connection, claimedUids);
-            connection.commit();
-            for (QueueItem<T> item : items) {
-                item.claim(consumerId, claimUntilEpochSeconds);
-            }
-            return items;
         } catch (SQLException e) {
             log.error("Failed to claim ready items: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to claim ready items", e);
@@ -163,28 +179,9 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
 
     @Override
     public boolean reschedule(QueueItem<T> item, long nextAttemptAtEpochSeconds, String lastError) {
-        String sql = "UPDATE " + tableName + " SET state = ?, next_attempt_at = ?, claimed_until = 0,"
-                + " claim_owner = NULL, updated_epoch = ?, retry_count = ?, protocol = ?, session_uid = ?,"
-                + " last_error = ?, data = ? WHERE queue_uid = ?";
-        try (Connection connection = dataSource.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-            item.readyAt(nextAttemptAtEpochSeconds)
-                    .setLastError(lastError)
-                    .syncFromPayload();
-            statement.setString(1, QueueItemState.READY.name());
-            statement.setLong(2, nextAttemptAtEpochSeconds);
-            statement.setLong(3, item.getUpdatedAtEpochSeconds());
-            statement.setInt(4, item.getRetryCount());
-            statement.setString(5, item.getProtocol());
-            statement.setString(6, item.getSessionUid());
-            setNullableString(statement, 7, lastError);
-            statement.setBytes(8, QueuePayloadCodec.serialize(item.getPayload()));
-            statement.setString(9, item.getUid());
-            return statement.executeUpdate() > 0;
-        } catch (SQLException e) {
-            log.error("Failed to reschedule item {}: {}", item.getUid(), e.getMessage(), e);
-            throw new RuntimeException("Failed to reschedule item", e);
-        }
+        boolean exists = getByUID(item.getUid()) != null;
+        applyMutations(new QueueMutationBatch<>(List.of(QueueMutation.reschedule(item, nextAttemptAtEpochSeconds, lastError)), List.of()));
+        return exists;
     }
 
     @Override
@@ -208,20 +205,12 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
 
     @Override
     public boolean markDead(String uid, String lastError) {
-        String sql = "UPDATE " + tableName
-                + " SET state = ?, claim_owner = NULL, claimed_until = 0, updated_epoch = ?, last_error = ?"
-                + " WHERE queue_uid = ?";
-        try (Connection connection = dataSource.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, QueueItemState.DEAD.name());
-            statement.setLong(2, System.currentTimeMillis() / 1000L);
-            setNullableString(statement, 3, lastError);
-            statement.setString(4, uid);
-            return statement.executeUpdate() > 0;
-        } catch (SQLException e) {
-            log.error("Failed to mark dead item {}: {}", uid, e.getMessage(), e);
-            throw new RuntimeException("Failed to mark dead item", e);
+        QueueItem<T> item = getByUID(uid);
+        if (item == null) {
+            return false;
         }
+        applyMutations(new QueueMutationBatch<>(List.of(QueueMutation.dead(item, lastError)), List.of()));
+        return true;
     }
 
     @Override
@@ -354,6 +343,139 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
         }
     }
 
+    private List<QueueItem<T>> claimReadyLegacy(int limit, long nowEpochSeconds, String consumerId, long claimUntilEpochSeconds) {
+        String selectSql = "SELECT queue_uid FROM " + tableName
+                + " WHERE state = ? AND next_attempt_at <= ?"
+                + " ORDER BY next_attempt_at, created_epoch LIMIT ? FOR UPDATE SKIP LOCKED";
+        String updateSql = "UPDATE " + tableName
+                + " SET state = ?, claim_owner = ?, claimed_until = ?, updated_epoch = ?"
+                + " WHERE queue_uid = ?";
+
+        try (Connection connection = dataSource.getConnection()) {
+            connection.setAutoCommit(false);
+
+            List<String> claimedUids = new ArrayList<>();
+            try (PreparedStatement select = connection.prepareStatement(selectSql)) {
+                select.setString(1, QueueItemState.READY.name());
+                select.setLong(2, nowEpochSeconds);
+                select.setInt(3, limit);
+                try (ResultSet rs = select.executeQuery()) {
+                    while (rs.next()) {
+                        claimedUids.add(rs.getString(1));
+                    }
+                }
+            }
+
+            if (claimedUids.isEmpty()) {
+                connection.commit();
+                return List.of();
+            }
+
+            try (PreparedStatement update = connection.prepareStatement(updateSql)) {
+                for (String uid : claimedUids) {
+                    update.setString(1, QueueItemState.CLAIMED.name());
+                    update.setString(2, consumerId);
+                    update.setLong(3, claimUntilEpochSeconds);
+                    update.setLong(4, nowEpochSeconds);
+                    update.setString(5, uid);
+                    update.addBatch();
+                }
+                update.executeBatch();
+            }
+
+            List<QueueItem<T>> items = fetchByUIDs(connection, claimedUids);
+            connection.commit();
+            return items;
+        } catch (SQLException e) {
+            log.error("Failed to claim ready items: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to claim ready items", e);
+        }
+    }
+
+    private String insertSql() {
+        return "INSERT INTO " + tableName + " (queue_uid, state, next_attempt_at, claimed_until, claim_owner,"
+                + " created_epoch, updated_epoch, retry_count, protocol, session_uid, last_error, data)"
+                + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    }
+
+    private void deleteBatch(Connection connection, List<String> ackUids) throws SQLException {
+        if (ackUids.isEmpty()) {
+            return;
+        }
+        String placeholders = String.join(",", java.util.Collections.nCopies(ackUids.size(), "?"));
+        String sql = "DELETE FROM " + tableName + " WHERE queue_uid IN (" + placeholders + ")";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            for (int i = 0; i < ackUids.size(); i++) {
+                statement.setString(i + 1, ackUids.get(i));
+            }
+            statement.executeUpdate();
+        }
+    }
+
+    private void updateReschedules(Connection connection, List<QueueMutation<T>> mutations) throws SQLException {
+        if (mutations.isEmpty()) {
+            return;
+        }
+        String sql = "UPDATE " + tableName + " SET state = ?, next_attempt_at = ?, claimed_until = 0,"
+                + " claim_owner = NULL, updated_epoch = ?, retry_count = ?, protocol = ?, session_uid = ?,"
+                + " last_error = ?, data = ? WHERE queue_uid = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            for (QueueMutation<T> mutation : mutations) {
+                QueueItem<T> item = mutation.item().readyAt(mutation.nextAttemptAtEpochSeconds())
+                        .setLastError(mutation.lastError())
+                        .syncFromPayload();
+                statement.setString(1, QueueItemState.READY.name());
+                statement.setLong(2, item.getNextAttemptAtEpochSeconds());
+                statement.setLong(3, item.getUpdatedAtEpochSeconds());
+                statement.setInt(4, item.getRetryCount());
+                setNullableString(statement, 5, item.getProtocol());
+                setNullableString(statement, 6, item.getSessionUid());
+                setNullableString(statement, 7, item.getLastError());
+                statement.setBytes(8, QueuePayloadCodec.serialize(item.getPayload()));
+                statement.setString(9, item.getUid());
+                statement.addBatch();
+            }
+            statement.executeBatch();
+        }
+    }
+
+    private void updateDead(Connection connection, List<QueueMutation<T>> mutations) throws SQLException {
+        if (mutations.isEmpty()) {
+            return;
+        }
+        String sql = "UPDATE " + tableName
+                + " SET state = ?, claim_owner = NULL, claimed_until = 0, updated_epoch = ?, retry_count = ?,"
+                + " protocol = ?, session_uid = ?, last_error = ?, data = ? WHERE queue_uid = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            for (QueueMutation<T> mutation : mutations) {
+                QueueItem<T> item = mutation.item().dead(mutation.lastError()).syncFromPayload();
+                statement.setString(1, QueueItemState.DEAD.name());
+                statement.setLong(2, item.getUpdatedAtEpochSeconds());
+                statement.setInt(3, item.getRetryCount());
+                setNullableString(statement, 4, item.getProtocol());
+                setNullableString(statement, 5, item.getSessionUid());
+                setNullableString(statement, 6, item.getLastError());
+                statement.setBytes(7, QueuePayloadCodec.serialize(item.getPayload()));
+                statement.setString(8, item.getUid());
+                statement.addBatch();
+            }
+            statement.executeBatch();
+        }
+    }
+
+    private void insertNewItems(Connection connection, List<T> newItems) throws SQLException {
+        if (newItems.isEmpty()) {
+            return;
+        }
+        try (PreparedStatement statement = connection.prepareStatement(insertSql())) {
+            for (T newItem : newItems) {
+                bindItem(statement, QueueItem.ready(newItem));
+                statement.addBatch();
+            }
+            statement.executeBatch();
+        }
+    }
+
     private void bindItem(PreparedStatement statement, QueueItem<T> item) throws SQLException {
         statement.setString(1, item.getUid());
         statement.setString(2, item.getState().name());
@@ -369,7 +491,7 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
         statement.setBytes(12, QueuePayloadCodec.serialize(item.getPayload()));
     }
 
-    private QueueItem<T> readItem(ResultSet rs) throws SQLException {
+    protected QueueItem<T> readItem(ResultSet rs) throws SQLException {
         QueueItem<T> item = QueueItem.restore(
                 rs.getString("queue_uid"),
                 rs.getLong("created_epoch"),
@@ -503,12 +625,14 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
         private final String username;
         private final String password;
         private final String tableName;
+        private final int maxPoolSize;
 
-        protected DBConfig(String jdbcUrl, String username, String password, String tableName) {
+        protected DBConfig(String jdbcUrl, String username, String password, String tableName, int maxPoolSize) {
             this.jdbcUrl = jdbcUrl;
             this.username = username;
             this.password = password;
             this.tableName = tableName;
+            this.maxPoolSize = maxPoolSize;
         }
     }
 }

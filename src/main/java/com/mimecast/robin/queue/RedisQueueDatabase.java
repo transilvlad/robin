@@ -8,6 +8,7 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
 import redis.clients.jedis.Pipeline;
+import redis.clients.jedis.Response;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -15,7 +16,6 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Redis-backed scheduled work queue.
@@ -58,22 +58,64 @@ public class RedisQueueDatabase<T extends Serializable> implements QueueDatabase
     @Override
     public QueueItem<T> enqueue(QueueItem<T> item) {
         try (Jedis jedis = jedisPool.getResource()) {
-            String uid = item.getUid();
             Pipeline pipeline = jedis.pipelined();
-            pipeline.del(payloadKey(uid));
-            pipeline.del(metaKey(uid));
-            pipeline.set(payloadKey(uid).getBytes(), QueuePayloadCodec.serialize(item.getPayload()));
-            Map<String, String> meta = encodeMeta(item.readyAt(item.getNextAttemptAtEpochSeconds()).syncFromPayload());
-            pipeline.hset(metaKey(uid), meta);
-            pipeline.zadd(createdKey(), item.getCreatedAtEpochSeconds(), uid);
-            pipeline.zrem(claimedKey(), uid);
-            pipeline.zrem(deadKey(), uid);
-            pipeline.zadd(readyKey(), item.getNextAttemptAtEpochSeconds(), uid);
+            enqueuePipeline(pipeline, item.readyAt(item.getNextAttemptAtEpochSeconds()).syncFromPayload());
             pipeline.sync();
             return item;
         } catch (Exception e) {
             log.error("Failed to enqueue item: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to enqueue item", e);
+        }
+    }
+
+    @Override
+    public void applyMutations(QueueMutationBatch<T> batch) {
+        if (batch == null || batch.isEmpty()) {
+            return;
+        }
+
+        try (Jedis jedis = jedisPool.getResource()) {
+            Pipeline pipeline = jedis.pipelined();
+
+            for (QueueMutation<T> mutation : batch.mutations()) {
+                if (mutation == null || mutation.item() == null) {
+                    continue;
+                }
+
+                QueueItem<T> item = mutation.item();
+                switch (mutation.type()) {
+                    case ACK -> deletePipeline(pipeline, item.getUid());
+                    case RESCHEDULE -> {
+                        item.readyAt(mutation.nextAttemptAtEpochSeconds())
+                                .setLastError(mutation.lastError())
+                                .syncFromPayload();
+                        pipeline.set(payloadKey(item.getUid()).getBytes(), QueuePayloadCodec.serialize(item.getPayload()));
+                        pipeline.hset(metaKey(item.getUid()), encodeMeta(item));
+                        pipeline.zrem(claimedKey(), item.getUid());
+                        pipeline.zrem(deadKey(), item.getUid());
+                        pipeline.zadd(readyKey(), item.getNextAttemptAtEpochSeconds(), item.getUid());
+                        pipeline.zadd(createdKey(), item.getCreatedAtEpochSeconds(), item.getUid());
+                    }
+                    case DEAD -> {
+                        item.dead(mutation.lastError()).syncFromPayload();
+                        pipeline.set(payloadKey(item.getUid()).getBytes(), QueuePayloadCodec.serialize(item.getPayload()));
+                        pipeline.hset(metaKey(item.getUid()), encodeMeta(item));
+                        pipeline.zrem(readyKey(), item.getUid());
+                        pipeline.zrem(claimedKey(), item.getUid());
+                        pipeline.zadd(deadKey(), item.getCreatedAtEpochSeconds(), item.getUid());
+                        pipeline.zadd(createdKey(), item.getCreatedAtEpochSeconds(), item.getUid());
+                    }
+                }
+            }
+
+            for (T newItem : batch.newItems()) {
+                enqueuePipeline(pipeline, QueueItem.ready(newItem));
+            }
+
+            pipeline.sync();
+        } catch (Exception e) {
+            log.error("Failed to apply queue mutations: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to apply queue mutations", e);
         }
     }
 
@@ -102,12 +144,27 @@ public class RedisQueueDatabase<T extends Serializable> implements QueueDatabase
             List<String> ids = (List<String>) jedis.eval(script, List.of(readyKey(), claimedKey()),
                     List.of(String.valueOf(nowEpochSeconds), String.valueOf(limit), String.valueOf(claimUntilEpochSeconds),
                             keyPrefix(), QueueItemState.CLAIMED.name(), consumerId));
-            List<QueueItem<T>> claimed = new ArrayList<>(ids.size());
+            if (ids.isEmpty()) {
+                return List.of();
+            }
+
+            Pipeline pipeline = jedis.pipelined();
+            List<Response<Map<String, String>>> metaResponses = new ArrayList<>(ids.size());
+            List<Response<byte[]>> payloadResponses = new ArrayList<>(ids.size());
             for (String uid : ids) {
-                QueueItem<T> item = getByUID(uid);
-                if (item != null) {
-                    claimed.add(item);
+                metaResponses.add(pipeline.hgetAll(metaKey(uid)));
+                payloadResponses.add(pipeline.get(payloadKey(uid).getBytes()));
+            }
+            pipeline.sync();
+
+            List<QueueItem<T>> claimed = new ArrayList<>(ids.size());
+            for (int i = 0; i < ids.size(); i++) {
+                Map<String, String> meta = metaResponses.get(i).get();
+                byte[] payload = payloadResponses.get(i).get();
+                if (meta == null || meta.isEmpty() || payload == null) {
+                    continue;
                 }
+                claimed.add(decodeItem(meta, payload));
             }
             return claimed;
         } catch (Exception e) {
@@ -123,15 +180,10 @@ public class RedisQueueDatabase<T extends Serializable> implements QueueDatabase
 
     @Override
     public boolean reschedule(QueueItem<T> item, long nextAttemptAtEpochSeconds, String lastError) {
-        try (Jedis jedis = jedisPool.getResource()) {
-            item.readyAt(nextAttemptAtEpochSeconds).setLastError(lastError).syncFromPayload();
-            Pipeline pipeline = jedis.pipelined();
-            pipeline.set(payloadKey(item.getUid()).getBytes(), QueuePayloadCodec.serialize(item.getPayload()));
-            pipeline.hset(metaKey(item.getUid()), encodeMeta(item));
-            pipeline.zrem(claimedKey(), item.getUid());
-            pipeline.zadd(readyKey(), nextAttemptAtEpochSeconds, item.getUid());
-            pipeline.sync();
-            return true;
+        try {
+            boolean exists = getByUID(item.getUid()) != null;
+            applyMutations(new QueueMutationBatch<>(List.of(QueueMutation.reschedule(item, nextAttemptAtEpochSeconds, lastError)), List.of()));
+            return exists;
         } catch (Exception e) {
             log.error("Failed to reschedule item {}: {}", item.getUid(), e.getMessage(), e);
             throw new RuntimeException("Failed to reschedule item", e);
@@ -170,19 +222,8 @@ public class RedisQueueDatabase<T extends Serializable> implements QueueDatabase
         if (item == null) {
             return false;
         }
-        try (Jedis jedis = jedisPool.getResource()) {
-            item.dead(lastError);
-            Pipeline pipeline = jedis.pipelined();
-            pipeline.hset(metaKey(uid), encodeMeta(item));
-            pipeline.zrem(readyKey(), uid);
-            pipeline.zrem(claimedKey(), uid);
-            pipeline.zadd(deadKey(), item.getCreatedAtEpochSeconds(), uid);
-            pipeline.sync();
-            return true;
-        } catch (Exception e) {
-            log.error("Failed to mark dead item {}: {}", uid, e.getMessage(), e);
-            throw new RuntimeException("Failed to mark dead item", e);
-        }
+        applyMutations(new QueueMutationBatch<>(List.of(QueueMutation.dead(item, lastError)), List.of()));
+        return true;
     }
 
     @Override
@@ -259,12 +300,7 @@ public class RedisQueueDatabase<T extends Serializable> implements QueueDatabase
                 return false;
             }
             Pipeline pipeline = jedis.pipelined();
-            pipeline.del(payloadKey(uid));
-            pipeline.del(metaKey(uid));
-            pipeline.zrem(createdKey(), uid);
-            pipeline.zrem(readyKey(), uid);
-            pipeline.zrem(claimedKey(), uid);
-            pipeline.zrem(deadKey(), uid);
+            deletePipeline(pipeline, uid);
             pipeline.sync();
             return true;
         } catch (Exception e) {
@@ -309,6 +345,27 @@ public class RedisQueueDatabase<T extends Serializable> implements QueueDatabase
         if (jedisPool != null && !jedisPool.isClosed()) {
             jedisPool.close();
         }
+    }
+
+    private void enqueuePipeline(Pipeline pipeline, QueueItem<T> item) {
+        String uid = item.getUid();
+        pipeline.del(payloadKey(uid));
+        pipeline.del(metaKey(uid));
+        pipeline.set(payloadKey(uid).getBytes(), QueuePayloadCodec.serialize(item.getPayload()));
+        pipeline.hset(metaKey(uid), encodeMeta(item));
+        pipeline.zadd(createdKey(), item.getCreatedAtEpochSeconds(), uid);
+        pipeline.zrem(claimedKey(), uid);
+        pipeline.zrem(deadKey(), uid);
+        pipeline.zadd(readyKey(), item.getNextAttemptAtEpochSeconds(), uid);
+    }
+
+    private void deletePipeline(Pipeline pipeline, String uid) {
+        pipeline.del(payloadKey(uid));
+        pipeline.del(metaKey(uid));
+        pipeline.zrem(createdKey(), uid);
+        pipeline.zrem(readyKey(), uid);
+        pipeline.zrem(claimedKey(), uid);
+        pipeline.zrem(deadKey(), uid);
     }
 
     private Map<String, String> encodeMeta(QueueItem<T> item) {
@@ -359,19 +416,23 @@ public class RedisQueueDatabase<T extends Serializable> implements QueueDatabase
         if (tuples.isEmpty()) {
             return 0L;
         }
-        return (long) tuples.iterator().next().getScore();
+        return (long) tuples.getFirst().getScore();
     }
 
     private String keyPrefix() {
-        return queueKey + ":item:";
+        return queueKey + ':';
+    }
+
+    private String payloadKey(String uid) {
+        return keyPrefix() + uid + ":payload";
     }
 
     private String metaKey(String uid) {
         return keyPrefix() + uid + ":meta";
     }
 
-    private String payloadKey(String uid) {
-        return keyPrefix() + uid + ":payload";
+    private String createdKey() {
+        return queueKey + ":created";
     }
 
     private String readyKey() {
@@ -380,10 +441,6 @@ public class RedisQueueDatabase<T extends Serializable> implements QueueDatabase
 
     private String claimedKey() {
         return queueKey + ":claimed";
-    }
-
-    private String createdKey() {
-        return queueKey + ":created";
     }
 
     private String deadKey() {

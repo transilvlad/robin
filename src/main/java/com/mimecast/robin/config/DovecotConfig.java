@@ -255,6 +255,7 @@ public class DovecotConfig extends BasicConfig {
         private final long connectionPoolTimeoutSeconds;
         private final long connectionIdleTimeoutSeconds;
         private final long connectionMaxLifetimeSeconds;
+        private final int connectionMaxMessagesPerConnection;
 
         /**
          * Constructs SaveLmtp from configuration map.
@@ -273,6 +274,7 @@ public class DovecotConfig extends BasicConfig {
             this.connectionPoolTimeoutSeconds = ((Number) map.getOrDefault("connectionPoolTimeoutSeconds", 60L)).longValue();
             this.connectionIdleTimeoutSeconds = ((Number) map.getOrDefault("connectionIdleTimeoutSeconds", 270L)).longValue();
             this.connectionMaxLifetimeSeconds = ((Number) map.getOrDefault("connectionMaxLifetimeSeconds", 1800L)).longValue();
+            this.connectionMaxMessagesPerConnection = ((Number) map.getOrDefault("connectionMaxMessagesPerConnection", 100)).intValue();
         }
 
         /**
@@ -346,6 +348,16 @@ public class DovecotConfig extends BasicConfig {
          * @return Max lifetime in seconds (default: 1800, i.e., 30 minutes).
          */
         public long getConnectionMaxLifetimeSeconds() { return connectionMaxLifetimeSeconds; }
+
+        /**
+         * Gets the maximum number of emails a pooled LMTP connection should carry before retirement.
+         * <p>
+         * This keeps long-lived connections hot for throughput while still rotating them before
+         * server-side or network state becomes stale.
+         *
+         * @return Maximum envelopes per connection (default: 100).
+         */
+        public int getConnectionMaxMessagesPerConnection() { return connectionMaxMessagesPerConnection; }
     }
 
     /**

@@ -99,6 +99,7 @@ public class PooledLmtpDelivery {
             MessageEnvelope envelope = sourceSession.getEnvelopes().get(i);
             prepareEnvelope(pooledSession, envelope);
             processEnvelope(connection);
+            pooled.recordDeliveredMessage();
             copyLatestEnvelopeTransactions(sourceSession, pooledSession);
         }
 

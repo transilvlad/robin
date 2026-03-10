@@ -197,6 +197,7 @@ public class Server extends Foundation {
                         lmtpConfig.getConnectionPoolTimeoutSeconds(),
                         lmtpConfig.getConnectionIdleTimeoutSeconds(),
                         lmtpConfig.getConnectionMaxLifetimeSeconds(),
+                        lmtpConfig.getConnectionMaxMessagesPerConnection(),
                         lmtpConfig.getServers(),
                         lmtpConfig.getPort(),
                         lmtpConfig.isTls()

@@ -22,6 +22,11 @@ public interface QueueDatabase<T extends Serializable> extends Closeable {
     QueueItem<T> enqueue(QueueItem<T> item);
 
     /**
+     * Applies a batch of dequeue outcomes and derived enqueues atomically when supported.
+     */
+    void applyMutations(QueueMutationBatch<T> batch);
+
+    /**
      * Claims ready items for the given consumer until the lease expires.
      */
     List<QueueItem<T>> claimReady(int limit, long nowEpochSeconds, String consumerId, long claimUntilEpochSeconds);

@@ -40,15 +40,15 @@ public class RelayDequeue {
     }
 
     /**
-     * Processes one claimed queue item.
+     * Processes one claimed queue item and returns a deferred mutation result.
      */
-    public void processClaimedItem(QueueItem<RelaySession> queueItem, long currentEpochSeconds) {
+    public RelayQueueWorkResult processClaimedItem(QueueItem<RelaySession> queueItem, long currentEpochSeconds) {
         RelaySession relaySession = queueItem != null ? queueItem.getPayload() : null;
+        if (queueItem == null) {
+            return new RelayQueueWorkResult(null, List.of(), List.of());
+        }
         if (relaySession == null || relaySession.getSession() == null) {
-            if (queueItem != null) {
-                queue.acknowledge(queueItem.getUid());
-            }
-            return;
+            return new RelayQueueWorkResult(QueueMutation.acknowledge(queueItem), List.of(), List.of());
         }
 
         relaySession.getSession().getSessionTransactionList().clear();
@@ -56,24 +56,25 @@ public class RelayDequeue {
         attemptDelivery(relaySession);
 
         RelayDeliveryResult result = processDeliveryResults(relaySession);
+        List<Path> cleanupPaths = collectCleanupPaths(result.getSuccessfulEnvelopes());
         log.info("Session processed: uid={}, removedEnvelopes={}, remainingEnvelopes={}",
                 relaySession.getSession().getUID(), result.getRemovedCount(), result.getRemainingCount());
 
+        queueItem.setPayload(relaySession).setRetryCount(relaySession.getRetryCount()).syncFromPayload();
+
         if (relaySession.getSession().getEnvelopes().isEmpty()) {
-            queue.acknowledge(queueItem.getUid());
-            return;
+            return new RelayQueueWorkResult(QueueMutation.acknowledge(queueItem), List.of(), cleanupPaths);
         }
 
         if (relaySession.getRetryCount() < relaySession.getMaxRetryCount()) {
-            retrySession(queueItem, relaySession, currentEpochSeconds);
-            return;
+            return retrySession(queueItem, relaySession, currentEpochSeconds, cleanupPaths);
         }
 
         String lastError = deriveLastError(relaySession);
-        if (Config.getServer().getRelay().getBooleanProperty("bounce", true)) {
-            generateBounces(relaySession);
-        }
-        queue.markDead(queueItem.getUid(), lastError);
+        List<RelaySession> bounces = Config.getServer().getRelay().getBooleanProperty("bounce", true)
+                ? generateBounces(relaySession) : List.of();
+        queueItem.setPayload(relaySession).dead(lastError);
+        return new RelayQueueWorkResult(QueueMutation.dead(queueItem, lastError), bounces, cleanupPaths);
     }
 
     boolean isReadyForRetry(RelaySession relaySession, long currentEpochSeconds) {
@@ -135,7 +136,6 @@ public class RelayDequeue {
             }
         }
 
-        cleanupSuccessfulEnvelopes(successfulEnvelopes);
         relaySession.getSession().getEnvelopes().removeAll(successfulEnvelopes);
 
         return new RelayDeliveryResult(
@@ -145,36 +145,52 @@ public class RelayDequeue {
         );
     }
 
-    void cleanupSuccessfulEnvelopes(List<MessageEnvelope> successfulEnvelopes) {
+    List<Path> collectCleanupPaths(List<MessageEnvelope> successfulEnvelopes) {
+        List<Path> paths = new ArrayList<>();
         for (MessageEnvelope envelope : successfulEnvelopes) {
-            if (envelope.getFile() != null) {
-                Path path = Path.of(envelope.getFile());
-                if (Files.exists(path)) {
-                    try {
-                        Files.delete(path);
-                    } catch (IOException e) {
-                        log.error("Failed to delete envelope file: {}, error={}",
-                                envelope.getFile(), e.getMessage());
-                    }
-                }
+            if (envelope != null && envelope.getFile() != null) {
+                paths.add(Path.of(envelope.getFile()));
+            }
+        }
+        return paths;
+    }
+
+    void cleanupSuccessfulEnvelopes(List<MessageEnvelope> successfulEnvelopes) {
+        deleteEnvelopeFiles(collectCleanupPaths(successfulEnvelopes));
+    }
+
+    void deleteEnvelopeFiles(List<Path> paths) {
+        for (Path path : paths) {
+            if (path == null || !Files.exists(path)) {
+                continue;
+            }
+            try {
+                Files.delete(path);
+            } catch (IOException e) {
+                log.error("Failed to delete envelope file: {}, error={}", path, e.getMessage());
             }
         }
     }
 
-    void retrySession(QueueItem<RelaySession> queueItem, RelaySession relaySession, long currentEpochSeconds) {
+    RelayQueueWorkResult retrySession(QueueItem<RelaySession> queueItem, RelaySession relaySession,
+                                      long currentEpochSeconds, List<Path> cleanupPaths) {
         relaySession.bumpRetryCount();
         int waitSeconds = RetryScheduler.getNextRetry(relaySession.getRetryCount());
         long nextAttempt = currentEpochSeconds + Math.max(waitSeconds, 0);
         queueItem.setPayload(relaySession).setRetryCount(relaySession.getRetryCount());
         RESCHEDULE_COUNT.incrementAndGet();
-        queue.reschedule(queueItem, nextAttempt, deriveLastError(relaySession));
+        return new RelayQueueWorkResult(
+                QueueMutation.reschedule(queueItem, nextAttempt, deriveLastError(relaySession)),
+                List.of(),
+                cleanupPaths
+        );
     }
 
     public static long getRescheduleCount() {
         return RESCHEDULE_COUNT.get();
     }
 
-    void generateBounces(RelaySession relaySession) {
+    List<RelaySession> generateBounces(RelaySession relaySession) {
         Set<String> recipients = new LinkedHashSet<>();
         List<MessageEnvelope> remainingEnvelopes = relaySession.getSession().getEnvelopes();
         for (MessageEnvelope envelope : remainingEnvelopes) {
@@ -183,11 +199,10 @@ public class RelayDequeue {
             }
         }
 
-        int bounceCount = 0;
+        List<RelaySession> bounces = new ArrayList<>();
         for (String recipient : recipients) {
             try {
-                createAndEnqueueBounce(relaySession, recipient);
-                bounceCount++;
+                bounces.add(createBounceSession(relaySession, recipient));
             } catch (Exception e) {
                 log.error("Failed to generate bounce for recipient {}: {}",
                         recipient, e.getMessage());
@@ -195,10 +210,11 @@ public class RelayDequeue {
         }
 
         log.warn("Max retries reached: uid={}, generatedBounces={}",
-                relaySession.getSession().getUID(), bounceCount);
+                relaySession.getSession().getUID(), bounces.size());
+        return bounces;
     }
 
-    void createAndEnqueueBounce(RelaySession originalSession, String recipient) {
+    RelaySession createBounceSession(RelaySession originalSession, String recipient) {
         BounceMessageGenerator bounce = new BounceMessageGenerator(originalSession, recipient);
         RelaySession bounceSession = new RelaySession(Factories.getSession()).setProtocol("esmtp");
         MessageEnvelope envelope = new MessageEnvelope()
@@ -207,7 +223,7 @@ public class RelayDequeue {
                 .setBytes(bounce.getStream().toByteArray());
         bounceSession.getSession().addEnvelope(envelope);
         QueueFiles.persistEnvelopeFiles(bounceSession);
-        queue.enqueue(bounceSession);
+        return bounceSession;
     }
 
     private void logSessionInfo(RelaySession relaySession) {

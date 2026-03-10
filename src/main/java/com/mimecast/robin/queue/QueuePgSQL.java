@@ -30,12 +30,13 @@ public class QueuePgSQL<T extends Serializable> extends SQLQueueDatabase<T> {
     private static DBConfig getConfig() {
         BasicConfig queueConfig = Config.getServer().getQueue();
         BasicConfig pgSQLConfig = new BasicConfig(queueConfig.getMapProperty("queuePgSQL"));
-        
+
         return new DBConfig(
             pgSQLConfig.getStringProperty("jdbcUrl", "jdbc:postgresql://localhost:5432/robin"),
             pgSQLConfig.getStringProperty("username", "robin"),
             pgSQLConfig.getStringProperty("password", ""),
-            pgSQLConfig.getStringProperty("tableName", "queue")
+            pgSQLConfig.getStringProperty("tableName", "queue"),
+            Math.toIntExact(pgSQLConfig.getLongProperty("maxPoolSize", 16L))
         );
     }
 

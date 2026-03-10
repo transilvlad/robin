@@ -66,6 +66,25 @@ class PersistentQueueTest {
         assertTrue(queue.isEmpty());
     }
 
+
+    @Test
+    void applyMutationsMarksClaimedItemDeadWithoutLeavingClaimIndexStateBehind() {
+        queue.clear();
+        RelaySession session = new RelaySession(new Session().setUID("dead-batch"));
+        queue.enqueue(session);
+
+        long now = Instant.now().getEpochSecond();
+        QueueItem<RelaySession> claimed = queue.claimReady(1, now, "test", now + 300).getFirst();
+        claimed.setPayload(session).dead("permanent failure");
+
+        queue.applyMutations(new QueueMutationBatch<>(List.of(QueueMutation.dead(claimed, "permanent failure")), List.of()));
+
+        QueueItem<RelaySession> updated = queue.getByUID(claimed.getUid());
+        assertEquals(0, queue.size());
+        assertEquals(1, queue.stats().deadCount());
+        assertEquals(QueueItemState.DEAD, updated.getState());
+    }
+
     @Test
     void listDoesNotRemoveItems() {
         queue.clear();
