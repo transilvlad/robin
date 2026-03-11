@@ -5,5 +5,11 @@
   disableRenameHeader: true,
   path: "/usr/local/robin/store/robin/",
   inboundFolder: "new",
-  clean: false
+  clean: false,
+  rocksdb: {
+    enabled: false,
+    path: "/usr/local/robin/store/robin-rocksdb",
+    inboxFolder: "Inbox",
+    sentFolder: "Sent"
+  }
 }

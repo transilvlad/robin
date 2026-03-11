@@ -2,8 +2,6 @@
 
 Comprehensive performance testing infrastructure for comparing Robin MTA against industry-standard MTAs with various storage backends.
 
-> **See also:** [.perf/readme.md](../../.perf/readme.md) for complete performance comparison analysis and results.
-
 ## Setup
 
 **First-time setup after cloning the repository:**
@@ -17,7 +15,7 @@ This script creates required `log/` and `store/` directories and sets proper fil
 
 ## Test Configurations
 
-The `.perf/` directory contains seven different performance testing configurations comparing various MTA + storage backend combinations.
+The `.perf/` directory currently exposes 16 runnable `docker-compose*.yaml` performance variants, grouped below into 8 documented benchmark configurations for easier comparison of the main MTA + storage patterns.
 
 ### 1. Robin + Dovecot LMTP
 
@@ -218,6 +216,42 @@ cd .perf/stalwart-bare
 ```
 
 **Note:** This configuration tests Stalwart as a standalone all-in-one mail server without an external MTA.
+
+---
+
+### 8. Robin Bare (RocksDB Mailbox)
+
+**Location:** `.perf/robin-bare-rocksdb/docker-compose.build.yaml`
+
+**Architecture:**
+- **MTA:** Robin MTA
+- **Storage:** Robin RocksDB mailbox backend
+- **Backend:** RocksDB embedded mailbox store
+- **Protocol:** SMTP → Robin → RocksDB mailbox
+
+**Containers:**
+- `robin` - Robin MTA server with `/store-rocksdb` enabled
+
+**Usage:**
+```bash
+cd .perf/robin-bare-rocksdb
+COMPOSE_FILE=docker-compose.build.yaml ../.shared/run-test.sh -t 20 -l 50
+```
+
+**Verification path:** delivery counts are read from `GET /store-rocksdb/{domain}/{user}/folders/Inbox/properties` instead of scanning Maildir folders.
+
+**Status:** ✅ Tested - All tests passed with 100% success rate
+
+**Performance (5-run average):**
+- **Throughput:** 243.4 emails/sec
+- **Latency:** 63.3ms average
+- **Success Rate:** 100% (5,000/5,000)
+- **Consistency:** ±5.6% variance
+
+**Notes:**
+- Fastest Robin row in the current benchmark set
+- SMTP acceptance and mailbox verification now both report 100% success
+- The earlier false `451` result came from an empty external `stalwart.json5` parsing to `null`, not from RocksDB delivery failure
 
 ---
 
@@ -661,13 +695,3 @@ docker exec perf-dovecot netstat -tlnp | grep :24
 # or
 docker exec perf-stalwart sh -c "nc -z localhost 24 && echo 'LMTP OK' || echo 'LMTP NOT RUNNING'"
 ```
-
----
-
-## Related Documentation
-
-- **[.perf/readme.md](../../.perf/readme.md)** - Complete performance comparison analysis
-- **[.perf/robin-dovecot/readme.md](../../.perf/robin-dovecot/readme.md)** - Robin vs Postfix with Dovecot
-- **[.perf/robin-stalwart/readme.md](../../.perf/robin-stalwart/readme.md)** - Robin vs Postfix with Stalwart
-- **[.perf/stalwart-bare/readme.md](../../.perf/stalwart-bare/readme.md)** - Stalwart standalone
-- **[Full Suite Testing](full-suite.md)** - Integration testing procedures

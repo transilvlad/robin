@@ -19,6 +19,7 @@ EOF
 configs=(
   "Stalwart Bare|.perf/stalwart-bare|docker-compose.yaml"
   "Robin Bare|.perf/robin-bare|docker-compose.yaml"
+  "Robin Bare (RocksDB)|.perf/robin-bare-rocksdb|docker-compose.build.yaml"
   "Robin + Stalwart|.perf/robin-stalwart|docker-compose.robin.yaml"
   "Robin + Stalwart (direct ingest)|.perf/robin-stalwart-direct|docker-compose.robin.yaml"
   "Robin + Dovecot LMTP (queued)|.perf/robin-dovecot|docker-compose.robin.yaml"
