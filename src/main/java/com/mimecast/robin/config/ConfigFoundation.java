@@ -66,7 +66,7 @@ public abstract class ConfigFoundation implements Serializable {
      * @param map Map.
      */
     protected ConfigFoundation(Map map) {
-        this.map = map;
+        this.map = map != null ? map : new HashMap<>();
     }
 
     /**

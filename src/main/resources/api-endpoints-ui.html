@@ -68,6 +68,10 @@
         <span class="description">- Browse local message storage and perform folder/message/draft mutations for webmail integration. Directory listings are returned as HTML with clickable links; individual <code>.eml</code> files are returned as <code>text/plain</code>. Send <code>Accept: application/json</code> for integration-friendly JSON responses. Empty folders are ignored.</span>
     </li>
     <li>
+        <a href="/store-rocksdb/"><code>/store-rocksdb</code></a>
+        <span class="description">- JSON-only mailbox API backed by RocksDB. Supports user, folder, and read/unread queries plus folder and message mutations.</span>
+    </li>
+    <li>
         <a href="/health"><code>/health</code></a>
         <span class="description">- Liveness probe for the API server.</span>
     </li>
@@ -214,6 +218,23 @@ curl -X POST -H "Content-Type: application/json" \
     <li><b>Draft delete:</b> <code>DELETE /store/{domain}/{user}/drafts/{draftId}</code></li>
     <li><b>Attachment upload:</b> <code>POST /store/{domain}/{user}/drafts/{draftId}/attachments?filename=name.ext</code> (raw body)</li>
     <li><b>Attachment delete:</b> <code>DELETE /store/{domain}/{user}/drafts/{draftId}/attachments/{attachmentId}</code></li>
+</ul>
+<h2>Store RocksDB</h2>
+<ul>
+    <li><b>Mailbox query:</b> <code>GET /store-rocksdb/{domain}/{user}</code></li>
+    <li><b>Folder query:</b> <code>GET /store-rocksdb/{domain}/{user}/folders/{folder}?state=read|unread</code></li>
+    <li><b>Folder properties:</b> <code>GET /store-rocksdb/{domain}/{user}/folders/{folder}/properties</code></li>
+    <li><b>Message query:</b> <code>GET /store-rocksdb/{domain}/{user}/messages/{messageId}</code></li>
+    <li><b>Folder create:</b> <code>POST /store-rocksdb/{domain}/{user}/folders</code></li>
+    <li><b>Folder rename:</b> <code>PATCH /store-rocksdb/{domain}/{user}/folders/{folder}</code></li>
+    <li><b>Folder delete:</b> <code>DELETE /store-rocksdb/{domain}/{user}/folders/{folder}</code></li>
+    <li><b>Folder copy:</b> <code>POST /store-rocksdb/{domain}/{user}/folders/{folder}/copy</code></li>
+    <li><b>Folder move:</b> <code>POST /store-rocksdb/{domain}/{user}/folders/{folder}/move</code></li>
+    <li><b>Message move:</b> <code>POST /store-rocksdb/{domain}/{user}/messages/move</code></li>
+    <li><b>Message read status:</b> <code>POST /store-rocksdb/{domain}/{user}/messages/read-status</code></li>
+    <li><b>Mark all read:</b> <code>POST /store-rocksdb/{domain}/{user}/messages/mark-all-read</code></li>
+    <li><b>Delete all:</b> <code>POST /store-rocksdb/{domain}/{user}/messages/delete-all</code></li>
+    <li><b>Cleanup old messages:</b> <code>POST /store-rocksdb/{domain}/{user}/messages/cleanup</code></li>
 </ul>
 <div class="note">
     <p>Bash:</p>

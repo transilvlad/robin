@@ -100,6 +100,7 @@ public class Factories {
             SpamStorageProcessor::new,
             AVStorageProcessor::new,
             LocalStorageProcessor::new,
+            RocksDbStorageProcessor::new,
             DovecotStorageProcessor::new,
             StalwartStorageProcessor::new
     ));

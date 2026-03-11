@@ -6,6 +6,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import javax.naming.ConfigurationException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -82,5 +84,19 @@ class ServerConfigTest {
     void isXclientEnabled() {
         // Test config has xclientEnabled set to true for testing
         assertTrue(Config.getServer().isXclientEnabled(), "XCLIENT should be enabled in test config");
+    }
+
+    
+    @Test
+    void emptyExternalConfigFileFallsBackToEmptyMap() throws Exception {
+        Path configDir = Files.createTempDirectory("server-config-empty-external-");
+        Files.writeString(configDir.resolve("server.json5"), "{ hostname: \"example.com\" }\n");
+        Files.writeString(configDir.resolve("stalwart.json5"), "");
+
+        ServerConfig serverConfig = new ServerConfig(configDir.resolve("server.json5").toString());
+
+        assertFalse(serverConfig.getStalwart().isEnabled());
+        assertNotNull(serverConfig.getStalwart().getMap());
+        assertTrue(serverConfig.getStalwart().getMap().isEmpty());
     }
 }

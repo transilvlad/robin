@@ -27,6 +27,14 @@
   // Auto clean storage on service start.
   clean: false,
 
+  // Robin mailbox storage in RocksDB.
+  rocksdb: {
+    enabled: false,
+    path: "/tmp/store-rocksdb",
+    inboxFolder: "Inbox",
+    sentFolder: "Sent"
+  },
+
   // Auto clean delete matching filenames only.
   patterns: [
     "^([0-9]{8}\\.)"
