@@ -18,5 +18,5 @@
 
   failureBehaviour: "retry",
   maxRetryCount: 10,
-  inboxMailboxId: "0"
+  inboxMailboxId: ""
 }

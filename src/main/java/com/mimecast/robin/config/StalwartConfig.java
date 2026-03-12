@@ -69,6 +69,6 @@ public class StalwartConfig extends BasicConfig {
     }
 
     public String getInboxMailboxId() {
-        return getStringProperty("inboxMailboxId", "0");
+        return getStringProperty("inboxMailboxId", "");
     }
 }

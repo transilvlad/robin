@@ -43,9 +43,9 @@ public class StalwartApiClient {
     private static final String JMAP_CORE = "urn:ietf:params:jmap:core";
     private static final String JMAP_MAIL = "urn:ietf:params:jmap:mail";
     private static final String JMAP_PRINCIPALS = "urn:ietf:params:jmap:principals";
-    private static final String PRIMARY_MAIL_CAPABILITY = "urn:ietf:params:jmap:mail";
 
     private static volatile StalwartApiClient shared;
+    private static volatile SharedClientKey sharedKey;
 
     private final StalwartConfig config;
     private final OkHttpClient httpClient;
@@ -56,24 +56,42 @@ public class StalwartApiClient {
     private volatile StalwartSession session;
 
     public static StalwartApiClient shared() {
+        return shared(Config.getServer().getStalwart(), Config.getServer().isAllowSelfSigned());
+    }
+
+    static StalwartApiClient shared(StalwartConfig config, boolean allowSelfSigned) {
+        SharedClientKey desiredKey = SharedClientKey.from(config, allowSelfSigned);
         StalwartApiClient current = shared;
-        if (current == null) {
-            synchronized (StalwartApiClient.class) {
-                current = shared;
-                if (current == null) {
-                    current = new StalwartApiClient(Config.getServer().getStalwart());
-                    shared = current;
-                }
+        if (current != null && desiredKey.equals(sharedKey)) {
+            return current;
+        }
+
+        synchronized (StalwartApiClient.class) {
+            current = shared;
+            if (current == null || !desiredKey.equals(sharedKey)) {
+                current = new StalwartApiClient(config, allowSelfSigned);
+                shared = current;
+                sharedKey = desiredKey;
             }
         }
+
         return current;
     }
 
     public StalwartApiClient(StalwartConfig config) {
+        this(config, Config.getServer().isAllowSelfSigned());
+    }
+
+    StalwartApiClient(StalwartConfig config, boolean allowSelfSigned) {
         this.config = Objects.requireNonNull(config, "config");
         this.authHeader = Credentials.basic(config.getUsername(), config.getPassword(), StandardCharsets.UTF_8);
         this.requestLimiter = new Semaphore(Math.max(1, config.getMaxConcurrentRequests()));
-        this.httpClient = buildClient(config);
+        this.httpClient = buildClient(config, allowSelfSigned);
+    }
+
+    static synchronized void resetSharedForTest() {
+        shared = null;
+        sharedKey = null;
     }
 
     public Map<String, String> deliverToRecipients(byte[] rawMessage, Collection<String> recipients) throws IOException {
@@ -123,7 +141,10 @@ public class StalwartApiClient {
         }
 
         String accountId = queryPrincipalAccountId(currentSession, normalized);
-        String inboxMailboxId = queryInboxMailboxId(currentSession, accountId);
+        String inboxMailboxId = configuredInboxMailboxId();
+        if (inboxMailboxId == null) {
+            inboxMailboxId = queryInboxMailboxId(currentSession, accountId);
+        }
         ResolvedAccount account = new ResolvedAccount(accountId, normalized, inboxMailboxId);
 
         evictExpiredCacheEntries(now);
@@ -352,6 +373,15 @@ public class StalwartApiClient {
         }
     }
 
+    private String configuredInboxMailboxId() {
+        String mailboxId = config.getInboxMailboxId();
+        if (mailboxId == null) {
+            return null;
+        }
+        mailboxId = mailboxId.trim();
+        return mailboxId.isEmpty() ? null : mailboxId;
+    }
+
     private static JsonArray capabilities(String... values) {
         JsonArray capabilities = new JsonArray();
         for (String value : values) {
@@ -380,7 +410,7 @@ public class StalwartApiClient {
         return trimmedBase + "/" + discoveredUrl;
     }
 
-    private static OkHttpClient buildClient(StalwartConfig config) {
+    private static OkHttpClient buildClient(StalwartConfig config, boolean allowSelfSigned) {
         OkHttpClient.Builder builder = new OkHttpClient.Builder()
                 .connectTimeout(config.getConnectTimeoutSeconds(), TimeUnit.SECONDS)
                 .readTimeout(config.getReadTimeoutSeconds(), TimeUnit.SECONDS)
@@ -388,7 +418,7 @@ public class StalwartApiClient {
                 .followRedirects(true)
                 .followSslRedirects(true);
 
-        if (Config.getServer().isAllowSelfSigned()) {
+        if (allowSelfSigned) {
             try {
                 X509TrustManager trustManager = Factories.getTrustManager();
                 SSLContext sslContext = SSLContext.getInstance("TLS");
@@ -420,5 +450,37 @@ public class StalwartApiClient {
     }
 
     private record CachedAccount(ResolvedAccount account, long expiresAtMillis) {
+    }
+
+    private record SharedClientKey(
+            boolean enabled,
+            String baseUrl,
+            String username,
+            String password,
+            long connectTimeoutSeconds,
+            long readTimeoutSeconds,
+            long writeTimeoutSeconds,
+            int lookupCacheTtlSeconds,
+            int lookupCacheMaxEntries,
+            int maxConcurrentRequests,
+            String inboxMailboxId,
+            boolean allowSelfSigned
+    ) {
+        private static SharedClientKey from(StalwartConfig config, boolean allowSelfSigned) {
+            return new SharedClientKey(
+                    config.isEnabled(),
+                    config.getBaseUrl(),
+                    config.getUsername(),
+                    config.getPassword(),
+                    config.getConnectTimeoutSeconds(),
+                    config.getReadTimeoutSeconds(),
+                    config.getWriteTimeoutSeconds(),
+                    config.getLookupCacheTtlSeconds(),
+                    config.getLookupCacheMaxEntries(),
+                    config.getMaxConcurrentRequests(),
+                    config.getInboxMailboxId(),
+                    allowSelfSigned
+            );
+        }
     }
 }

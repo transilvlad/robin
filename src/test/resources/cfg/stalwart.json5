@@ -13,5 +13,5 @@
   maxConcurrentRequests: 4,
   failureBehaviour: "retry",
   maxRetryCount: 3,
-  inboxMailboxId: "0"
+  inboxMailboxId: ""
 }

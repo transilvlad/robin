@@ -14,7 +14,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -42,13 +41,15 @@ public class RocksDbStorageProcessor extends AbstractStorageProcessor {
         }
 
         RocksDbMailboxStore store = RocksDbMailboxStoreManager.getConfiguredStore();
+        byte[] sourceBytes = Files.readAllBytes(Path.of(sourceFile));
+        Map<String, String> headers = readHeaders(emailParser);
         if (connection.getSession().isOutbound()) {
             if (envelope.getMail() == null || envelope.getMail().isBlank()) {
                 log.warn("Skipping outbound RocksDB storage because MAIL FROM is empty");
                 return true;
             }
-            byte[] content = buildStoredMessage(connection, sourceFile, null);
-            store.storeOutbound(envelope.getMail(), content, sourceFile, readHeaders(emailParser));
+            byte[] content = buildStoredMessage(connection, sourceBytes, null);
+            store.storeOutbound(envelope.getMail(), content, sourceFile, headers);
             return true;
         }
 
@@ -56,8 +57,8 @@ public class RocksDbStorageProcessor extends AbstractStorageProcessor {
             if (envelope.isBotAddress(recipient)) {
                 continue;
             }
-            byte[] content = buildStoredMessage(connection, sourceFile, recipient);
-            store.storeInbound(recipient, content, sourceFile, readHeaders(emailParser));
+            byte[] content = buildStoredMessage(connection, sourceBytes, recipient);
+            store.storeInbound(recipient, content, sourceFile, headers);
         }
         return true;
     }
@@ -73,13 +74,12 @@ public class RocksDbStorageProcessor extends AbstractStorageProcessor {
         return headers;
     }
 
-    private byte[] buildStoredMessage(Connection connection, String sourceFile, String recipient) throws IOException {
+    private byte[] buildStoredMessage(Connection connection, byte[] sourceBytes, String recipient) {
         ReceivedHeader receivedHeader = new ReceivedHeader(connection);
         if (recipient != null && !recipient.isBlank()) {
             receivedHeader.setRecipientAddress(recipient);
         }
         byte[] headerBytes = receivedHeader.toString().getBytes();
-        byte[] sourceBytes = Files.readAllBytes(Path.of(sourceFile));
         byte[] content = new byte[headerBytes.length + sourceBytes.length];
         System.arraycopy(headerBytes, 0, content, 0, headerBytes.length);
         System.arraycopy(sourceBytes, 0, content, headerBytes.length, sourceBytes.length);
