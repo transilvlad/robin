@@ -4,6 +4,7 @@ import com.mimecast.robin.config.BasicConfig;
 import com.mimecast.robin.main.Config;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -21,22 +22,23 @@ public final class RocksDbMailboxStoreManager {
         return getConfig().getBooleanProperty("enabled", false);
     }
 
-    public static RocksDbMailboxStore getConfiguredStore() throws IOException {
+    public static synchronized RocksDbMailboxStore getConfiguredStore() throws IOException {
         BasicConfig config = getConfig();
         String path = config.getStringProperty("path", "");
         if (path == null || path.isBlank()) {
             throw new IOException("storage.rocksdb.path is required");
         }
-        RocksDbMailboxStore existing = STORES.get(path);
+        String normalizedPath = Path.of(path).toAbsolutePath().normalize().toString();
+        RocksDbMailboxStore existing = STORES.get(normalizedPath);
         if (existing != null) {
             return existing;
         }
         RocksDbMailboxStore created = new RocksDbMailboxStore(
-                path,
+                normalizedPath,
                 config.getStringProperty("inboxFolder", "Inbox"),
                 config.getStringProperty("sentFolder", "Sent")
         );
-        RocksDbMailboxStore raced = STORES.putIfAbsent(path, created);
+        RocksDbMailboxStore raced = STORES.putIfAbsent(normalizedPath, created);
         if (raced != null) {
             created.close();
             return raced;

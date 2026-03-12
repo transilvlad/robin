@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
@@ -21,6 +22,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.DirectoryNotEmptyException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -28,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Execution(ExecutionMode.SAME_THREAD)
+@Isolated
 @ResourceLock(value = "storage-config", mode = ResourceAccessMode.READ_WRITE)
 class RocksDbStorageProcessorTest {
 
@@ -46,11 +49,7 @@ class RocksDbStorageProcessorTest {
             Files.deleteIfExists(sourceFile);
         }
         if (dbPath != null && Files.exists(dbPath)) {
-            try (var walk = Files.walk(dbPath)) {
-                for (Path path : walk.sorted(java.util.Comparator.reverseOrder()).toList()) {
-                    Files.deleteIfExists(path);
-                }
-            }
+            deleteTreeWithRetry(dbPath);
         }
         Config.getServer().getStorage().getMap().remove("rocksdb");
     }
@@ -103,5 +102,30 @@ class RocksDbStorageProcessorTest {
 
         var sent = store.getFolder("example.com", "sender", "Sent", "read");
         assertEquals(1, sent.messages.size());
+    }
+
+    private void deleteTreeWithRetry(Path root) throws IOException {
+        IOException lastFailure = null;
+        for (int attempt = 0; attempt < 5; attempt++) {
+            try {
+                try (var walk = Files.walk(root)) {
+                    for (Path path : walk.sorted(java.util.Comparator.reverseOrder()).toList()) {
+                        Files.deleteIfExists(path);
+                    }
+                }
+                return;
+            } catch (DirectoryNotEmptyException e) {
+                lastFailure = e;
+                try {
+                    Thread.sleep(50L * (attempt + 1));
+                } catch (InterruptedException interruptedException) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Interrupted while deleting RocksDB test directory", interruptedException);
+                }
+            }
+        }
+        if (lastFailure != null) {
+            throw lastFailure;
+        }
     }
 }

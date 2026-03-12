@@ -44,6 +44,16 @@ public abstract class HttpEndpoint {
     public abstract void start(EndpointConfig config) throws IOException;
 
     /**
+     * Stops the HTTP endpoint if it is running.
+     */
+    public void stop() {
+        if (server != null) {
+            server.stop(0);
+            server = null;
+        }
+    }
+
+    /**
      * Handles requests for the favicon.ico file.
      *
      * @param exchange The HTTP exchange object.
@@ -180,4 +190,3 @@ public abstract class HttpEndpoint {
         }
     }
 }
-

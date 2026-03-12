@@ -11,15 +11,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
 import javax.naming.ConfigurationException;
 import java.io.IOException;
+import java.net.ServerSocket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.DirectoryNotEmptyException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,20 +35,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @Execution(ExecutionMode.SAME_THREAD)
+@Isolated
 @ResourceLock(value = "storage-config", mode = ResourceAccessMode.READ_WRITE)
 class ApiEndpointStoreRocksDbTest {
-
-    private static final int TEST_PORT = 8098;
-    private static final String BASE_URL = "http://localhost:" + TEST_PORT;
 
     private final Gson gson = new Gson();
     private HttpClient client;
     private Path dbPath;
+    private int testPort;
+    private String baseUrl;
+    private ApiEndpoint apiEndpoint;
 
     @BeforeAll
     void setUp() throws IOException, ConfigurationException {
         Foundation.init("src/test/resources/cfg/");
         dbPath = Files.createTempDirectory("robin-store-rocksdb-api-");
+        testPort = findFreePort();
+        baseUrl = "http://localhost:" + testPort;
 
         Map<String, Object> rocksDb = new HashMap<>();
         rocksDb.put("enabled", true);
@@ -54,9 +60,9 @@ class ApiEndpointStoreRocksDbTest {
         rocksDb.put("sentFolder", "Sent");
         Config.getServer().getStorage().getMap().put("rocksdb", rocksDb);
 
-        ApiEndpoint apiEndpoint = new ApiEndpoint();
+        apiEndpoint = new ApiEndpoint();
         Map<String, Object> configMap = new HashMap<>();
-        configMap.put("port", TEST_PORT);
+        configMap.put("port", testPort);
         configMap.put("authType", "none");
         apiEndpoint.start(new EndpointConfig(configMap));
 
@@ -71,14 +77,13 @@ class ApiEndpointStoreRocksDbTest {
 
     @AfterAll
     void tearDown() throws IOException {
+        if (apiEndpoint != null) {
+            apiEndpoint.stop();
+        }
         RocksDbMailboxStoreManager.closeAll();
         Config.getServer().getStorage().getMap().remove("rocksdb");
         if (dbPath != null && Files.exists(dbPath)) {
-            try (var walk = Files.walk(dbPath)) {
-                for (Path path : walk.sorted(java.util.Comparator.reverseOrder()).toList()) {
-                    Files.deleteIfExists(path);
-                }
-            }
+            deleteTreeWithRetry(dbPath);
         }
     }
 
@@ -138,7 +143,7 @@ class ApiEndpointStoreRocksDbTest {
     }
 
     private HttpResponse<String> send(String method, String path, String body, String contentType) throws Exception {
-        HttpRequest.Builder builder = HttpRequest.newBuilder().uri(URI.create(BASE_URL + path));
+        HttpRequest.Builder builder = HttpRequest.newBuilder().uri(URI.create(baseUrl + path));
         if (contentType != null) {
             builder.header("Content-Type", contentType);
         }
@@ -161,5 +166,36 @@ class ApiEndpointStoreRocksDbTest {
         headers.put("From", "sender@example.com");
         headers.put("To", "tony@example.com");
         return headers;
+    }
+
+    private static int findFreePort() throws IOException {
+        try (ServerSocket socket = new ServerSocket(0)) {
+            return socket.getLocalPort();
+        }
+    }
+
+    private void deleteTreeWithRetry(Path root) throws IOException {
+        IOException lastFailure = null;
+        for (int attempt = 0; attempt < 5; attempt++) {
+            try {
+                try (var walk = Files.walk(root)) {
+                    for (Path path : walk.sorted(java.util.Comparator.reverseOrder()).toList()) {
+                        Files.deleteIfExists(path);
+                    }
+                }
+                return;
+            } catch (DirectoryNotEmptyException e) {
+                lastFailure = e;
+                try {
+                    Thread.sleep(50L * (attempt + 1));
+                } catch (InterruptedException interruptedException) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Interrupted while deleting RocksDB API test directory", interruptedException);
+                }
+            }
+        }
+        if (lastFailure != null) {
+            throw lastFailure;
+        }
     }
 }

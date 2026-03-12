@@ -4,6 +4,9 @@ import com.mimecast.robin.main.Foundation;
 import com.mimecast.robin.smtp.connection.ConnectionMock;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.Isolated;
 
 import javax.naming.ConfigurationException;
 import java.io.IOException;
@@ -11,6 +14,8 @@ import java.io.IOException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@Execution(ExecutionMode.SAME_THREAD)
+@Isolated
 class EmailReceiptTest {
 
     @BeforeAll
