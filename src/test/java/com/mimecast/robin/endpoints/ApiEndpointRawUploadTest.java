@@ -3,6 +3,7 @@ package com.mimecast.robin.endpoints;
 import com.google.gson.Gson;
 import com.mimecast.robin.config.server.EndpointConfig;
 import com.mimecast.robin.main.Foundation;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 
 import javax.naming.ConfigurationException;
 import java.io.IOException;
+import java.net.ServerSocket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -28,20 +30,21 @@ import static org.junit.jupiter.api.Assertions.*;
 @Execution(ExecutionMode.SAME_THREAD)
 class ApiEndpointRawUploadTest {
 
-    private static final int TEST_PORT = 8098;
-    private static final String BASE_URL = "http://localhost:" + TEST_PORT;
-
     private HttpClient httpClient;
     private Gson gson;
+    private ApiEndpoint apiEndpoint;
+    private String baseUrl;
 
     @BeforeAll
     void setUp() throws IOException, ConfigurationException {
         Foundation.init("src/test/resources/cfg/");
 
-        ApiEndpoint apiEndpoint = new ApiEndpoint();
+        apiEndpoint = new ApiEndpoint();
+        int testPort = findFreePort();
+        baseUrl = "http://localhost:" + testPort;
 
         Map<String, Object> configMap = new HashMap<>();
-        configMap.put("port", TEST_PORT);
+        configMap.put("port", testPort);
         configMap.put("authType", "none");
 
         apiEndpoint.start(new EndpointConfig(configMap));
@@ -56,6 +59,13 @@ class ApiEndpointRawUploadTest {
         gson = new Gson();
     }
 
+    @AfterAll
+    void tearDown() {
+        if (apiEndpoint != null) {
+            apiEndpoint.stop();
+        }
+    }
+
     @Test
     void testQueueRawUploadMessageRfc822() throws Exception {
         String eml = "From: tony@example.com\r\n" +
@@ -65,7 +75,7 @@ class ApiEndpointRawUploadTest {
                 "Hello from raw upload.\r\n";
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(BASE_URL + "/client/queue?mail=tony@example.com&rcpt=pepper@example.com"))
+                .uri(URI.create(baseUrl + "/client/queue?mail=tony@example.com&rcpt=pepper@example.com"))
                 .header("Content-Type", "message/rfc822")
                 .POST(HttpRequest.BodyPublishers.ofString(eml, StandardCharsets.UTF_8))
                 .build();
@@ -84,5 +94,11 @@ class ApiEndpointRawUploadTest {
         String uploadedFile = (String) map.get("uploadedFile");
         assertNotNull(uploadedFile);
         assertTrue(uploadedFile.endsWith(".eml"), "Uploaded file should have .eml extension");
+    }
+
+    private static int findFreePort() throws IOException {
+        try (ServerSocket socket = new ServerSocket(0)) {
+            return socket.getLocalPort();
+        }
     }
 }
