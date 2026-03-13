@@ -31,7 +31,7 @@
   // Use LDA backend for email delivery (same-container).
   saveLda: {
     enabled: true,
-    inline: true,
+    inline: false,
     ldaBinary: "/usr/lib/dovecot/dovecot-lda",
     inboxFolder: "INBOX",
     sentFolder: "Sent",

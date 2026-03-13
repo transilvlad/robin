@@ -1,0 +1,9 @@
+{
+  saveLmtp: {
+    enabled: false
+  },
+
+  saveLda: {
+    enabled: false
+  }
+}

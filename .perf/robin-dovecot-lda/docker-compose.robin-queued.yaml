@@ -1,0 +1,104 @@
+# Docker Compose for Robin MTA + Dovecot LDA Testing
+# This file sets up a combined container for testing Robin's Dovecot LDA delivery integration.
+# Uses LDA (Local Delivery Agent) + unix sockets for user lookup and authentication in same-container delivery.
+#
+# Configuration strategy:
+# - Build: Ubuntu 24.04 + Java 21 + Dovecot 2.4 + Robin
+# - Configs: Uses .perf/robin-dovecot configs with LDA-specific dovecot.json5
+# - PostgreSQL: Uses 'postgres-backend' hostname (aligned with other .perf setups)
+#
+# Port mappings (2525, 2143, 28090) for test compatibility.
+# See .suite/init-suite.sh for initial directory setup on Windows WSL2.
+
+services:
+  robin-lda:
+    build:
+      context: ../../
+      dockerfile: ./.perf/robin-dovecot-lda/robin.Dockerfile
+      args:
+        INCLUDE_CFG: "false"
+    environment:
+      JAVA_TOOL_OPTIONS: "-Dnetworkaddress.cache.negative.ttl=300 -Dsun.net.inetaddr.negative.ttl=300 -Dlog4j2.asyncLoggerWaitStrategy=Timeout -Dlog4j2.asyncLoggerTimeout=1000 ${JAVA_TOOL_OPTIONS:-}"
+    volumes:
+      # Robin configuration - LDA-specific dovecot.json5 plus local copies of shared perf config.
+      - ./cfg-queued:/usr/local/robin/cfg:ro
+      # Robin logs and storage
+      - robin-store:/usr/local/robin/store
+      # Dovecot configuration from .perf/robin-dovecot
+      - ../robin-dovecot/dovecot/etc:/etc/dovecot:ro
+      - dovecot-data:/var/mail/vhosts
+    tmpfs:
+      - /var/log:size=32m
+      - /var/log/dovecot:size=64m
+      - /usr/local/robin/store/robin/tmp:size=256m
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "2525:25"      # SMTP (external 2525 matches suite)
+      - "2587:587"     # SUBMISSION (external 2587 matches suite)
+      - "2465:465"     # SMTPS (external 2465 matches suite)
+      - "2110:110"     # POP3 (external 2110 matches suite)
+      - "2143:143"     # IMAP (external 2143 matches suite)
+      - "2993:993"     # IMAPS (external 2993 matches suite)
+      - "24190:4190"   # ManageSieve (external 24190 matches suite)
+      - "28080:8080"   # Service (external 28080 matches suite)
+      - "28090:8090"   # API (external 28090 matches suite)
+    networks:
+      robin-dovecot-lda-net:
+        aliases:
+          - lmtp-backend
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "25"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:latest
+    command:
+      - "postgres"
+      - "-c"
+      - "log_destination=stderr"
+      - "-c"
+      - "max_connections=300"
+      - "-c"
+      - "shared_buffers=512MB"
+      - "-c"
+      - "effective_cache_size=1536MB"
+      - "-c"
+      - "work_mem=8MB"
+      - "-c"
+      - "maintenance_work_mem=128MB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+    environment:
+      POSTGRES_DB: robin
+      POSTGRES_USER: robin
+      POSTGRES_PASSWORD: robin
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ../.shared/db-init:/docker-entrypoint-initdb.d:ro
+    tmpfs:
+      - /var/log:size=32m
+    ports:
+      - "5432:5432"
+    networks:
+      robin-dovecot-lda-net:
+        aliases:
+          - postgres-backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U robin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  robin-dovecot-lda-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  dovecot-data:
+  robin-store:

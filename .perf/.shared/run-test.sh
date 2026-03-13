@@ -17,6 +17,7 @@ TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 THREADS=${THREADS:-200}
 LOOPS=${LOOPS:-1}
 QUEUE_DRAIN_TIMEOUT_SECONDS=${QUEUE_DRAIN_TIMEOUT_SECONDS:-300}
+MAILBOX_VERIFY_TIMEOUT_SECONDS=${MAILBOX_VERIFY_TIMEOUT_SECONDS:-60}
 
 show_usage() {
     cat <<EOF
@@ -205,9 +206,42 @@ sum_local_storage_mailboxes() {
     echo "$total"
 }
 
+sum_rocksdb_storage_mailboxes() {
+    local total=0
+    local email username domain response count
+
+    while IFS=, read -r email _; do
+        username="${email%@*}"
+        domain="${email#*@}"
+        response="$(curl -s "http://127.0.0.1:${ROCKSDB_API_PORT}/store-rocksdb/${domain}/${username}/folders/${ROCKSDB_INBOX_FOLDER}/properties" || true)"
+        count="$(python3 - "$response" <<'PY'
+import json
+import sys
+
+try:
+    payload = json.loads(sys.argv[1])
+    print(int(payload.get("total", 0)))
+except Exception:
+    print(0)
+PY
+)"
+        if [[ -z "$count" ]]; then
+            count=0
+        fi
+        total=$((total + count))
+    done < <(csv_rows "$BENCHMARK_USERS_CSV")
+
+    echo "$total"
+}
+
 sum_mailboxes() {
     if [[ "$BACKEND" == "stalwart" ]]; then
         sum_imap_mailboxes
+        return
+    fi
+
+    if [[ "$BACKEND" == "rocksdb-storage" ]]; then
+        sum_rocksdb_storage_mailboxes
         return
     fi
 
@@ -232,12 +266,64 @@ sum_mailboxes() {
     sum_dovecot_mailboxes "$DOVECOT_CONTAINER_ID"
 }
 
-uses_queued_robin_dovecot() {
-    [[ "$CURRENT_DIR" == "robin-dovecot" && "$COMPOSE_FILE" == *"docker-compose.robin.yaml" ]]
+get_robin_queue_size() {
+    python3 - <<'PY'
+import json
+import urllib.request
+try:
+    data = json.load(urllib.request.urlopen('http://127.0.0.1:28080/health', timeout=2))
+    print(data.get('queue', {}).get('size', -1))
+except Exception:
+    print(-1)
+PY
+}
+
+resolve_queue_config_file() {
+    if [[ "$COMPOSE_FILE" == *"queued"* ]]; then
+        if [[ -f "${SUITE_DIR}/robin-cfg-queued/queue.json5" ]]; then
+            printf '%s\n' "${SUITE_DIR}/robin-cfg-queued/queue.json5"
+            return
+        fi
+        if [[ -f "${SUITE_DIR}/cfg-queued/queue.json5" ]]; then
+            printf '%s\n' "${SUITE_DIR}/cfg-queued/queue.json5"
+            return
+        fi
+    fi
+
+    if [[ -f "${SUITE_DIR}/robin-cfg/queue.json5" ]]; then
+        printf '%s\n' "${SUITE_DIR}/robin-cfg/queue.json5"
+        return
+    fi
+    if [[ -f "${SUITE_DIR}/cfg/queue.json5" ]]; then
+        printf '%s\n' "${SUITE_DIR}/cfg/queue.json5"
+        return
+    fi
+    if [[ -f "${SUITE_DIR}/../.shared/robin/cfg/queue.json5" ]]; then
+        printf '%s\n' "${SUITE_DIR}/../.shared/robin/cfg/queue.json5"
+    fi
+}
+
+is_queue_enabled_for_suite() {
+    local queue_config
+    queue_config="$(resolve_queue_config_file)"
+    if [[ -z "$queue_config" || ! -f "$queue_config" ]]; then
+        return 0
+    fi
+    if grep -Eq '^[[:space:]]*enabled:[[:space:]]*false([[:space:]]|$)' "$queue_config"; then
+        return 1
+    fi
+    return 0
+}
+
+uses_robin_queue_monitoring() {
+    [[ "$CURRENT_DIR" == robin-* ]] || return 1
+    is_queue_enabled_for_suite || return 1
+    wait_for_local_port 28080 1 || return 1
+    [[ "$(get_robin_queue_size)" != "-1" ]]
 }
 
 reset_queued_state() {
-    if ! uses_queued_robin_dovecot; then
+    if ! uses_robin_queue_monitoring; then
         return
     fi
 
@@ -245,35 +331,64 @@ reset_queued_state() {
     if [[ -n "$POSTGRES_CONTAINER_ID" ]]; then
         docker exec "$POSTGRES_CONTAINER_ID" psql -U robin -d robin -c "truncate table relay_queue;" >/dev/null 2>&1 || true
         echo_info "Reset queued relay state"
-    else
-        echo_warning "Could not resolve PostgreSQL container for queue reset"
     fi
 }
 
 wait_for_queue_drain() {
-    if ! uses_queued_robin_dovecot; then
-        return 0
+    [[ "$CURRENT_DIR" == robin-* ]] || return 0
+    is_queue_enabled_for_suite || return 0
+
+    if ! wait_for_local_port 28080 5; then
+        echo_warning "Robin queue health endpoint did not become reachable"
+        return 1
     fi
 
-    echo_info "Waiting for queued LMTP drain..."
+    local queue_size
+    local saw_queue_probe=false
+
+    if [[ "$(get_robin_queue_size)" == "-1" ]]; then
+        echo_warning "Robin queue size probe unavailable, retrying during drain wait"
+    fi
+
+    echo_info "Waiting for Robin queue drain..."
     for _ in $(seq 1 "${QUEUE_DRAIN_TIMEOUT_SECONDS}"); do
-        QUEUE_SIZE=$(python3 - <<'PY'
-import json, urllib.request
-try:
-    data=json.load(urllib.request.urlopen('http://127.0.0.1:28080/health', timeout=2))
-    print(data['queue']['size'])
-except Exception:
-    print(-1)
-PY
-)
-        if [[ "$QUEUE_SIZE" == "0" ]]; then
-            echo_success "Queued relay drained to zero"
+        queue_size="$(get_robin_queue_size)"
+        if [[ "$queue_size" == "-1" ]]; then
+            sleep 1
+            continue
+        fi
+
+        saw_queue_probe=true
+        if [[ "$queue_size" == "0" ]]; then
+            echo_success "Robin queue drained to zero"
             return 0
         fi
         sleep 1
     done
 
-    echo_warning "Queued relay did not drain within ${QUEUE_DRAIN_TIMEOUT_SECONDS}s"
+    if [[ "$saw_queue_probe" == false ]]; then
+        echo_warning "Robin queue health endpoint never returned a queue size"
+        return 1
+    fi
+
+    echo_warning "Robin queue did not drain within ${QUEUE_DRAIN_TIMEOUT_SECONDS}s"
+    return 1
+}
+
+wait_for_expected_mailbox_count() {
+    local expected_count="$1"
+    local email_count
+
+    for _ in $(seq 1 "${MAILBOX_VERIFY_TIMEOUT_SECONDS}"); do
+        email_count="$(sum_mailboxes)"
+        if [[ "$email_count" == "$expected_count" ]]; then
+            printf '%s\n' "$email_count"
+            return 0
+        fi
+        sleep 1
+    done
+
+    printf '%s\n' "$(sum_mailboxes)"
     return 1
 }
 
@@ -284,11 +399,17 @@ STALWART_SERVICE=""
 ROBIN_SERVICE="robin"
 LOCAL_STORAGE_ROOT="/usr/local/robin/store/robin"
 LOCAL_STORAGE_INBOUND_FOLDER="new"
+ROCKSDB_API_PORT=28090
+ROCKSDB_INBOX_FOLDER="Inbox"
 
 # Check directory name first for more accurate detection.
 if [[ "$CURRENT_DIR" == "robin-bare" ]]; then
     BACKEND="local-storage"
     TEST_NAME="robin-bare"
+    USE_IMAP=false
+elif [[ "$CURRENT_DIR" == "robin-bare-rocksdb" ]]; then
+    BACKEND="rocksdb-storage"
+    TEST_NAME="robin-bare-rocksdb"
     USE_IMAP=false
 elif [[ "$CURRENT_DIR" == "robin-stalwart-direct" ]]; then
     BACKEND="stalwart"
@@ -463,7 +584,7 @@ fi
 wait_for_queue_drain || true
 
 echo_info "Verifying email delivery..."
-EMAIL_COUNT=$(sum_mailboxes)
+EMAIL_COUNT=$(wait_for_expected_mailbox_count "${EXPECTED_EMAIL_COUNT}") || true
 DELIVERED_DELTA=$((EMAIL_COUNT - BASELINE_EMAIL_COUNT))
 SUCCESS_COUNT=$(grep ",true," "$RESULTS_FILE" 2>/dev/null | wc -l)
 

@@ -1,0 +1,22 @@
+{
+  // Queue configuration for performance testing.
+  // Tuned for aggressive dequeue processing under high load.
+  enabled: true,
+  startDelaySeconds: 1,         // Start draining queued LMTP deliveries almost immediately.
+  housekeepingIntervalSeconds: 1, // Release expired claims promptly during perf tests.
+  workerThreads: 24,            // Use pooled LMTP delivery with enough concurrency to outrun queue buildup.
+  maxInFlight: 24,              // Keep claimed work aligned with runnable worker capacity.
+  maxClaimBatch: 48,            // Claim in modest batches to avoid ballooning CLAIMED backlog.
+
+  queueMapDB: {
+    enabled: false
+  },
+
+  queuePgSQL: {
+    enabled: true,
+    jdbcUrl: "jdbc:postgresql://postgres-backend:5432/robin",
+    username: "robin",
+    password: "robin",
+    tableName: "relay_queue"
+  }
+}
