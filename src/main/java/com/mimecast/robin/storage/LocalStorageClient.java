@@ -8,6 +8,7 @@ import com.mimecast.robin.main.Server;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.headers.MimeHeader;
 import com.mimecast.robin.queue.relay.RelayMessage;
+import com.mimecast.robin.smtp.FileMessageSource;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.session.Session;
@@ -112,9 +113,14 @@ public class LocalStorageClient implements StorageClient {
      */
     @Override
     public OutputStream getStream() throws FileNotFoundException {
+        if (!(stream instanceof NullOutputStream) && stream != null) {
+            return stream;
+        }
+
         if (config.getStorage().getBooleanProperty("enabled")) {
             if (PathUtils.makePath(getPath())) {
-                stream = new BufferedOutputStream(new FileOutputStream(getFile()), FILE_BUFFER_SIZE);
+                long threshold = config.getStorage().getLongProperty("messageBufferMaxBytes", 1024L * 1024L);
+                stream = new MessageBufferOutputStream(threshold, Path.of(getFile()));
             } else {
                 log.error("Storage path could not be created");
             }
@@ -161,19 +167,24 @@ public class LocalStorageClient implements StorageClient {
                 MessageEnvelope envelope = getCurrentEnvelope();
                 if (envelope != null) {
                     envelope.setFile(getFile());
+                    if (stream instanceof MessageBufferOutputStream bufferStream) {
+                        envelope.setMessageSource(bufferStream.toMessageSource());
+                    } else if (Files.exists(Path.of(getFile()))) {
+                        envelope.setMessageSource(new FileMessageSource(Path.of(getFile())));
+                    }
                 }
 
                 boolean parseHeadersOnly = shouldParseHeadersOnly(envelope);
                 boolean parseFullEmail = isFullEmailParseRequired();
                 if (parseHeadersOnly || parseFullEmail) {
-                    try (EmailParser emailParser = new EmailParser(getFile()).parse(!parseFullEmail)) {
+                    try (InputStream input = envelope != null ? envelope.openMessageStream() : null;
+                         EmailParser emailParser = input != null
+                                 ? new EmailParser(input).parse(!parseFullEmail)
+                                 : new EmailParser(getFile()).parse(!parseFullEmail)) {
                         parser = emailParser;
 
                         if (!config.getStorage().getBooleanProperty("disableRenameHeader")) {
-                            rename();
-                            if (envelope != null) {
-                                envelope.setFile(getFile());
-                            }
+                            rename(envelope);
                         }
 
                         if (envelope != null && envelope.hasBotAddresses()) {
@@ -253,7 +264,7 @@ public class LocalStorageClient implements StorageClient {
      *
      * @throws IOException Unable to delete file.
      */
-    private void rename() throws IOException {
+    private void rename(MessageEnvelope envelope) throws IOException {
         Optional<MimeHeader> optional = parser.getHeaders().get("x-robin-filename");
         if (optional.isPresent()) {
             MimeHeader header = optional.get();
@@ -262,13 +273,22 @@ public class LocalStorageClient implements StorageClient {
             Path target = Paths.get(getPath(), header.getValue());
 
             if (StringUtils.isNotBlank(header.getValue())) {
-                if (Files.deleteIfExists(target)) {
-                    log.info("Storage deleted existing file before rename");
+                fileName = header.getValue();
+                if (envelope != null) {
+                    envelope.setFile(target.toString());
                 }
 
-                if (new File(source).renameTo(new File(target.toString()))) {
-                    fileName = header.getValue();
-                    log.info("Storage moved file to: {}", getFile());
+                if (StringUtils.isNotBlank(source) && Files.exists(Path.of(source))) {
+                    if (Files.deleteIfExists(target)) {
+                        log.info("Storage deleted existing file before rename");
+                    }
+
+                    if (new File(source).renameTo(new File(target.toString()))) {
+                        if (envelope != null) {
+                            envelope.setMessageSource(new FileMessageSource(target));
+                        }
+                        log.info("Storage moved file to: {}", getFile());
+                    }
                 }
             }
         }

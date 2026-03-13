@@ -33,7 +33,7 @@ public class SpamStorageProcessor extends AbstractStorageProcessor {
     protected boolean processInternal(Connection connection, EmailParser emailParser) throws IOException {
         RspamdConfig rspamdConfig = Config.getServer().getRspamd();
         if (rspamdConfig.isEnabled()) {
-            File emailFile = new File(connection.getSession().getEnvelopes().getLast().getFile());
+            var envelope = connection.getSession().getEnvelopes().getLast();
             RspamdClient rspamdClient = new RspamdClient(
                     rspamdConfig.getHost(),
                     rspamdConfig.getPort())
@@ -43,7 +43,7 @@ public class SpamStorageProcessor extends AbstractStorageProcessor {
                     .setDmarcScanEnabled(rspamdConfig.isDmarcScanEnabled());
 
             // Scan the email and retrieve the score
-            Map<String, Object> scanResult = rspamdClient.scanFile(emailFile);
+            Map<String, Object> scanResult = rspamdClient.scanBytes(envelope.readMessageBytes());
             double score = rspamdClient.getScore();
 
             // Save scan results to envelope
@@ -70,12 +70,12 @@ public class SpamStorageProcessor extends AbstractStorageProcessor {
             // Apply threshold-based logic
             if (score >= discardThreshold) {
                 log.warn("Spam/phishing detected in {} with score {} (>= discard threshold {}), discarding: {}",
-                        connection.getSession().getEnvelopes().getLast().getFile(), score, discardThreshold, rspamdClient.getSymbols());
+                        envelope.getFile(), score, discardThreshold, rspamdClient.getSymbols());
                 SmtpMetrics.incrementEmailSpamRejection();
                 return true;  // Accept but discard
             } else if (score >= rejectThreshold) {
                 log.warn("Spam/phishing detected in {} with score {} (>= reject threshold {}): {}",
-                        connection.getSession().getEnvelopes().getLast().getFile(), score, rejectThreshold, rspamdClient.getSymbols());
+                        envelope.getFile(), score, rejectThreshold, rspamdClient.getSymbols());
                 SmtpMetrics.incrementEmailSpamRejection();
                 connection.write(String.format(SmtpResponses.SPAM_FOUND_550, connection.getSession().getUID()));
                 return false;  // Reject

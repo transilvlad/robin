@@ -162,9 +162,10 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
                 .setLhlo(Config.getServer().getHostname());
 
         MessageEnvelope queuedEnvelope = new MessageEnvelope()
-                .setFile(envelope.getFile())
                 .setMail(envelope.getMail())
                 .setRcpts(new ArrayList<>(recipients));
+        queuedEnvelope.setFile(envelope.getFile());
+        queuedEnvelope.setMessageSource(envelope.getMessageSource());
 
         relaySession.getSession().addEnvelope(queuedEnvelope);
         QueueFiles.persistEnvelopeFiles(relaySession);
@@ -185,9 +186,10 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
         relaySession.getSession().setDirection(connection.getSession().getDirection());
 
         MessageEnvelope queuedEnvelope = new MessageEnvelope()
-                .setFile(envelope.getFile())
                 .setMail(envelope.getMail())
                 .setRcpts(new ArrayList<>(recipients));
+        queuedEnvelope.setFile(envelope.getFile());
+        queuedEnvelope.setMessageSource(envelope.getMessageSource());
 
         relaySession.getSession().addEnvelope(queuedEnvelope);
         QueueFiles.persistEnvelopeFiles(relaySession);

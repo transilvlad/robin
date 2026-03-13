@@ -121,6 +121,8 @@ class ServerDataTest {
 
         ConnectionMock connection = new ConnectionMock(stringBuilder);
         connection.setSocket(new Socket());
+        connection.getSession().addEnvelope(new MessageEnvelope());
+        connection.getSession().getEnvelopes().getLast().addRcpt("john@example.com");
 
         Verb verb = new Verb("BDAT 109 LAST");
 

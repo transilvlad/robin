@@ -8,25 +8,31 @@ import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.connection.ConnectionMock;
 import com.mimecast.robin.smtp.session.Session;
-import com.mimecast.robin.util.PathUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import javax.naming.ConfigurationException;
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@Execution(ExecutionMode.SAME_THREAD)
+@ResourceLock(value = "storage-config", mode = ResourceAccessMode.READ_WRITE)
 class LocalStorageClientTest {
 
     @BeforeAll
@@ -70,8 +76,9 @@ class LocalStorageClientTest {
         localStorageClient.getStream().write(content.getBytes());
         localStorageClient.save();
 
-        assertEquals(content, PathUtils.readFile(localStorageClient.getFile(), Charset.defaultCharset()));
-        assertTrue(new File(localStorageClient.getFile()).delete());
+        assertNotNull(envelope.getMessageSource());
+        assertEquals(content, new String(envelope.readMessageBytes(), StandardCharsets.UTF_8));
+        assertFalse(Files.exists(Path.of(localStorageClient.getFile())));
     }
 
     @Test
@@ -93,8 +100,9 @@ class LocalStorageClientTest {
         localStorageClient.save();
 
         assertTrue(localStorageClient.getFile().endsWith("robin.eml"));
-        assertEquals(content, PathUtils.readFile(localStorageClient.getFile(), Charset.defaultCharset()));
-        assertTrue(new File(localStorageClient.getFile()).delete());
+        assertNotNull(envelope.getMessageSource());
+        assertEquals(content, new String(envelope.readMessageBytes(), StandardCharsets.UTF_8));
+        assertFalse(Files.exists(Path.of(localStorageClient.getFile())));
     }
 
     @ParameterizedTest

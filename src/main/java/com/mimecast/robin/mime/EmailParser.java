@@ -109,6 +109,25 @@ public class EmailParser implements AutoCloseable {
     }
 
     /**
+     * Constructs a new EmailParser instance from an input stream.
+     *
+     * @param inputStream Email input stream.
+     */
+    public EmailParser(InputStream inputStream) {
+        this(inputStream, 1024);
+    }
+
+    /**
+     * Constructs a new EmailParser instance from an input stream with custom buffer size.
+     *
+     * @param inputStream Email input stream.
+     * @param size        Pushback buffer size.
+     */
+    public EmailParser(InputStream inputStream, int size) {
+        this.stream = new LineInputStream(inputStream, size);
+    }
+
+    /**
      * Constructs a new EmailParser instance from an existing LineInputStream.
      * <p>
      * Use this constructor for advanced scenarios such as parsing email content from

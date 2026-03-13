@@ -36,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @Execution(ExecutionMode.SAME_THREAD)
 @Isolated
+@ResourceLock(value = "rocksdbjni", mode = ResourceAccessMode.READ_WRITE)
 @ResourceLock(value = "storage-config", mode = ResourceAccessMode.READ_WRITE)
 class ApiEndpointStoreRocksDbTest {
 

@@ -49,22 +49,21 @@ public final class QueueFiles {
             MessageEnvelope env = envelopes.get(i);
             String filePath = env != null ? env.getFile() : null;
             if (StringUtils.isBlank(filePath)) {
-                continue;
+                filePath = Paths.get(queueDir.toString(),
+                        "qeml-" + relaySession.getSession().getUID() + "-" + i + ".eml").toString();
+                env.setFile(filePath);
             }
 
             try {
-                if (filePath.contains("qeml-")) {
+                if (filePath.contains("qeml-") && Files.exists(Path.of(filePath))) {
                     log.trace("Envelope file already in queue, skipping move: {}", filePath);
                     continue;
                 }
 
-                Path src = Paths.get(filePath);
-                if (!Files.exists(src)) {
-                    log.debug("Envelope file does not exist, skipping move: {}", filePath);
-                    continue;
-                }
-
-                String fileName = "qeml-" + src.getFileName().toString();
+                Path src = StringUtils.isNotBlank(filePath) ? Paths.get(filePath) : null;
+                String fileName = src != null && src.getFileName() != null
+                        ? "qeml-" + src.getFileName()
+                        : "qeml-" + relaySession.getSession().getUID() + "-" + i + ".eml";
                 Path target = queueDir.resolve(fileName);
 
                 // Ensure unique target if file exists.
@@ -73,11 +72,14 @@ public final class QueueFiles {
                     target = queueDir.resolve(unique);
                 }
 
-                // Try to copy
-                try {
-                    Files.copy(src, target);
-                } catch (IOException ex) {
-                    log.debug("Copy failed ({}),  {}", src, ex.getMessage());
+                if (src != null && Files.exists(src)) {
+                    try {
+                        Files.copy(src, target);
+                    } catch (IOException ex) {
+                        log.debug("Copy failed ({}),  {}", src, ex.getMessage());
+                    }
+                } else {
+                    env.materializeMessageFile(target);
                 }
 
                 env.setFile(target.toString());

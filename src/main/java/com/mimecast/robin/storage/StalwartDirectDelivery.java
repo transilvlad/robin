@@ -95,14 +95,11 @@ public class StalwartDirectDelivery {
     }
 
     private byte[] readRawMessage(MessageEnvelope envelope) throws IOException {
-        if (envelope.getFile() != null) {
-            return Files.readAllBytes(Path.of(envelope.getFile()));
+        if (envelope.hasMessageSource()) {
+            return envelope.readMessageBytes();
         }
         if (envelope.getFolderFile() != null) {
             return Files.readAllBytes(Path.of(envelope.getFolderFile()));
-        }
-        if (envelope.getStream() != null) {
-            return envelope.getStream().readAllBytes();
         }
         throw new IOException("No message source available");
     }

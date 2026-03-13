@@ -2,10 +2,12 @@ package com.mimecast.robin.smtp.extension.client;
 
 import com.mimecast.robin.main.Foundation;
 import com.mimecast.robin.smtp.auth.DigestMD5Client;
+import com.mimecast.robin.smtp.auth.DigestCache;
 import com.mimecast.robin.smtp.auth.InstanceDigestCache;
 import com.mimecast.robin.smtp.auth.NotRandom;
 import com.mimecast.robin.smtp.connection.ConnectionMock;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import javax.naming.ConfigurationException;
@@ -18,12 +20,19 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ClientAuthTest {
 
+    private DigestCache digestCache;
+
     @BeforeAll
     static void before() throws ConfigurationException {
         Foundation.init("src/test/resources/cfg/");
     }
 
-    static class ClientAuthMock extends ClientAuth {
+    @BeforeEach
+    void setUp() {
+        digestCache = new InstanceDigestCache();
+    }
+
+    class ClientAuthMock extends ClientAuth {
         @Override
         protected DigestMD5Client digestMD5ClientFactory() {
             DigestMD5Client client = super.digestMD5ClientFactory();
@@ -33,11 +42,12 @@ class ClientAuthTest {
         }
     }
 
-    static class ClientAuthSubsequentMock extends ClientAuth {
+    class ClientAuthSubsequentMock extends ClientAuth {
         @Override
         protected DigestMD5Client digestMD5ClientFactory() {
             DigestMD5Client client = super.digestMD5ClientFactory();
             client.setRandom(new NotRandom("whatever"));
+            client.setDigestDatabase(digestCache);
             return client;
         }
     }

@@ -14,6 +14,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -206,6 +208,7 @@ public class DovecotLdaClient {
     protected Pair<Integer, String> callDovecotLda(String recipient) throws IOException, InterruptedException {
         // Initialize semaphore on first use.
         initializeSemaphore();
+        var envelope = relaySession.getSession().getEnvelopes().getFirst();
 
         // Check for chaos headers if enabled and present.
         if (Config.getServer().isChaosHeaders() && chaosHeaders != null && chaosHeaders.hasHeaders()) {
@@ -254,11 +257,14 @@ public class DovecotLdaClient {
             activeLdaProcesses.incrementAndGet();
             totalLdaAttempts.incrementAndGet();
 
-            List<String> command = new ArrayList<>(Arrays.asList(
-                    Config.getServer().getDovecot().getSaveLda().getLdaBinary(),
-                    "-d", recipient,
-                    "-p", relaySession.getSession().getEnvelopes().getFirst().getFile()
-            ));
+            List<String> command = new ArrayList<>();
+            command.add(Config.getServer().getDovecot().getSaveLda().getLdaBinary());
+            if (StringUtils.isNotBlank(envelope.getMail())) {
+                command.add("-f");
+                command.add(envelope.getMail());
+            }
+            command.add("-d");
+            command.add(recipient);
 
             if (StringUtils.isNotBlank(relaySession.getMailbox())) {
                 command.add("-m");
@@ -271,8 +277,13 @@ public class DovecotLdaClient {
             ProcessBuilder pb = new ProcessBuilder(command);
             process = pb.start();
 
-            // Get error string.
-            String error = new String(process.getErrorStream().readAllBytes());
+            try (InputStream input = envelope.openMessageStream();
+                 OutputStream output = process.getOutputStream()) {
+                if (input == null) {
+                    throw new IOException("No message source available for Dovecot LDA");
+                }
+                input.transferTo(output);
+            }
 
             // Wait for process to finish with timeout from configuration.
             long timeoutSeconds = Config.getServer().getDovecot().getSaveLda().getLdaTimeoutSeconds();
@@ -286,6 +297,10 @@ public class DovecotLdaClient {
             }
 
             int exitCode = process.exitValue();
+            String error = new String(process.getErrorStream().readAllBytes());
+            if (StringUtils.isBlank(error)) {
+                error = new String(process.getInputStream().readAllBytes());
+            }
             return Pair.of(exitCode, error);
 
         } finally {

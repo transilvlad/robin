@@ -84,8 +84,14 @@ public class ClientMail extends ClientProcessor {
         int size = 0;
         if (envelope.getMessage() != null && envelope.getFile() == null && envelope.getFolder() == null) {
             size = envelope.buildHeaders().length() + envelope.getMessage().length() + 2 + 2 + 5;
-        } else if (envelope.getFile() != null) {
+        } else if (envelope.hasMaterializedFile()) {
             size = (int) new File(envelope.getFile()).length() + 5;
+        } else if (envelope.hasMessageSource()) {
+            try {
+                size = Math.toIntExact(envelope.getMessageSource().size()) + 5;
+            } catch (Exception ignored) {
+                size = 0;
+            }
         }
 
         return size;

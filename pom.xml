@@ -19,6 +19,7 @@
         <log4j.version>2.25.3</log4j.version>
         <junit.version>6.0.3</junit.version>
         <jmh.version>1.37</jmh.version>
+        <rocksdb.version>9.10.0</rocksdb.version>
     </properties>
 
     <distributionManagement>
@@ -143,7 +144,7 @@
         <dependency>
             <groupId>org.rocksdb</groupId>
             <artifactId>rocksdbjni</artifactId>
-            <version>10.5.1</version>
+            <version>${rocksdb.version}</version>
         </dependency>
 
         <dependency>

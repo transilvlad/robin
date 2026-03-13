@@ -7,9 +7,12 @@ import com.mimecast.robin.util.PathUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serial;
 import java.io.Serializable;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -45,6 +48,7 @@ public class MessageEnvelope implements Serializable, Cloneable {
     // Set EML file, folder or null.
     private String file = null;
     private String folder = null;
+    private MessageSource messageSource = null;
 
     // Set EML stream or null.
     private transient InputStream stream = null;
@@ -324,7 +328,13 @@ public class MessageEnvelope implements Serializable, Cloneable {
      * @return File path.
      */
     public String getFile() {
-        return file;
+        if (file != null) {
+            return file;
+        }
+        if (messageSource instanceof FileMessageSource fileSource && fileSource.getPath() != null) {
+            return fileSource.getPath().toString();
+        }
+        return null;
     }
 
     /**
@@ -335,6 +345,19 @@ public class MessageEnvelope implements Serializable, Cloneable {
      */
     public MessageEnvelope setFile(String file) {
         this.file = file;
+        if (StringUtils.isBlank(file)) {
+            if (messageSource instanceof FileMessageSource) {
+                this.messageSource = null;
+            }
+            return this;
+        }
+
+        Path filePath = Path.of(file);
+        if (Files.exists(filePath) || this.messageSource == null) {
+            this.bytes = null;
+            this.stream = null;
+            this.messageSource = new FileMessageSource(filePath);
+        }
         return this;
     }
 
@@ -404,6 +427,8 @@ public class MessageEnvelope implements Serializable, Cloneable {
      */
     public MessageEnvelope setStream(InputStream stream) {
         this.stream = stream;
+        this.bytes = null;
+        this.messageSource = null;
         return this;
     }
 
@@ -415,7 +440,170 @@ public class MessageEnvelope implements Serializable, Cloneable {
      */
     public MessageEnvelope setBytes(byte[] bytes) {
         this.bytes = bytes;
+        this.stream = null;
+        this.messageSource = bytes != null ? new InMemoryMessageSource(bytes) : null;
         return this;
+    }
+
+    /**
+     * Sets canonical message source.
+     *
+     * @param messageSource Message source.
+     * @return Self.
+     */
+    public MessageEnvelope setMessageSource(MessageSource messageSource) {
+        this.messageSource = messageSource;
+        this.stream = null;
+        if (messageSource instanceof InMemoryMessageSource inMemory) {
+            this.bytes = inMemory.readAllBytes();
+        } else {
+            this.bytes = null;
+        }
+        if (messageSource instanceof FileMessageSource fileSource && fileSource.getPath() != null) {
+            this.file = fileSource.getPath().toString();
+        }
+        return this;
+    }
+
+    /**
+     * Gets canonical message source.
+     *
+     * @return MessageSource or null.
+     */
+    public MessageSource getMessageSource() {
+        return messageSource;
+    }
+
+    /**
+     * Checks if the envelope has a readable message source.
+     *
+     * @return Boolean.
+     */
+    public boolean hasMessageSource() {
+        return messageSource != null || stream != null || bytes != null || StringUtils.isNotBlank(file);
+    }
+
+    /**
+     * Opens a fresh input stream for the message contents.
+     *
+     * @return InputStream instance.
+     * @throws IOException On I/O error.
+     */
+    public InputStream openMessageStream() throws IOException {
+        if (messageSource != null) {
+            return messageSource.openStream();
+        }
+        if (stream != null) {
+            return stream;
+        }
+        if (bytes != null) {
+            return new ByteArrayInputStream(bytes);
+        }
+        if (StringUtils.isNotBlank(file)) {
+            return Files.newInputStream(Path.of(file));
+        }
+        return null;
+    }
+
+    /**
+     * Reads the full message payload into memory.
+     *
+     * @return Message bytes.
+     * @throws IOException On I/O error.
+     */
+    public byte[] readMessageBytes() throws IOException {
+        if (messageSource != null) {
+            return messageSource.readAllBytes();
+        }
+        if (bytes != null) {
+            return Arrays.copyOf(bytes, bytes.length);
+        }
+        if (stream != null) {
+            return stream.readAllBytes();
+        }
+        if (StringUtils.isNotBlank(file)) {
+            return Files.readAllBytes(Path.of(file));
+        }
+        return new byte[0];
+    }
+
+    /**
+     * Checks if the envelope already has a materialized file on disk.
+     *
+     * @return Boolean.
+     */
+    public boolean hasMaterializedFile() {
+        return StringUtils.isNotBlank(file) && Files.exists(Path.of(file));
+    }
+
+    /**
+     * Materializes the message to the current file path or to a generated temp file.
+     *
+     * @return Materialized file path or null if no source exists.
+     * @throws IOException On I/O error.
+     */
+    public String materializeMessageFile() throws IOException {
+        if (hasMaterializedFile()) {
+            return file;
+        }
+
+        Path target;
+        if (StringUtils.isNotBlank(file)) {
+            target = Path.of(file);
+        } else {
+            target = Files.createTempFile("robin-envelope-", ".eml");
+        }
+
+        return materializeMessageFile(target).toString();
+    }
+
+    /**
+     * Materializes the message to a specific target file.
+     *
+     * @param target Target file.
+     * @return Materialized file path.
+     * @throws IOException On I/O error.
+     */
+    public Path materializeMessageFile(Path target) throws IOException {
+        if (messageSource != null) {
+            Path materialized = messageSource.materialize(target);
+            this.file = materialized.toString();
+            this.messageSource = new FileMessageSource(materialized);
+            this.stream = null;
+            this.bytes = null;
+            return materialized;
+        }
+
+        if (bytes != null) {
+            if (target.getParent() != null) {
+                Files.createDirectories(target.getParent());
+            }
+            Files.write(target, bytes);
+            this.file = target.toString();
+            this.messageSource = new FileMessageSource(target);
+            this.bytes = null;
+            return target;
+        }
+
+        if (stream != null) {
+            if (target.getParent() != null) {
+                Files.createDirectories(target.getParent());
+            }
+            try (InputStream input = stream) {
+                Files.copy(input, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+            this.file = target.toString();
+            this.messageSource = new FileMessageSource(target);
+            this.stream = null;
+            return target;
+        }
+
+        if (StringUtils.isNotBlank(file) && Files.exists(Path.of(file))) {
+            this.messageSource = new FileMessageSource(Path.of(file));
+            return Path.of(file);
+        }
+
+        throw new IOException("No message source available");
     }
 
     /**
@@ -835,6 +1023,13 @@ public class MessageEnvelope implements Serializable, Cloneable {
             // Deep copy byte array if present.
             if (this.bytes != null) {
                 cloned.bytes = Arrays.copyOf(this.bytes, this.bytes.length);
+            }
+            if (this.messageSource instanceof InMemoryMessageSource inMemory) {
+                cloned.messageSource = new InMemoryMessageSource(inMemory.readAllBytes());
+            } else if (this.messageSource instanceof FileMessageSource fileSource && fileSource.getPath() != null) {
+                cloned.messageSource = new FileMessageSource(fileSource.getPath());
+            } else {
+                cloned.messageSource = this.messageSource;
             }
 
             return cloned;

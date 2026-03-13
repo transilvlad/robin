@@ -18,9 +18,11 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 import javax.naming.ConfigurationException;
 import java.io.File;
 import java.io.IOException;
+import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -152,6 +154,41 @@ class LocalStorageProcessorTest {
             dirsToCleanup.add(user1File.getParent().getParent().getParent());
             dirsToCleanup.add(user2File.getParent());
             dirsToCleanup.add(user2File.getParent().getParent());
+        }
+    }
+
+    @Test
+    void testInboundProcessingFromInMemorySource() throws IOException {
+        Config.getServer().getStorage().getMap().put("localMailbox", true);
+        String basePath = Files.createTempDirectory("robin-test-").toString();
+        dirsToCleanup.add(Paths.get(basePath));
+        Config.getServer().getStorage().getMap().put("path", basePath);
+        Config.getServer().getStorage().getMap().put("inboundFolder", "new");
+
+        LocalStorageProcessor processor = new LocalStorageProcessor();
+
+        Connection connection = new Connection(new Session());
+        connection.getSession().setDirection(EmailDirection.INBOUND);
+        MessageEnvelope envelope = new MessageEnvelope()
+                .addRcpt("user1@example.com")
+                .setBytes(TEST_EMAIL_CONTENT.getBytes(StandardCharsets.UTF_8))
+                .setFile(Paths.get(basePath, "tmp", "test-email.eml").toString());
+        connection.getSession().addEnvelope(envelope);
+
+        try (EmailParser parser = new EmailParser(new ByteArrayInputStream(TEST_EMAIL_CONTENT.getBytes(StandardCharsets.UTF_8))).parse()) {
+            boolean result = processor.process(connection, parser);
+            assertTrue(result);
+
+            Path user1File = Paths.get(basePath, "example.com", "user1", "new", "test-email.eml");
+            assertTrue(Files.exists(user1File), "File should exist for in-memory source");
+            String user1Content = Files.readString(user1File);
+            assertTrue(user1Content.contains("Received:"), "Should have Received header");
+            assertTrue(user1Content.contains(TEST_EMAIL_CONTENT), "Should have original email content");
+
+            filesToCleanup.add(user1File.toFile());
+            dirsToCleanup.add(user1File.getParent());
+            dirsToCleanup.add(user1File.getParent().getParent());
+            dirsToCleanup.add(user1File.getParent().getParent().getParent());
         }
     }
 

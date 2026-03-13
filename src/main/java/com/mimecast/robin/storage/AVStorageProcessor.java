@@ -37,8 +37,9 @@ public class AVStorageProcessor extends AbstractStorageProcessor {
         BasicConfig clamAVConfig = Config.getServer().getClamAV();
 
         if (clamAVConfig.getBooleanProperty("enabled")) {
+            var envelope = connection.getSession().getEnvelopes().getLast();
             // Scan the entire email with ClamAV.
-            if (!isClean(new File(connection.getSession().getEnvelopes().getLast().getFile()), "RAW", clamAVConfig, connection)) {
+            if (!isClean(envelope.readMessageBytes(), "RAW", clamAVConfig, connection)) {
                 return false;
             }
 
@@ -109,6 +110,64 @@ public class AVStorageProcessor extends AbstractStorageProcessor {
             log.info("AV scan clean for {}", partInfo);
             
             // Save clean scan result to scan results
+            Map<String, Object> clamavResult = new HashMap<>();
+            clamavResult.put("scanner", "clamav");
+            clamavResult.put("infected", false);
+            clamavResult.put("part", partInfo);
+            var envelopes = connection.getSession().getEnvelopes();
+            if (!envelopes.isEmpty()) {
+                envelopes.getLast().addScanResult(clamavResult);
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Checks if the given byte array is clean of viruses using ClamAV.
+     *
+     * @param bytes        The bytes to check.
+     * @param partInfo     The partInfo of the email being checked.
+     * @param clamAVConfig The ClamAV configuration.
+     * @param connection   The SMTP connection.
+     * @return True if the content is clean, false otherwise.
+     * @throws IOException If an error occurs while checking for viruses.
+     */
+    private boolean isClean(byte[] bytes, String partInfo, BasicConfig clamAVConfig, Connection connection) throws IOException {
+        ClamAVClient clamAVClient = new ClamAVClient(
+                clamAVConfig.getStringProperty("host", "localhost"),
+                clamAVConfig.getLongProperty("port", 3310L).intValue()
+        );
+
+        if (clamAVClient.isInfected(bytes)) {
+            log.warn("Virus found in {}: {}", partInfo, clamAVClient.getViruses());
+
+            Map<String, Collection<String>> viruses = clamAVClient.getViruses();
+            if (viruses != null && !viruses.isEmpty()) {
+                Map<String, Object> clamavResult = new HashMap<>();
+                clamavResult.put("scanner", "clamav");
+                clamavResult.put("infected", true);
+                clamavResult.put("viruses", viruses);
+                clamavResult.put("part", partInfo);
+                var envelopes = connection.getSession().getEnvelopes();
+                if (!envelopes.isEmpty()) {
+                    envelopes.getLast().addScanResult(clamavResult);
+                }
+            }
+
+            String onVirus = clamAVConfig.getStringProperty("onVirus", "reject");
+            SmtpMetrics.incrementEmailVirusRejection();
+
+            if ("reject".equalsIgnoreCase(onVirus)) {
+                connection.write(String.format(SmtpResponses.VIRUS_FOUND_550, connection.getSession().getUID()));
+                return false;
+            } else if ("discard".equalsIgnoreCase(onVirus)) {
+                log.warn("Virus found, discarding.");
+                return true;
+            }
+        } else {
+            log.info("AV scan clean for {}", partInfo);
+
             Map<String, Object> clamavResult = new HashMap<>();
             clamavResult.put("scanner", "clamav");
             clamavResult.put("infected", false);

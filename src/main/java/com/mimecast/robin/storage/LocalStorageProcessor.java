@@ -14,6 +14,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Paths;
 import java.util.List;
 
@@ -48,20 +49,18 @@ public class LocalStorageProcessor extends AbstractStorageProcessor {
         }
 
         MessageEnvelope envelope = connection.getSession().getEnvelopes().getLast();
-        String sourceFile = envelope.getFile();
-
-        if (sourceFile == null || !new File(sourceFile).exists()) {
-            log.error("Source file does not exist for local storage processing: {}", sourceFile);
+        if (!envelope.hasMessageSource()) {
+            log.error("No message source available for local storage processing");
             return false;
         }
 
         // Handle outbound vs inbound differently.
         if (connection.getSession().isOutbound()) {
             // For outbound, save once to sender's outbox.
-            saveToOutbox(connection, emailParser, sourceFile, envelope.getMail());
+            saveToOutbox(connection, emailParser, envelope, envelope.getMail());
         } else {
             // For inbound, save to each recipient's mailbox.
-            saveToRecipientMailboxes(connection, emailParser, sourceFile, envelope.getRcpts());
+            saveToRecipientMailboxes(connection, emailParser, envelope, envelope.getRcpts());
         }
 
         log.debug("Completed local storage processing for uid={}", connection.getSession().getUID());
@@ -77,7 +76,7 @@ public class LocalStorageProcessor extends AbstractStorageProcessor {
      * @param sender      Sender email address.
      * @throws IOException If an I/O error occurs.
      */
-    private void saveToOutbox(Connection connection, EmailParser emailParser, String sourceFile, String sender) throws IOException {
+    private void saveToOutbox(Connection connection, EmailParser emailParser, MessageEnvelope envelope, String sender) throws IOException {
         ServerConfig config = Config.getServer();
         String basePath = config.getStorage().getStringProperty("path", "/tmp/store");
         String outboundFolder = config.getStorage().getStringProperty("outboundFolder", ".Sent/new");
@@ -102,12 +101,13 @@ public class LocalStorageProcessor extends AbstractStorageProcessor {
         }
 
         // Generate destination filename.
+        String sourceFile = envelope.getFile();
         String fileName = new File(sourceFile).getName();
         String destFile = Paths.get(destPath, fileName).toString();
 
         // Prepend received header (without "for recipient" field).
         ReceivedHeader receivedHeader = new ReceivedHeader(connection);
-        saveEmailWithHeader(sourceFile, destFile, receivedHeader.toString(), emailParser);
+        saveEmailWithHeader(envelope, destFile, receivedHeader.toString(), emailParser);
 
         log.info("Saved outbound email to sender outbox: {}", destFile);
     }
@@ -121,13 +121,10 @@ public class LocalStorageProcessor extends AbstractStorageProcessor {
      * @param recipients  List of recipient email addresses.
      * @throws IOException If an I/O error occurs.
      */
-    private void saveToRecipientMailboxes(Connection connection, EmailParser emailParser, String sourceFile, List<String> recipients) throws IOException {
+    private void saveToRecipientMailboxes(Connection connection, EmailParser emailParser, MessageEnvelope envelope, List<String> recipients) throws IOException {
         ServerConfig config = Config.getServer();
         String basePath = config.getStorage().getStringProperty("path", "/tmp/store");
         String inboundFolder = config.getStorage().getStringProperty("inboundFolder", "new");
-
-        MessageEnvelope envelope = connection.getSession().getEnvelopes().isEmpty() ? null :
-                connection.getSession().getEnvelopes().getLast();
 
         for (String recipient : recipients) {
             // Skip bot addresses - they are handled by bot processors.
@@ -156,13 +153,14 @@ public class LocalStorageProcessor extends AbstractStorageProcessor {
             }
 
             // Generate destination filename.
+            String sourceFile = envelope.getFile();
             String fileName = new File(sourceFile).getName();
             String destFile = Paths.get(destPath, fileName).toString();
 
             // Prepend received header with recipient.
             ReceivedHeader receivedHeader = new ReceivedHeader(connection);
             receivedHeader.setRecipientAddress(recipient);
-            saveEmailWithHeader(sourceFile, destFile, receivedHeader.toString(), emailParser);
+            saveEmailWithHeader(envelope, destFile, receivedHeader.toString(), emailParser);
 
             log.info("Saved inbound email to recipient mailbox: {} for recipient: {}", destFile, recipient);
         }
@@ -177,9 +175,9 @@ public class LocalStorageProcessor extends AbstractStorageProcessor {
      * @param emailParser    EmailParser instance (unused but kept for consistency).
      * @throws IOException If an I/O error occurs.
      */
-    private void saveEmailWithHeader(String sourceFile, String destFile, String receivedHeader, EmailParser emailParser) throws IOException {
+    private void saveEmailWithHeader(MessageEnvelope envelope, String destFile, String receivedHeader, EmailParser emailParser) throws IOException {
         // Write received header followed by source content to destination.
-        try (FileInputStream fis = new FileInputStream(sourceFile);
+        try (InputStream fis = envelope.openMessageStream();
              FileOutputStream fos = new FileOutputStream(destFile)) {
             
             // Write the received header first.

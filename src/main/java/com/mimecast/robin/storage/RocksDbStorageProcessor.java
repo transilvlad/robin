@@ -11,8 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -34,14 +32,13 @@ public class RocksDbStorageProcessor extends AbstractStorageProcessor {
         }
 
         MessageEnvelope envelope = connection.getSession().getEnvelopes().getLast();
-        String sourceFile = envelope.getFile();
-        if (sourceFile == null || !Files.exists(Path.of(sourceFile))) {
-            log.error("Source file does not exist for RocksDB storage processing: {}", sourceFile);
+        if (!envelope.hasMessageSource()) {
+            log.error("No message source available for RocksDB storage processing");
             return false;
         }
 
         RocksDbMailboxStore store = RocksDbMailboxStoreManager.getConfiguredStore();
-        byte[] sourceBytes = Files.readAllBytes(Path.of(sourceFile));
+        byte[] sourceBytes = envelope.readMessageBytes();
         Map<String, String> headers = readHeaders(emailParser);
         if (connection.getSession().isOutbound()) {
             if (envelope.getMail() == null || envelope.getMail().isBlank()) {
@@ -49,7 +46,7 @@ public class RocksDbStorageProcessor extends AbstractStorageProcessor {
                 return true;
             }
             byte[] content = buildStoredMessage(connection, sourceBytes, null);
-            store.storeOutbound(envelope.getMail(), content, sourceFile, headers);
+            store.storeOutbound(envelope.getMail(), content, envelope.getFile(), headers);
             return true;
         }
 
@@ -58,7 +55,7 @@ public class RocksDbStorageProcessor extends AbstractStorageProcessor {
                 continue;
             }
             byte[] content = buildStoredMessage(connection, sourceBytes, recipient);
-            store.storeInbound(recipient, content, sourceFile, headers);
+            store.storeInbound(recipient, content, envelope.getFile(), headers);
         }
         return true;
     }

@@ -103,7 +103,7 @@ public class ClientData extends ClientProcessor {
                 inputStream = new BufferedInputStream(new FileInputStream(path.toFile()), FILE_BUFFER_SIZE);
             }
 
-        } else if (envelope.getFile() != null) {
+        } else if (envelope.hasMaterializedFile()) {
             log.debug("Sending email from file: {}", envelope.getFile());
             inputStream = new BufferedInputStream(new FileInputStream(envelope.getFile()), FILE_BUFFER_SIZE);
 
@@ -112,9 +112,9 @@ public class ClientData extends ClientProcessor {
             log.debug("Sending email from file: {}", file);
             inputStream = new BufferedInputStream(new FileInputStream(file), FILE_BUFFER_SIZE);
 
-        } else if (envelope.getStream() != null) {
-            log.debug("Sending email from stream.");
-            inputStream = envelope.getStream();
+        } else if (envelope.hasMessageSource()) {
+            log.debug("Sending email from envelope source.");
+            inputStream = envelope.openMessageStream();
 
         } else if (envelope.getMessage() != null && !bdat) {
             log.debug("Sending email from headers and body.");

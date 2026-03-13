@@ -20,6 +20,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -108,14 +110,9 @@ class ChaosHeadersIntegrationTest {
             boolean result = client.save();
             assertTrue(result, "Save should succeed with chaos header forcing AVStorageProcessor to return true");
 
-            // Verify the file was created
-            File savedFile = new File(client.getFile());
-            assertTrue(savedFile.exists(), "Email file should be saved to disk");
-
-            // Cleanup
-            if (savedFile.exists()) {
-                savedFile.delete();
-            }
+            MessageEnvelope envelope = connection.getSession().getEnvelopes().getLast();
+            assertTrue(envelope.hasMessageSource(), "Envelope should retain the accepted message source");
+            assertFalse(Files.exists(Path.of(client.getFile())), "Email should remain in memory unless materialized");
         } finally {
             // Config is loaded from test resources and doesn't need restoration
         }

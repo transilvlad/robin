@@ -457,6 +457,13 @@ public class ServerData extends ServerProcessor {
 
             String filePath = connection.getSession().getEnvelopes().isEmpty() ? null :
                     connection.getSession().getEnvelopes().getLast().getFile();
+            if (webhooks.containsKey("raw")) {
+                var envelopes = connection.getSession().getEnvelopes();
+                if (!envelopes.isEmpty() && !envelopes.getLast().hasMaterializedFile() && envelopes.getLast().hasMessageSource()) {
+                    filePath = envelopes.getLast().materializeMessageFile();
+                }
+            }
+
             if (filePath == null || filePath.isEmpty()) {
                 return true;
             }
