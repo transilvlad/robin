@@ -1024,7 +1024,14 @@ public class MessageEnvelope implements Serializable, Cloneable {
             if (this.bytes != null) {
                 cloned.bytes = Arrays.copyOf(this.bytes, this.bytes.length);
             }
-            if (this.messageSource instanceof InMemoryMessageSource inMemory) {
+
+            // For reference-counted sources, acquire a new reference and share the same instance.
+            // This allows multiple consumers (main thread + bot threads) to access the file,
+            // with automatic cleanup when all consumers have released their references.
+            if (this.messageSource instanceof RefCountedFileMessageSource refCounted) {
+                refCounted.acquire();
+                cloned.messageSource = refCounted;
+            } else if (this.messageSource instanceof InMemoryMessageSource inMemory) {
                 cloned.messageSource = new InMemoryMessageSource(inMemory.readAllBytes());
             } else if (this.messageSource instanceof FileMessageSource fileSource && fileSource.getPath() != null) {
                 cloned.messageSource = new FileMessageSource(fileSource.getPath());

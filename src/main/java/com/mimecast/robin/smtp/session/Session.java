@@ -6,6 +6,7 @@ import com.mimecast.robin.config.client.CaseConfig;
 import com.mimecast.robin.config.server.ProxyRule;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.smtp.MessageEnvelope;
+import com.mimecast.robin.smtp.MessageSource;
 import com.mimecast.robin.smtp.ProxyEmailDelivery;
 import com.mimecast.robin.smtp.connection.SmtpFoundation;
 import com.mimecast.robin.smtp.security.SecurityPolicy;
@@ -1384,16 +1385,23 @@ public class Session implements Serializable, Cloneable {
 
     /**
      * Cleans up temporary files created for message envelopes.
+     * <p>For reference-counted message sources, this releases the reference
+     * and the file is only deleted when all consumers are done.
      */
     public void close() {
         for (MessageEnvelope envelope : envelopes) {
-            try {
-                if (envelope.getFile() != null) {
-                    Files.deleteIfExists(Path.of(envelope.getFile()));
+            MessageSource source = envelope.getMessageSource();
+            if (source != null) {
+                source.release();
+            } else if (envelope.getFile() != null) {
+                // Fallback for envelopes without MessageSource (legacy behavior).
+                try {
+                    if (Files.deleteIfExists(Path.of(envelope.getFile()))) {
+                        log.debug("Deleted temporary file: {}", envelope.getFile());
+                    }
+                } catch (IOException e) {
+                    log.error("Error deleting temporary file: {}", envelope.getFile());
                 }
-                log.debug("Deleted temporary file: {}", envelope.getFile());
-            } catch (IOException e) {
-                log.error("Error deleting temporary file: {}", envelope.getFile());
             }
         }
     }

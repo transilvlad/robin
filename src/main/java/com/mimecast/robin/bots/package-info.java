@@ -62,13 +62,16 @@
  * <p>Bot processing is thread-safe:
  * <ul>
  *     <li>Session and envelope are cloned before passing to bot thread pool</li>
- *     <li>EmailParser is not passed to bots (null) to avoid accessing closed resources</li>
- *     <li>Bots use envelope headers extracted before parser closure</li>
+ *     <li>Each bot receives its own {@link com.mimecast.robin.mime.EmailParser} instance
+ *         created from the message source</li>
+ *     <li>File-backed messages use {@link com.mimecast.robin.smtp.RefCountedFileMessageSource}
+ *         with reference counting to ensure files are not deleted until all consumers are done</li>
+ *     <li>Key email headers (Reply-To, From) are also extracted to envelope for quick access</li>
  * </ul>
  *
  * @see com.mimecast.robin.bots.BotProcessor
  * @see com.mimecast.robin.bots.SessionBot
  * @see com.mimecast.robin.config.server.BotConfig
- * @see com.mimecast.robin.main.Factories#addBot(String, BotProcessor)
+ * @see com.mimecast.robin.main.Factories#registerBot(BotProcessor)
  */
 package com.mimecast.robin.bots;

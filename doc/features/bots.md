@@ -299,11 +299,25 @@ Bot processing uses a cached thread pool (`Executors.newCachedThreadPool()`) to 
 Bot processing is designed to be thread-safe:
 
 - **Session Cloning**: The SMTP session and envelope are cloned before being passed to the bot thread pool
-- **EmailParser Lifecycle**: The EmailParser is NOT passed to bots to prevent accessing closed resources
-- **Header Extraction**: Key email headers (Reply-To, From) are extracted and stored in the envelope before the parser is closed
+- **Per-Bot EmailParser**: Each bot receives its own `EmailParser` instance created from the message source
+- **Reference-Counted File Access**: File-backed messages use reference counting to ensure the backing file is not deleted until all consumers (main thread + bot threads) have released their references
+- **Header Extraction**: Key email headers (Reply-To, From) are extracted and stored in the envelope for quick access
 - **Async Processing**: Bots run asynchronously after the main SMTP transaction completes
 
-This design ensures that bots can safely process emails without holding references to resources that may be closed or modified by the main SMTP thread.
+This design ensures that bots can safely process emails of any size without:
+- Copying large emails to memory
+- Blocking the main SMTP thread  
+- Racing with file cleanup
+
+#### Reference Counting
+
+When an email spills to disk (exceeds the in-memory buffer threshold), it uses `RefCountedFileMessageSource`:
+
+1. Initial reference count is 1 (main thread owns the file)
+2. When cloning for bot processing, `acquire()` increments the count
+3. Each bot creates its own `EmailParser` from the message stream
+4. When each consumer is done, `release()` decrements the count
+5. File is automatically deleted when count reaches zero
 
 ### Health Metrics
 

@@ -8,8 +8,8 @@ import com.mimecast.robin.main.Server;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.headers.MimeHeader;
 import com.mimecast.robin.queue.relay.RelayMessage;
-import com.mimecast.robin.smtp.FileMessageSource;
 import com.mimecast.robin.smtp.MessageEnvelope;
+import com.mimecast.robin.smtp.RefCountedFileMessageSource;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.util.PathUtils;
@@ -37,7 +37,6 @@ import java.util.concurrent.ExecutorService;
  */
 public class LocalStorageClient implements StorageClient {
     protected static final Logger log = LogManager.getLogger(LocalStorageClient.class);
-    private static final int FILE_BUFFER_SIZE = 8192;
 
     /**
      * Enablement.
@@ -170,7 +169,7 @@ public class LocalStorageClient implements StorageClient {
                     if (stream instanceof MessageBufferOutputStream bufferStream) {
                         envelope.setMessageSource(bufferStream.toMessageSource());
                     } else if (Files.exists(Path.of(getFile()))) {
-                        envelope.setMessageSource(new FileMessageSource(Path.of(getFile())));
+                        envelope.setMessageSource(new RefCountedFileMessageSource(Path.of(getFile())));
                     }
                 }
 
@@ -202,8 +201,9 @@ public class LocalStorageClient implements StorageClient {
                 log.info("Storage file saved to: {}", getFile());
 
                 // Process bot addresses if any.
-                // Parser is intentionally not shared with async bot execution.
-                processBotAddresses(connection, null);
+                // Bots can access email content via envelope.openMessageStream() and create their own parser.
+                // Reference-counted message sources ensure the file is not deleted until all consumers are done.
+                processBotAddresses(connection);
 
                 // Relay email if X-Robin-Relay or relay configuration or direction outbound enabled.
                 relay();
@@ -285,7 +285,7 @@ public class LocalStorageClient implements StorageClient {
 
                     if (new File(source).renameTo(new File(target.toString()))) {
                         if (envelope != null) {
-                            envelope.setMessageSource(new FileMessageSource(target));
+                            envelope.setMessageSource(new RefCountedFileMessageSource(target));
                         }
                         log.info("Storage moved file to: {}", getFile());
                     }
@@ -298,11 +298,13 @@ public class LocalStorageClient implements StorageClient {
     /**
      * Processes bot addresses by submitting them to the bot thread pool.
      * <p>Each bot address is processed in a separate thread to avoid blocking.
+     * <p>Bots can access the email content via {@code envelope.openMessageStream()} and create
+     * their own parser if needed. Reference-counted message sources ensure the backing file
+     * is not deleted until all consumers (main thread + bot threads) have released their references.
      *
-     * @param connection  Connection instance.
-     * @param emailParser Parsed email instance.
+     * @param connection Connection instance.
      */
-    private void processBotAddresses(Connection connection, EmailParser emailParser) {
+    private void processBotAddresses(Connection connection) {
         if (connection.getSession().getEnvelopes().isEmpty()) {
             return;
         }
@@ -330,20 +332,31 @@ public class LocalStorageClient implements StorageClient {
                 if (botOpt.isPresent()) {
                     BotProcessor bot = botOpt.get();
                     
-                    // Clone the session to avoid race conditions
+                    // Clone the session to avoid race conditions.
                     // The bot processing happens asynchronously and the original connection/session
                     // may be cleaned up or modified by the time the bot processes it.
                     // We create a new connection with the cloned session for thread safety.
+                    // The clone acquires a reference to any RefCountedFileMessageSource, ensuring
+                    // the backing file is not deleted until all consumers are done.
                     Session sessionClone = connection.getSession().clone();
                     Connection connectionCopy = new Connection(sessionClone);
                     
-                    // Submit bot processing to thread pool
+                    // Submit bot processing to thread pool.
+                    // Each bot gets its own EmailParser created from the envelope's message stream.
                     botExecutor.submit(() -> {
                         try {
-                            bot.process(connectionCopy, emailParser, address);
+                            // Create a fresh parser for this bot from the cloned envelope's message source.
+                            MessageEnvelope botEnvelope = sessionClone.getEnvelopes().getLast();
+                            try (InputStream input = botEnvelope.openMessageStream();
+                                 EmailParser botParser = input != null ? new EmailParser(input).parse(true) : null) {
+                                bot.process(connectionCopy, botParser, address);
+                            }
                         } catch (Exception e) {
                             log.error("Error processing bot {} for address {}: {}",
                                     botName, address, e.getMessage(), e);
+                        } finally {
+                            // Release the reference to message sources (decrements ref count).
+                            sessionClone.close();
                         }
                     });
                     log.info("Submitted bot {} for processing address: {}", botName, address);

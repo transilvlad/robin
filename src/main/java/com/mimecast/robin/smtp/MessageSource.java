@@ -12,6 +12,27 @@ import java.util.Optional;
 public interface MessageSource extends Serializable {
 
     /**
+     * Acquires a reference to this message source.
+     * <p>For reference-counted sources, this increments the reference count.
+     * Callers must ensure a matching {@link #release()} call when done.
+     *
+     * @return This message source for chaining.
+     */
+    default MessageSource acquire() {
+        return this;
+    }
+
+    /**
+     * Releases a reference to this message source.
+     * <p>For reference-counted file sources, this decrements the reference count
+     * and deletes the backing file when the count reaches zero.
+     * <p>For in-memory sources, this is a no-op.
+     */
+    default void release() {
+        // Default no-op for sources that don't need cleanup.
+    }
+
+    /**
      * Opens a new input stream for the message contents.
      *
      * @return InputStream instance.

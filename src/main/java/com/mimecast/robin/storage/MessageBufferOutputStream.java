@@ -1,8 +1,8 @@
 package com.mimecast.robin.storage;
 
-import com.mimecast.robin.smtp.FileMessageSource;
 import com.mimecast.robin.smtp.InMemoryMessageSource;
 import com.mimecast.robin.smtp.MessageSource;
+import com.mimecast.robin.smtp.RefCountedFileMessageSource;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -84,12 +84,14 @@ public class MessageBufferOutputStream extends OutputStream {
 
     /**
      * Converts the current buffer into a canonical message source.
+     * <p>For file-backed messages, returns a {@link RefCountedFileMessageSource}
+     * to support safe concurrent access with automatic cleanup.
      *
      * @return MessageSource instance.
      */
     public MessageSource toMessageSource() {
         if (isSpilledToFile()) {
-            return new FileMessageSource(spillFile);
+            return new RefCountedFileMessageSource(spillFile);
         }
         return new InMemoryMessageSource(memoryStream.toByteArray());
     }
