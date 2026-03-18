@@ -1,17 +1,11 @@
 package com.mimecast.robin.storage.rocksdb;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.parallel.Execution;
-import org.junit.jupiter.api.parallel.ExecutionMode;
-import org.junit.jupiter.api.parallel.Isolated;
-import org.junit.jupiter.api.parallel.ResourceAccessMode;
-import org.junit.jupiter.api.parallel.ResourceLock;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,32 +14,24 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@Execution(ExecutionMode.SAME_THREAD)
-@Isolated
-@ResourceLock(value = "rocksdbjni", mode = ResourceAccessMode.READ_WRITE)
 class RocksDbMailboxStoreTest {
 
-    private RocksDbMailboxStore store;
-    private Path dbPath;
+    private MailboxStore store;
+
+    @BeforeEach
+    void setUp() {
+        store = new InMemoryMailboxStore("Inbox", "Sent");
+    }
 
     @AfterEach
     void tearDown() throws IOException {
         if (store != null) {
             store.close();
         }
-        if (dbPath != null && Files.exists(dbPath)) {
-            try (var walk = Files.walk(dbPath)) {
-                for (Path path : walk.sorted(java.util.Comparator.reverseOrder()).toList()) {
-                    Files.deleteIfExists(path);
-                }
-            }
-        }
     }
 
     @Test
     void queryByUserFolderAndStateAndManageFolders() throws Exception {
-        dbPath = Files.createTempDirectory("robin-rocksdb-store-");
-        store = new RocksDbMailboxStore(dbPath.toString(), "Inbox", "Sent");
 
         var first = store.storeInbound("tony@example.com", eml("First"), "first.eml", headers("First"));
         var second = store.storeInbound("tony@example.com", eml("Second"), "second.eml", headers("Second"));
@@ -96,9 +82,6 @@ class RocksDbMailboxStoreTest {
 
     @Test
     void deleteAllOnlyAffectsRequestedFolder() throws Exception {
-        dbPath = Files.createTempDirectory("robin-rocksdb-delete-");
-        store = new RocksDbMailboxStore(dbPath.toString(), "Inbox", "Sent");
-
         var inboxMessage = store.storeInbound("tony@example.com", eml("Inbox"), "inbox.eml", headers("Inbox"));
         var recentMessage = store.storeInbound("tony@example.com", eml("Recent"), "recent.eml", headers("Recent"));
 

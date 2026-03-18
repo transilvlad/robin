@@ -7,13 +7,15 @@ import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.session.EmailDirection;
 import com.mimecast.robin.smtp.session.Session;
+import com.mimecast.robin.storage.rocksdb.InMemoryMailboxStore;
+import com.mimecast.robin.storage.rocksdb.MailboxStore;
 import com.mimecast.robin.storage.rocksdb.RocksDbMailboxStoreManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
-import org.junit.jupiter.api.parallel.Isolated;
 import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
@@ -22,7 +24,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.DirectoryNotEmptyException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -30,17 +31,28 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Execution(ExecutionMode.SAME_THREAD)
-@Isolated
-@ResourceLock(value = "rocksdbjni", mode = ResourceAccessMode.READ_WRITE)
-@ResourceLock(value = "storage-config", mode = ResourceAccessMode.READ_WRITE)
+@ResourceLock(value = "mailbox-store-factory", mode = ResourceAccessMode.READ_WRITE)
 class RocksDbStorageProcessorTest {
 
-    private Path dbPath;
     private Path sourceFile;
+    private MailboxStore mockStore;
 
     @BeforeAll
     static void beforeAll() throws ConfigurationException {
         Foundation.init("src/test/resources/cfg/");
+    }
+
+    @BeforeEach
+    void setUp() {
+        mockStore = new InMemoryMailboxStore("Inbox", "Sent");
+        RocksDbMailboxStoreManager.setStoreFactory(() -> mockStore);
+
+        Map<String, Object> rocksDb = new HashMap<>();
+        rocksDb.put("enabled", true);
+        rocksDb.put("path", "memory");
+        rocksDb.put("inboxFolder", "Inbox");
+        rocksDb.put("sentFolder", "Sent");
+        Config.getServer().getStorage().getMap().put("rocksdb", rocksDb);
     }
 
     @AfterEach
@@ -49,21 +61,11 @@ class RocksDbStorageProcessorTest {
         if (sourceFile != null) {
             Files.deleteIfExists(sourceFile);
         }
-        if (dbPath != null && Files.exists(dbPath)) {
-            deleteTreeWithRetry(dbPath);
-        }
         Config.getServer().getStorage().getMap().remove("rocksdb");
     }
 
     @Test
     void storesInboundAndOutboundMessagesIntoRocksDb() throws Exception {
-        dbPath = Files.createTempDirectory("robin-rocksdb-processor-");
-        Map<String, Object> rocksDb = new HashMap<>();
-        rocksDb.put("enabled", true);
-        rocksDb.put("path", dbPath.toString());
-        rocksDb.put("inboxFolder", "Inbox");
-        rocksDb.put("sentFolder", "Sent");
-        Config.getServer().getStorage().getMap().put("rocksdb", rocksDb);
 
         RocksDbStorageProcessor processor = new RocksDbStorageProcessor();
 
@@ -107,14 +109,6 @@ class RocksDbStorageProcessorTest {
 
     @Test
     void storesInboundMessagesFromInMemorySource() throws Exception {
-        dbPath = Files.createTempDirectory("robin-rocksdb-processor-");
-        Map<String, Object> rocksDb = new HashMap<>();
-        rocksDb.put("enabled", true);
-        rocksDb.put("path", dbPath.toString());
-        rocksDb.put("inboxFolder", "Inbox");
-        rocksDb.put("sentFolder", "Sent");
-        Config.getServer().getStorage().getMap().put("rocksdb", rocksDb);
-
         RocksDbStorageProcessor processor = new RocksDbStorageProcessor();
         String content = "From: sender@example.com\r\nTo: user@example.com\r\nSubject: Processor\r\n\r\nBody";
 
@@ -123,7 +117,7 @@ class RocksDbStorageProcessorTest {
         MessageEnvelope inboundEnvelope = new MessageEnvelope()
                 .addRcpt("user@example.com")
                 .setBytes(content.getBytes(StandardCharsets.UTF_8))
-                .setFile(dbPath.resolve("planned-message.eml").toString());
+                .setFile("planned-message.eml");
         inbound.getSession().addEnvelope(inboundEnvelope);
 
         try (EmailParser parser = new EmailParser(new java.io.ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8))).parse()) {
@@ -136,30 +130,5 @@ class RocksDbStorageProcessorTest {
         var inboxMessage = store.getMessage("example.com", "user", inbox.messages.getFirst().id).orElseThrow();
         assertTrue(inboxMessage.content.contains("Received:"));
         assertTrue(inboxMessage.content.contains("for <user@example.com>"));
-    }
-
-    private void deleteTreeWithRetry(Path root) throws IOException {
-        IOException lastFailure = null;
-        for (int attempt = 0; attempt < 5; attempt++) {
-            try {
-                try (var walk = Files.walk(root)) {
-                    for (Path path : walk.sorted(java.util.Comparator.reverseOrder()).toList()) {
-                        Files.deleteIfExists(path);
-                    }
-                }
-                return;
-            } catch (DirectoryNotEmptyException e) {
-                lastFailure = e;
-                try {
-                    Thread.sleep(50L * (attempt + 1));
-                } catch (InterruptedException interruptedException) {
-                    Thread.currentThread().interrupt();
-                    throw new IOException("Interrupted while deleting RocksDB test directory", interruptedException);
-                }
-            }
-        }
-        if (lastFailure != null) {
-            throw lastFailure;
-        }
     }
 }

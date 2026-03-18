@@ -5,7 +5,7 @@ import com.mimecast.robin.mime.headers.MimeHeader;
 import com.mimecast.robin.mime.headers.ReceivedHeader;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
-import com.mimecast.robin.storage.rocksdb.RocksDbMailboxStore;
+import com.mimecast.robin.storage.rocksdb.MailboxStore;
 import com.mimecast.robin.storage.rocksdb.RocksDbMailboxStoreManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -37,7 +37,7 @@ public class RocksDbStorageProcessor extends AbstractStorageProcessor {
             return false;
         }
 
-        RocksDbMailboxStore store = RocksDbMailboxStoreManager.getConfiguredStore();
+        MailboxStore store = RocksDbMailboxStoreManager.getConfiguredStore();
         byte[] sourceBytes = envelope.readMessageBytes();
         Map<String, String> headers = readHeaders(emailParser);
         if (connection.getSession().isOutbound()) {

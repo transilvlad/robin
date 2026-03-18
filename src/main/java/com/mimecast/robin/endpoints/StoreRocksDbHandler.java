@@ -1,7 +1,7 @@
 package com.mimecast.robin.endpoints;
 
 import com.google.gson.Gson;
-import com.mimecast.robin.storage.rocksdb.RocksDbMailboxStore;
+import com.mimecast.robin.storage.rocksdb.MailboxStore;
 import com.mimecast.robin.storage.rocksdb.RocksDbMailboxStoreManager;
 import com.sun.net.httpserver.HttpExchange;
 import org.apache.logging.log4j.LogManager;
@@ -76,7 +76,7 @@ public class StoreRocksDbHandler implements ApiHandler {
     }
 
     private void handleGet(HttpExchange exchange, List<String> segments) throws IOException {
-        RocksDbMailboxStore store = RocksDbMailboxStoreManager.getConfiguredStore();
+        MailboxStore store = RocksDbMailboxStoreManager.getConfiguredStore();
         String state = ApiEndpointUtils.parseQuery(exchange.getRequestURI()).get("state");
         if (segments.size() == 2) {
             endpoint.sendJson(exchange, 200, gson.toJson(store.getMailbox(segments.get(0), segments.get(1), state)));
@@ -114,7 +114,7 @@ public class StoreRocksDbHandler implements ApiHandler {
 
         String method = exchange.getRequestMethod();
         Map<String, Object> body = ApiEndpointUtils.parseJsonBody(exchange.getRequestBody());
-        RocksDbMailboxStore store = RocksDbMailboxStoreManager.getConfiguredStore();
+        MailboxStore store = RocksDbMailboxStoreManager.getConfiguredStore();
         String domain = segments.get(0);
         String user = segments.get(1);
 
@@ -131,7 +131,7 @@ public class StoreRocksDbHandler implements ApiHandler {
     }
 
     private void handleFolderMutation(HttpExchange exchange, String method, List<String> segments, Map<String, Object> body,
-                                      RocksDbMailboxStore store, String domain, String user) throws IOException {
+                                      MailboxStore store, String domain, String user) throws IOException {
         if ("POST".equalsIgnoreCase(method) && segments.size() == 3) {
             store.createFolder(domain, user,
                     String.valueOf(body.getOrDefault("parent", "")),
@@ -170,7 +170,7 @@ public class StoreRocksDbHandler implements ApiHandler {
     }
 
     private void handleMessageMutation(HttpExchange exchange, String method, List<String> segments, Map<String, Object> body,
-                                       RocksDbMailboxStore store, String domain, String user) throws IOException {
+                                       MailboxStore store, String domain, String user) throws IOException {
         if (!"POST".equalsIgnoreCase(method) || segments.size() != 4) {
             endpoint.sendJson(exchange, 404, "{\"error\":\"Not Found\"}");
             return;

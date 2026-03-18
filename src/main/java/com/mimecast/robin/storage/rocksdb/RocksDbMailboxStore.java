@@ -7,8 +7,6 @@ import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
-
-import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -30,7 +28,7 @@ import java.util.UUID;
  * RocksDB-backed mailbox store for Robin webmail-style access patterns.
  */
 @SuppressWarnings({"PMD.TooManyMethods", "PMD.CyclomaticComplexity"})
-public class RocksDbMailboxStore implements Closeable {
+public class RocksDbMailboxStore implements MailboxStore {
     private static final Logger log = LogManager.getLogger(RocksDbMailboxStore.class);
     private static final Gson GSON = new Gson();
     private static final String SEP = "\u0000";
@@ -855,23 +853,6 @@ public class RocksDbMailboxStore implements Closeable {
         private long updatedAt;
     }
 
-    public static final class FolderSummary {
-        public String path;
-        public boolean system;
-        public int total;
-        public int unread;
-    }
-
-    public static final class FolderProperties {
-        public int r;
-        public String domain;
-        public String user;
-        public String folder;
-        public int total;
-        public int unread;
-        public int read;
-        public long size;
-    }
 
     private static final class MessageRecord {
         private String id;
@@ -894,67 +875,6 @@ public class RocksDbMailboxStore implements Closeable {
 
         private boolean belongsTo(String domain, String user) {
             return Objects.equals(this.domain, domain) && Objects.equals(this.user, user);
-        }
-    }
-
-    public static final class MessageSummary {
-        public String id;
-        public String folder;
-        public boolean read;
-        public long receivedAt;
-        public long updatedAt;
-        public long size;
-        public String subject;
-        public String from;
-        public String to;
-        public String sourceFile;
-    }
-
-    public static final class MessageContent {
-        public MessageSummary message;
-        public String content;
-
-        private MessageContent(MessageSummary message, String content) {
-            this.message = message;
-            this.content = content;
-        }
-    }
-
-    public static final class MailboxView {
-        public int r = 1;
-        public String domain;
-        public String user;
-        public String folder;
-        public String state;
-        public List<FolderSummary> folders;
-        public List<MessageSummary> messages;
-
-        private MailboxView(String domain, String user, String folder, String state, List<FolderSummary> folders, List<MessageSummary> messages) {
-            this.domain = domain;
-            this.user = user;
-            this.folder = folder;
-            this.state = state;
-            this.folders = folders;
-            this.messages = messages;
-        }
-    }
-
-    public static final class FolderView {
-        public int r = 1;
-        public String domain;
-        public String user;
-        public String folder;
-        public String state;
-        public FolderProperties properties;
-        public List<MessageSummary> messages;
-
-        private FolderView(String domain, String user, String folder, String state, FolderProperties properties, List<MessageSummary> messages) {
-            this.domain = domain;
-            this.user = user;
-            this.folder = folder;
-            this.state = state;
-            this.properties = properties;
-            this.messages = messages;
         }
     }
 }
