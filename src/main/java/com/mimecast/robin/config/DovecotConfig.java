@@ -32,6 +32,18 @@ public class DovecotConfig extends BasicConfig {
     }
 
     /**
+     * Checks if inbound recipient user lookup is enabled.
+     * <p>
+     * When false, RCPT TO recipients are accepted without checking if the user exists.
+     * This does not affect SMTP AUTH on submission/SMTPS (controlled by authSql.enabled).
+     *
+     * @return True if user lookup validation is enabled, false to accept all recipients.
+     */
+    public boolean isUserLookup() {
+        return getBooleanProperty("userLookup", true);
+    }
+
+    /**
      * Gets Dovecot authentication socket configuration.
      *
      * @return AuthSocket instance with client and userdb socket paths.

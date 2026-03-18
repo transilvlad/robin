@@ -83,8 +83,8 @@ public class ServerRcpt extends ServerMail {
 
         // When receiving inbound email.
         if (connection.getSession().isInbound()) {
-            // Check if users are enabled in configuration and try and authenticate if so.
-            if (Config.getServer().getDovecot().isAuth()) {
+            // Validate recipient against user database if both auth and userLookup are enabled.
+            if (Config.getServer().getDovecot().isAuth() && Config.getServer().getDovecot().isUserLookup()) {
                 if (Config.getServer().getDovecot().isAuthSqlEnabled()) {
                     SqlUserLookup lookup = SqlAuthManager.getUserLookup();
                     if (lookup == null) {

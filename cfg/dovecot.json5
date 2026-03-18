@@ -2,6 +2,11 @@
   // Enable Dovecot authentication and mailbox integration.
   auth: false,
 
+  // Enable inbound recipient user lookup validation (default: true).
+  // When false, RCPT TO recipients are accepted without checking if the user exists.
+  // Does not affect SMTP AUTH on submission/SMTPS (controlled by authSql.enabled).
+  userLookup: true,
+
   // Dovecot UNIX socket authentication and userdb lookup backend.
   authSocket: {
     // Enable Dovecot socket authentication backend.
