@@ -28,7 +28,12 @@
     user: "robin",
     password: "robin",
 
-    // Query for password verification.
+    // Password verification query.
+    // Leave blank to use default pgcrypto-based verification (requires pgcrypto extension):
+    //   SELECT (crypt(?, regexp_replace(password, ...)) = ...) AS ok FROM users WHERE email = ?
+    // For custom schemas, use a single-parameter query that returns the password hash:
+    //   SELECT password FROM users WHERE email = ?
+    // Supported hash schemes: {PLAIN}, {SHA512-CRYPT}, {BLF-CRYPT}
     passwordQuery: "SELECT password FROM users WHERE email = ?",
 
     // Query for user lookup (returns home, uid, gid, mail).
