@@ -2,47 +2,82 @@
   // Enable Dovecot authentication and mailbox integration.
   auth: true,
 
-  // Use SQL authentication backend.
+  // Enable inbound recipient user lookup validation (default: true).
+  // When false, RCPT TO recipients are accepted without checking if the user exists.
+  // Does not affect SMTP AUTH on submission/SMTPS (controlled by authSql.enabled).
+  userLookup: true,
+
+  // Dovecot UNIX socket authentication and userdb lookup backend.
+  authSocket: {
+    // Enable Dovecot socket authentication backend.
+    enabled: false,
+
+    // Path to Dovecot authentication client socket (SASL mechanisms).
+    client: "/run/dovecot/auth-client",
+
+    // Path to Dovecot userdb lookup socket (mailbox existence).
+    userdb: "/run/dovecot/auth-userdb"
+  },
+
+  // SQL authentication backend configuration.
   authSql: {
+    // Enable SQL authentication backend.
     enabled: true,
+
     jdbcUrl: "jdbc:postgresql://postgres-backend:5432/robin",
     user: "robin",
     password: "robin",
 
-    // Query for password verification
+    // Query for password verification.
     passwordQuery: "SELECT password FROM users WHERE email = ?",
 
-    // Query for user lookup (returns home, uid, gid, mail)
+    // Query for user lookup (returns home, uid, gid, mail).
     userQuery: "SELECT home, uid, gid, maildir AS mail FROM users WHERE email = ?",
 
     // Query to list users for integration API.
     usersQuery: "SELECT email FROM users",
 
     // Query to check if a domain is served (returns any row if served).
+    // All parameters receive the domain name; SQL handles the '%@' || prefix.
     domainQuery: "SELECT 1 FROM users WHERE email LIKE '%@' || ? UNION SELECT 1 FROM aliases WHERE source LIKE '%@' || ? UNION SELECT 1 FROM auto_aliases WHERE source LIKE '%@' || ?",
 
     // Query to resolve aliases to real destination addresses.
+    // All parameters receive the email address.
     aliasQuery: "SELECT destination FROM (SELECT destination, 0 as priority FROM aliases WHERE source = ? AND destination <> '' UNION SELECT email as destination, 1 as priority FROM users WHERE email = ? UNION SELECT destination, 2 as priority FROM auto_aliases WHERE source = ? AND destination <> '') AS t ORDER BY priority LIMIT 1"
   },
 
-  // Disable socket authentication (we're using SQL).
-  authSocket: {
-    enabled: false
-  },
-
-  // Use LMTP backend for email delivery.
+  // LMTP backend configuration (default: enabled, localhost:24).
+  // This backend is recommended for distributed and SQL-backed setups.
+  // Folder routing is handled automatically by Dovecot based on message direction.
   // Uses connection pooling to reuse TCP connections across deliveries.
   saveLmtp: {
+    // Enable LMTP delivery backend.
     enabled: true,
+
+    // List of LMTP server addresses (default: localhost).
     servers: ["lmtp-backend"],
+
+    // LMTP server port (default: 24).
     port: 24,
+
+    // Enable TLS for LMTP connections (default: false).
     tls: false,
 
-    // Connection pool settings.
+    // Maximum number of pooled connections (default: 50).
     connectionPoolSize: 50,
+
+    // Max time (seconds) to wait for a connection from the pool (default: 60).
     connectionPoolTimeoutSeconds: 60,
-    connectionIdleTimeoutSeconds: 270,    // Close idle connections after 4.5 minutes.
-    connectionMaxLifetimeSeconds: 1800    // Close connections after 30 minutes max.
+
+    // Close idle connections after this many seconds (default: 270, i.e., 4.5 minutes).
+    // Should be less than Dovecot's LMTP client timeout (default 5 minutes).
+    connectionIdleTimeoutSeconds: 270,
+
+    // Close connections after this many seconds regardless of activity (default: 1800, i.e., 30 minutes).
+    connectionMaxLifetimeSeconds: 1800,
+
+    // Recycle pooled LMTP connections after this many envelopes (default: 100).
+    connectionMaxMessagesPerConnection: 100
   },
 
   // Disable LDA backend (we're using LMTP).
@@ -50,9 +85,18 @@
     enabled: false
   },
 
-  // Delivery options
-  inlineSaveMaxAttempts: 3,
-  inlineSaveRetryDelay: 2,
+  // Shared mailbox delivery options for both backends.
+  // Maximum number of attempts to save an email before giving up.
+  inlineSaveMaxAttempts: 2,
+
+  // Delay (seconds) between save attempts.
+  inlineSaveRetryDelay: 3,
+
+  // Behaviour on email delivery failure: "retry" (default) or "bounce".
+  // "retry" will attempt to redeliver later; "bounce" will send a bounce message to the sender.
+  // If all retries fail it will still result in a bounce.
   failureBehaviour: "retry",
+
+  // Maximum retry count (default: 10).
   maxRetryCount: 10
 }
