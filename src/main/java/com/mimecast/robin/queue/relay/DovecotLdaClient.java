@@ -144,7 +144,11 @@ public class DovecotLdaClient {
 
                     // Record transaction result for this recipient.
                     if (result == null || result.getKey() != 0) {
-                        relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().addTransaction("RCPT", "RCPT TO:<" + recipient + ">", SmtpResponses.DOVECOT_LDA_FAILED_550, true);
+                        int exitCode = result != null ? result.getKey() : -1;
+                        String response = (exitCode == 67)
+                                ? SmtpResponses.DOVECOT_LDA_USER_UNKNOWN_550
+                                : SmtpResponses.DOVECOT_LDA_FAILED_550;
+                        relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().addTransaction("RCPT", "RCPT TO:<" + recipient + ">", response, true);
                     } else {
                         relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().addTransaction("RCPT", "RCPT TO:<" + recipient + ">", SmtpResponses.DOVECOT_LDA_SUCCESS_250, false);
                     }
@@ -185,7 +189,11 @@ public class DovecotLdaClient {
 
                 // Record transaction result for sender.
                 if (result == null || result.getKey() != 0) {
-                    relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().addTransaction("MAIL", "MAIL FROM:<" + sender + ">", SmtpResponses.DOVECOT_LDA_FAILED_550, true);
+                    int exitCode = result != null ? result.getKey() : -1;
+                    String response = (exitCode == 67)
+                            ? SmtpResponses.DOVECOT_LDA_USER_UNKNOWN_550
+                            : SmtpResponses.DOVECOT_LDA_FAILED_550;
+                    relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().addTransaction("MAIL", "MAIL FROM:<" + sender + ">", response, true);
                 } else {
                     relaySession.getSession().getSessionTransactionList().getEnvelopes().getLast().addTransaction("MAIL", "MAIL FROM:<" + sender + ">", SmtpResponses.DOVECOT_LDA_SUCCESS_250, false);
                 }

@@ -8,6 +8,7 @@ import com.mimecast.robin.smtp.EmailDelivery;
 import com.mimecast.robin.storage.StalwartDirectDelivery;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
+import com.mimecast.robin.smtp.transaction.Transaction;
 import com.mimecast.robin.storage.PooledLmtpDelivery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -72,6 +73,16 @@ public class RelayDequeue {
 
         if (relaySession.getSession().getEnvelopes().isEmpty()) {
             return new RelayQueueWorkResult(QueueMutation.acknowledge(queueItem), List.of(), cleanupPaths);
+        }
+
+        if (hasPermanentFailuresOnly(relaySession)) {
+            String lastError = deriveLastError(relaySession);
+            log.warn("Permanent 5xx failure, marking dead: uid={}", relaySession.getSession().getUID());
+            List<RelaySession> bounces = Config.getServer().getRelay().getBooleanProperty("bounce", true)
+                    ? generateBounces(relaySession) : List.of();
+            queueItem.setPayload(relaySession).dead(lastError);
+            return new RelayQueueWorkResult(
+                    QueueMutation.dead(queueItem, lastError), bounces, cleanupPaths);
         }
 
         if (relaySession.getRetryCount() < relaySession.getMaxRetryCount()) {
@@ -234,6 +245,30 @@ public class RelayDequeue {
         bounceSession.getSession().addEnvelope(envelope);
         QueueFiles.persistEnvelopeFiles(bounceSession);
         return bounceSession;
+    }
+
+    /**
+     * Checks if all errors are permanent 5xx SMTP failures (ESMTP protocol only).
+     * When true, the item should be marked dead without retry.
+     *
+     * @param relaySession The relay session to check.
+     * @return True if all failures are permanent 5xx.
+     */
+    boolean hasPermanentFailuresOnly(RelaySession relaySession) {
+        if (!"esmtp".equalsIgnoreCase(relaySession.getProtocol())) {
+            return false;
+        }
+        boolean hasErrors = false;
+        for (EnvelopeTransactionList txList :
+                relaySession.getSession().getSessionTransactionList().getEnvelopes()) {
+            for (Transaction error : txList.getErrors()) {
+                hasErrors = true;
+                if (!error.getResponseCode().startsWith("5")) {
+                    return false;
+                }
+            }
+        }
+        return hasErrors;
     }
 
     private void logSessionInfo(RelaySession relaySession) {

@@ -115,7 +115,7 @@ class RelayDequeueTest {
         RelaySession relaySession = relaySessionWithEnvelope("retry", List.of("tony@example.com", "pepper@example.com"));
         relayDequeue = new TestRelayDequeue(testQueue, session -> {
             EnvelopeTransactionList envTxList = new EnvelopeTransactionList();
-            envTxList.addTransaction("RCPT", "RCPT TO:<tony@example.com>", "550 Mailbox unavailable", true);
+            envTxList.addTransaction("RCPT", "RCPT TO:<tony@example.com>", "451 4.7.1 Try again later", true);
             envTxList.addTransaction("RCPT", "RCPT TO:<pepper@example.com>", "250 OK");
             session.getSession().getSessionTransactionList().addEnvelope(envTxList);
         });

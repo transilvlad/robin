@@ -207,6 +207,11 @@ public final class SmtpResponses {
     public static final String DOVECOT_LDA_FAILED_550 = "550 Dovecot-LDA delivery failed";
 
     /**
+     * 550 Dovecot-LDA user unknown (exit code 67).
+     */
+    public static final String DOVECOT_LDA_USER_UNKNOWN_550 = "550 Dovecot-LDA user unknown";
+
+    /**
      * 552 Message size limit exceeded.
      */
     public static final String MESSAGE_SIZE_LIMIT_EXCEEDED_552 = "552 5.3.4 Message size limit exceeded [%s]";
