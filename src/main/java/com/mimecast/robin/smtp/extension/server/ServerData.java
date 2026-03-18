@@ -471,8 +471,8 @@ public class ServerData extends ServerProcessor {
             if (webhooks.containsKey("raw")) {
                 WebhookConfig rawCfg = webhooks.get("raw");
                 if (rawCfg.isEnabled()) {
-                    log.debug("Calling RAW webhook with file: {}", filePath);
-                    WebhookResponse response = Factories.getWebhookCaller().callRaw(rawCfg, filePath, connection);
+                    log.debug("Calling RAW webhook");
+                    WebhookResponse response = Factories.getWebhookCaller().callRaw(rawCfg, connection);
                     String smtpResponse = Factories.getWebhookCaller().extractSmtpResponse(response.getBody());
                     if (smtpResponse != null) {
                         connection.write(smtpResponse + " [" + connection.getSession().getUID() + "]");

@@ -380,23 +380,22 @@ public class WebhookCaller implements WebhookCallerInterface {
 
     /**
      * Calls RAW webhook with email content as text/plain.
-     * This is called after successful DATA processing.
+     * Email content is read from the connection's envelope message stream.
      *
      * @param config     Webhook configuration.
-     * @param filePath   Path to email file.
      * @param connection Connection instance.
      * @return WebhookResponse.
      */
     @Override
-    public WebhookResponse callRaw(WebhookConfig config, String filePath, Connection connection) {
+    public WebhookResponse callRaw(WebhookConfig config, Connection connection) {
         if (!config.isEnabled() || config.getUrl().isEmpty()) {
             return new WebhookResponse(200, "", true);
         }
 
         if (config.isWaitForResponse()) {
-            return callRawSync(config, filePath, connection);
+            return callRawSync(config, connection);
         } else {
-            callRawAsync(config, filePath, connection);
+            callRawAsync(config, connection);
             return new WebhookResponse(200, "", true);
         }
     }
@@ -405,13 +404,12 @@ public class WebhookCaller implements WebhookCallerInterface {
      * Calls RAW webhook synchronously.
      *
      * @param config     Webhook configuration.
-     * @param filePath   Path to email file.
      * @param connection Connection instance.
      * @return WebhookResponse.
      */
-    private static WebhookResponse callRawSync(WebhookConfig config, String filePath, Connection connection) {
+    private static WebhookResponse callRawSync(WebhookConfig config, Connection connection) {
         try {
-            var response = executeRawHttpRequest(config, filePath, connection);
+            var response = executeRawHttpRequest(config, connection);
             if (config.isIgnoreErrors()) {
                 return new WebhookResponse(200, "", true);
             }
@@ -429,13 +427,12 @@ public class WebhookCaller implements WebhookCallerInterface {
      * Calls RAW webhook asynchronously.
      *
      * @param config     Webhook configuration.
-     * @param filePath   Path to email file.
      * @param connection Connection instance.
      */
-    private static void callRawAsync(WebhookConfig config, String filePath, Connection connection) {
+    private static void callRawAsync(WebhookConfig config, Connection connection) {
         CompletableFuture.runAsync(() -> {
             try {
-                executeRawHttpRequest(config, filePath, connection);
+                executeRawHttpRequest(config, connection);
             } catch (Exception e) {
                 if (!config.isIgnoreErrors()) {
                     log.error("Async RAW webhook call failed: {}", e.getMessage());
@@ -448,12 +445,11 @@ public class WebhookCaller implements WebhookCallerInterface {
      * Executes RAW HTTP request to webhook.
      *
      * @param config     Webhook configuration.
-     * @param filePath   Path to email file.
      * @param connection Connection instance.
      * @return WebhookResponse.
      * @throws IOException If request fails.
      */
-    private static WebhookResponse executeRawHttpRequest(WebhookConfig config, String filePath, Connection connection) throws IOException {
+    private static WebhookResponse executeRawHttpRequest(WebhookConfig config, Connection connection) throws IOException {
         URI uri = URI.create(config.getUrl());
         HttpURLConnection conn = (HttpURLConnection) uri.toURL().openConnection();
 
@@ -497,7 +493,17 @@ public class WebhookCaller implements WebhookCallerInterface {
                     "PATCH".equalsIgnoreCase(config.getMethod())) {
 
                 conn.setDoOutput(true);
-                sendRawEmailContent(conn, filePath, config.isBase64());
+
+                // Read email content from the envelope's message stream.
+                // Supports both in-memory and file-backed messages via MessageSource.
+                if (connection.getSession().getEnvelopes().isEmpty()) {
+                    throw new IOException("No envelope available for raw webhook");
+                }
+                InputStream emailStream = connection.getSession().getEnvelopes().getLast().openMessageStream();
+                if (emailStream == null) {
+                    throw new IOException("No email content available for raw webhook");
+                }
+                sendRawEmailContent(conn, emailStream, config.isBase64());
             }
 
             // Get response.
@@ -516,21 +522,21 @@ public class WebhookCaller implements WebhookCallerInterface {
     /**
      * Sends raw email content to webhook.
      *
-     * @param conn     HTTP connection.
-     * @param filePath Path to email file.
-     * @param base64   Whether to base64 encode content.
+     * @param conn        HTTP connection.
+     * @param emailStream InputStream for email content (file-backed or in-memory).
+     * @param base64      Whether to base64 encode content.
      * @throws IOException If reading or writing fails.
      */
-    private static void sendRawEmailContent(HttpURLConnection conn, String filePath, boolean base64) throws IOException {
+    private static void sendRawEmailContent(HttpURLConnection conn, InputStream emailStream, boolean base64) throws IOException {
         try (OutputStream os = conn.getOutputStream();
-             FileInputStream fis = new FileInputStream(filePath)) {
+             InputStream is = emailStream) {
 
             if (base64) {
                 // Base64 encode the content.
                 byte[] buffer = new byte[8192];
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 int bytesRead;
-                while ((bytesRead = fis.read(buffer)) != -1) {
+                while ((bytesRead = is.read(buffer)) != -1) {
                     baos.write(buffer, 0, bytesRead);
                 }
                 byte[] encoded = java.util.Base64.getEncoder().encode(baos.toByteArray());
@@ -539,7 +545,7 @@ public class WebhookCaller implements WebhookCallerInterface {
                 // Send raw content.
                 byte[] buffer = new byte[8192];
                 int bytesRead;
-                while ((bytesRead = fis.read(buffer)) != -1) {
+                while ((bytesRead = is.read(buffer)) != -1) {
                     os.write(buffer, 0, bytesRead);
                 }
             }

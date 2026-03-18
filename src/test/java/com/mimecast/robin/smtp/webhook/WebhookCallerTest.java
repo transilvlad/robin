@@ -2,6 +2,8 @@ package com.mimecast.robin.smtp.webhook;
 
 import com.mimecast.robin.config.server.WebhookConfig;
 import com.mimecast.robin.main.Foundation;
+import com.mimecast.robin.smtp.FileMessageSource;
+import com.mimecast.robin.smtp.InMemoryMessageSource;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.connection.ConnectionMock;
@@ -114,6 +116,32 @@ class WebhookCallerTest {
         configMap.put("includeEnvelope", true);
         configMap.put("includeVerb", true);
         return new WebhookConfig(configMap);
+    }
+
+    /**
+     * Creates a ConnectionMock with an envelope containing the temp email file as a message source.
+     */
+    private ConnectionMock connectionWithEmailFile() {
+        Session session = new Session();
+        MessageEnvelope envelope = new MessageEnvelope()
+                .setMail("sender@example.com")
+                .addRcpt("recipient@example.com");
+        envelope.setMessageSource(new FileMessageSource(tempEmailFile));
+        session.addEnvelope(envelope);
+        return new ConnectionMock(session);
+    }
+
+    /**
+     * Creates a ConnectionMock with an envelope containing in-memory email content.
+     */
+    private ConnectionMock connectionWithInMemoryEmail(String content) {
+        Session session = new Session();
+        MessageEnvelope envelope = new MessageEnvelope()
+                .setMail("sender@example.com")
+                .addRcpt("recipient@example.com");
+        envelope.setMessageSource(new InMemoryMessageSource(content.getBytes(StandardCharsets.UTF_8)));
+        session.addEnvelope(envelope);
+        return new ConnectionMock(session);
     }
 
     @Test
@@ -410,7 +438,7 @@ class WebhookCallerTest {
         configMap.put("enabled", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookResponse response = new WebhookCaller().callRaw(config, tempEmailFile.toString(), new ConnectionMock());
+        WebhookResponse response = new WebhookCaller().callRaw(config, connectionWithEmailFile());
 
         assertTrue(response.isSuccess());
         assertEquals(200, response.getStatusCode());
@@ -445,7 +473,7 @@ class WebhookCallerTest {
         configMap.put("base64", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookResponse response = new WebhookCaller().callRaw(config, tempEmailFile.toString(), new ConnectionMock());
+        WebhookResponse response = new WebhookCaller().callRaw(config, connectionWithEmailFile());
 
         assertTrue(response.isSuccess());
         assertEquals(200, response.getStatusCode());
@@ -482,7 +510,7 @@ class WebhookCallerTest {
         configMap.put("base64", true);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookResponse response = new WebhookCaller().callRaw(config, tempEmailFile.toString(), new ConnectionMock());
+        WebhookResponse response = new WebhookCaller().callRaw(config, connectionWithEmailFile());
 
         assertTrue(response.isSuccess());
         assertEquals(200, response.getStatusCode());
@@ -528,7 +556,7 @@ class WebhookCallerTest {
         configMap.put("base64", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookResponse response = new WebhookCaller().callRaw(config, tempEmailFile.toString(), new ConnectionMock());
+        WebhookResponse response = new WebhookCaller().callRaw(config, connectionWithEmailFile());
 
         // Async returns immediately with success.
         assertTrue(response.isSuccess());
@@ -569,7 +597,7 @@ class WebhookCallerTest {
         configMap.put("base64", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookResponse response = new WebhookCaller().callRaw(config, tempEmailFile.toString(), new ConnectionMock());
+        WebhookResponse response = new WebhookCaller().callRaw(config, connectionWithEmailFile());
 
         assertTrue(response.isSuccess());
         assertNotNull(authHeader.get());
@@ -609,7 +637,7 @@ class WebhookCallerTest {
 
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookResponse response = new WebhookCaller().callRaw(config, tempEmailFile.toString(), new ConnectionMock());
+        WebhookResponse response = new WebhookCaller().callRaw(config, connectionWithEmailFile());
 
         assertTrue(response.isSuccess());
         assertEquals("RawValue", customHeader.get());
@@ -640,7 +668,7 @@ class WebhookCallerTest {
         configMap.put("base64", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookResponse response = new WebhookCaller().callRaw(config, tempEmailFile.toString(), new ConnectionMock());
+        WebhookResponse response = new WebhookCaller().callRaw(config, connectionWithEmailFile());
 
         assertFalse(response.isSuccess());
         assertEquals(500, response.getStatusCode());
@@ -666,7 +694,7 @@ class WebhookCallerTest {
         configMap.put("base64", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookResponse response = new WebhookCaller().callRaw(config, tempEmailFile.toString(), new ConnectionMock());
+        WebhookResponse response = new WebhookCaller().callRaw(config, connectionWithEmailFile());
 
         // With ignoreErrors, the call is considered successful at this level.
         assertTrue(response.isSuccess());
@@ -746,7 +774,7 @@ class WebhookCallerTest {
     }
 
     @Test
-    void testCallRawWithNonExistentFile() {
+    void testCallRawWithNoEnvelope() {
         mockServer.createContext("/raw-webhook", exchange -> {
             exchange.sendResponseHeaders(200, 0);
             exchange.close();
@@ -762,10 +790,32 @@ class WebhookCallerTest {
         configMap.put("ignoreErrors", false);
         WebhookConfig config = new WebhookConfig(configMap);
 
-        WebhookResponse response = new WebhookCaller().callRaw(config, "/nonexistent/file.eml", new ConnectionMock());
+        // ConnectionMock with empty session (no envelopes).
+        WebhookResponse response = new WebhookCaller().callRaw(config, new ConnectionMock());
 
         assertFalse(response.isSuccess());
         assertEquals(500, response.getStatusCode());
+    }
+
+    @Test
+    void testCallRawWithInMemoryMessage() {
+        AtomicReference<String> receivedContent = new AtomicReference<>();
+
+        mockServer.createContext("/raw-webhook", exchange -> {
+            receivedContent.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            exchange.sendResponseHeaders(200, 2);
+            exchange.getResponseBody().write("OK".getBytes());
+            exchange.close();
+        });
+
+        String url = "http://localhost:" + mockServerPort + "/raw-webhook";
+        WebhookConfig config = createBasicConfig(url, "POST");
+
+        String emailContent = "From: test@example.com\r\nSubject: In-memory test\r\n\r\nBody.\r\n";
+        WebhookResponse response = new WebhookCaller().callRaw(config, connectionWithInMemoryEmail(emailContent));
+
+        assertTrue(response.isSuccess());
+        assertEquals(emailContent, receivedContent.get());
     }
 
     @Test

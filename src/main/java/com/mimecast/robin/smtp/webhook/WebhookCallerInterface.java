@@ -23,13 +23,13 @@ public interface WebhookCallerInterface {
 
     /**
      * Calls RAW webhook with email content as text/plain.
+     * Email content is read from the connection's envelope message stream.
      *
      * @param config     Webhook configuration.
-     * @param filePath   Path to email file.
      * @param connection Connection instance.
      * @return WebhookResponse.
      */
-    WebhookResponse callRaw(WebhookConfig config, String filePath, Connection connection);
+    WebhookResponse callRaw(WebhookConfig config, Connection connection);
 
     /**
      * Extracts SMTP response from webhook response body.
