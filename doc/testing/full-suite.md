@@ -210,15 +210,39 @@ java -jar target/robin.jar --client --case src/test/resources/cases/config/suite
   user: "recipient@example.com",
   pass: "password",
   folder: "INBOX",
+  delete: true,   // Delete verified message after successful assertion
+  // purge: true, // Alternative: delete ALL messages in folder (takes precedence)
   matches: {
+    // Message header patterns (regex)
     headers: [
       ["subject", "regex or exact match"],
       ["from", "sender@example.com"],
       ["to", "recipient@example.com"]
+    ],
+    // MIME part patterns (optional)
+    parts: [
+      {
+        // Filter to specific part by Content-Type header (optional)
+        headers: [
+          ["content-type", "text/plain"]
+        ],
+        // Assert against decoded body content (regex)
+        body: [
+          ["expected body content"],
+          ["another pattern"]
+        ],
+        // Assert against content hashes (optional, Base64-encoded)
+        hashes: {
+          sha256: "expected-sha256-hash",
+          md5: "expected-md5-hash"
+        }
+      }
     ]
   }
 }
 ```
+
+See `doc/lib/imap.md` for detailed documentation on IMAP assertion options.
 
 ## Clean Testing Environment
 
