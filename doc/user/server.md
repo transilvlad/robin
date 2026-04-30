@@ -58,6 +58,21 @@ Error response:
 {"status":"ERROR", "message":"Failed to reload configuration: <error details>"}
 ```
 
+Configuration Store Sync (PostgreSQL)
+------------------------------------
+If `cfg/config.json5` is enabled, Robin will sync `*.json5` files in the configuration directory from a PostgreSQL-backed JSON store on startup.
+
+- The store is created automatically if it does not exist.
+- If the store is empty, Robin seeds it from local `*.json5` files (excluding `config.json5`).
+- Only `*.json5` files are synced; non-JSON files (for example, `log4j2.xml`) are not managed by the store.
+- Critical files (`server.json5`, `properties.json5`, `client.json5`) are protected from being overwritten by empty (`{}` / `[]`) or invalid payloads.
+- The store supports per-instance overrides using `serverId`. Base configuration is read from `server_id = "default"`, and an optional override from `server_id = <serverId>` is merged on top.
+    - Overrides only replace keys that already exist in the base configuration. Unknown keys in the override are ignored.
+
+You can inspect the last sync attempt via:
+
+    GET http://localhost:8080/config/sync/status
+
 External files (auto‑loaded if present in same directory):
 - `properties.json5` Global application properties.
 - `storage.json5` Email storage options.

@@ -202,6 +202,10 @@ When using Robin's `RobinMetricsEndpoint`, endpoints are reorganized into logica
         {"status":"ERROR", "message":"Failed to reload configuration: <error details>"}
         ```
 
+- **/config/sync/status** - Returns the last configuration store sync attempt status.
+    - **Method**: `GET`
+    - **Content-Type**: `application/json; charset=utf-8`
+
 **System Endpoints** (grouped under `/system/`):
 
 - **/system/env** - Exposes the system environment variables.

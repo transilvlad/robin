@@ -4,8 +4,9 @@ import com.mimecast.robin.config.BasicConfig;
 import com.mimecast.robin.config.Properties;
 import com.mimecast.robin.config.client.ClientConfig;
 import com.mimecast.robin.config.server.ServerConfig;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.mimecast.robin.config.store.ConfigStoreSyncManager;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.util.Map;
@@ -26,8 +27,7 @@ import java.util.concurrent.*;
  * @see ClientConfig
  */
 public class Config {
-
-    private static final Logger log = LoggerFactory.getLogger(Config.class);
+    private static final Logger log = LogManager.getLogger(Config.class);
 
     /**
      * Protected constructor.
@@ -175,6 +175,12 @@ public class Config {
      * Thread-safe and suitable for external trigger points like API endpoints.
      */
     public static void triggerReload() {
+        try {
+            ConfigStoreSyncManager.syncIfEnabled();
+        } catch (Exception e) {
+            log.warn("Config store sync before reload failed: {}", e.getMessage());
+        }
+
         // Execute properties reload if scheduled.
         if (scheduledFutures.containsKey("properties") && propertiesPath != null) {
             try {

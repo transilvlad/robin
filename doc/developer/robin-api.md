@@ -544,6 +544,15 @@ Response:
 - `200`: `{"status":"OK","message":"Configuration reloaded successfully"}`
 - `500`: `{"status":"ERROR","message":"Failed to reload configuration: <details>"}`
 
+### 14.3 Config sync status
+
+`GET /config/sync/status`
+
+Returns the last config-store sync attempt status.
+
+Response:
+- `200`: JSON object containing sync status, applied files, and skipped files.
+
 ## 15) System diagnostics
 
 ### 15.1 Environment variables

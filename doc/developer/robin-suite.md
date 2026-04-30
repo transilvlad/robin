@@ -85,6 +85,7 @@ All suite-specific files are organized under `.suite/`:
 ```
 .suite/
 ├── cfg/                  # Robin MTA configuration
+│   ├── config.json5      # Optional PostgreSQL config store sync
 │   ├── server.json5      # Server settings
 │   ├── dovecot.json5     # Dovecot LMTP/SQL integration
 │   ├── clamav.json5      # ClamAV virus scanning

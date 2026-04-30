@@ -39,7 +39,7 @@
     enabled: false,
     jdbcUrl: "jdbc:mariadb://localhost:3306/robin",
     username: "robin",
-    password: "your_password_here",
+    password: "",
     tableName: "queue"
   },
 
@@ -49,7 +49,7 @@
     enabled: false,
     jdbcUrl: "jdbc:postgresql://localhost:5432/robin",
     username: "robin",
-    password: "your_password_here",
+    password: "",
     tableName: "queue"
   }
 }

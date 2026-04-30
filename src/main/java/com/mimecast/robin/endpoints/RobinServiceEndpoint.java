@@ -2,6 +2,7 @@ package com.mimecast.robin.endpoints;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.mimecast.robin.config.store.ConfigStoreSyncManager;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Server;
 import com.mimecast.robin.metrics.MetricsCron;
@@ -58,6 +59,9 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
 
         server.createContext("/config/reload", this::handleConfigReload);
         log.info("Config reload available at http://localhost:{}/config/reload", port);
+
+        server.createContext("/config/sync/status", this::handleConfigSyncStatus);
+        log.info("Config sync status available at http://localhost:{}/config/sync/status", port);
 
         // System endpoints grouped under /system
         server.createContext("/system/env", this::handleEnv);
@@ -294,6 +298,24 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
             String errorResponse = String.format("{\"status\":\"ERROR\", \"message\":\"Failed to reload configuration: %s\"}", e.getMessage());
             sendResponse(exchange, 500, "application/json; charset=utf-8", errorResponse);
         }
+    }
+
+    private void handleConfigSyncStatus(HttpExchange exchange) throws IOException {
+        log.debug("Handling /config/sync/status: method={}, uri={}, remote={}",
+                exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRemoteAddress());
+
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendResponse(exchange, 405, "text/plain; charset=utf-8", "Method Not Allowed");
+            return;
+        }
+
+        if (!auth.isAuthenticated(exchange)) {
+            auth.sendAuthRequired(exchange);
+            return;
+        }
+
+        String body = GSON.toJson(ConfigStoreSyncManager.getStatus().toMap());
+        sendResponse(exchange, 200, "application/json; charset=utf-8", body);
     }
 
     /**

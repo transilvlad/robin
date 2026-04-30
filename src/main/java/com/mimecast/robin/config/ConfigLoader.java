@@ -1,6 +1,7 @@
 package com.mimecast.robin.config;
 
 import com.mimecast.robin.main.Config;
+import com.mimecast.robin.config.store.ConfigStoreSyncManager;
 import com.mimecast.robin.util.PathUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -43,6 +44,9 @@ public class ConfigLoader {
             Configurator.initialize("Robin", log4jPath);
             log.debug("Log4j2: {}", log4jPath);
         }
+
+        ConfigStoreSyncManager.setConfigDir(path);
+        ConfigStoreSyncManager.syncIfEnabled();
 
         String propertiesFile = "properties.json5";
         String propertiesPath = Paths.get(path, propertiesFile).toString();

@@ -50,7 +50,7 @@ MariaDB provides a robust SQL-based queue with transaction support and LONGBLOB 
     enabled: true,
     jdbcUrl: "jdbc:mariadb://localhost:3306/robin",
     username: "robin",
-    password: "your_password_here",
+    password: "",
     tableName: "queue"
   }
 }
@@ -76,7 +76,7 @@ PostgreSQL provides enterprise-grade queue persistence with ACID compliance and 
     enabled: true,
     jdbcUrl: "jdbc:postgresql://localhost:5432/robin",
     username: "robin",
-    password: "your_password_here",
+    password: "",
     tableName: "queue"
   }
 }

@@ -1,0 +1,12 @@
+{
+  // PostgreSQL configuration store.
+  // If enabled, Robin will use PostgreSQL to sync configuration data.
+  // If enabled but the config database is empty, Robin will attempt to initialize the database schema.
+  enabled: true,
+  // Server identifier for instance-specific overrides.
+  serverId: "robin1",
+  jdbcUrl: "jdbc:postgresql://postgres-backend:5432/robin",
+  username: "robin",
+  password: "robin",
+  tableName: "config"
+}
