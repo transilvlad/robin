@@ -15,6 +15,7 @@ com.mimecast.robin.config.assertion.external
 com.mimecast.robin.config.assertion.external.logs
 com.mimecast.robin.config.client
 com.mimecast.robin.config.server
+com.mimecast.robin.config.store
 com.mimecast.robin.db
 com.mimecast.robin.endpoints
 com.mimecast.robin.http
