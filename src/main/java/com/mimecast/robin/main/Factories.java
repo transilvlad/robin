@@ -7,7 +7,9 @@ import com.mimecast.robin.assertion.client.logs.LogsExternalClient;
 import com.mimecast.robin.bots.BotProcessor;
 import com.mimecast.robin.bots.DmarcBot;
 import com.mimecast.robin.bots.EmailAnalysisBot;
+import com.mimecast.robin.bots.ForensicBot;
 import com.mimecast.robin.bots.SessionBot;
+import com.mimecast.robin.bots.TlsrptBot;
 import com.mimecast.robin.config.BasicConfig;
 import com.mimecast.robin.queue.QueueDatabase;
 import com.mimecast.robin.queue.QueueFactory;
@@ -129,6 +131,8 @@ public class Factories {
         registerBot(new SessionBot());
         registerBot(new EmailAnalysisBot());
         registerBot(new DmarcBot());
+        registerBot(new TlsrptBot());
+        registerBot(new ForensicBot());
     }
 
     /**

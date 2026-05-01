@@ -108,6 +108,68 @@
       // Skip TLS certificate verification (for self-signed certs)
       // Set to false in production with valid certificates
       insecure: true
+    },
+
+    // TLSRPT Bot - Extracts TLS reports (RFC 8460) and calls endpoint with the data in JSON format
+    {
+      // Regex pattern for TLSRPT bot addresses.
+      // This pattern matches addresses like:
+      // - tlsReport@example.com
+      // - tlsrpt@example.com
+      addressPattern: "^(tlsReport|tlsrpt)(\\+.+)?@example\\.com$",
+
+      // IP-based authorization (optional)
+      allowedIps: [
+        "127.0.0.1",
+        "::1",
+        "192.168.1.0/24",
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "172.21.0.0/16"
+      ],
+
+      // Token-based authorization
+      allowedTokens: [],
+
+      botName: "tlsrpt",
+
+      // TLSRPT bot endpoint configuration
+      // Full URL to POST parsed TLSRPT reports to (use Docker network hostname)
+      endpoint: "https://robin-admin-caddy:3443/api/tlsrpt/reports",
+
+      // Skip TLS certificate verification (for self-signed certs)
+      insecure: true
+    },
+
+    // Forensic Report Bot - Extracts AFRF forensic reports (RFC 6591) and calls endpoint
+    {
+      // Regex pattern for forensic bot addresses.
+      // This pattern matches addresses like:
+      // - forensic@example.com
+      // - abuse@example.com
+      addressPattern: "^(forensic|abuse)(\\+.+)?@example\\.com$",
+
+      // IP-based authorization (optional)
+      allowedIps: [
+        "127.0.0.1",
+        "::1",
+        "192.168.1.0/24",
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "172.21.0.0/16"
+      ],
+
+      // Token-based authorization
+      allowedTokens: [],
+
+      botName: "forensic",
+
+      // Forensic bot endpoint configuration
+      // Full URL to POST parsed forensic reports to (use Docker network hostname)
+      endpoint: "https://robin-admin-caddy:3443/api/forensic/reports",
+
+      // Skip TLS certificate verification (for self-signed certs)
+      insecure: true
     }
 
     // You can add more bot definitions here.
