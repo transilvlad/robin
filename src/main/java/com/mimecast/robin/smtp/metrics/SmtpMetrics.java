@@ -2,6 +2,7 @@ package com.mimecast.robin.smtp.metrics;
 
 import com.mimecast.robin.metrics.MetricsRegistry;
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -11,6 +12,7 @@ import java.util.function.Supplier;
  * SMTP-related Micrometer metrics.
  *
  * <p>Provides counters for tracking email receipt operations including successful runs and exceptions.
+ * <p>Uses a composite registry to write metrics to both Prometheus and Graphite simultaneously.
  */
 public final class SmtpMetrics {
     private static final Logger log = LogManager.getLogger(SmtpMetrics.class);
@@ -190,41 +192,25 @@ public final class SmtpMetrics {
      */
     public static void incrementEmailReceiptException(String exceptionType) {
         try {
-            if (MetricsRegistry.getPrometheusRegistry() != null) {
-                try {
-                    Counter.builder("robin.email.receipt.exception")
-                            .description("Number of exceptions during email receipt processing")
-                            .tag("exception_type", exceptionType)
-                            .register(MetricsRegistry.getPrometheusRegistry())
-                            .increment();
-                } catch (IllegalArgumentException e) {
-                    // Counter with this tag already exists, find and increment it.
-                    Counter counter = MetricsRegistry.getPrometheusRegistry()
-                            .find("robin.email.receipt.exception")
-                            .tag("exception_type", exceptionType)
-                            .counter();
-                    if (counter != null) {
-                        counter.increment();
-                    }
-                }
+            MeterRegistry registry = MetricsRegistry.getCompositeRegistry();
+            if (registry == null) {
+                return;
             }
 
-            if (MetricsRegistry.getGraphiteRegistry() != null) {
-                try {
-                    Counter.builder("robin.email.receipt.exception")
-                            .description("Number of exceptions during email receipt processing")
-                            .tag("exception_type", exceptionType)
-                            .register(MetricsRegistry.getGraphiteRegistry())
-                            .increment();
-                } catch (IllegalArgumentException e) {
-                    // Counter with this tag already exists, find and increment it.
-                    Counter counter = MetricsRegistry.getGraphiteRegistry()
-                            .find("robin.email.receipt.exception")
-                            .tag("exception_type", exceptionType)
-                            .counter();
-                    if (counter != null) {
-                        counter.increment();
-                    }
+            try {
+                Counter.builder("robin.email.receipt.exception")
+                        .description("Number of exceptions during email receipt processing")
+                        .tag("exception_type", exceptionType)
+                        .register(registry)
+                        .increment();
+            } catch (IllegalArgumentException e) {
+                // Counter with this tag already exists, find and increment it.
+                Counter counter = registry
+                        .find("robin.email.receipt.exception")
+                        .tag("exception_type", exceptionType)
+                        .counter();
+                if (counter != null) {
+                    counter.increment();
                 }
             }
         } catch (Exception e) {
@@ -262,153 +248,85 @@ public final class SmtpMetrics {
     /**
      * Initialize the metric counters.
      * <p>This is called lazily on first use to ensure registries are available.
+     * <p>Uses composite registry to write to both Prometheus and Graphite simultaneously.
      */
     private static void initializeCounters() {
-        if (MetricsRegistry.getPrometheusRegistry() != null) {
-            emailReceiptStartCounter = Counter.builder("robin.email.receipt.start")
-                    .description("Number of email receipt connections started")
-                    .register(MetricsRegistry.getPrometheusRegistry());
-
-            emailReceiptSuccessCounter = Counter.builder("robin.email.receipt.success")
-                    .description("Number of successful email receipt operations")
-                    .register(MetricsRegistry.getPrometheusRegistry());
-
-            emailReceiptLimitCounter = Counter.builder("robin.email.receipt.limit")
-                    .description("Number of email receipt operations terminated due to limits")
-                    .register(MetricsRegistry.getPrometheusRegistry());
-
-            emailRblRejectionCounter = Counter.builder("robin.email.rbl.rejection")
-                    .description("Number of connections rejected due to RBL listings")
-                    .register(MetricsRegistry.getPrometheusRegistry());
-
-            emailVirusRejectionCounter = Counter.builder("robin.email.virus.rejection")
-                    .description("Number of emails rejected due to virus detection")
-                    .register(MetricsRegistry.getPrometheusRegistry());
-
-            emailSpamRejectionCounter = Counter.builder("robin.email.spam.rejection")
-                    .description("Number of emails rejected due to spam or phishing detection")
-                    .register(MetricsRegistry.getPrometheusRegistry());
-
-            dosRateLimitRejectionCounter = Counter.builder("robin.dos.ratelimit.rejection")
-                    .description("Number of connections rejected due to rate limiting")
-                    .register(MetricsRegistry.getPrometheusRegistry());
-
-            dosConnectionLimitRejectionCounter = Counter.builder("robin.dos.connectionlimit.rejection")
-                    .description("Number of connections rejected due to connection limits")
-                    .register(MetricsRegistry.getPrometheusRegistry());
-
-            dosTarpitCounter = Counter.builder("robin.dos.tarpit")
-                    .description("Number of connections tarpitted due to suspicious behavior")
-                    .register(MetricsRegistry.getPrometheusRegistry());
-
-            dosSlowTransferRejectionCounter = Counter.builder("robin.dos.slowtransfer.rejection")
-                    .description("Number of connections rejected due to slow data transfer")
-                    .register(MetricsRegistry.getPrometheusRegistry());
-
-            dosCommandFloodRejectionCounter = Counter.builder("robin.dos.commandflood.rejection")
-                    .description("Number of connections rejected due to command flooding")
-                    .register(MetricsRegistry.getPrometheusRegistry());
-
-            whitelistBypassCounter = Counter.builder("robin.whitelist.bypass")
-                    .description("Number of connections from whitelisted IPs bypassing DoS limits and RBL")
-                    .register(MetricsRegistry.getPrometheusRegistry());
-
-            adaptiveRateLimitAppliedCounter = Counter.builder("robin.adaptive.ratelimit.applied")
-                    .description("Number of times adaptive rate limiting reduced connection limits")
-                    .register(MetricsRegistry.getPrometheusRegistry());
-
-            geoIpBlockRejectionCounter = Counter.builder("robin.geoip.block.rejection")
-                    .description("Number of connections rejected due to GeoIP country block policy")
-                    .register(MetricsRegistry.getPrometheusRegistry());
-
-            geoIpLimitAppliedCounter = Counter.builder("robin.geoip.limit.applied")
-                    .description("Number of connections with reduced limits due to GeoIP country limit policy")
-                    .register(MetricsRegistry.getPrometheusRegistry());
-
-            distributedStoreErrorCounter = Counter.builder("robin.distributed.store.error")
-                    .description("Number of errors encountered by the Redis connection store")
-                    .register(MetricsRegistry.getPrometheusRegistry());
-
-            Counter.builder("robin.email.receipt.exception")
-                    .description("Number of exceptions during email receipt processing")
-                    .tag("exception_type", "Exception")
-                    .register(MetricsRegistry.getPrometheusRegistry());
-
-            log.debug("Initialized SMTP metrics counters for Prometheus");
+        MeterRegistry registry = MetricsRegistry.getCompositeRegistry();
+        if (registry == null) {
+            log.warn("No metric registries configured, SMTP metrics will not be recorded");
+            return;
         }
 
-        if (MetricsRegistry.getGraphiteRegistry() != null) {
-            emailReceiptStartCounter = Counter.builder("robin.email.receipt.start")
-                    .description("Number of email receipt connections started")
-                    .register(MetricsRegistry.getGraphiteRegistry());
+        emailReceiptStartCounter = Counter.builder("robin.email.receipt.start")
+                .description("Number of email receipt connections started")
+                .register(registry);
 
-            emailReceiptSuccessCounter = Counter.builder("robin.email.receipt.success")
-                    .description("Number of successful email receipt operations")
-                    .register(MetricsRegistry.getGraphiteRegistry());
+        emailReceiptSuccessCounter = Counter.builder("robin.email.receipt.success")
+                .description("Number of successful email receipt operations")
+                .register(registry);
 
-            emailReceiptLimitCounter = Counter.builder("robin.email.receipt.limit")
-                    .description("Number of email receipt operations terminated due to limits")
-                    .register(MetricsRegistry.getGraphiteRegistry());
+        emailReceiptLimitCounter = Counter.builder("robin.email.receipt.limit")
+                .description("Number of email receipt operations terminated due to limits")
+                .register(registry);
 
-            emailRblRejectionCounter = Counter.builder("robin.email.rbl.rejection")
-                    .description("Number of connections rejected due to RBL listings")
-                    .register(MetricsRegistry.getGraphiteRegistry());
+        emailRblRejectionCounter = Counter.builder("robin.email.rbl.rejection")
+                .description("Number of connections rejected due to RBL listings")
+                .register(registry);
 
-            emailVirusRejectionCounter = Counter.builder("robin.email.virus.rejection")
-                    .description("Number of emails rejected due to virus detection")
-                    .register(MetricsRegistry.getGraphiteRegistry());
+        emailVirusRejectionCounter = Counter.builder("robin.email.virus.rejection")
+                .description("Number of emails rejected due to virus detection")
+                .register(registry);
 
-            emailSpamRejectionCounter = Counter.builder("robin.email.spam.rejection")
-                    .description("Number of emails rejected due to spam or phishing detection")
-                    .register(MetricsRegistry.getGraphiteRegistry());
+        emailSpamRejectionCounter = Counter.builder("robin.email.spam.rejection")
+                .description("Number of emails rejected due to spam or phishing detection")
+                .register(registry);
 
-            dosRateLimitRejectionCounter = Counter.builder("robin.dos.ratelimit.rejection")
-                    .description("Number of connections rejected due to rate limiting")
-                    .register(MetricsRegistry.getGraphiteRegistry());
+        dosRateLimitRejectionCounter = Counter.builder("robin.dos.ratelimit.rejection")
+                .description("Number of connections rejected due to rate limiting")
+                .register(registry);
 
-            dosConnectionLimitRejectionCounter = Counter.builder("robin.dos.connectionlimit.rejection")
-                    .description("Number of connections rejected due to connection limits")
-                    .register(MetricsRegistry.getGraphiteRegistry());
+        dosConnectionLimitRejectionCounter = Counter.builder("robin.dos.connectionlimit.rejection")
+                .description("Number of connections rejected due to connection limits")
+                .register(registry);
 
-            dosTarpitCounter = Counter.builder("robin.dos.tarpit")
-                    .description("Number of connections tarpitted due to suspicious behavior")
-                    .register(MetricsRegistry.getGraphiteRegistry());
+        dosTarpitCounter = Counter.builder("robin.dos.tarpit")
+                .description("Number of connections tarpitted due to suspicious behavior")
+                .register(registry);
 
-            dosSlowTransferRejectionCounter = Counter.builder("robin.dos.slowtransfer.rejection")
-                    .description("Number of connections rejected due to slow data transfer")
-                    .register(MetricsRegistry.getGraphiteRegistry());
+        dosSlowTransferRejectionCounter = Counter.builder("robin.dos.slowtransfer.rejection")
+                .description("Number of connections rejected due to slow data transfer")
+                .register(registry);
 
-            dosCommandFloodRejectionCounter = Counter.builder("robin.dos.commandflood.rejection")
-                    .description("Number of connections rejected due to command flooding")
-                    .register(MetricsRegistry.getGraphiteRegistry());
+        dosCommandFloodRejectionCounter = Counter.builder("robin.dos.commandflood.rejection")
+                .description("Number of connections rejected due to command flooding")
+                .register(registry);
 
-            whitelistBypassCounter = Counter.builder("robin.whitelist.bypass")
-                    .description("Number of connections from whitelisted IPs bypassing DoS limits and RBL")
-                    .register(MetricsRegistry.getGraphiteRegistry());
+        whitelistBypassCounter = Counter.builder("robin.whitelist.bypass")
+                .description("Number of connections from whitelisted IPs bypassing DoS limits and RBL")
+                .register(registry);
 
-            adaptiveRateLimitAppliedCounter = Counter.builder("robin.adaptive.ratelimit.applied")
-                    .description("Number of times adaptive rate limiting reduced connection limits")
-                    .register(MetricsRegistry.getGraphiteRegistry());
+        adaptiveRateLimitAppliedCounter = Counter.builder("robin.adaptive.ratelimit.applied")
+                .description("Number of times adaptive rate limiting reduced connection limits")
+                .register(registry);
 
-            geoIpBlockRejectionCounter = Counter.builder("robin.geoip.block.rejection")
-                    .description("Number of connections rejected due to GeoIP country block policy")
-                    .register(MetricsRegistry.getGraphiteRegistry());
+        geoIpBlockRejectionCounter = Counter.builder("robin.geoip.block.rejection")
+                .description("Number of connections rejected due to GeoIP country block policy")
+                .register(registry);
 
-            geoIpLimitAppliedCounter = Counter.builder("robin.geoip.limit.applied")
-                    .description("Number of connections with reduced limits due to GeoIP country limit policy")
-                    .register(MetricsRegistry.getGraphiteRegistry());
+        geoIpLimitAppliedCounter = Counter.builder("robin.geoip.limit.applied")
+                .description("Number of connections with reduced limits due to GeoIP country limit policy")
+                .register(registry);
 
-            distributedStoreErrorCounter = Counter.builder("robin.distributed.store.error")
-                    .description("Number of errors encountered by the Redis connection store")
-                    .register(MetricsRegistry.getGraphiteRegistry());
+        distributedStoreErrorCounter = Counter.builder("robin.distributed.store.error")
+                .description("Number of errors encountered by the Redis connection store")
+                .register(registry);
 
-            Counter.builder("robin.email.receipt.exception")
-                    .description("Number of exceptions during email receipt processing")
-                    .tag("exception_type", "Exception")
-                    .register(MetricsRegistry.getGraphiteRegistry());
+        Counter.builder("robin.email.receipt.exception")
+                .description("Number of exceptions during email receipt processing")
+                .tag("exception_type", "Exception")
+                .register(registry);
 
-            log.debug("Initialized SMTP metrics counters for Graphite");
-        }
+        log.debug("Initialized SMTP metrics counters");
     }
 
     /**
