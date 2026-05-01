@@ -1,0 +1,38 @@
+MIME-Version: 1.0
+From: <abuse@example.net>
+To: postmaster@example.com
+Message-Id: <50F832B7.6E57ED.07436@m12-181.example.net>
+Date: Thu, 30 Apr 2026 22:32:01 +0300
+Subject: Report Domain: example.com Submitter: example.net Report-ID:
+ <aggr_report_example.com_20260429_example.net>
+Content-Type: multipart/mixed; boundary="23975886145477995781821594109372=="
+
+--23975886145477995781821594109372==
+Content-Type: text/plain; charset="us-ascii"
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+
+This is a DMARC aggregate report for domain example.com on 20260429.
+For more information please mail to abuse@example.net.
+--23975886145477995781821594109372==
+MIME-Version: 1.0
+Content-Type: application/zip;
+ name="example.net!example.com!1777413600!1777499999.zip"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment;
+ filename="example.net!example.com!1777413600!1777499999.zip"
+
+UEsDBBQAAgAIAHIYoVy75Sfd9gEAAP0EAAAxAAAAZXhhbXBsZS5uZXQhZXhhbXBsZS5jb20hMTc3
+NzQxMzYwMCExNzc3NDk5OTk5LnhtbJVUy27jMAy871fo1GOdZIsG3QrC/olBW7Qt1JZUPdrm70tF
+smJnF1hscogyHA7JMWU+IMoO+jfxgzHu0BoX2gUDSAiQMEKNG1sNCwr8gsXO+Kgx8KaimYQLqFlA
+Fz3+3vFyIJOKvpLiYQ6vMI6uLdCa0pulPR1Oz4en00u70XkYwytvbvlZj5rE1oEeSxcEdTgqLY7n
+8/np+PP5cOBNRtY4apmjL+lD7elVrNmr1WpbN7g1s+ovrY3drPyEtRFDU2qxmYLkMpYJIN/UIhxv
+8qGA3g5XLP1myIr3CNRDUBp5Ywvq97BfcdsHcUwzpsO157/1R7b3xq2tOvNZzfAmuh5bZcXxdH48
+0PdI6hVcab2JmgrxJh9WuNTCD5gjWSfXQPJDeWu8CspooU3qeYtseMmMgRaECNWXMvJQAtWcskLg
+txIEhYtFkbZM6bGlsWnprtCWQ09kQep9MO4TnETJugsDVrJYzlpJt2rNvlz1925m4q2uciVJQg0K
+na9pE4JE1w7OLPsd2QaK0h/5HGKY6J74OIeb5J1d/1rA4l3SEBpjcDCn4a7/b4QpLqBLKeHVCCE6
+ZB/o1HBh6Jxxv9iC3sOIrDPywqRBz7QJbAI/sWBYN7FkDT3wnVb1b9s23z/Z/xnBgvf3/W82ha7U
+nWeJnC8Bb+or7xtQSwECFAAUAAIACAByGKFcu+Un3fYBAAD9BAAAMQAAAAAAAAABACAAAAAAAAAA
+ZXhhbXBsZS5uZXQhZXhhbXBsZS5jb20hMTc3NzQxMzYwMCExNzc3NDk5OTk5LnhtbFBLBQYAAAAA
+AQABAF8AAABFAgAAAAA=
+--23975886145477995781821594109372==--

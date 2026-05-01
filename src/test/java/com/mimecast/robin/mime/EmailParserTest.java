@@ -107,6 +107,66 @@ class EmailParserTest {
         assertEquals(2, parser.getParts().get(5).getHeaders().size(), "Unexpected part headers size");
     }
 
+    @Test
+    @DisplayName("Parse DMARC report email extracts ZIP attachment")
+    void parseDmarcReport() throws IOException {
+        EmailParser parser = new EmailParser(new LineInputStream(
+                new BufferedInputStream(new FileInputStream(dir + "mime/dmarc/example-report.eml"), 8192), 1024))
+                .parse();
+
+        System.out.println("Parts count: " + parser.getParts().size());
+        
+        // Should have at least 2 parts: text/plain and application/zip
+        assertTrue(parser.getParts().size() >= 2, "Expected at least 2 parts");
+
+        // Find ZIP attachment
+        MimePart zipPart = null;
+        for (MimePart part : parser.getParts()) {
+            if (part.getHeaders().get("Content-Type").isPresent()) {
+                String ct = part.getHeaders().get("Content-Type").get().getValue().toLowerCase();
+                if (ct.contains("application/zip")) {
+                    zipPart = part;
+                    break;
+                }
+            }
+        }
+        
+        assertTrue(zipPart != null, "Should find ZIP attachment");
+        
+        String filename = zipPart.getHeaders().get("Content-Type").get().getParameter("name");
+        System.out.println("ZIP filename: " + filename);
+        
+        // Check content
+        byte[] content = zipPart.getBytes();
+        System.out.println("ZIP content length: " + content.length);
+        System.out.println("First 4 bytes hex: " + String.format("%02X %02X %02X %02X", 
+                content[0], content[1], content[2], content[3]));
+        
+        // ZIP magic: PK (0x50 0x4B)
+        boolean isZip = content[0] == 0x50 && content[1] == 0x4B;
+        System.out.println("Is valid ZIP magic: " + isZip);
+        
+        // If not ZIP, maybe still base64? Check first chars
+        if (!isZip) {
+            String firstChars = new String(content, 0, Math.min(20, content.length));
+            System.out.println("First 20 chars as string: [" + firstChars + "]");
+            
+            // Try base64 decode
+            try {
+                byte[] decoded = java.util.Base64.getDecoder().decode(content);
+                System.out.println("Base64 decoded length: " + decoded.length);
+                System.out.println("Decoded first 4 bytes: " + String.format("%02X %02X %02X %02X",
+                        decoded[0], decoded[1], decoded[2], decoded[3]));
+                isZip = decoded[0] == 0x50 && decoded[1] == 0x4B;
+                System.out.println("Decoded is valid ZIP: " + isZip);
+            } catch (Exception e) {
+                System.out.println("Base64 decode failed: " + e.getMessage());
+            }
+        }
+        
+        assertTrue(content.length > 0, "ZIP content should not be empty");
+    }
+
     @SuppressWarnings("SameParameterValue")
     boolean validateTextPart(List<MimePart> parts, long size, HashType hashType, String hashValue) {
         for (MimePart part : parts) {

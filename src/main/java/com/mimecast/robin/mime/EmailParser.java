@@ -514,25 +514,39 @@ public class EmailParser implements AutoCloseable {
                 baos.close();
                 part = new TextMimePart(content.toByteArray());
             } else {
-                File tempFile = File.createTempFile("mimepart-", ".tmp");
-                FileOutputStream fos = new FileOutputStream(tempFile);
+                // For binary parts, still need to read line by line to respect boundary
+                byte[] bytes;
+                while ((bytes = stream.readLine()) != null) {
+                    String line = new String(bytes);
+                    if (boundary != null && !boundary.isEmpty() && line.contains(boundary)) {
+                        if (line.contains(boundary + "--")) {
+                            stream.unread(bytes);
+                        }
+                        break;
+                    }
+                    baos.write(bytes);
+                }
 
                 // Decode if needed.
                 if (isBase64) {
-                    fos.write(Base64.decodeBase64(stream.readAllBytes()));
+                    content.write(Base64.decodeBase64(baos.toByteArray()));
                 } else if (isQuotedPrintable) {
                     try {
-                        fos.write(QuotedPrintableDecoder.decode(stream.readAllBytes()));
-
+                        content.write(QuotedPrintableDecoder.decode(baos.toByteArray()));
                     } catch (DecoderException e) {
                         log.error("EmailParser decoder exception: {}", e.getMessage());
                         content.write(baos.toByteArray());
                     }
                 } else {
-                    fos.write(stream.readAllBytes());
+                    content.write(baos.toByteArray());
                 }
+                baos.close();
 
-                fos.close();
+                // Write to temp file for large binary parts
+                File tempFile = File.createTempFile("mimepart-", ".tmp");
+                try (FileOutputStream fos = new FileOutputStream(tempFile)) {
+                    fos.write(content.toByteArray());
+                }
                 part = new FileMimePart(tempFile);
             }
 
