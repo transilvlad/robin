@@ -168,6 +168,26 @@ public class BotConfig extends BasicConfig {
         }
 
         /**
+         * Gets the endpoint URL for bot API calls.
+         * <p>Used by bots that need to send data to external services.
+         *
+         * @return Endpoint URL string, or empty if not set.
+         */
+        public String getEndpoint() {
+            return getStringProperty("endpoint", "");
+        }
+
+        /**
+         * Checks if TLS certificate verification should be skipped.
+         * <p>Useful for development with self-signed certificates.
+         *
+         * @return true if certificate verification should be skipped.
+         */
+        public boolean isInsecure() {
+            return getBooleanProperty("insecure", false);
+        }
+
+        /**
          * Checks if the given address matches this bot's pattern.
          *
          * @param address Email address to check.

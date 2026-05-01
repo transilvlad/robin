@@ -1,5 +1,6 @@
 package com.mimecast.robin.bots;
 
+import com.mimecast.robin.config.server.BotConfig;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.smtp.connection.Connection;
 
@@ -27,12 +28,13 @@ public interface BotProcessor {
      * <p>Each bot receives its own {@link EmailParser} instance created from the message source,
      * allowing safe concurrent access to the email content.
      *
-     * @param connection  SMTP connection instance containing cloned session data.
-     * @param emailParser Parsed email instance (headers only). May be null if the message
-     *                    source is unavailable or parsing failed.
-     * @param botAddress  The bot address that matched (e.g., "robot+token@example.com").
+     * @param connection    SMTP connection instance containing cloned session data.
+     * @param emailParser   Parsed email instance (headers only). May be null if the message
+     *                      source is unavailable or parsing failed.
+     * @param botAddress    The bot address that matched (e.g., "robot+token@example.com").
+     * @param botDefinition Bot definition containing configuration like endpoint URL.
      */
-    void process(Connection connection, EmailParser emailParser, String botAddress);
+    void process(Connection connection, EmailParser emailParser, String botAddress, BotConfig.BotDefinition botDefinition);
 
     /**
      * Gets the name of this bot for factory registration.

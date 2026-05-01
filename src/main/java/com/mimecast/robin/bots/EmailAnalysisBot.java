@@ -1,5 +1,6 @@
 package com.mimecast.robin.bots;
 
+import com.mimecast.robin.config.server.BotConfig;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.parts.MimePart;
 import com.mimecast.robin.mime.parts.TextMimePart;
@@ -54,7 +55,7 @@ public class EmailAnalysisBot implements BotProcessor {
     );
 
     @Override
-    public void process(Connection connection, EmailParser emailParser, String botAddress) {
+    public void process(Connection connection, EmailParser emailParser, String botAddress, BotConfig.BotDefinition botDefinition) {
         try {
             log.info("Processing email analysis bot for address: {} from session UID: {}",
                     botAddress, connection.getSession().getUID());

@@ -19,7 +19,9 @@
         "127.0.0.1",
         "::1",
         "192.168.1.0/24",
-        "10.0.0.0/8"
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "172.21.0.0/16"
       ],
 
       // Token-based authorization (alternative to IP)
@@ -50,7 +52,9 @@
         "127.0.0.1",
         "::1",
         "192.168.1.0/24",
-        "10.0.0.0/8"
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "172.21.0.0/16"
       ],
 
       // Token-based authorization (alternative to IP)
@@ -84,7 +88,9 @@
         "127.0.0.1",
         "::1",
         "192.168.1.0/24",
-        "10.0.0.0/8"
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "172.21.0.0/16"
       ],
 
       // Token-based authorization (alternative to IP)
@@ -96,8 +102,8 @@
       botName: "dmarc",
 
       // DMARC bot endpoint configuration
-      // Full URL to POST parsed DMARC reports to
-      endpoint: "https://localhost/api/dmarc/reports",
+      // Full URL to POST parsed DMARC reports to (use Docker network hostname)
+      endpoint: "https://robin-admin-caddy:3443/api/dmarc/reports",
 
       // Skip TLS certificate verification (for self-signed certs)
       // Set to false in production with valid certificates

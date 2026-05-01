@@ -73,7 +73,7 @@ class EmailAnalysisBotTest {
 
         // Process bot (should not throw)
         EmailAnalysisBot bot = new EmailAnalysisBot();
-        assertDoesNotThrow(() -> bot.process(connection, parser, "robotEmail@test.com"));
+        assertDoesNotThrow(() -> bot.process(connection, parser, "robotEmail@test.com", null));
     }
 
     @Test
@@ -91,7 +91,7 @@ class EmailAnalysisBotTest {
         EmailAnalysisBot bot = new EmailAnalysisBot();
 
         // Should handle null parser gracefully (bots run async after parser is closed).
-        assertDoesNotThrow(() -> bot.process(connection, null, "robotEmail@test.com"));
+        assertDoesNotThrow(() -> bot.process(connection, null, "robotEmail@test.com", null));
     }
 
     @Test
@@ -107,7 +107,7 @@ class EmailAnalysisBotTest {
 
         EmailAnalysisBot bot = new EmailAnalysisBot();
         // Should handle gracefully and log warning.
-        assertDoesNotThrow(() -> bot.process(connection, null, "robotEmail@test.com"));
+        assertDoesNotThrow(() -> bot.process(connection, null, "robotEmail@test.com", null));
     }
 
     @Test

@@ -5,6 +5,7 @@ import com.mimecast.robin.assertion.client.ExternalClient;
 import com.mimecast.robin.assertion.client.imap.ImapExternalClient;
 import com.mimecast.robin.assertion.client.logs.LogsExternalClient;
 import com.mimecast.robin.bots.BotProcessor;
+import com.mimecast.robin.bots.DmarcBot;
 import com.mimecast.robin.bots.EmailAnalysisBot;
 import com.mimecast.robin.bots.SessionBot;
 import com.mimecast.robin.config.BasicConfig;
@@ -127,6 +128,7 @@ public class Factories {
     static {
         registerBot(new SessionBot());
         registerBot(new EmailAnalysisBot());
+        registerBot(new DmarcBot());
     }
 
     /**

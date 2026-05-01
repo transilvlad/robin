@@ -105,6 +105,29 @@ public class MessageBufferOutputStream extends OutputStream {
         return activeStream != memoryStream;
     }
 
+    /**
+     * Forces the buffer to spill to file regardless of threshold.
+     * <p>Useful for bot processing where file-based access is required
+     * for thread-safe concurrent access to the message content.
+     *
+     * @throws IOException If an I/O error occurs.
+     */
+    public void forceSpillToFile() throws IOException {
+        if (isSpilledToFile() || size == 0) {
+            return;
+        }
+
+        Path parent = spillFile.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+
+        OutputStream fileStream = Files.newOutputStream(spillFile);
+        memoryStream.writeTo(fileStream);
+        activeStream = fileStream;
+        memoryStream.reset();
+    }
+
     private void spillIfNeeded(int nextWriteBytes) throws IOException {
         if (isSpilledToFile()) {
             return;

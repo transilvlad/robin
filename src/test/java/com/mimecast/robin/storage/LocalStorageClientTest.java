@@ -132,4 +132,49 @@ class LocalStorageClientTest {
             } catch (Exception ignored) {}
         }
     }
+
+    @Test
+    void botAddressForceSpillToFile() throws IOException {
+        // Test that bot addresses force spill to file for thread-safe access.
+        Connection connection = new Connection(new Session());
+        MessageEnvelope envelope = new MessageEnvelope()
+                .addRcpt("dmarcReport@example.com")
+                .addBotAddress("dmarcReport@example.com", "dmarc");
+        connection.getSession().addEnvelope(envelope);
+
+        LocalStorageClient localStorageClient = new LocalStorageClient()
+                .setConnection(connection)
+                .setExtension("eml");
+
+        // Write a small email (below 1MB threshold).
+        String content = "Mime-Version: 1.0\r\n" +
+                "Content-Type: multipart/mixed; boundary=\"test\"\r\n" +
+                "\r\n" +
+                "--test\r\n" +
+                "Content-Type: text/plain\r\n" +
+                "\r\n" +
+                "Hello\r\n" +
+                "--test--\r\n";
+        localStorageClient.getStream().write(content.getBytes(StandardCharsets.UTF_8));
+
+        assertTrue(envelope.hasBotAddresses(), "Should have bot addresses");
+
+        localStorageClient.save();
+
+        // Verify file was created (force spilled).
+        assertTrue(Files.exists(Path.of(localStorageClient.getFile())), 
+                "Bot address should force spill to file");
+        
+        // Verify message source is RefCountedFileMessageSource.
+        assertNotNull(envelope.getMessageSource());
+        assertTrue(envelope.getMessageSource() instanceof com.mimecast.robin.smtp.RefCountedFileMessageSource,
+                "Should be RefCountedFileMessageSource for bot addresses, got: " + 
+                envelope.getMessageSource().getClass().getSimpleName());
+
+        // Verify content is correct.
+        assertEquals(content, new String(envelope.readMessageBytes(), StandardCharsets.UTF_8));
+
+        // Clean up.
+        try { Files.deleteIfExists(Path.of(localStorageClient.getFile())); } catch (Exception ignored) {}
+    }
 }

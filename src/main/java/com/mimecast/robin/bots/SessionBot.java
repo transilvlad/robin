@@ -2,6 +2,7 @@ package com.mimecast.robin.bots;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.mimecast.robin.config.server.BotConfig;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.parts.MimePart;
 import com.mimecast.robin.mime.parts.TextMimePart;
@@ -53,12 +54,13 @@ public class SessionBot implements BotProcessor {
     /**
      * Processes the session bot request.
      *
-     * @param connection  SMTP connection.
-     * @param emailParser Parsed email (may be null - bots run async after parser is closed).
-     * @param botAddress  The bot address that was matched.
+     * @param connection    SMTP connection.
+     * @param emailParser   Parsed email.
+     * @param botAddress    The bot address that was matched.
+     * @param botDefinition Bot definition containing configuration.
      */
     @Override
-    public void process(Connection connection, EmailParser emailParser, String botAddress) {
+    public void process(Connection connection, EmailParser emailParser, String botAddress, BotConfig.BotDefinition botDefinition) {
         try {
             log.info("Processing session bot for address: {} from session UID: {}",
                     botAddress, connection.getSession().getUID());
