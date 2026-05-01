@@ -67,6 +67,16 @@ public class ServerRcpt extends ServerMail {
             checkBotAddress(connection);
         }
 
+        // If this is a bot address, skip user validation and accept.
+        String recipientAddress = getAddress().getAddress();
+        if (!connection.getSession().getEnvelopes().isEmpty() && 
+            connection.getSession().getEnvelopes().getLast().isBotAddress(recipientAddress)) {
+            // Add recipient to envelope for proper DATA processing.
+            connection.getSession().getEnvelopes().getLast().addRcpt(recipientAddress);
+            connection.write(String.format(SmtpResponses.RECIPIENT_OK_250, connection.getSession().getUID()));
+            return true;
+        }
+
         // Check for proxy rule match first (only first matching rule proxies).
         Optional<ProxyRule> proxyRule = ProxyMatcher.findMatchingRule(
                 connection.getSession().getFriendAddr(),
