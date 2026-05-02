@@ -131,7 +131,7 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
         long now = Instant.now().getEpochSecond();
         if (item.getPayload() instanceof RelaySession relaySession) {
             relaySession.bumpRetryCount();
-            item.setPayload((T) relaySession);
+            item.setPayload((T) relaySession).setRetryCount(relaySession.getRetryCount());
         } else {
             item.setRetryCount(item.getRetryCount() + 1);
         }
