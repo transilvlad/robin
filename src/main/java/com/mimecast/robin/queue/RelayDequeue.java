@@ -69,7 +69,7 @@ public class RelayDequeue {
         log.info("Session processed: uid={}, removedEnvelopes={}, remainingEnvelopes={}",
                 relaySession.getSession().getUID(), result.getRemovedCount(), result.getRemainingCount());
 
-        queueItem.setPayload(relaySession).setRetryCount(relaySession.getRetryCount()).syncFromPayload();
+        queueItem.setPayload(relaySession).setRetryCount(relaySession.getRetryCount());
 
         if (relaySession.getSession().getEnvelopes().isEmpty()) {
             return new RelayQueueWorkResult(QueueMutation.acknowledge(queueItem), List.of(), cleanupPaths);

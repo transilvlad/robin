@@ -165,7 +165,7 @@ public class QueueItem<T extends Serializable> implements Serializable {
 
     public QueueItem<T> setPayload(T payload) {
         this.payload = payload;
-        return syncFromPayload();
+        return this;
     }
 
     public boolean isActive() {

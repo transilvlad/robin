@@ -492,8 +492,7 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             for (QueueMutation<T> mutation : mutations) {
                 QueueItem<T> item = mutation.item().readyAt(mutation.nextAttemptAtEpochSeconds())
-                        .setLastError(mutation.lastError())
-                        .syncFromPayload();
+                        .setLastError(mutation.lastError());
                 statement.setString(1, QueueItemState.READY.name());
                 statement.setLong(2, item.getNextAttemptAtEpochSeconds());
                 statement.setLong(3, item.getUpdatedAtEpochSeconds());
@@ -518,7 +517,7 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
                 + " protocol = ?, session_uid = ?, last_error = ?, data = ? WHERE queue_uid = ?";
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             for (QueueMutation<T> mutation : mutations) {
-                QueueItem<T> item = mutation.item().dead(mutation.lastError()).syncFromPayload();
+                QueueItem<T> item = mutation.item().dead(mutation.lastError());
                 statement.setString(1, QueueItemState.DEAD.name());
                 statement.setLong(2, item.getUpdatedAtEpochSeconds());
                 statement.setInt(3, item.getRetryCount());
@@ -576,7 +575,6 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
         item.setProtocol(rs.getString("protocol"));
         item.setSessionUid(rs.getString("session_uid"));
         item.setLastError(rs.getString("last_error"));
-        item.syncFromPayload();
         return item;
     }
 

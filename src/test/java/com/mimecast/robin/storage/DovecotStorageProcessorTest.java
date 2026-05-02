@@ -89,6 +89,72 @@ class DovecotStorageProcessorTest {
                 queued.getPayload().getSession().getEnvelopes().getFirst().getRcpts());
     }
 
+    @Test
+    void lmtpDisabledNeverQueuesLmtpProtocol() throws Exception {
+        // Explicitly disable LMTP, enable LDA
+        Config.getServer().getDovecot().getMap().put("saveLmtp", new java.util.LinkedHashMap<>(java.util.Map.of(
+                "enabled", false,
+                "inline", false
+        )));
+        Config.getServer().getDovecot().getMap().put("saveLda", new java.util.LinkedHashMap<>(java.util.Map.of(
+                "enabled", true,
+                "inline", false,
+                "ldaBinary", "/usr/lib/dovecot/dovecot-lda",
+                "inboxFolder", "INBOX"
+        )));
+
+        DovecotStorageProcessor processor = new DovecotStorageProcessor();
+        Connection connection = createInboundConnection(List.of("user@example.com"));
+
+        processor.process(connection, null);
+
+        // Verify no queue items have "lmtp" protocol
+        List<QueueItem<RelaySession>> items = queue.list(0, 100, QueueListFilter.activeOnly()).items();
+        for (QueueItem<RelaySession> item : items) {
+            assertTrue(!item.getProtocol().equals("lmtp"),
+                    "Found LMTP queue item when LMTP is disabled: " + item.getProtocol());
+        }
+    }
+
+    @Test
+    void lmtpEnabledQueuesLmtpProtocol() throws Exception {
+        // Enable LMTP with queued (non-inline) mode
+        Config.getServer().getDovecot().getMap().put("saveLmtp", new java.util.LinkedHashMap<>(java.util.Map.of(
+                "enabled", true,
+                "inline", false,
+                "servers", List.of("localhost:24")
+        )));
+        Config.getServer().getDovecot().getMap().put("saveLda", new java.util.LinkedHashMap<>(java.util.Map.of(
+                "enabled", false
+        )));
+
+        DovecotStorageProcessor processor = new DovecotStorageProcessor();
+        Connection connection = createInboundConnection(List.of("user@example.com"));
+
+        processor.process(connection, null);
+
+        assertEquals(1, queue.size());
+        QueueItem<RelaySession> queued = queue.list(0, 10, QueueListFilter.activeOnly()).items().getFirst();
+        assertEquals("lmtp", queued.getProtocol());
+    }
+
+    @Test
+    void bothBackendsDisabledQueuesNothing() throws Exception {
+        Config.getServer().getDovecot().getMap().put("saveLmtp", new java.util.LinkedHashMap<>(java.util.Map.of(
+                "enabled", false
+        )));
+        Config.getServer().getDovecot().getMap().put("saveLda", new java.util.LinkedHashMap<>(java.util.Map.of(
+                "enabled", false
+        )));
+
+        DovecotStorageProcessor processor = new DovecotStorageProcessor();
+        Connection connection = createInboundConnection(List.of("user@example.com"));
+
+        processor.process(connection, null);
+
+        assertEquals(0, queue.size());
+    }
+
     private Connection createInboundConnection(List<String> recipients) throws IOException {
         Session session = new Session();
         session.setUID("dovecot-lda-test-" + System.nanoTime());
