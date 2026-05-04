@@ -188,6 +188,34 @@ public class BotConfig extends BasicConfig {
         }
 
         /**
+         * Gets authentication type (none, basic, bearer) for endpoint calls.
+         *
+         * @return Auth type string.
+         */
+        public String getAuthType() {
+            return getStringProperty("authType", "none");
+        }
+
+        /**
+         * Gets authentication value (username:password for basic, token for bearer).
+         *
+         * @return Auth value string.
+         */
+        public String getAuthValue() {
+            return getStringProperty("authValue", "");
+        }
+
+        /**
+         * Gets custom headers for endpoint calls.
+         *
+         * @return Header map.
+         */
+        @SuppressWarnings("unchecked")
+        public Map<String, String> getHeaders() {
+            return (Map<String, String>) getMapProperty("headers");
+        }
+
+        /**
          * Checks if the given address matches this bot's pattern.
          *
          * @param address Email address to check.

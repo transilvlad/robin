@@ -12,19 +12,13 @@ import com.mimecast.robin.mime.headers.MimeHeader;
 import com.mimecast.robin.mime.parts.FileMimePart;
 import com.mimecast.robin.mime.parts.MimePart;
 import com.mimecast.robin.smtp.connection.Connection;
-import okhttp3.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -45,93 +39,7 @@ import java.util.zip.GZIPInputStream;
  */
 public class TlsrptBot implements BotProcessor {
     private static final Logger log = LogManager.getLogger(TlsrptBot.class);
-    private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
-
-    // Standard HTTP client for verified TLS.
-    private static final OkHttpClient httpClient = new OkHttpClient();
-
-    // Insecure HTTP client for self-signed certificates.
-    private static final OkHttpClient insecureHttpClient = createInsecureClient();
-
-    /**
-     * Creates an OkHttpClient that trusts all certificates.
-     * Used for development with self-signed certificates.
-     */
-    private static OkHttpClient createInsecureClient() {
-        try {
-            TrustManager[] trustAllCerts = new TrustManager[]{
-                    new X509TrustManager() {
-                        @Override
-                        public void checkClientTrusted(X509Certificate[] chain, String authType) {
-                        }
-
-                        @Override
-                        public void checkServerTrusted(X509Certificate[] chain, String authType) {
-                        }
-
-                        @Override
-                        public X509Certificate[] getAcceptedIssuers() {
-                            return new X509Certificate[0];
-                        }
-                    }
-            };
-
-            SSLContext sslContext = SSLContext.getInstance("TLS");
-            sslContext.init(null, trustAllCerts, new SecureRandom());
-
-            // Wrap the socket factory to ensure SNI is properly set
-            javax.net.ssl.SSLSocketFactory baseFactory = sslContext.getSocketFactory();
-            javax.net.ssl.SSLSocketFactory sniFactory = new javax.net.ssl.SSLSocketFactory() {
-                @Override
-                public String[] getDefaultCipherSuites() {
-                    return baseFactory.getDefaultCipherSuites();
-                }
-
-                @Override
-                public String[] getSupportedCipherSuites() {
-                    return baseFactory.getSupportedCipherSuites();
-                }
-
-                @Override
-                public java.net.Socket createSocket(java.net.Socket s, String host, int port, boolean autoClose) throws IOException {
-                    javax.net.ssl.SSLSocket socket = (javax.net.ssl.SSLSocket) baseFactory.createSocket(s, host, port, autoClose);
-                    javax.net.ssl.SSLParameters params = socket.getSSLParameters();
-                    params.setServerNames(List.of(new javax.net.ssl.SNIHostName(host)));
-                    socket.setSSLParameters(params);
-                    return socket;
-                }
-
-                @Override
-                public java.net.Socket createSocket(String host, int port) throws IOException {
-                    return baseFactory.createSocket(host, port);
-                }
-
-                @Override
-                public java.net.Socket createSocket(String host, int port, java.net.InetAddress localHost, int localPort) throws IOException {
-                    return baseFactory.createSocket(host, port, localHost, localPort);
-                }
-
-                @Override
-                public java.net.Socket createSocket(java.net.InetAddress host, int port) throws IOException {
-                    return baseFactory.createSocket(host, port);
-                }
-
-                @Override
-                public java.net.Socket createSocket(java.net.InetAddress address, int port, java.net.InetAddress localAddress, int localPort) throws IOException {
-                    return baseFactory.createSocket(address, port, localAddress, localPort);
-                }
-            };
-
-            return new OkHttpClient.Builder()
-                    .sslSocketFactory(sniFactory, (X509TrustManager) trustAllCerts[0])
-                    .hostnameVerifier((hostname, session) -> true)
-                    .build();
-        } catch (Exception e) {
-            log.warn("Failed to create insecure HTTP client, falling back to default", e);
-            return httpClient;
-        }
-    }
 
     @Override
     public String getName() {
@@ -149,7 +57,6 @@ public class TlsrptBot implements BotProcessor {
 
         // Get endpoint from bot config.
         String endpoint = botDefinition != null ? botDefinition.getEndpoint() : "";
-        boolean insecure = botDefinition != null && botDefinition.isInsecure();
 
         if (endpoint.isEmpty()) {
             log.warn("TLSRPT bot has no endpoint configured, cannot send report");
@@ -175,7 +82,7 @@ public class TlsrptBot implements BotProcessor {
             }
 
             // Send to robin-admin API.
-            sendToAdminApi(report, endpoint, insecure);
+            sendToAdminApi(report, connection, botDefinition);
 
             String reportId = report.has("report-id") ? report.get("report-id").getAsString() : "unknown";
             log.info("Successfully processed TLSRPT report: {}", reportId);
@@ -313,11 +220,11 @@ public class TlsrptBot implements BotProcessor {
     /**
      * Sends TLSRPT report to the robin-admin API.
      *
-     * @param report   Parsed TLSRPT report JSON.
-     * @param endpoint API endpoint URL.
-     * @param insecure Whether to skip TLS verification.
+     * @param report         Parsed TLSRPT report JSON.
+     * @param connection     SMTP connection.
+     * @param botDefinition  Bot config definition.
      */
-    private void sendToAdminApi(JsonObject report, String endpoint, boolean insecure) {
+    private void sendToAdminApi(JsonObject report, Connection connection, BotConfig.BotDefinition botDefinition) {
         // Convert report to the format expected by robin-admin
         Map<String, Object> payload = new HashMap<>();
 
@@ -402,27 +309,6 @@ public class TlsrptBot implements BotProcessor {
         payload.put("policies", policies);
 
         String json = gson.toJson(payload);
-        log.debug("Sending TLSRPT report to {}: {}", endpoint, json);
-
-        RequestBody body = RequestBody.create(json, JSON);
-        Request request = new Request.Builder()
-                .url(endpoint)
-                .post(body)
-                .addHeader("Content-Type", "application/json")
-                .build();
-
-        OkHttpClient client = insecure ? insecureHttpClient : httpClient;
-
-        try (Response response = client.newCall(request).execute()) {
-            if (!response.isSuccessful()) {
-                String responseBody = response.body() != null ? response.body().string() : "no body";
-                log.error("Failed to send TLSRPT report to robin-admin. Status: {} Response: {}",
-                        response.code(), responseBody);
-            } else {
-                log.debug("Successfully sent TLSRPT report to robin-admin");
-            }
-        } catch (IOException e) {
-            log.error("Error sending TLSRPT report to robin-admin: {}", e.getMessage(), e);
-        }
+        BotEndpointCaller.postJson(json, connection, botDefinition, "tlsrpt", log);
     }
 }

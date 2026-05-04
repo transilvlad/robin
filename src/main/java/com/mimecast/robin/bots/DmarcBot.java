@@ -6,22 +6,16 @@ import com.mimecast.robin.mime.headers.MimeHeader;
 import com.mimecast.robin.mime.parts.FileMimePart;
 import com.mimecast.robin.mime.parts.MimePart;
 import com.mimecast.robin.smtp.connection.Connection;
-import okhttp3.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.*;
 import java.nio.file.Files;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -44,102 +38,6 @@ import java.util.zip.ZipInputStream;
  */
 public class DmarcBot implements BotProcessor {
     private static final Logger log = LogManager.getLogger(DmarcBot.class);
-    private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
-
-    // Standard HTTP client for verified TLS.
-    private static final OkHttpClient httpClient = new OkHttpClient();
-
-    // Insecure HTTP client for self-signed certificates.
-    private static final OkHttpClient insecureHttpClient = createInsecureClient();
-
-    /**
-     * Creates an OkHttpClient that trusts all certificates.
-     * Used for development with self-signed certificates.
-     */
-    private static OkHttpClient createInsecureClient() {
-        try {
-            TrustManager[] trustAllCerts = new TrustManager[]{
-                    new X509TrustManager() {
-                        @Override
-                        public void checkClientTrusted(X509Certificate[] chain, String authType) {
-                        }
-
-                        @Override
-                        public void checkServerTrusted(X509Certificate[] chain, String authType) {
-                        }
-
-                        @Override
-                        public X509Certificate[] getAcceptedIssuers() {
-                            return new X509Certificate[0];
-                        }
-                    }
-            };
-
-            SSLContext sslContext = SSLContext.getInstance("TLS");
-            sslContext.init(null, trustAllCerts, new SecureRandom());
-            
-            // Wrap the socket factory to ensure SNI is properly set
-            javax.net.ssl.SSLSocketFactory baseFactory = sslContext.getSocketFactory();
-            javax.net.ssl.SSLSocketFactory sniFactory = new javax.net.ssl.SSLSocketFactory() {
-                @Override
-                public String[] getDefaultCipherSuites() {
-                    return baseFactory.getDefaultCipherSuites();
-                }
-
-                @Override
-                public String[] getSupportedCipherSuites() {
-                    return baseFactory.getSupportedCipherSuites();
-                }
-
-                @Override
-                public java.net.Socket createSocket(java.net.Socket s, String host, int port, boolean autoClose) throws IOException {
-                    javax.net.ssl.SSLSocket socket = (javax.net.ssl.SSLSocket) baseFactory.createSocket(s, host, port, autoClose);
-                    // Enable SNI
-                    javax.net.ssl.SSLParameters params = socket.getSSLParameters();
-                    params.setServerNames(List.of(new javax.net.ssl.SNIHostName(host)));
-                    socket.setSSLParameters(params);
-                    return socket;
-                }
-
-                @Override
-                public java.net.Socket createSocket(String host, int port) throws IOException {
-                    javax.net.ssl.SSLSocket socket = (javax.net.ssl.SSLSocket) baseFactory.createSocket(host, port);
-                    javax.net.ssl.SSLParameters params = socket.getSSLParameters();
-                    params.setServerNames(List.of(new javax.net.ssl.SNIHostName(host)));
-                    socket.setSSLParameters(params);
-                    return socket;
-                }
-
-                @Override
-                public java.net.Socket createSocket(String host, int port, java.net.InetAddress localHost, int localPort) throws IOException {
-                    javax.net.ssl.SSLSocket socket = (javax.net.ssl.SSLSocket) baseFactory.createSocket(host, port, localHost, localPort);
-                    javax.net.ssl.SSLParameters params = socket.getSSLParameters();
-                    params.setServerNames(List.of(new javax.net.ssl.SNIHostName(host)));
-                    socket.setSSLParameters(params);
-                    return socket;
-                }
-
-                @Override
-                public java.net.Socket createSocket(java.net.InetAddress host, int port) throws IOException {
-                    return baseFactory.createSocket(host, port);
-                }
-
-                @Override
-                public java.net.Socket createSocket(java.net.InetAddress address, int port, java.net.InetAddress localAddress, int localPort) throws IOException {
-                    return baseFactory.createSocket(address, port, localAddress, localPort);
-                }
-            };
-
-            return new OkHttpClient.Builder()
-                    .sslSocketFactory(sniFactory, (X509TrustManager) trustAllCerts[0])
-                    .hostnameVerifier((hostname, session) -> true)
-                    .connectionSpecs(List.of(ConnectionSpec.MODERN_TLS, ConnectionSpec.COMPATIBLE_TLS))
-                    .build();
-        } catch (Exception e) {
-            log.warn("Failed to create insecure HTTP client, falling back to standard client: {}", e.getMessage());
-            return httpClient;
-        }
-    }
 
     @Override
     public void process(Connection connection, EmailParser emailParser, String botAddress, BotConfig.BotDefinition botDefinition) {
@@ -153,7 +51,6 @@ public class DmarcBot implements BotProcessor {
 
         // Get endpoint from bot config.
         String endpoint = botDefinition != null ? botDefinition.getEndpoint() : "";
-        boolean insecure = botDefinition != null && botDefinition.isInsecure();
 
         if (endpoint.isEmpty()) {
             log.warn("DMARC bot has no endpoint configured, cannot send report");
@@ -179,7 +76,7 @@ public class DmarcBot implements BotProcessor {
             }
 
             // Send to robin-admin API.
-            sendToAdminApi(report, endpoint, insecure);
+            sendToAdminApi(report, connection, botDefinition);
 
             log.info("Successfully processed DMARC report: {}", report.get("reportId"));
 
@@ -474,31 +371,12 @@ public class DmarcBot implements BotProcessor {
     /**
      * Sends parsed DMARC report to robin-admin API.
      *
-     * @param report   Parsed report data.
-     * @param endpoint Full endpoint URL.
-     * @param insecure Whether to skip TLS certificate verification.
+     * @param report         Parsed report data.
+     * @param connection     Connection object.
+     * @param botDefinition  Bot configuration.
      */
-    private void sendToAdminApi(Map<String, Object> report, String endpoint, boolean insecure) {
-        try {
-            String json = toJson(report);
-            RequestBody body = RequestBody.create(json, JSON);
-            Request request = new Request.Builder()
-                    .url(endpoint)
-                    .post(body)
-                    .build();
-
-            OkHttpClient client = insecure ? insecureHttpClient : httpClient;
-            try (Response response = client.newCall(request).execute()) {
-                if (!response.isSuccessful()) {
-                    log.warn("Failed to send DMARC report to admin API: {} {}",
-                            response.code(), response.message());
-                } else {
-                    log.info("Successfully sent DMARC report to admin API at {}", endpoint);
-                }
-            }
-        } catch (IOException e) {
-            log.warn("Failed to connect to admin API at {}: {}", endpoint, e.getMessage());
-        }
+    private void sendToAdminApi(Map<String, Object> report, Connection connection, BotConfig.BotDefinition botDefinition) {
+        BotEndpointCaller.postJson(toJson(report), connection, botDefinition, "dmarc", log);
     }
 
     /**

@@ -52,6 +52,22 @@ class BotConfigTest {
         assertEquals("127.0.0.1", bot.getAllowedIps().get(0));
         assertEquals(1, bot.getAllowedTokens().size());
         assertEquals("token123", bot.getAllowedTokens().get(0));
+        assertEquals("none", bot.getAuthType());
+        assertEquals("", bot.getAuthValue());
+        assertTrue(bot.getHeaders().isEmpty());
+    }
+
+    @Test
+    void testBotEndpointAuthAndHeaders() {
+        Map<String, Object> botMap = createBotMap("^robot@example\\.com$", "dmarc", List.of(), List.of());
+        botMap.put("authType", "bearer");
+        botMap.put("authValue", "my-token");
+        botMap.put("headers", Map.of("X-Test", "value"));
+        BotConfig.BotDefinition bot = new BotConfig.BotDefinition(botMap);
+
+        assertEquals("bearer", bot.getAuthType());
+        assertEquals("my-token", bot.getAuthValue());
+        assertEquals("value", bot.getHeaders().get("X-Test"));
     }
 
     @Test

@@ -130,6 +130,20 @@ With this configuration:
 
 **Security Note**: If both `allowedIps` and `allowedTokens` are empty lists, **all requests are authorized**. This is not recommended for production environments.
 
+#### Report Bot Endpoint Options
+
+The `dmarc`, `tlsrpt`, and `forensic` bots support forwarding parsed reports to an HTTP endpoint.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `endpoint` | string | `""` | Full URL to receive parsed report JSON. |
+| `insecure` | boolean | `false` | Skip TLS certificate validation (development only). |
+| `authType` | string | `"none"` | Authentication type: `"none"`, `"basic"`, `"bearer"`. |
+| `authValue` | string | `""` | Auth value (`username:password` for basic, token for bearer). |
+| `headers` | object | `{}` | Custom HTTP headers to include in endpoint calls. |
+
+`authValue` and `headers` values support Magic replacement syntax (same behavior as webhooks).
+
 ## Available Bots
 
 ### Session Bot

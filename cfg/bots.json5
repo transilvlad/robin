@@ -101,7 +101,18 @@
 
       // Skip TLS certificate verification (for self-signed certs)
       // Set to false in production with valid certificates
-      insecure: true
+      insecure: true,
+
+      // Authentication type: none, basic, bearer.
+      authType: "none",
+
+      // Authentication value (username:password for basic, token for bearer).
+      authValue: "",
+
+      // Custom HTTP headers.
+      headers: {
+        "X-Custom-Header": "value"
+      }
     },
 
     // TLSRPT Bot - Extracts TLS reports (RFC 8460) and calls endpoint with the data in JSON format
@@ -130,7 +141,18 @@
       endpoint: "https://localhost/api/tlsrpt/reports",
 
       // Skip TLS certificate verification (for self-signed certs)
-      insecure: true
+      insecure: true,
+
+      // Authentication type: none, basic, bearer.
+      authType: "none",
+
+      // Authentication value (username:password for basic, token for bearer).
+      authValue: "",
+
+      // Custom HTTP headers.
+      headers: {
+        "X-Custom-Header": "value"
+      }
     },
 
     // Forensic Report Bot - Extracts AFRF forensic reports (RFC 6591) and calls endpoint
@@ -159,7 +181,18 @@
       endpoint: "https://localhost/api/forensic/reports",
 
       // Skip TLS certificate verification (for self-signed certs)
-      insecure: true
+      insecure: true,
+
+      // Authentication type: none, basic, bearer.
+      authType: "none",
+
+      // Authentication value (username:password for basic, token for bearer).
+      authValue: "",
+
+      // Custom HTTP headers.
+      headers: {
+        "X-Custom-Header": "value"
+      }
     }
 
     // You can add more bot definitions here.

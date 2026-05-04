@@ -7,12 +7,14 @@ import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for MetricsRegistry.
  */
+@Isolated
 class MetricsRegistryTest {
 
     @BeforeEach
