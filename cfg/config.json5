@@ -7,5 +7,5 @@
   jdbcUrl: "jdbc:postgresql://localhost:5432/robin",
   username: "robin",
   password: "",
-  tableName: "config"
+  tableName: "robin_config_store"
 }

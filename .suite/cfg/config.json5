@@ -8,5 +8,5 @@
   jdbcUrl: "jdbc:postgresql://postgres-backend:5432/robin",
   username: "robin",
   password: "robin",
-  tableName: "config"
+  tableName: "robin_config_store"
 }

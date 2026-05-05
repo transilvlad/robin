@@ -28,7 +28,7 @@
     // Redis server port (default: 6379).
     port: 6379,
     // Redis key name for the queue LIST.
-    queueKey: "robin:queue"
+    queueKey: "robin:robin_queue"
   },
 
   // MariaDB backend configuration.
@@ -38,7 +38,7 @@
     jdbcUrl: "jdbc:mariadb://localhost:3306/robin",
     username: "robin",
     password: "",
-    tableName: "queue"
+    tableName: "robin_queue"
   },
 
   // PostgreSQL backend configuration.
@@ -48,6 +48,6 @@
     jdbcUrl: "jdbc:postgresql://postgres-backend:5432/robin",
     username: "robin",
     password: "robin",
-    tableName: "queue"
+    tableName: "robin_queue"
   }
 }
