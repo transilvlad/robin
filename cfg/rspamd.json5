@@ -42,13 +42,13 @@
     user: "robin",
     password: "robin",
 
-    // Filesystem path template for DKIM private key files (PKCS8 PEM, produced by rspamadm dkim_keygen).
+    // Filesystem path template for DKIM private key files (PKCS8 PEM, produced by rspamd dkim_keygen).
     // $domain and $selector are replaced at runtime. Must be readable by the Robin process.
     keyPath: "/var/lib/rspamd/dkim/$domain.$selector.key",
 
     // Query returning signing domain and selector pairs for the given sender domain.
     // Parameters: sender domain (?)
     // Expected columns: domain, selector (multiple rows supported)
-    signingQuery: "SELECT s.sign_domain AS domain, s.selector FROM dkim_signing_domains d JOIN dkim_signing_selectors s ON s.domain_id = d.id WHERE d.domain = ?"
+    signingQuery: "SELECT COALESCE(d.sign_domain, d.domain) AS domain, s.selector FROM rspamd_dkim_domains d JOIN rspamd_dkim_selectors s ON s.domain_id = d.id WHERE d.enabled = TRUE AND d.domain = ? AND s.state = 'active' ORDER BY s.activated_at DESC, s.created_at DESC, s.id DESC LIMIT 1"
   }
 }
