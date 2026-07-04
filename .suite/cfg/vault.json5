@@ -1,0 +1,25 @@
+{
+  // Enable or disable Vault integration (default: false).
+  enabled: false,
+
+  // Vault server address (e.g., "https://vault.example.com:8200").
+  address: "https://vault.example.com:8200",
+
+  // Vault authentication token or path to token file.
+  token: "",
+
+  // Vault namespace (optional, for Vault Enterprise).
+  namespace: "",
+
+  // Skip TLS certificate verification (use only in development).
+  skipTlsVerification: false,
+
+  // Connection timeout in seconds (default: 30).
+  connectTimeout: 30,
+
+  // Read timeout in seconds (default: 30).
+  readTimeout: 30,
+
+  // Write timeout in seconds (default: 30).
+  writeTimeout: 30
+}

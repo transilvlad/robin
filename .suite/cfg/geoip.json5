@@ -1,0 +1,19 @@
+{
+  // Enable or disable GeoIP-based connection filtering (default: false).
+  // Requires a MaxMind GeoLite2-Country database file.
+  enabled: false,
+
+  // Path to the MaxMind GeoLite2-Country .mmdb database file.
+  databasePath: "/usr/local/robin/GeoLite2-Country.mmdb",
+
+  // Default action when the country is not found in the database or the database is unavailable.
+  // Valid values: "allow", "block", "limit"
+  defaultAction: "allow",
+
+  // Per-country actions. Keys are ISO 3166-1 alpha-2 country codes.
+  // Valid values per country: "allow", "block", "limit"
+  countries: {
+    // "IR": "block",
+    // "RU": "limit"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  enabled: false,
+  inline: true,
+
+  baseUrl: "http://127.0.0.1:8080",
+  managementBaseUrl: "",
+
+  username: "admin",
+  password: "",
+
+  connectTimeoutSeconds: 10,
+  readTimeoutSeconds: 30,
+  writeTimeoutSeconds: 30,
+
+  lookupCacheTtlSeconds: 300,
+  lookupCacheMaxEntries: 4096,
+  maxConcurrentRequests: 32,
+
+  failureBehaviour: "retry",
+  maxRetryCount: 10,
+
+  // Stalwart uses Inbox mailbox id 0 internally.
+  inboxMailboxId: "0"
+}
