@@ -9,7 +9,9 @@ import org.xbill.DNS.Type;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -39,6 +41,43 @@ public class RblChecker {
     private static final int DEFAULT_TIMEOUT_SECONDS = 5;
 
     /**
+     * Result cache TTL and size bound.
+     * <p>Repeat connections from the same IP would otherwise re-query every RBL,
+     * adding DNS round trips to every SMTP greeting.
+     */
+    private static final int CACHE_MAX_ENTRIES = 10000;
+    private static final long CACHE_TTL_MILLIS = TimeUnit.MINUTES.toMillis(30);
+
+    /**
+     * Cached RBL results with expiry.
+     */
+    private record CachedResult(List<RblResult> results, long expiresAtMillis) {
+    }
+
+    /**
+     * LRU cache of RBL results keyed by IP and provider list.
+     * <p>Both listed and clean results are cached; failed lookups are not.
+     */
+    @SuppressWarnings("serial")
+    private static final Map<String, CachedResult> CACHE = Collections.synchronizedMap(
+            new LinkedHashMap<>(256, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, CachedResult> eldest) {
+                    return size() > CACHE_MAX_ENTRIES;
+                }
+            });
+
+    /**
+     * Shared executor for parallel RBL queries.
+     * <p>Creating and shutting down a thread pool per connection wastes threads.
+     */
+    private static final ExecutorService RBL_EXECUTOR = Executors.newFixedThreadPool(10, runnable -> {
+        Thread thread = new Thread(runnable, "rbl-checker");
+        thread.setDaemon(true);
+        return thread;
+    });
+
+    /**
      * Check if an IP address is listed in multiple RBL services.
      *
      * @param ip           The IP address to check
@@ -62,17 +101,20 @@ public class RblChecker {
             return Collections.emptyList();
         }
 
-        // Create thread pool for parallel queries
-        ExecutorService executor = Executors.newFixedThreadPool(
-                Math.min(rblProviders.size(), 10) // Limit max threads
-        );
+        // Serve from cache if a fresh result exists for this IP and provider list.
+        String cacheKey = ip + "|" + String.join(",", rblProviders);
+        CachedResult cached = CACHE.get(cacheKey);
+        if (cached != null && cached.expiresAtMillis() > System.currentTimeMillis()) {
+            log.debug("RBL cache hit for {}", ip);
+            return cached.results();
+        }
 
         try {
             // Create a future for each RBL check
             List<CompletableFuture<RblResult>> futures = rblProviders.stream()
                     .map(rbl -> CompletableFuture.supplyAsync(
                             () -> checkIpAgainstRbl(ip, rbl),
-                            executor
+                            RBL_EXECUTOR
                     ))
                     .collect(Collectors.toList());
 
@@ -86,13 +128,15 @@ public class RblChecker {
             );
 
             // Wait for completion with timeout
-            return allFutures.get(timeoutSeconds, TimeUnit.SECONDS);
+            List<RblResult> results = allFutures.get(timeoutSeconds, TimeUnit.SECONDS);
 
+            // Cache completed lookups only; timeouts and failures are retried on next connection.
+            CACHE.put(cacheKey, new CachedResult(results, System.currentTimeMillis() + CACHE_TTL_MILLIS));
+
+            return results;
         } catch (Exception e) {
             log.error("Error checking IP against RBLs: {}", e.getMessage());
             return Collections.emptyList();
-        } finally {
-            executor.shutdown();
         }
     }
 
