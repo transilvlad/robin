@@ -33,6 +33,18 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
     private final int maxPoolSize;
     private HikariDataSource dataSource;
 
+    /**
+     * Stats cache TTL.
+     * <p>Stats are polled by the dispatcher and monitoring endpoints; a short cache
+     * avoids repeated aggregation queries. Invalidated on local mutations.
+     */
+    private static final long STATS_CACHE_TTL_MILLIS = 5000;
+
+    private record CachedStats(QueueStats stats, long expiresAtMillis) {
+    }
+
+    private volatile CachedStats cachedStats;
+
     protected SQLQueueDatabase(DBConfig config) {
         this.jdbcUrl = config.jdbcUrl;
         this.username = config.username;
@@ -159,6 +171,7 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
              PreparedStatement statement = connection.prepareStatement(sql)) {
             bindItem(statement, item.readyAt(item.getNextAttemptAtEpochSeconds()).syncFromPayload());
             statement.executeUpdate();
+            cachedStats = null;
             return item;
         } catch (SQLException e) {
             log.error("Failed to enqueue item: {}", e.getMessage(), e);
@@ -195,6 +208,7 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
             insertNewItems(connection, batch.newItems());
 
             connection.commit();
+            cachedStats = null;
         } catch (Exception e) {
             log.error("Failed to apply queue mutations: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to apply queue mutations", e);
@@ -234,6 +248,9 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
                 while (rs.next()) {
                     items.add(readItem(rs));
                 }
+                if (!items.isEmpty()) {
+                    cachedStats = null;
+                }
                 return items;
             }
         } catch (SQLException e) {
@@ -249,9 +266,18 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
 
     @Override
     public boolean reschedule(QueueItem<T> item, long nextAttemptAtEpochSeconds, String lastError) {
-        boolean exists = getByUID(item.getUid()) != null;
-        applyMutations(new QueueMutationBatch<>(List.of(QueueMutation.reschedule(item, nextAttemptAtEpochSeconds, lastError)), List.of()));
-        return exists;
+        // Existence is derived from the UPDATE's affected row count, avoiding a SELECT
+        // and full payload deserialization before the update.
+        try (Connection connection = dataSource.getConnection()) {
+            connection.setAutoCommit(false);
+            int affected = updateReschedules(connection, List.of(QueueMutation.reschedule(item, nextAttemptAtEpochSeconds, lastError)));
+            connection.commit();
+            cachedStats = null;
+            return affected > 0;
+        } catch (SQLException e) {
+            log.error("Failed to reschedule queue item {}: {}", item.getUid(), e.getMessage(), e);
+            throw new RuntimeException("Failed to reschedule queue item", e);
+        }
     }
 
     @Override
@@ -266,7 +292,11 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
             statement.setLong(3, nowEpochSeconds);
             statement.setString(4, QueueItemState.CLAIMED.name());
             statement.setLong(5, nowEpochSeconds);
-            return statement.executeUpdate();
+            int released = statement.executeUpdate();
+            if (released > 0) {
+                cachedStats = null;
+            }
+            return released;
         } catch (SQLException e) {
             log.error("Failed to release expired claims: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to release expired claims", e);
@@ -275,12 +305,22 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
 
     @Override
     public boolean markDead(String uid, String lastError) {
-        QueueItem<T> item = getByUID(uid);
-        if (item == null) {
-            return false;
+        // Direct UPDATE avoids fetching and re-serializing the payload just to change state.
+        String sql = "UPDATE " + tableName + " SET state = ?, claim_owner = NULL, claimed_until = 0,"
+                + " updated_epoch = ?, last_error = ? WHERE queue_uid = ?";
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, QueueItemState.DEAD.name());
+            statement.setLong(2, System.currentTimeMillis() / 1000);
+            setNullableString(statement, 3, lastError);
+            statement.setString(4, uid);
+            boolean updated = statement.executeUpdate() > 0;
+            cachedStats = null;
+            return updated;
+        } catch (SQLException e) {
+            log.error("Failed to mark queue item dead {}: {}", uid, e.getMessage(), e);
+            throw new RuntimeException("Failed to mark queue item dead", e);
         }
-        applyMutations(new QueueMutationBatch<>(List.of(QueueMutation.dead(item, lastError)), List.of()));
-        return true;
     }
 
     @Override
@@ -301,12 +341,43 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
 
     @Override
     public QueueStats stats() {
-        long ready = countByState(QueueItemState.READY);
-        long claimed = countByState(QueueItemState.CLAIMED);
-        long dead = countByState(QueueItemState.DEAD);
-        long oldestReady = minEpochForState("next_attempt_at", QueueItemState.READY);
-        long oldestClaimed = minEpochForState("claimed_until", QueueItemState.CLAIMED);
-        return new QueueStats(ready, claimed, dead, ready + claimed, oldestReady, oldestClaimed);
+        CachedStats cached = cachedStats;
+        if (cached != null && cached.expiresAtMillis() > System.currentTimeMillis()) {
+            return cached.stats();
+        }
+
+        // Single aggregated query instead of five separate COUNT/MIN queries.
+        String sql = "SELECT"
+                + " SUM(CASE WHEN state = ? THEN 1 ELSE 0 END),"
+                + " SUM(CASE WHEN state = ? THEN 1 ELSE 0 END),"
+                + " SUM(CASE WHEN state = ? THEN 1 ELSE 0 END),"
+                + " MIN(CASE WHEN state = ? THEN next_attempt_at END),"
+                + " MIN(CASE WHEN state = ? THEN claimed_until END)"
+                + " FROM " + tableName;
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, QueueItemState.READY.name());
+            statement.setString(2, QueueItemState.CLAIMED.name());
+            statement.setString(3, QueueItemState.DEAD.name());
+            statement.setString(4, QueueItemState.READY.name());
+            statement.setString(5, QueueItemState.CLAIMED.name());
+            try (ResultSet rs = statement.executeQuery()) {
+                QueueStats stats;
+                if (rs.next()) {
+                    long ready = rs.getLong(1);
+                    long claimed = rs.getLong(2);
+                    long dead = rs.getLong(3);
+                    stats = new QueueStats(ready, claimed, dead, ready + claimed, rs.getLong(4), rs.getLong(5));
+                } else {
+                    stats = new QueueStats(0, 0, 0, 0, 0, 0);
+                }
+                cachedStats = new CachedStats(stats, System.currentTimeMillis() + STATS_CACHE_TTL_MILLIS);
+                return stats;
+            }
+        } catch (SQLException e) {
+            log.error("Failed to query queue stats: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to query queue stats", e);
+        }
     }
 
     @Override
@@ -362,7 +433,11 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, uid);
-            return statement.executeUpdate() > 0;
+            boolean deleted = statement.executeUpdate() > 0;
+            if (deleted) {
+                cachedStats = null;
+            }
+            return deleted;
         } catch (SQLException e) {
             log.error("Failed to delete queue item {}: {}", uid, e.getMessage(), e);
             throw new RuntimeException("Failed to delete queue item", e);
@@ -383,7 +458,11 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
             for (int i = 0; i < deduped.size(); i++) {
                 statement.setString(i + 1, deduped.get(i));
             }
-            return statement.executeUpdate();
+            int deleted = statement.executeUpdate();
+            if (deleted > 0) {
+                cachedStats = null;
+            }
+            return deleted;
         } catch (SQLException e) {
             log.error("Failed to delete queue items: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to delete queue items", e);
@@ -396,6 +475,7 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
         try (Connection connection = dataSource.getConnection();
              Statement statement = connection.createStatement()) {
             statement.executeUpdate(sql);
+            cachedStats = null;
         } catch (SQLException e) {
             log.error("Failed to clear queue: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to clear queue", e);
@@ -455,6 +535,7 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
 
             List<QueueItem<T>> items = fetchByUIDs(connection, claimedUids);
             connection.commit();
+            cachedStats = null;
             return items;
         } catch (SQLException e) {
             log.error("Failed to claim ready items: {}", e.getMessage(), e);
@@ -482,9 +563,9 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
         }
     }
 
-    private void updateReschedules(Connection connection, List<QueueMutation<T>> mutations) throws SQLException {
+    private int updateReschedules(Connection connection, List<QueueMutation<T>> mutations) throws SQLException {
         if (mutations.isEmpty()) {
-            return;
+            return 0;
         }
         String sql = "UPDATE " + tableName + " SET state = ?, next_attempt_at = ?, claimed_until = 0,"
                 + " claim_owner = NULL, updated_epoch = ?, retry_count = ?, protocol = ?, session_uid = ?,"
@@ -504,7 +585,12 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
                 statement.setString(9, item.getUid());
                 statement.addBatch();
             }
-            statement.executeBatch();
+            int affected = 0;
+            for (int count : statement.executeBatch()) {
+                // SUCCESS_NO_INFO (-2) still means the statement executed.
+                affected += count == Statement.SUCCESS_NO_INFO ? 1 : Math.max(count, 0);
+            }
+            return affected;
         }
     }
 
@@ -603,34 +689,6 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
                 }
                 return ordered;
             }
-        }
-    }
-
-    private long countByState(QueueItemState state) {
-        String sql = "SELECT COUNT(*) FROM " + tableName + " WHERE state = ?";
-        try (Connection connection = dataSource.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, state.name());
-            try (ResultSet rs = statement.executeQuery()) {
-                return rs.next() ? rs.getLong(1) : 0L;
-            }
-        } catch (SQLException e) {
-            log.error("Failed to count queue state {}: {}", state, e.getMessage(), e);
-            throw new RuntimeException("Failed to count queue state", e);
-        }
-    }
-
-    private long minEpochForState(String column, QueueItemState state) {
-        String sql = "SELECT MIN(" + column + ") FROM " + tableName + " WHERE state = ?";
-        try (Connection connection = dataSource.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, state.name());
-            try (ResultSet rs = statement.executeQuery()) {
-                return rs.next() ? rs.getLong(1) : 0L;
-            }
-        } catch (SQLException e) {
-            log.error("Failed to query min epoch for queue state {}: {}", state, e.getMessage(), e);
-            throw new RuntimeException("Failed to query queue stats", e);
         }
     }
 
