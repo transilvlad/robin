@@ -107,7 +107,7 @@ class MemoryPolicyCacheTest {
         HttpsResponse httpsResponse;
         StsPolicy policy;
 
-        for (int i = 0; i < 105; i++) {
+        for (int i = 0; i < MemoryPolicyCache.MAX_ENTRIES + 5; i++) {
             record = new StsRecord("mimecast" + i + ".com", "v=STSv1; id=" + i + ";");
 
             policyBody = "version: STSv1\r\n" +
@@ -129,7 +129,7 @@ class MemoryPolicyCacheTest {
             cache.put(policy);
         }
 
-        assertEquals(100, cache.size());
+        assertEquals(MemoryPolicyCache.MAX_ENTRIES, cache.size());
     }
 
     @Test

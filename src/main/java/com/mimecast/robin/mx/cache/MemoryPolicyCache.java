@@ -8,7 +8,7 @@ import java.util.Map;
 /**
  * Memory policy cache.
  * <p>Stores StsPolicy instances in a deque map.
- * <p>For perfomance reasons this is limited to 100 entries.
+ * <p>For memory safety reasons this is limited to 10000 entries.
  * <p>In production environments a cloud cache implementation should be used instead.
  *
  * @author "Vlad Marian" (vmarian@mimecast.com)
@@ -19,12 +19,18 @@ import java.util.Map;
 public class MemoryPolicyCache extends PolicyCache {
 
     /**
+     * Cache size limit.
+     * <p>Package visible for testing.
+     */
+    static final int MAX_ENTRIES = 10000;
+
+    /**
      * Deque cache.
      */
     private final LinkedHashMap<String, StsPolicy> map = new LinkedHashMap<>() {
         @Override
         protected boolean removeEldestEntry(Map.Entry<String, StsPolicy> eldest) {
-            return this.size() > 100; // Limit.
+            return this.size() > MAX_ENTRIES; // Limit.
         }
     };
 
@@ -35,7 +41,7 @@ public class MemoryPolicyCache extends PolicyCache {
      * @param policy StsPolicy instance.
      */
     @Override
-    protected void add(StsPolicy policy) {
+    protected synchronized void add(StsPolicy policy) {
         map.put(policy.getRecord().getDomain(), policy);
     }
 
@@ -46,7 +52,7 @@ public class MemoryPolicyCache extends PolicyCache {
      * @return StsPolicy instance.
      */
     @Override
-    protected StsPolicy lookup(String domain) {
+    protected synchronized StsPolicy lookup(String domain) {
         return map.get(domain);
     }
 
@@ -57,7 +63,7 @@ public class MemoryPolicyCache extends PolicyCache {
      * @param domain Domain string.
      */
     @Override
-    protected void remove(String domain) {
+    protected synchronized void remove(String domain) {
         map.remove(domain);
     }
 
@@ -69,7 +75,7 @@ public class MemoryPolicyCache extends PolicyCache {
      * @return Integer.
      */
     @Override
-    int size() {
+    synchronized int size() {
         return map.size();
     }
 }

@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 /**
  * MXResolver encapsulates MX record resolution with DANE and MTA-STS support.
@@ -35,6 +36,44 @@ public class MXResolver {
     private static final Logger log = LogManager.getLogger(MXResolver.class);
 
     /**
+     * Resolution cache TTL and size bound.
+     * <p>Without caching, every outbound message re-resolves MX, TLSA and MTA-STS
+     * for its destination domain even when messages go to the same domains repeatedly.
+     */
+    private static final int CACHE_MAX_ENTRIES = 10000;
+    private static final long CACHE_TTL_MILLIS = TimeUnit.MINUTES.toMillis(5);
+
+    /**
+     * Cached resolution result with expiry.
+     */
+    private record CachedResolution<T>(T records, long expiresAtMillis) {
+    }
+
+    private static final Map<String, CachedResolution<List<DnsRecord>>> MX_CACHE =
+            Collections.synchronizedMap(newLruMap());
+
+    private static final Map<String, CachedResolution<List<SecureMxRecord>>> SECURE_MX_CACHE =
+            Collections.synchronizedMap(newLruMap());
+
+    private static <T> LinkedHashMap<String, CachedResolution<T>> newLruMap() {
+        return new LinkedHashMap<>(256, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<String, CachedResolution<T>> eldest) {
+                return size() > CACHE_MAX_ENTRIES;
+            }
+        };
+    }
+
+    /**
+     * Clears the resolution caches.
+     * <p>For testing.
+     */
+    static void clearCaches() {
+        MX_CACHE.clear();
+        SECURE_MX_CACHE.clear();
+    }
+
+    /**
      * Resolves MX records with security policies for RFC-compliant secure delivery.
      * <p>Implements RFC 8461 Section 2 and RFC 7672 priority: DANE takes precedence over MTA-STS.
      * <p>Resolution process:
@@ -50,6 +89,24 @@ public class MXResolver {
      * @return List of SecureMxRecord with security policies, possibly empty if no MX found.
      */
     public List<SecureMxRecord> resolveSecureMx(String domain) {
+        // Serve from cache if a fresh resolution exists.
+        CachedResolution<List<SecureMxRecord>> cached = SECURE_MX_CACHE.get(domain);
+        if (cached != null && cached.expiresAtMillis() > System.currentTimeMillis()) {
+            log.debug("Secure MX cache hit for domain: {}", domain);
+            return new ArrayList<>(cached.records());
+        }
+
+        List<SecureMxRecord> resolved = doResolveSecureMx(domain);
+
+        // Cache non-empty resolutions only; failures are retried on next resolution.
+        if (!resolved.isEmpty()) {
+            SECURE_MX_CACHE.put(domain, new CachedResolution<>(List.copyOf(resolved), System.currentTimeMillis() + CACHE_TTL_MILLIS));
+        }
+
+        return resolved;
+    }
+
+    private List<SecureMxRecord> doResolveSecureMx(String domain) {
         // Step 1: Get regular MX records via DNS client.
         var optionalDnsRecords = new XBillDnsRecordClient().getMxRecords(domain);
         if (optionalDnsRecords.isEmpty() || optionalDnsRecords.get().isEmpty()) {
@@ -156,6 +213,24 @@ public class MXResolver {
      * @return List of DnsRecord, possibly empty if none found.
      */
     public List<DnsRecord> resolveMx(String domain) {
+        // Serve from cache if a fresh resolution exists.
+        CachedResolution<List<DnsRecord>> cached = MX_CACHE.get(domain);
+        if (cached != null && cached.expiresAtMillis() > System.currentTimeMillis()) {
+            log.debug("MX cache hit for domain: {}", domain);
+            return new ArrayList<>(cached.records());
+        }
+
+        List<DnsRecord> resolved = doResolveMx(domain);
+
+        // Cache non-empty resolutions only; failures are retried on next resolution.
+        if (!resolved.isEmpty()) {
+            MX_CACHE.put(domain, new CachedResolution<>(List.copyOf(resolved), System.currentTimeMillis() + CACHE_TTL_MILLIS));
+        }
+
+        return resolved;
+    }
+
+    private List<DnsRecord> doResolveMx(String domain) {
         // Step 1: Get regular MX records via DNS client.
         var optionalDnsRecords = new XBillDnsRecordClient().getMxRecords(domain);
         if (optionalDnsRecords.isEmpty() || optionalDnsRecords.get().isEmpty()) {
