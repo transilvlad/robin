@@ -342,6 +342,7 @@ public abstract class SmtpFoundation {
     public void write(byte[] bytes) throws IOException {
         try {
             out.write(bytes);
+            out.flush();
             log.info(LOG_WRITE, new String(bytes).trim());
         } catch (IOException e) {
             log.info("Error writing: {}", e.getMessage());
@@ -402,6 +403,7 @@ public abstract class SmtpFoundation {
                     log.trace(LOG_WRITE, StringUtils.stripEnd(new String(bytes, UTF_8), null));
                 }
             }
+            outStream.flush();
         } catch (IOException e) {
             log.info("Error writing: {}", e.getMessage());
             throw e;
@@ -450,6 +452,7 @@ public abstract class SmtpFoundation {
             }
         }
         outStream.write("\r\n".getBytes(UTF_8));
+        outStream.flush();
     }
 
     /**

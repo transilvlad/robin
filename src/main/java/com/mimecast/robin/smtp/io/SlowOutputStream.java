@@ -62,11 +62,18 @@ public class SlowOutputStream extends OutputStream {
                 count = 0;
                 log.info("Waiting after {} bytes wrote.", bytes);
                 totalWait += wait;
+                // Flush so pacing is preserved on the wire when the wrapped stream is buffered.
+                out.flush();
                 Sleep.nap(wait);
             }
         }
 
         out.write(b);
+    }
+
+    @Override
+    public void flush() throws IOException {
+        out.flush();
     }
 
     /**
