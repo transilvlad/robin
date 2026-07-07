@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import javax.naming.LimitExceededException;
 import javax.net.ssl.SSLSocket;
 import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.Socket;
@@ -196,8 +197,15 @@ public abstract class SmtpFoundation {
      * @throws IOException Unable to communicate.
      */
     public void readBytes(int bytesToRead, OutputStream outputStream) throws IOException {
-        for (int i = 0; i < bytesToRead; i++) {
-            outputStream.write((byte) inc.read());
+        byte[] buffer = new byte[Math.min(65536, Math.max(1, bytesToRead))];
+        int remaining = bytesToRead;
+        while (remaining > 0) {
+            int read = inc.read(buffer, 0, Math.min(buffer.length, remaining));
+            if (read == -1) {
+                throw new EOFException("Unexpected end of stream with " + remaining + " bytes left to read");
+            }
+            outputStream.write(buffer, 0, read);
+            remaining -= read;
         }
     }
 

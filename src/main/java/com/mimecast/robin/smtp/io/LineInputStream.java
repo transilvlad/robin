@@ -207,6 +207,38 @@ public class LineInputStream extends PushbackInputStream {
     }
 
     /**
+     * Overrides bulk read() to drain the internal buffer first.
+     *
+     * <p>CRITICAL: Without this override, PushbackInputStream would read directly
+     * from the underlying stream, skipping bytes already held in the internal
+     * read buffer and corrupting the stream order.
+     *
+     * @param b   Destination byte array.
+     * @param off Offset.
+     * @param len Length.
+     * @return Number of bytes read or -1 if end of stream.
+     * @throws IOException Unable to read.
+     */
+    @Override
+    public int read(byte[] b, int off, int len) throws IOException {
+        if (len == 0) {
+            return 0;
+        }
+
+        // Serve from internal buffer if available.
+        if (bufferPos < bufferLimit) {
+            int available = bufferLimit - bufferPos;
+            int toCopy = Math.min(available, len);
+            System.arraycopy(readBuffer, bufferPos, b, off, toCopy);
+            bufferPos += toCopy;
+            return toCopy;
+        }
+
+        // Internal buffer empty - delegate to PushbackInputStream (pushback buffer + underlying stream).
+        return super.read(b, off, len);
+    }
+
+    /**
      * Overrides unread() to preserve internal buffer state.
      *
      * <p>CRITICAL: Before pushing back requested bytes, must first push back any
