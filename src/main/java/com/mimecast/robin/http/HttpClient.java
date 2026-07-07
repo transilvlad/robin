@@ -25,6 +25,13 @@ public class HttpClient {
     protected static final Logger log = LogManager.getLogger(HttpClient.class);
 
     /**
+     * Shared root client.
+     * <p>Clients derived via {@link OkHttpClient#newBuilder()} share this instance's
+     * dispatcher, connection pool and threads, avoiding per-request pool churn.
+     */
+    private static final OkHttpClient SHARED_CLIENT = new OkHttpClient();
+
+    /**
      * Permissive trust manager.
      */
     private final X509TrustManager trustManager;
@@ -33,6 +40,11 @@ public class HttpClient {
      * Confing instance.
      */
     private final BasicConfig config;
+
+    /**
+     * Lazily built client for this instance's trust manager and timeouts.
+     */
+    private volatile OkHttpClient client;
 
     /**
      * Constructs a new HttpClient instance.
@@ -55,10 +67,16 @@ public class HttpClient {
      * @throws NoSuchAlgorithmException No such algorithm exception.
      */
     public HttpResponse execute(HttpRequest request) throws IOException, KeyManagementException, NoSuchAlgorithmException {
-        SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
-        sslContext.init(null, new TrustManager[]{trustManager}, null);
+        OkHttpClient httpClient = client;
+        if (httpClient == null) {
+            SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
+            sslContext.init(null, new TrustManager[]{trustManager}, null);
 
-        try (Response response = getClient(sslContext.getSocketFactory())
+            httpClient = getClient(sslContext.getSocketFactory());
+            client = httpClient;
+        }
+
+        try (Response response = httpClient
                 .newCall(getRequest(request))
                 .execute()) {
 
@@ -142,7 +160,7 @@ public class HttpClient {
      * @return OkHttpClient.Builder instance.
      */
     protected OkHttpClient getClient(SSLSocketFactory socketFactory) {
-        return new OkHttpClient.Builder()
+        return SHARED_CLIENT.newBuilder()
                 .connectTimeout(config.getLongProperty("connectTimeout", 10L), TimeUnit.SECONDS)
                 .writeTimeout(config.getLongProperty("writeTimeout", 10L), TimeUnit.SECONDS)
                 .readTimeout(config.getLongProperty("readTimeout", 30L), TimeUnit.SECONDS)

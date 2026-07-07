@@ -34,7 +34,7 @@ public final class BotEndpointCaller {
             var trustManager = new PermissiveTrustManager();
             SSLContext sslContext = SSLContext.getInstance("TLS");
             sslContext.init(null, new javax.net.ssl.TrustManager[]{trustManager}, new SecureRandom());
-            return new OkHttpClient.Builder()
+            return HTTP_CLIENT.newBuilder()
                     .sslSocketFactory(sslContext.getSocketFactory(), trustManager)
                     .hostnameVerifier((hostname, session) -> true)
                     .build();

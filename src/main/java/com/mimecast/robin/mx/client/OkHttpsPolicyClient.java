@@ -38,6 +38,12 @@ public class OkHttpsPolicyClient extends ConfigHandler implements HttpsPolicyCli
     private final X509TrustManager trustManager;
 
     /**
+     * Lazily built client for this instance's trust manager.
+     * <p>Derived from the shared root client so it shares its connection pool.
+     */
+    private volatile OkHttpClient client;
+
+    /**
      * Constructs a new HttpPolicyClient instance.
      *
      * @param trustManager X509TrustManager instance.
@@ -110,12 +116,19 @@ public class OkHttpsPolicyClient extends ConfigHandler implements HttpsPolicyCli
      * @throws NoSuchAlgorithmException No such algorithm exception.
      */
     private OkHttpClient getClient() throws KeyManagementException, NoSuchAlgorithmException {
+        OkHttpClient cached = client;
+        if (cached != null) {
+            return cached;
+        }
+
         // Client.
         SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
         sslContext.init(null, new TrustManager[] { trustManager }, null);
         SSLSocketFactory socketFactory = sslContext.getSocketFactory();
 
-        return getBuilder(socketFactory).build();
+        cached = getBuilder(socketFactory).build();
+        client = cached;
+        return cached;
     }
 
     /**

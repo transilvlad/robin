@@ -33,6 +33,24 @@ public class WebhookCaller implements WebhookCallerInterface {
     private static final Logger log = LogManager.getLogger(WebhookCaller.class);
 
     /**
+     * Cached permissive SSL socket factory for webhook calls.
+     * <p>Building an SSLContext per call is expensive; the permissive configuration
+     * never changes so one factory is shared.
+     */
+    private static final javax.net.ssl.SSLSocketFactory PERMISSIVE_SOCKET_FACTORY = buildPermissiveSocketFactory();
+
+    private static javax.net.ssl.SSLSocketFactory buildPermissiveSocketFactory() {
+        try {
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, new javax.net.ssl.TrustManager[]{new PermissiveTrustManager()}, new SecureRandom());
+            return sslContext.getSocketFactory();
+        } catch (Exception e) {
+            log.error("Failed to build permissive SSL socket factory: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Configures SSL context to use PermissiveTrustManager for webhook calls.
      * This bypasses all certificate validation including OCSP checking.
      *
@@ -42,23 +60,15 @@ public class WebhookCaller implements WebhookCallerInterface {
         if (connection instanceof HttpsURLConnection) {
             HttpsURLConnection httpsConnection = (HttpsURLConnection) connection;
 
-            try {
-                // Use permissive SSL configuration for webhook calls.
-                SSLContext sslContext = SSLContext.getInstance("TLS");
-
-                // Use the existing PermissiveTrustManager that trusts all certificates.
-                javax.net.ssl.TrustManager[] trustManagers = {new PermissiveTrustManager()};
-
-                sslContext.init(null, trustManagers, new SecureRandom());
-                httpsConnection.setSSLSocketFactory(sslContext.getSocketFactory());
+            if (PERMISSIVE_SOCKET_FACTORY != null) {
+                httpsConnection.setSSLSocketFactory(PERMISSIVE_SOCKET_FACTORY);
 
                 // Also disable hostname verification for webhooks.
                 httpsConnection.setHostnameVerifier((hostname, session) -> true);
 
                 log.debug("SSL context configured with PermissiveTrustManager for webhook URL: {}", connection.getURL());
-
-            } catch (Exception e) {
-                log.error("Failed to configure SSL context with PermissiveTrustManager: {}", e.getMessage());
+            } else {
+                log.error("Permissive SSL socket factory unavailable for webhook URL: {}", connection.getURL());
             }
         }
     }
@@ -262,23 +272,29 @@ public class WebhookCaller implements WebhookCallerInterface {
      * @param verb       Verb instance.
      * @return JSON string.
      */
-    private static String buildPayload(WebhookConfig config, Connection connection, Verb verb) {
-        Gson gson = new GsonBuilder()
-                // Exclude heavy, sensitive or irrelevant fields from Session and TransactionList.
-                .setExclusionStrategies(new GsonExclusionStrategy())
-                // Exclude sessionTransactionList field from Session to avoid heavy payloads.
-                .setExclusionStrategies(new ExclusionStrategy() {
-                    @Override
-                    public boolean shouldSkipField(FieldAttributes fieldAttributes) {
-                        return fieldAttributes.getName().equalsIgnoreCase("sessionTransactionList");
-                    }
+    /**
+     * Shared Gson instance for webhook payloads.
+     * <p>Gson is thread-safe and the exclusion strategies are stateless.
+     */
+    private static final Gson PAYLOAD_GSON = new GsonBuilder()
+            // Exclude heavy, sensitive or irrelevant fields from Session and TransactionList.
+            .setExclusionStrategies(new GsonExclusionStrategy())
+            // Exclude sessionTransactionList field from Session to avoid heavy payloads.
+            .setExclusionStrategies(new ExclusionStrategy() {
+                @Override
+                public boolean shouldSkipField(FieldAttributes fieldAttributes) {
+                    return fieldAttributes.getName().equalsIgnoreCase("sessionTransactionList");
+                }
 
-                    @Override
-                    public boolean shouldSkipClass(Class<?> aClass) {
-                        return true;
-                    }
-                })
-                .create();
+                @Override
+                public boolean shouldSkipClass(Class<?> aClass) {
+                    return true;
+                }
+            })
+            .create();
+
+    private static String buildPayload(WebhookConfig config, Connection connection, Verb verb) {
+        Gson gson = PAYLOAD_GSON;
 
         JsonObject payload = new JsonObject();
 

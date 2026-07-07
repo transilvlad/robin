@@ -32,6 +32,19 @@ public class RspamdClient {
     private static final int DEFAULT_TIMEOUT_SECONDS = 30;
     private static final Double DEFAULT_SPAM_SCORE = 7.0;
 
+    /**
+     * Shared HTTP client.
+     * <p>OkHttpClient instances own their dispatcher and connection pool; sharing one
+     * across scans preserves keep-alive connections to the Rspamd daemon.
+     */
+    private static final OkHttpClient SHARED_HTTP_CLIENT = new OkHttpClient.Builder()
+            .connectTimeout(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .writeTimeout(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .build();
+
+    private static final Gson SHARED_GSON = new Gson();
+
     private final String baseUrl;
     private final OkHttpClient httpClient;
     private final Gson gson;
@@ -60,12 +73,8 @@ public class RspamdClient {
      */
     public RspamdClient(String host, int port) {
         this.baseUrl = String.format("%s://%s:%d", SCHEME, host, port);
-        this.httpClient = new OkHttpClient.Builder()
-                .connectTimeout(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                .readTimeout(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                .writeTimeout(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                .build();
-        this.gson = new Gson();
+        this.httpClient = SHARED_HTTP_CLIENT;
+        this.gson = SHARED_GSON;
         // Initialize default values for email scanning options
         this.emailDirection = EmailDirection.INBOUND;
         this.spfScanEnabled = true;
