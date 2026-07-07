@@ -213,6 +213,17 @@ public class RelayMessage {
             List<String[]> signingOptions = DkimSigningLookup.getInstance(signingConfig).lookup(senderDomain);
             log.debug("DKIM signing: {} option(s) for domain {}", signingOptions.size(), senderDomain);
 
+            if (signingOptions.isEmpty()) continue;
+
+            // Read the email once and sign all domain/selector pairs from the same buffer.
+            byte[] emailBytes;
+            try {
+                emailBytes = Files.readAllBytes(emailFile.toPath());
+            } catch (IOException e) {
+                log.error("Cannot read email file for DKIM signing {}: {}", emailFile.getName(), e.getMessage());
+                continue;
+            }
+
             List<String> signatures = new ArrayList<>();
             for (String[] opt : signingOptions) {
                 String domain = opt[0];
@@ -220,7 +231,7 @@ public class RelayMessage {
                 String keyPath = keyPathTemplate.replace("$domain", domain).replace("$selector", selector);
                 try {
                     String privateKey = readPrivateKey(keyPath);
-                    Optional<String> sig = signer.sign(emailFile, domain, selector, privateKey);
+                    Optional<String> sig = signer.sign(emailBytes, domain, selector, privateKey);
                     if (sig.isPresent()) {
                         signatures.add(sig.get());
                         log.debug("DKIM signature obtained: domain={} selector={}", domain, selector);
@@ -234,7 +245,7 @@ public class RelayMessage {
 
             if (!signatures.isEmpty()) {
                 try {
-                    prependDkimSignatures(emailFile, signatures);
+                    prependDkimSignatures(emailFile, emailBytes, signatures);
                 } catch (IOException e) {
                     log.error("Failed to prepend DKIM signatures to {}: {}", emailFile.getName(), e.getMessage());
                 }
@@ -259,16 +270,16 @@ public class RelayMessage {
      * Prepends {@code DKIM-Signature} headers to the email file.
      *
      * @param emailFile  Email file to modify in place.
+     * @param original   Original email content (already read from the file).
      * @param signatures List of DKIM-Signature header values (already RFC 5322 folded by Rspamd).
-     * @throws IOException If the file cannot be read or written.
+     * @throws IOException If the file cannot be written.
      */
-    private void prependDkimSignatures(File emailFile, List<String> signatures) throws IOException {
+    private void prependDkimSignatures(File emailFile, byte[] original, List<String> signatures) throws IOException {
         StringBuilder sb = new StringBuilder();
         for (String sig : signatures) {
             sb.append("DKIM-Signature: ").append(sig).append("\r\n");
         }
         byte[] headers = sb.toString().getBytes(StandardCharsets.US_ASCII);
-        byte[] original = Files.readAllBytes(emailFile.toPath());
         byte[] combined = new byte[headers.length + original.length];
         System.arraycopy(headers, 0, combined, 0, headers.length);
         System.arraycopy(original, 0, combined, headers.length, original.length);

@@ -42,8 +42,11 @@ public class SpamStorageProcessor extends AbstractStorageProcessor {
                     .setDkimScanEnabled(rspamdConfig.isDkimScanEnabled())
                     .setDmarcScanEnabled(rspamdConfig.isDmarcScanEnabled());
 
-            // Scan the email and retrieve the score
-            Map<String, Object> scanResult = rspamdClient.scanBytes(envelope.readMessageBytes());
+            // Scan the email and retrieve the score.
+            // Stream file-backed messages from disk; in-memory messages are posted directly.
+            Map<String, Object> scanResult = envelope.hasMaterializedFile()
+                    ? rspamdClient.scanFile(new File(envelope.getFile()))
+                    : rspamdClient.scanBytes(envelope.readMessageBytes());
             double score = rspamdClient.getScore();
 
             // Save scan results to envelope

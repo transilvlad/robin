@@ -5,8 +5,10 @@ import org.apache.james.jdkim.exceptions.FailException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
@@ -29,6 +31,17 @@ public class NativeDkimSigner implements DkimSigner {
 
     @Override
     public Optional<String> sign(File emailFile, String domain, String selector, String privateKey) throws IOException {
+        try (InputStream input = Files.newInputStream(emailFile.toPath())) {
+            return sign(input, domain, selector, privateKey);
+        }
+    }
+
+    @Override
+    public Optional<String> sign(byte[] emailBytes, String domain, String selector, String privateKey) throws IOException {
+        return sign(new ByteArrayInputStream(emailBytes), domain, selector, privateKey);
+    }
+
+    private Optional<String> sign(InputStream emailStream, String domain, String selector, String privateKey) throws IOException {
         try {
             byte[] keyBytes = Base64.getDecoder().decode(privateKey);
             PrivateKey key = KeyFactory.getInstance("RSA")
@@ -38,7 +51,7 @@ public class NativeDkimSigner implements DkimSigner {
                     "v=1; a=rsa-sha256; c=relaxed/simple; d=" + domain + "; s=" + selector
                     + "; h=from:to:subject:date:message-id; bh=; b=", key);
 
-            String result = signer.sign(Files.newInputStream(emailFile.toPath()));
+            String result = signer.sign(emailStream);
 
             if (result == null) {
                 return Optional.empty();

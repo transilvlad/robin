@@ -136,6 +136,17 @@ public class ClamAVClient {
     }
 
     /**
+     * Check if an input stream contains viruses.
+     * <p>Streams content to ClamAV without buffering it all in memory.
+     *
+     * @param inputStream The input stream to scan.
+     * @return True if the content is infected, false if it's clean.
+     */
+    public boolean isInfected(InputStream inputStream) {
+        return processScanResult(scanStream(inputStream));
+    }
+
+    /**
      * Process a scan result to check for infections and log findings.
      *
      * @param result The scan result to process.

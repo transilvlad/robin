@@ -35,4 +35,9 @@ public class RspamdDkimSigner implements DkimSigner {
     public Optional<String> sign(File emailFile, String domain, String selector, String privateKey) throws IOException {
         return client.sign(emailFile, domain, selector, privateKey);
     }
+
+    @Override
+    public Optional<String> sign(byte[] emailBytes, String domain, String selector, String privateKey) throws IOException {
+        return client.sign(emailBytes, domain, selector, privateKey);
+    }
 }

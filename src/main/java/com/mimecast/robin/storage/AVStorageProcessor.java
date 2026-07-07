@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -37,10 +38,17 @@ public class AVStorageProcessor extends AbstractStorageProcessor {
         BasicConfig clamAVConfig = Config.getServer().getClamAV();
 
         if (clamAVConfig.getBooleanProperty("enabled")) {
+            ClamAVClient clamAVClient = new ClamAVClient(
+                    clamAVConfig.getStringProperty("host", "localhost"),
+                    clamAVConfig.getLongProperty("port", 3310L).intValue()
+            );
+
             var envelope = connection.getSession().getEnvelopes().getLast();
-            // Scan the entire email with ClamAV.
-            if (!isClean(envelope.readMessageBytes(), "RAW", clamAVConfig, connection)) {
-                return false;
+            // Scan the entire email with ClamAV, streaming to avoid buffering it in memory.
+            try (InputStream messageStream = envelope.openMessageStream()) {
+                if (messageStream != null && !isClean(clamAVClient, messageStream, "RAW", clamAVConfig, connection)) {
+                    return false;
+                }
             }
 
             // Scan each non-text part with ClamAV for improved results if enabled.
@@ -51,7 +59,7 @@ public class AVStorageProcessor extends AbstractStorageProcessor {
                                 part.getHeader("content-type").getValue().replaceAll("\\s+", " ") :
                                 "unknown attachment";
 
-                        if (!isClean(((FileMimePart) part).getFile(), partInfo, clamAVConfig, connection)) {
+                        if (!isClean(clamAVClient, ((FileMimePart) part).getFile(), partInfo, clamAVConfig, connection)) {
                             return false;
                         }
                     }
@@ -65,6 +73,7 @@ public class AVStorageProcessor extends AbstractStorageProcessor {
     /**
      * Checks if the given file is clean of viruses using ClamAV.
      *
+     * @param clamAVClient The ClamAV client.
      * @param file         The file to check.
      * @param partInfo     The partInfo of the email being checked.
      * @param clamAVConfig The ClamAV configuration.
@@ -72,12 +81,7 @@ public class AVStorageProcessor extends AbstractStorageProcessor {
      * @return True if the file is clean, false otherwise.
      * @throws IOException If an error occurs while checking for viruses.
      */
-    private boolean isClean(File file, String partInfo, BasicConfig clamAVConfig, Connection connection) throws IOException {
-        ClamAVClient clamAVClient = new ClamAVClient(
-                clamAVConfig.getStringProperty("host", "localhost"),
-                clamAVConfig.getLongProperty("port", 3310L).intValue()
-        );
-
+    private boolean isClean(ClamAVClient clamAVClient, File file, String partInfo, BasicConfig clamAVConfig, Connection connection) throws IOException {
         if (clamAVClient.isInfected(file)) {
             log.warn("Virus found in {}: {}", partInfo, clamAVClient.getViruses());
             
@@ -124,22 +128,18 @@ public class AVStorageProcessor extends AbstractStorageProcessor {
     }
 
     /**
-     * Checks if the given byte array is clean of viruses using ClamAV.
+     * Checks if the given input stream is clean of viruses using ClamAV.
      *
-     * @param bytes        The bytes to check.
+     * @param clamAVClient The ClamAV client.
+     * @param inputStream  The content stream to check.
      * @param partInfo     The partInfo of the email being checked.
      * @param clamAVConfig The ClamAV configuration.
      * @param connection   The SMTP connection.
      * @return True if the content is clean, false otherwise.
      * @throws IOException If an error occurs while checking for viruses.
      */
-    private boolean isClean(byte[] bytes, String partInfo, BasicConfig clamAVConfig, Connection connection) throws IOException {
-        ClamAVClient clamAVClient = new ClamAVClient(
-                clamAVConfig.getStringProperty("host", "localhost"),
-                clamAVConfig.getLongProperty("port", 3310L).intValue()
-        );
-
-        if (clamAVClient.isInfected(bytes)) {
+    private boolean isClean(ClamAVClient clamAVClient, InputStream inputStream, String partInfo, BasicConfig clamAVConfig, Connection connection) throws IOException {
+        if (clamAVClient.isInfected(inputStream)) {
             log.warn("Virus found in {}: {}", partInfo, clamAVClient.getViruses());
 
             Map<String, Collection<String>> viruses = clamAVClient.getViruses();

@@ -7,7 +7,6 @@ import okhttp3.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -146,9 +145,9 @@ public class RspamdClient {
      */
     public Map<String, Object> scanFile(File file) throws IOException {
         log.debug("Scanning file: {}", file.getAbsolutePath());
-        try (InputStream is = Files.newInputStream(file.toPath())) {
-            return scanStream(is);
-        }
+        requireReadable(file);
+        // Streams the file to Rspamd without buffering it in memory.
+        return scan(RequestBody.create(file, APPLICATION_OCTET_STREAM));
     }
 
     /**
@@ -159,7 +158,7 @@ public class RspamdClient {
      */
     public Map<String, Object> scanBytes(byte[] bytes) {
         log.debug("Scanning byte array of {} bytes", bytes.length);
-        return scanStream(new ByteArrayInputStream(bytes));
+        return scan(RequestBody.create(bytes, APPLICATION_OCTET_STREAM));
     }
 
     /**
@@ -172,8 +171,21 @@ public class RspamdClient {
         try {
             byte[] content = inputStream.readAllBytes();
             log.debug("Scanning input stream with {} bytes", content.length);
+            return scan(RequestBody.create(content, APPLICATION_OCTET_STREAM));
+        } catch (Exception e) {
+            log.error("Failed to scan stream: {}", e.getMessage());
+            return Collections.emptyMap();
+        }
+    }
 
-            RequestBody body = RequestBody.create(content, APPLICATION_OCTET_STREAM);
+    /**
+     * Executes a scan request with the given body.
+     *
+     * @param body Request body with the email content.
+     * @return The scan result as a Map with detected issues.
+     */
+    private Map<String, Object> scan(RequestBody body) {
+        try {
             Request.Builder requestBuilder = new Request.Builder()
                     .url(baseUrl + SCAN_ENDPOINT)
                     .post(body);
@@ -386,7 +398,32 @@ public class RspamdClient {
      * @throws IOException If the email file cannot be read.
      */
     public Optional<String> sign(File emailFile, String domain, String selector, String privateKey) throws IOException {
-        byte[] content = Files.readAllBytes(emailFile.toPath());
+        return sign(Files.readAllBytes(emailFile.toPath()), domain, selector, privateKey);
+    }
+
+    /**
+     * Validates the file is readable before streaming it in a request body.
+     *
+     * @param file The file to validate.
+     * @throws IOException If the file cannot be read.
+     */
+    private static void requireReadable(File file) throws IOException {
+        if (!file.isFile() || !file.canRead()) {
+            throw new IOException("File cannot be read: " + file.getPath());
+        }
+    }
+
+    /**
+     * Signs email content via Rspamd for the given domain and selector.
+     * <p>Avoids re-reading the email from disk when signing with multiple domain/selector pairs.
+     *
+     * @param content    Raw email content to sign.
+     * @param domain     Signing domain (e.g., {@code "example.com"}).
+     * @param selector   DKIM selector (e.g., {@code "default"}).
+     * @param privateKey Base64-encoded private key content (no PEM headers/footers).
+     * @return DKIM-Signature header value, or empty if signing failed.
+     */
+    public Optional<String> sign(byte[] content, String domain, String selector, String privateKey) {
         RequestBody body = RequestBody.create(content, APPLICATION_OCTET_STREAM);
         Request request = new Request.Builder()
                 .url(baseUrl + SCAN_ENDPOINT)
