@@ -15,7 +15,6 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
-import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -25,6 +24,22 @@ import java.util.List;
  */
 public class DefaultTLSSocket implements TLSSocket {
     private static final Logger log = LogManager.getLogger(DefaultTLSSocket.class);
+
+    /**
+     * Cached SSL contexts keyed by keystore configuration.
+     * <p>Building an SSLContext requires loading the keystore from disk and initializing
+     * key material; doing that per connection is expensive, so contexts are cached and
+     * rebuilt only when the keystore configuration changes.
+     */
+    private static final Object CONTEXT_LOCK = new Object();
+    private static volatile CachedContext serverContext;
+    private static volatile SSLContext clientContext;
+
+    /**
+     * Server context cache entry with the keystore configuration it was built from.
+     */
+    private record CachedContext(SSLContext context, KeyManager[] keyManagers, String keyStorePath, String keyStoreType) {
+    }
 
     /**
      * Socket instance.
@@ -112,33 +127,18 @@ public class DefaultTLSSocket implements TLSSocket {
             throw new IOException("Socket not defined");
         }
 
-        // Trust manager - use DANE-aware if DANE policy is active.
-        TrustManager[] tm;
+        // DANE requires a per-policy trust manager, so those contexts cannot be cached.
+        SSLContext sc;
         if (securityPolicy != null && securityPolicy.isDane()) {
             log.info("Using DANE-aware trust manager for policy: {}", securityPolicy);
-            tm = new TrustManager[]{new DaneTrustManager(securityPolicy)};
+            TrustManager[] tm = new TrustManager[]{new DaneTrustManager(securityPolicy)};
+            @SuppressWarnings("squid:S4423")
+            SSLContext daneContext = SSLContext.getInstance("TLS");
+            daneContext.init(client ? null : getServerContext().keyManagers(), tm, null);
+            sc = daneContext;
         } else {
-            tm = new TrustManager[]{Factories.getTrustManager()};
+            sc = client ? getClientContext() : getServerContext().context();
         }
-
-        // Key manager X.509.
-        KeyManager[] km = null;
-        if (!client) {
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
-            String storeType = Config.getProperties().getStringProperty("javax.net.ssl.keyStoreType", "JKS");
-            KeyStore ks = KeyStore.getInstance(storeType);
-
-            // Load keystore.
-            ks.load(getKeyStore(), getKeyStorePassword());
-            kmf.init(ks, getKeyStorePassword());
-
-            km = kmf.getKeyManagers();
-        }
-
-        // Get the default SSLSocketFactory.
-        @SuppressWarnings("squid:S4423")
-        SSLContext sc = SSLContext.getInstance("TLS");
-        sc.init(km, tm, new SecureRandom());
         SSLSocketFactory sf = sc.getSocketFactory();
 
         // Wrap 'socket' from above in a TLS socket.
@@ -223,6 +223,78 @@ public class DefaultTLSSocket implements TLSSocket {
         }
 
         return defaultCipherSuites.toArray(new String[0]);
+    }
+
+    /**
+     * Resets the cached SSL contexts.
+     * <p>Must be called when the trust manager factory changes so new connections
+     * pick up the new trust material.
+     */
+    public static void resetContextCache() {
+        synchronized (CONTEXT_LOCK) {
+            serverContext = null;
+            clientContext = null;
+        }
+    }
+
+    /**
+     * Gets the cached server SSL context, rebuilding it if the keystore configuration changed.
+     *
+     * @return CachedContext instance.
+     * @throws Exception Problems with TrustManager, KeyManager or keystore.
+     */
+    private CachedContext getServerContext() throws Exception {
+        String path = Config.getProperties().getStringProperty("javax.net.ssl.keyStore");
+        String storeType = Config.getProperties().getStringProperty("javax.net.ssl.keyStoreType", "JKS");
+
+        CachedContext cached = serverContext;
+        if (cached != null && StringUtils.equals(cached.keyStorePath(), path) && StringUtils.equals(cached.keyStoreType(), storeType)) {
+            return cached;
+        }
+
+        synchronized (CONTEXT_LOCK) {
+            cached = serverContext;
+            if (cached != null && StringUtils.equals(cached.keyStorePath(), path) && StringUtils.equals(cached.keyStoreType(), storeType)) {
+                return cached;
+            }
+
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
+            KeyStore ks = KeyStore.getInstance(storeType);
+            ks.load(getKeyStore(), getKeyStorePassword());
+            kmf.init(ks, getKeyStorePassword());
+            KeyManager[] km = kmf.getKeyManagers();
+
+            @SuppressWarnings("squid:S4423")
+            SSLContext sc = SSLContext.getInstance("TLS");
+            sc.init(km, new TrustManager[]{Factories.getTrustManager()}, null);
+
+            cached = new CachedContext(sc, km, path, storeType);
+            serverContext = cached;
+            return cached;
+        }
+    }
+
+    /**
+     * Gets the cached client SSL context with the default trust manager.
+     *
+     * @return SSLContext instance.
+     * @throws Exception Problems with TrustManager.
+     */
+    private SSLContext getClientContext() throws Exception {
+        SSLContext cached = clientContext;
+        if (cached != null) {
+            return cached;
+        }
+
+        synchronized (CONTEXT_LOCK) {
+            if (clientContext == null) {
+                @SuppressWarnings("squid:S4423")
+                SSLContext sc = SSLContext.getInstance("TLS");
+                sc.init(null, new TrustManager[]{Factories.getTrustManager()}, null);
+                clientContext = sc;
+            }
+            return clientContext;
+        }
     }
 
     /**

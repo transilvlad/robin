@@ -227,6 +227,7 @@ public class Factories {
      */
     public static void setTrustManager(Callable<X509TrustManager> callable) {
         trustManager = callable;
+        DefaultTLSSocket.resetContextCache();
     }
 
     /**
