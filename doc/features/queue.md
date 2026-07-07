@@ -126,6 +126,26 @@ All backends share these common queue configuration options in `queue.json5`:
 | `queueInterval` | Integer | 30 | Interval between queue processing cycles (seconds) |
 | `maxDequeuePerTick` | Integer | 10 | Maximum messages to process per cycle |
 
+### Retry Configuration
+
+Retry backoff configuration controls how the wait time between relay attempts grows. Uses geometric progression backoff.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `retry.totalRetries` | Integer | 30 | Total number of retries before permanent failure |
+| `retry.firstWaitMinutes` | Integer | 1 | Initial wait time in minutes for the first retry |
+| `retry.growthFactor` | Double | 1.2 | Growth factor for exponential backoff (multiplier per retry) |
+
+**Formula:** `wait_time = firstWaitMinutes * (growthFactor ^ retryCount)`
+
+**Example wait times** (with default configuration):
+- Retry 1: 1.00 minutes
+- Retry 2: 1.20 minutes
+- Retry 3: 1.44 minutes
+- Retry 4: 1.73 minutes
+- Retry 5: 2.07 minutes
+- Retry 30: 237 minutes (~4 hours)
+
 ## Backend-Specific Options
 
 ### MapDB Options
@@ -170,6 +190,12 @@ All backends share these common queue configuration options in `queue.json5`:
   queueInterval: 30,
   maxDequeuePerTick: 10,
 
+  retry: {
+    totalRetries: 30,
+    firstWaitMinutes: 1,
+    growthFactor: 1.2
+  },
+
   queueMapDB: {
     enabled: true,
     queueFile: "/usr/local/robin/relayQueue.db",
@@ -184,6 +210,12 @@ All backends share these common queue configuration options in `queue.json5`:
   queueInitialDelay: 10,
   queueInterval: 30,
   maxDequeuePerTick: 10,
+
+  retry: {
+    totalRetries: 30,
+    firstWaitMinutes: 1,
+    growthFactor: 1.2
+  },
 
   queueMapDB: {
     enabled: false
@@ -205,6 +237,12 @@ All backends share these common queue configuration options in `queue.json5`:
   queueInterval: 30,
   maxDequeuePerTick: 10,
 
+  retry: {
+    totalRetries: 30,
+    firstWaitMinutes: 1,
+    growthFactor: 1.2
+  },
+
   queueMapDB: {
     enabled: false
   },
@@ -224,6 +262,12 @@ All backends share these common queue configuration options in `queue.json5`:
   queueInitialDelay: 10,
   queueInterval: 30,
   maxDequeuePerTick: 10,
+
+  retry: {
+    totalRetries: 30,
+    firstWaitMinutes: 1,
+    growthFactor: 1.2
+  },
 
   queueMapDB: {
     enabled: false
@@ -246,6 +290,12 @@ All backends share these common queue configuration options in `queue.json5`:
   queueInterval: 30,
   maxDequeuePerTick: 10,
 
+  retry: {
+    totalRetries: 30,
+    firstWaitMinutes: 1,
+    growthFactor: 1.2
+  },
+
   queueMapDB: {
     enabled: false
   },
@@ -267,6 +317,12 @@ All backends share these common queue configuration options in `queue.json5`:
   queueInterval: 30,
   maxDequeuePerTick: 10,
 
+  retry: {
+    totalRetries: 30,
+    firstWaitMinutes: 1,
+    growthFactor: 1.2
+  },
+
   queueMapDB: {
     enabled: false
   },
@@ -287,6 +343,13 @@ All backends share these common queue configuration options in `queue.json5`:
   queueInitialDelay: 10,
   queueInterval: 30,
   maxDequeuePerTick: 10,
+
+  retry: {
+    totalRetries: 30,
+    firstWaitMinutes: 1,
+    growthFactor: 1.2
+  },
+
   concurrencyScale: 32,
 
   queueMapDB: { enabled: false },

@@ -8,6 +8,22 @@
   maxInFlight: 24,              // Keep claimed work aligned with runnable worker capacity.
   maxClaimBatch: 48,            // Claim in modest batches to avoid ballooning CLAIMED backlog.
 
+  // Maximum number of messages to attempt to relay per cron tick.
+  maxDequeuePerTick: 10,
+
+  // Retry backoff configuration for message relay attempts.
+  // Uses geometric progression: wait_time = firstWaitMinutes * (growthFactor ^ retryCount)
+  retry: {
+    // Total number of retries before permanent failure (default: 30).
+    totalRetries: 30,
+    // Initial wait time in minutes for the first retry (default: 1).
+    firstWaitMinutes: 1,
+    // Growth factor for exponential backoff (default: 1.2, meaning 20% increase per retry).
+    growthFactor: 1.2
+  },
+
+  // MapDB backend configuration.
+  // MapDB is enabled by default for file-based queue persistence.
   queueMapDB: {
     enabled: false
   },
