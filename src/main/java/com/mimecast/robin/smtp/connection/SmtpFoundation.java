@@ -152,12 +152,14 @@ public abstract class SmtpFoundation {
         try {
             byte[] read;
             while ((read = inc.readLine()) != null) {
-                log.info("<< {}", StringUtils.stripEnd(new String(read, UTF_8), null));
+                // Decode the line once instead of three times.
+                String line = new String(read, UTF_8);
+                log.info("<< {}", StringUtils.stripEnd(line, null));
 
                 if (expectedCode.length() == 3) {
-                    receivedCode = new String(read).trim().substring(0, expectedCode.length());
+                    receivedCode = line.trim().substring(0, expectedCode.length());
                 }
-                received.append(new String(read));
+                received.append(line);
 
                 if (isSmtpStop(read)) {
                     break;
@@ -242,8 +244,8 @@ public abstract class SmtpFoundation {
                 // Get current EOL and store.
                 eol = getEol(read);
 
-                // Write line without EOL.
-                out.write(trimBytes(read, eol.length));
+                // Write line without EOL, avoiding a per-line array copy.
+                out.write(read, 0, read.length - eol.length);
             }
         } catch (IOException e) {
             log.info("Error reading: {}", e.getMessage());
@@ -435,24 +437,43 @@ public abstract class SmtpFoundation {
     public void stream(LineInputStream inputStream, int slowBytes, int slowWait) throws IOException {
         OutputStream outStream = slowBytes >= 1 && slowWait >= 100 ? new SlowOutputStream(out, slowBytes, slowWait) : out;
 
-        String string;
         byte[] bytes;
         while ((bytes = inputStream.readLine()) != null) {
-            string = new String(bytes).trim();
-
-            // Dot stuffing.
-            if (string.equals(".")) {
-                outStream.write(".".getBytes(UTF_8));
+            // Dot stuffing, checked on raw bytes to avoid per-line String allocation.
+            if (isDotOnlyLine(bytes)) {
+                outStream.write('.');
             }
 
             outStream.write(bytes);
 
             if (logData && log.isTraceEnabled()) {
-                log.trace(LOG_WRITE, StringUtils.stripEnd(new String(bytes, UTF_8).replaceAll("\\s+$", ""), null));
+                log.trace(LOG_WRITE, StringUtils.stripEnd(new String(bytes, UTF_8), null));
             }
         }
         outStream.write("\r\n".getBytes(UTF_8));
         outStream.flush();
+    }
+
+    /**
+     * Checks if a line contains a single dot surrounded only by whitespace.
+     * <p>Byte-level equivalent of {@code new String(bytes).trim().equals(".")}.
+     *
+     * @param bytes Line bytes.
+     * @return True if the line is a lone dot.
+     */
+    private static boolean isDotOnlyLine(byte[] bytes) {
+        boolean dotFound = false;
+        for (byte b : bytes) {
+            if (b == '.') {
+                if (dotFound) {
+                    return false;
+                }
+                dotFound = true;
+            } else if ((b & 0xFF) > ' ') {
+                return false;
+            }
+        }
+        return dotFound;
     }
 
     /**
