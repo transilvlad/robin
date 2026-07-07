@@ -182,11 +182,11 @@ public class RelayDequeue {
 
     void deleteEnvelopeFiles(List<Path> paths) {
         for (Path path : paths) {
-            if (path == null || !Files.exists(path)) {
+            if (path == null) {
                 continue;
             }
             try {
-                Files.delete(path);
+                Files.deleteIfExists(path);
             } catch (IOException e) {
                 log.error("Failed to delete envelope file: {}, error={}", path, e.getMessage());
             }

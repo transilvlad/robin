@@ -74,9 +74,15 @@ public final class QueueFiles {
 
                 if (src != null && Files.exists(src)) {
                     try {
-                        Files.copy(src, target);
-                    } catch (IOException ex) {
-                        log.debug("Copy failed ({}),  {}", src, ex.getMessage());
+                        // Hard link avoids copying the message data; the source path stays
+                        // valid for any consumers still referencing it.
+                        Files.createLink(target, src);
+                    } catch (IOException | UnsupportedOperationException linkEx) {
+                        try {
+                            Files.copy(src, target);
+                        } catch (IOException ex) {
+                            log.debug("Copy failed ({}),  {}", src, ex.getMessage());
+                        }
                     }
                 } else {
                     env.materializeMessageFile(target);
