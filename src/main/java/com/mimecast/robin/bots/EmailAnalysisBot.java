@@ -1,6 +1,7 @@
 package com.mimecast.robin.bots;
 
 import com.mimecast.robin.config.server.BotConfig;
+import com.mimecast.robin.config.server.EmailAnalysisBotConfig;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.parts.MimePart;
 import com.mimecast.robin.mime.parts.TextMimePart;
@@ -10,6 +11,10 @@ import com.mimecast.robin.mx.assets.DnsRecord;
 import com.mimecast.robin.mx.client.XBillDnsRecordClient;
 import com.mimecast.robin.mx.dane.DaneChecker;
 import com.mimecast.robin.mx.dane.DaneRecord;
+import com.mimecast.robin.scanners.port.PortTlsChecker;
+import com.mimecast.robin.scanners.port.PortTlsResult;
+import com.mimecast.robin.scanners.rbl.DblChecker;
+import com.mimecast.robin.scanners.rbl.DblResult;
 import com.mimecast.robin.scanners.rbl.RblChecker;
 import com.mimecast.robin.scanners.rbl.RblResult;
 import com.mimecast.robin.smtp.MessageEnvelope;
@@ -25,547 +30,599 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 /**
- * Email infrastructure analysis bot that performs comprehensive email security checks.
- * <p>This bot analyzes:
- * <ul>
- *   <li>DNSBL/RBL - Sender IP reputation</li>
- *   <li>rDNS - Reverse DNS lookup</li>
- *   <li>FCrDNS - Forward Confirmed Reverse DNS</li>
- *   <li>SPF - Sender Policy Framework (from Rspamd)</li>
- *   <li>DKIM - DomainKeys Identified Mail (from Rspamd and email headers)</li>
- *   <li>DMARC - Domain-based Message Authentication (from Rspamd)</li>
- *   <li>MX Records - Mail server records</li>
- *   <li>MTA-STS - Mail Transfer Agent Strict Transport Security</li>
- *   <li>DANE - DNS-Based Authentication of Named Entities</li>
- *   <li>Virus Scan - ClamAV results</li>
- *   <li>Spam Score - Rspamd analysis</li>
- * </ul>
+ * Email infrastructure analysis bot.
  *
- * <p>The bot generates a comprehensive text report with all findings and queues it for delivery.
+ * <p>Triggered by inbound mail to addresses matching the configured pattern. Analyses
+ * the sending IP, domain, and authentication headers, then queues a plain-text report
+ * back to the sender. All sections are individually enabled/disabled via {@code bots.json5}.
+ *
+ * <p>Checks performed (all configurable):
+ * <ul>
+ *   <li>DNSBL / IP reputation (RBL checks)</li>
+ *   <li>Domain blocklist (DBL / SURBL / URIBL)</li>
+ *   <li>Reverse DNS (rDNS) and Forward Confirmed rDNS (FCrDNS)</li>
+ *   <li>SPF / DKIM / DMARC via Rspamd scan results</li>
+ *   <li>MX records</li>
+ *   <li>Port and TLS certificate health (25 / 465 / 587 / 993 / 143)</li>
+ *   <li>MTA-STS policy (configurable target domain)</li>
+ *   <li>DANE / TLSA records</li>
+ *   <li>Rspamd spam analysis with triggered rules and scores</li>
+ *   <li>Pass / Fail verdict summary</li>
+ * </ul>
  */
 public class EmailAnalysisBot implements BotProcessor {
     private static final Logger log = LogManager.getLogger(EmailAnalysisBot.class);
 
-    // Default RBL providers to check.
-    private static final List<String> DEFAULT_RBL_PROVIDERS = Arrays.asList(
-            "zen.spamhaus.org",
-            "bl.spamcop.net",
-            "b.barracudacentral.org",
-            "dnsbl.sorbs.net"
-    );
-
     @Override
-    public void process(Connection connection, EmailParser emailParser, String botAddress, BotConfig.BotDefinition botDefinition) {
+    public void process(Connection connection, EmailParser emailParser,
+                        String botAddress, BotConfig.BotDefinition botDefinition) {
         try {
-            log.info("Processing email analysis bot for address: {} from session UID: {}",
+            log.info("Processing email analysis bot for: {} session: {}",
                     botAddress, connection.getSession().getUID());
 
-            // Determine reply address.
             String replyTo = BotReplyAddressResolver.resolveReplyAddress(connection, botAddress);
             if (replyTo == null || replyTo.isEmpty()) {
-                log.warn("Could not determine reply address for bot request from session UID: {}",
+                log.warn("Cannot determine reply address for bot request from session: {}",
                         connection.getSession().getUID());
                 return;
             }
 
-            // Generate analysis report.
-            String report = generateAnalysisReport(connection);
+            EmailAnalysisBotConfig cfg = new EmailAnalysisBotConfig(
+                    botDefinition != null ? botDefinition.getMap() : null);
 
-            // Queue response email.
+            String report = generateReport(connection, cfg);
             queueResponse(connection.getSession(), botAddress, replyTo, report);
 
-            log.info("Successfully queued email analysis bot response to: {} from session UID: {}",
+            log.info("Queued analysis report to: {} session: {}",
                     replyTo, connection.getSession().getUID());
-
         } catch (Exception e) {
-            log.error("Error processing email analysis bot for address: {} from session UID: {}",
+            log.error("Error in email analysis bot for: {} session: {}",
                     botAddress, connection.getSession().getUID(), e);
         }
     }
 
+    // ── Report assembly ───────────────────────────────────────────────────────
 
-    /**
-     * Generates comprehensive analysis report.
-     *
-     * @param connection SMTP connection with session data.
-     * @return Analysis report as text.
-     */
-    private String generateAnalysisReport(Connection connection) {
-        StringBuilder report = new StringBuilder();
+    private String generateReport(Connection connection, EmailAnalysisBotConfig cfg) {
+        StringBuilder r = new StringBuilder();
         Session session = connection.getSession();
 
-        report.append("=".repeat(70)).append("\n");
-        report.append("EMAIL INFRASTRUCTURE ANALYSIS REPORT\n");
-        report.append("Generated by Robin MTA - ").append(LocalDateTime.now()).append("\n");
-        report.append("Session UID: ").append(session.getUID()).append("\n");
-        report.append("=".repeat(70)).append("\n\n");
+        r.append("=".repeat(70)).append("\n");
+        r.append("EMAIL INFRASTRUCTURE ANALYSIS REPORT\n");
+        r.append("Generated by Robin MTA - ").append(LocalDateTime.now()).append("\n");
+        r.append("Session UID: ").append(session.getUID()).append("\n");
+        r.append("=".repeat(70)).append("\n\n");
 
-        // 1. DNSBL Check.
-        appendDnsblCheck(report, session);
+        // Verdict signals collected as checks run.
+        Map<String, Boolean> verdictSignals = new LinkedHashMap<>();
 
-        // 2. rDNS Check.
-        appendRdnsCheck(report, session);
+        if (cfg.isRblCheckEnabled())     appendRblCheck(r, session, cfg, verdictSignals);
+        if (cfg.isDblCheckEnabled())     appendDblCheck(r, session, cfg, verdictSignals);
+        if (cfg.isRdnsCheckEnabled())    { appendRdnsCheck(r, session); appendFcrdnsCheck(r, session); }
+        if (cfg.isSpfCheckEnabled())     appendSpfCheck(r, session, verdictSignals);
+        if (cfg.isDkimCheckEnabled())    appendDkimCheck(r, session, verdictSignals);
+        if (cfg.isDmarcCheckEnabled())   appendDmarcCheck(r, session, verdictSignals);
+        if (cfg.isMxCheckEnabled())      appendMxCheck(r, session);
+        if (cfg.isPortCheckEnabled())    appendPortCheck(r, session, cfg, verdictSignals);
+        if (cfg.isMtaStsCheckEnabled())  appendMtaStsCheck(r, session, cfg);
+        if (cfg.isDaneCheckEnabled())    appendDaneCheck(r, session);
+        if (cfg.isSpamAnalysisEnabled()) appendSpamAnalysis(r, session, verdictSignals);
+        if (cfg.isVerdictEnabled())      appendVerdict(r, verdictSignals);
 
-        // 3. FCrDNS Check.
-        appendFcrdnsCheck(report, session);
-
-        // 4. SPF Check (from Rspamd).
-        appendSpfCheck(report, session);
-
-        // 5. DKIM Check (from Rspamd and headers).
-        appendDkimCheck(report, session);
-
-        // 6. DMARC Check (from Rspamd).
-        appendDmarcCheck(report, session);
-
-        // 7. MX Records.
-        appendMxCheck(report, session);
-
-        // 8. MTA-STS Check.
-        appendMtaStsCheck(report, session);
-
-        // 9. DANE Check.
-        appendDaneCheck(report, session);
-
-        // 10. Spam Analysis.
-        appendSpamAnalysis(report, session);
-
-        report.append("\n").append("=".repeat(70)).append("\n");
-        report.append("END OF REPORT\n");
-        report.append("=".repeat(70)).append("\n");
-
-        return report.toString();
+        r.append("\n").append("=".repeat(70)).append("\n");
+        r.append("END OF REPORT\n");
+        r.append("=".repeat(70)).append("\n");
+        return r.toString();
     }
 
-    /**
-     * Append DNSBL check results.
-     */
-    private void appendDnsblCheck(StringBuilder report, Session session) {
-        report.append("DNSBL Check\n");
-        report.append("-".repeat(70)).append("\n");
+    // ── 1. IP DNSBL ──────────────────────────────────────────────────────────
 
-        String senderIp = session.getFriendAddr();
-        if (senderIp == null || senderIp.isEmpty()) {
-            report.append("Sender IP: Not available\n\n");
+    private void appendRblCheck(StringBuilder r, Session session, EmailAnalysisBotConfig cfg,
+                                 Map<String, Boolean> verdict) {
+        r.append("DNSBL Check (IP)\n").append("-".repeat(70)).append("\n");
+
+        String ip = session.getFriendAddr();
+        if (ip == null || ip.isEmpty()) {
+            r.append("Sender IP: Not available\n\n");
             return;
         }
+        r.append("Sender IP: ").append(ip).append("\n");
 
-        report.append("Sender IP: ").append(senderIp).append("\n");
+        List<RblResult> results = RblChecker.checkIpAgainstRbls(ip, cfg.getRblProviders(),
+                cfg.getRblTimeoutSeconds());
 
-        // Check RBLs.
-        List<RblResult> rblResults = RblChecker.checkIpAgainstRbls(senderIp, DEFAULT_RBL_PROVIDERS, 5);
+        boolean anyListed = results.stream().anyMatch(RblResult::isListed);
+        verdict.put("DNSBL", !anyListed);
 
-        boolean isListed = rblResults.stream().anyMatch(RblResult::isListed);
-
-        if (isListed) {
-            report.append("Status: BLACKLISTED\n\n");
-            report.append("Listed in the following RBLs:\n");
-            for (RblResult result : rblResults) {
-                if (result.isListed()) {
-                    report.append("  - ").append(result.getRblProvider())
-                            .append(" (").append(String.join(", ", result.getResponseRecords())).append(")\n");
+        if (anyListed) {
+            r.append("Status: BLACKLISTED\n\n").append("Listed in:\n");
+            for (RblResult res : results) {
+                if (res.isListed()) {
+                    r.append("  - ").append(res.getRblProvider())
+                     .append(" (").append(String.join(", ", res.getResponseRecords())).append(")\n");
                 }
             }
         } else {
-            report.append("Status: NOT BLACKLISTED\n");
-            report.append("The sender IP is not listed in any checked RBLs.\n");
+            r.append("Status: NOT BLACKLISTED\n");
         }
-
-        report.append("\n");
+        r.append("\n");
     }
 
-    /**
-     * Append rDNS check results.
-     */
-    private void appendRdnsCheck(StringBuilder report, Session session) {
-        report.append("Reverse DNS (rDNS)\n");
-        report.append("-".repeat(70)).append("\n");
+    // ── 2. Domain Blocklist ───────────────────────────────────────────────────
 
-        String senderIp = session.getFriendAddr();
-        String rdns = session.getFriendRdns();
+    private void appendDblCheck(StringBuilder r, Session session, EmailAnalysisBotConfig cfg,
+                                  Map<String, Boolean> verdict) {
+        r.append("Domain Blocklist (DBL/SURBL)\n").append("-".repeat(70)).append("\n");
 
-        report.append(String.format("%-20s %-50s\n", "IP", "rDNS"));
-        report.append(String.format("%-20s %-50s\n",
-                senderIp != null ? senderIp : "N/A",
-                rdns != null ? rdns : "No rDNS"));
-        report.append("\n");
+        String domain = extractDomain(session);
+        if (domain == null) { r.append("Cannot determine sender domain\n\n"); return; }
+        r.append("Domain: ").append(domain).append("\n");
+
+        List<DblResult> results = DblChecker.checkDomainAgainstDbls(domain, cfg.getDblProviders(),
+                cfg.getDblTimeoutSeconds());
+
+        boolean anyListed = results.stream().anyMatch(DblResult::isListed);
+        verdict.put("DomainDBL", !anyListed);
+
+        if (anyListed) {
+            r.append("Status: DOMAIN LISTED\n\nListed in:\n");
+            for (DblResult res : results) {
+                if (res.isListed()) {
+                    r.append("  - ").append(res.getDblProvider())
+                     .append(" (").append(String.join(", ", res.getResponseRecords())).append(")\n");
+                }
+            }
+        } else {
+            r.append("Status: DOMAIN NOT LISTED\n");
+        }
+        r.append("\n");
     }
 
-    /**
-     * Append FCrDNS (Forward Confirmed Reverse DNS) check results.
-     */
-    private void appendFcrdnsCheck(StringBuilder report, Session session) {
-        report.append("Forward Confirmed Reverse DNS (FCrDNS)\n");
-        report.append("-".repeat(70)).append("\n");
+    // ── 3+4. rDNS + FCrDNS ───────────────────────────────────────────────────
 
-        String senderIp = session.getFriendAddr();
+    private void appendRdnsCheck(StringBuilder r, Session session) {
+        r.append("Reverse DNS (rDNS)\n").append("-".repeat(70)).append("\n");
+        r.append(String.format("%-20s %-50s\n", "IP", "rDNS"));
+        r.append(String.format("%-20s %-50s\n",
+                nvl(session.getFriendAddr(), "N/A"),
+                nvl(session.getFriendRdns(), "No rDNS")));
+        r.append("\n");
+    }
+
+    private void appendFcrdnsCheck(StringBuilder r, Session session) {
+        r.append("Forward Confirmed Reverse DNS (FCrDNS)\n").append("-".repeat(70)).append("\n");
+
+        String ip = session.getFriendAddr();
         String rdns = session.getFriendRdns();
 
-        if (senderIp == null || rdns == null || rdns.equals("unknown")) {
-            report.append("Cannot perform FCrDNS check - missing rDNS\n\n");
+        if (ip == null || rdns == null || "unknown".equals(rdns)) {
+            r.append("Cannot perform FCrDNS check — missing rDNS\n\n");
             return;
         }
-
-        // Perform forward lookup of rDNS.
         try {
-            // Remove trailing dot if present.
-            String lookupHost = rdns.endsWith(".") ? rdns.substring(0, rdns.length() - 1) : rdns;
-            String forwardIp = Address.getByName(lookupHost).getHostAddress();
+            String host = rdns.endsWith(".") ? rdns.substring(0, rdns.length() - 1) : rdns;
+            String forwardIp = Address.getByName(host).getHostAddress();
+            boolean matches = ip.equals(forwardIp);
 
-            boolean matches = senderIp.equals(forwardIp);
-
-            report.append(String.format("%-20s %-30s %-20s %-10s\n", "IP", "rDNS", "Forward IP", "Result"));
-            report.append(String.format("%-20s %-30s %-20s %-10s\n",
-                    senderIp, rdns, forwardIp, matches ? "PASS" : "FAIL"));
-
-            if (!matches) {
-                report.append("\nWARNING: FCrDNS validation failed! Forward lookup does not match sender IP.\n");
-            }
+            r.append(String.format("%-20s %-30s %-20s %-10s\n", "IP", "rDNS", "Forward IP", "Result"));
+            r.append(String.format("%-20s %-30s %-20s %-10s\n",
+                    ip, rdns, forwardIp, matches ? "PASS" : "FAIL"));
+            if (!matches) r.append("\nWARNING: FCrDNS mismatch — forward lookup does not match sender IP.\n");
         } catch (Exception e) {
-            report.append(String.format("%-20s %-30s %-20s %-10s\n", "IP", "rDNS", "Forward IP", "Result"));
-            report.append(String.format("%-20s %-30s %-20s %-10s\n",
-                    senderIp, rdns, "Lookup failed", "ERROR"));
+            r.append(String.format("%-20s %-30s %-20s %-10s\n", "IP", "rDNS", "Forward IP", "Result"));
+            r.append(String.format("%-20s %-30s %-20s %-10s\n", ip, rdns, "Lookup failed", "ERROR"));
             log.debug("FCrDNS lookup failed for {}: {}", rdns, e.getMessage());
         }
-
-        report.append("\n");
+        r.append("\n");
     }
 
-    /**
-     * Append SPF check results from Rspamd.
-     */
-    private void appendSpfCheck(StringBuilder report, Session session) {
-        report.append("SPF (Sender Policy Framework)\n");
-        report.append("-".repeat(70)).append("\n");
+    // ── 5. SPF ───────────────────────────────────────────────────────────────
+
+    private void appendSpfCheck(StringBuilder r, Session session, Map<String, Boolean> verdict) {
+        r.append("SPF (Sender Policy Framework)\n").append("-".repeat(70)).append("\n");
 
         Map<String, Object> spfData = extractRspamdSymbol(session, "R_SPF");
-
         if (spfData.isEmpty()) {
-            report.append("SPF Check: Not performed or no data available\n\n");
+            r.append("SPF Check: Not performed or no data available\n\n");
             return;
         }
 
-        report.append("SPF Record: ").append(spfData.getOrDefault("description", "N/A")).append("\n");
-        report.append("Result: ").append(spfData.getOrDefault("name", "None")).append("\n");
-        report.append("Score: ").append(spfData.getOrDefault("score", "0.0")).append("\n");
+        String symbol = (String) spfData.get("name");
+        boolean pass = symbol != null && (symbol.equals("R_SPF_ALLOW") || symbol.equals("R_SPF_NEUTRAL"));
+        verdict.put("SPF", pass);
 
-        report.append("\n");
+        r.append("Result: ").append(spfVerdictLabel(symbol)).append("\n");
+        r.append("Symbol: ").append(nvl(symbol, "Unknown")).append("\n");
+
+        Object raw = spfData.get("score");
+        if (raw instanceof Map) {
+            Object desc = ((Map<?, ?>) raw).get("description");
+            if (desc != null) r.append("Details: ").append(desc).append("\n");
+        }
+        r.append("\n");
     }
 
-    /**
-     * Append DKIM check results.
-     */
-    private void appendDkimCheck(StringBuilder report, Session session) {
-        report.append("DKIM (DomainKeys Identified Mail)\n");
-        report.append("-".repeat(70)).append("\n");
+    private static String spfVerdictLabel(String symbol) {
+        if (symbol == null) return "Unknown";
+        return switch (symbol) {
+            case "R_SPF_ALLOW"    -> "PASS";
+            case "R_SPF_NEUTRAL"  -> "NEUTRAL";
+            case "R_SPF_SOFTFAIL" -> "SOFTFAIL";
+            case "R_SPF_FAIL"     -> "FAIL";
+            case "R_SPF_NA"       -> "NO SPF RECORD";
+            case "R_SPF_DNSFAIL"  -> "DNS ERROR";
+            case "R_SPF_PERMFAIL" -> "PERMFAIL";
+            default               -> symbol;
+        };
+    }
 
-        // Get DKIM results from Rspamd.
+    // ── 6. DKIM ──────────────────────────────────────────────────────────────
+
+    private void appendDkimCheck(StringBuilder r, Session session, Map<String, Boolean> verdict) {
+        r.append("DKIM (DomainKeys Identified Mail)\n").append("-".repeat(70)).append("\n");
+
         Map<String, Object> dkimData = extractRspamdSymbol(session, "R_DKIM");
-
         if (dkimData.isEmpty()) {
-            report.append("DKIM Check: Not performed or no signature found\n\n");
+            r.append("DKIM Check: Not performed or no signature found\n\n");
             return;
         }
 
-        report.append("DKIM Signature: Found\n");
-        report.append("Verification: ").append(dkimData.getOrDefault("name", "Unknown")).append("\n");
-        report.append("Score: ").append(dkimData.getOrDefault("score", "0.0")).append("\n");
-        report.append("Details: ").append(dkimData.getOrDefault("description", "N/A")).append("\n");
+        String symbol = (String) dkimData.get("name");
+        boolean pass = "R_DKIM_ALLOW".equals(symbol);
+        verdict.put("DKIM", pass);
 
-        report.append("\n");
+        r.append("Signature: Found\n");
+        r.append("Verification: ").append(nvl(symbol, "Unknown")).append("\n");
+
+        Object raw = dkimData.get("score");
+        if (raw instanceof Map) {
+            Map<?, ?> sym = (Map<?, ?>) raw;
+            Object desc = sym.get("description");
+            Object opts = sym.get("options");
+            if (desc != null) r.append("Details: ").append(desc).append("\n");
+            if (opts != null) r.append("Options: ").append(opts).append("\n");
+        }
+        r.append("\n");
     }
 
-    /**
-     * Append DMARC check results from Rspamd.
-     */
-    private void appendDmarcCheck(StringBuilder report, Session session) {
-        report.append("DMARC (Domain-based Message Authentication)\n");
-        report.append("-".repeat(70)).append("\n");
+    // ── 7. DMARC ─────────────────────────────────────────────────────────────
+
+    private void appendDmarcCheck(StringBuilder r, Session session, Map<String, Boolean> verdict) {
+        r.append("DMARC (Domain-based Message Authentication)\n").append("-".repeat(70)).append("\n");
 
         Map<String, Object> dmarcData = extractRspamdSymbol(session, "DMARC");
-
         if (dmarcData.isEmpty()) {
-            report.append("DMARC Check: Not performed\n");
-            report.append("Error: No DMARC record found or DMARC not checked\n\n");
+            r.append("DMARC Check: Not performed\n");
+            r.append("Error: No DMARC record found or DMARC not checked\n\n");
             return;
         }
 
-        report.append("DMARC Policy: ").append(dmarcData.getOrDefault("description", "N/A")).append("\n");
-        report.append("Result: ").append(dmarcData.getOrDefault("name", "None")).append("\n");
-        report.append("Score: ").append(dmarcData.getOrDefault("score", "0.0")).append("\n");
+        String symbol = (String) dmarcData.get("name");
+        boolean pass = symbol != null && symbol.contains("ALLOW");
+        verdict.put("DMARC", pass);
 
-        report.append("\n");
+        r.append("Symbol: ").append(nvl(symbol, "Unknown")).append("\n");
+        Object raw = dmarcData.get("score");
+        if (raw instanceof Map) {
+            Map<?, ?> sym = (Map<?, ?>) raw;
+            Object desc = sym.get("description");
+            Object opts = sym.get("options");
+            if (desc != null) r.append("Policy: ").append(desc).append("\n");
+            if (opts != null) r.append("Options: ").append(opts).append("\n");
+        }
+        r.append("\n");
     }
 
-    /**
-     * Append MX records check.
-     */
-    private void appendMxCheck(StringBuilder report, Session session) {
-        report.append("MX Records\n");
-        report.append("-".repeat(70)).append("\n");
+    // ── 8. MX Records ────────────────────────────────────────────────────────
 
-        // Extract domain from envelope sender.
+    private void appendMxCheck(StringBuilder r, Session session) {
+        r.append("MX Records\n").append("-".repeat(70)).append("\n");
+
         String domain = extractDomain(session);
-        if (domain == null) {
-            report.append("Cannot determine sender domain\n\n");
-            return;
-        }
-
-        report.append("Domain: ").append(domain).append("\n\n");
+        if (domain == null) { r.append("Cannot determine sender domain\n\n"); return; }
+        r.append("Domain: ").append(domain).append("\n\n");
 
         try {
-            MXResolver resolver = new MXResolver();
-            List<DnsRecord> mxRecords = resolver.resolveMx(domain);
-
+            List<DnsRecord> mxRecords = new MXResolver().resolveMx(domain);
             if (mxRecords.isEmpty()) {
-                report.append("No MX records found\n");
+                r.append("No MX records found\n");
             } else {
-                report.append(String.format("%-10s %-50s\n", "Priority", "Server"));
-                report.append("-".repeat(70)).append("\n");
+                r.append(String.format("%-10s %-50s\n", "Priority", "Server"));
+                r.append("-".repeat(70)).append("\n");
                 for (DnsRecord mx : mxRecords) {
-                    report.append(String.format("%-10d %-50s\n", mx.getPriority(), mx.getValue()));
+                    r.append(String.format("%-10d %-50s\n", mx.getPriority(), mx.getValue()));
                 }
             }
         } catch (Exception e) {
-            report.append("Error retrieving MX records: ").append(e.getMessage()).append("\n");
-            log.error("Error retrieving MX records for {}: {}", domain, e.getMessage());
+            r.append("Error retrieving MX records: ").append(e.getMessage()).append("\n");
         }
-
-        report.append("\n");
+        r.append("\n");
     }
 
-    /**
-     * Append MTA-STS check results.
-     */
-    private void appendMtaStsCheck(StringBuilder report, Session session) {
-        report.append("MTA-STS (Mail Transfer Agent Strict Transport Security)\n");
-        report.append("-".repeat(70)).append("\n");
+    // ── 9. Port / TLS ────────────────────────────────────────────────────────
+
+    private void appendPortCheck(StringBuilder r, Session session, EmailAnalysisBotConfig cfg,
+                                   Map<String, Boolean> verdict) {
+        r.append("Port / TLS Check\n").append("-".repeat(70)).append("\n");
 
         String domain = extractDomain(session);
-        if (domain == null) {
-            report.append("Cannot determine sender domain\n\n");
-            return;
-        }
+        if (domain == null) { r.append("Cannot determine sender domain\n\n"); return; }
 
-        report.append("Domain: ").append(domain).append("\n");
+        String host = resolveFirstMx(domain);
+        if (host == null) host = domain;
+        r.append("Host: ").append(host).append("\n\n");
+
+        List<PortTlsResult> results = PortTlsChecker.checkPorts(host, cfg.getPortCheckPorts(),
+                cfg.getPortCheckTimeoutSeconds());
+
+        r.append(String.format("%-6s %-8s %-8s %-12s %-6s %s\n",
+                "Port", "Open", "TLS", "Cert Expiry", "Days", "Cert CN"));
+        r.append("-".repeat(70)).append("\n");
+
+        boolean port25Open = true;
+        for (PortTlsResult res : results) {
+            String open = res.isOpen() ? "YES" : "NO";
+            String tls = switch (res.getTlsStatus()) {
+                case ENABLED -> "YES";
+                case DISABLED -> "NO";
+                case ERROR -> "ERR";
+            };
+            String expiry = res.getCertExpiry() != null ? res.getCertExpiry().toString() : "-";
+            String days = res.getCertExpiry() != null ? String.valueOf(res.getDaysUntilExpiry()) : "-";
+            String cn = extractCN(res.getCertSubject());
+
+            r.append(String.format("%-6d %-8s %-8s %-12s %-6s %s\n",
+                    res.getPort(), open, tls, expiry, days, cn));
+
+            if (res.isCertExpiringSoon()) {
+                r.append(String.format("  ⚠ WARNING: Port %d cert expires in %d days!\n",
+                        res.getPort(), res.getDaysUntilExpiry()));
+            }
+            if (res.getPort() == 25 && !res.isOpen()) port25Open = false;
+        }
+        verdict.put("Ports", port25Open);
+        r.append("\n");
+    }
+
+    // ── 10. MTA-STS ──────────────────────────────────────────────────────────
+
+    private void appendMtaStsCheck(StringBuilder r, Session session, EmailAnalysisBotConfig cfg) {
+        r.append("MTA-STS (Mail Transfer Agent Strict Transport Security)\n");
+        r.append("-".repeat(70)).append("\n");
+
+        // Use configured override, or fall back to sender's domain.
+        String domain = cfg.getMtaStsTargetDomain();
+        if (domain == null) domain = extractDomain(session);
+        if (domain == null) { r.append("Cannot determine target domain\n\n"); return; }
+        r.append("Domain: ").append(domain).append("\n");
 
         try {
-            StrictMx strictMx = new StrictMx(domain);
-            var policy = strictMx.getPolicy();
-
+            var policy = new StrictMx(domain).getPolicy();
             if (policy != null) {
-                report.append("MTA-STS Status: ENABLED\n");
-                report.append("Policy Mode: ").append(policy.getMode()).append("\n");
-                report.append("Max Age: ").append(policy.getMaxAge()).append(" seconds\n");
-
-                List<String> mxMasks = policy.getMxMasks();
-                if (!mxMasks.isEmpty()) {
-                    report.append("Allowed MX Masks:\n");
-                    for (String mask : mxMasks) {
-                        report.append("  - ").append(mask).append("\n");
-                    }
+                r.append("Status: ENABLED\n");
+                r.append("Mode: ").append(policy.getMode()).append("\n");
+                r.append("Max Age: ").append(policy.getMaxAge()).append(" seconds\n");
+                List<String> masks = policy.getMxMasks();
+                if (!masks.isEmpty()) {
+                    r.append("Allowed MX:\n");
+                    masks.forEach(m -> r.append("  - ").append(m).append("\n"));
                 }
             } else {
-                report.append("MTA-STS Status: NOT ENABLED\n");
-                report.append("No MTA-STS policy found for this domain\n");
+                r.append("Status: NOT ENABLED\n");
             }
         } catch (Exception e) {
-            report.append("MTA-STS Status: ERROR\n");
-            report.append("Error checking MTA-STS: ").append(e.getMessage()).append("\n");
-            log.error("Error checking MTA-STS for {}: {}", domain, e.getMessage());
+            r.append("Status: ERROR\n").append("Error: ").append(e.getMessage()).append("\n");
         }
-
-        report.append("\n");
+        r.append("\n");
     }
 
-    /**
-     * Append DANE check results.
-     */
-    private void appendDaneCheck(StringBuilder report, Session session) {
-        report.append("DANE (DNS-Based Authentication of Named Entities)\n");
-        report.append("-".repeat(70)).append("\n");
+    // ── 11. DANE ─────────────────────────────────────────────────────────────
+
+    private void appendDaneCheck(StringBuilder r, Session session) {
+        r.append("DANE (DNS-Based Authentication of Named Entities)\n");
+        r.append("-".repeat(70)).append("\n");
 
         String domain = extractDomain(session);
-        if (domain == null) {
-            report.append("Cannot determine sender domain\n\n");
+        if (domain == null) { r.append("Cannot determine sender domain\n\n"); return; }
+        r.append("Domain: ").append(domain).append("\n\n");
+
+        try {
+            XBillDnsRecordClient dnsClient = new XBillDnsRecordClient();
+            var mxOpt = dnsClient.getMxRecords(domain);
+
+            if (mxOpt.isEmpty() || mxOpt.get().isEmpty()) {
+                r.append("No MX records — cannot check DANE\n");
+            } else {
+                boolean anyDane = false;
+                for (DnsRecord mx : mxOpt.get()) {
+                    List<DaneRecord> tlsa = DaneChecker.checkDane(mx.getValue());
+                    if (!tlsa.isEmpty()) {
+                        anyDane = true;
+                        r.append("MX: ").append(mx.getValue()).append("\nDANE: ENABLED\n");
+                        for (DaneRecord d : tlsa) {
+                            r.append("  Usage: ").append(d.getUsage())
+                             .append(" (").append(d.getUsageDescription()).append(")\n");
+                            r.append("  Selector: ").append(d.getSelector())
+                             .append(" (").append(d.getSelectorDescription()).append(")\n");
+                            r.append("  Matching: ").append(d.getMatchingType())
+                             .append(" (").append(d.getMatchingTypeDescription()).append(")\n");
+                            String data = d.getCertificateData();
+                            r.append("  Data: ").append(data.substring(0, Math.min(64, data.length()))).append("...\n");
+                        }
+                        r.append("\n");
+                    }
+                }
+                if (!anyDane) r.append("DANE: NOT ENABLED\nNo TLSA records found for any MX hosts\n");
+            }
+        } catch (Exception e) {
+            r.append("DANE: ERROR\n").append("Error: ").append(e.getMessage()).append("\n");
+        }
+        r.append("\n");
+    }
+
+    // ── 12. Spam Analysis ────────────────────────────────────────────────────
+
+    @SuppressWarnings("unchecked")
+    private void appendSpamAnalysis(StringBuilder r, Session session, Map<String, Boolean> verdict) {
+        r.append("Spam Analysis (Rspamd)\n").append("-".repeat(70)).append("\n");
+
+        if (session.getEnvelopes().isEmpty()) {
+            r.append("No analysis results available\n\n");
             return;
         }
 
-        report.append("Domain: ").append(domain).append("\n\n");
+        MessageEnvelope envelope = session.getEnvelopes().getLast();
+        boolean found = false;
 
-        try {
-            // Get MX records first.
-            XBillDnsRecordClient dnsClient = new XBillDnsRecordClient();
-            var mxRecordsOpt = dnsClient.getMxRecords(domain);
+        for (Map<String, Object> result : envelope.getScanResults()) {
+            if (!"rspamd".equals(result.get("scanner"))) continue;
+            found = true;
 
-            if (mxRecordsOpt.isEmpty() || mxRecordsOpt.get().isEmpty()) {
-                report.append("No MX records found - cannot check DANE\n");
-            } else {
-                List<String> mxHosts = mxRecordsOpt.get().stream()
-                        .map(DnsRecord::getValue)
-                        .toList();
+            Double score = (Double) result.get("score");
+            Boolean spam = (Boolean) result.get("spam");
 
-                boolean anyDaneFound = false;
-                for (String mxHost : mxHosts) {
-                    List<DaneRecord> daneRecords = DaneChecker.checkDane(mxHost);
+            r.append("Spam Score: ").append(score != null ? score : "0.0").append("\n");
+            r.append("Spam Status: ").append(Boolean.TRUE.equals(spam) ? "SPAM" : "NOT SPAM").append("\n\n");
+            verdict.put("SpamScore", !Boolean.TRUE.equals(spam));
 
-                    if (!daneRecords.isEmpty()) {
-                        anyDaneFound = true;
-                        report.append("MX Host: ").append(mxHost).append("\n");
-                        report.append("DANE Status: ENABLED\n");
-                        report.append("TLSA Records:\n");
+            Object symsObj = result.get("symbols");
+            if (!(symsObj instanceof Map)) continue;
+            Map<String, Object> symbols = (Map<String, Object>) symsObj;
+            if (symbols.isEmpty()) continue;
 
-                        for (DaneRecord dane : daneRecords) {
-                            report.append("  - Usage: ").append(dane.getUsage())
-                                    .append(" (").append(dane.getUsageDescription()).append(")\n");
-                            report.append("    Selector: ").append(dane.getSelector())
-                                    .append(" (").append(dane.getSelectorDescription()).append(")\n");
-                            report.append("    Matching: ").append(dane.getMatchingType())
-                                    .append(" (").append(dane.getMatchingTypeDescription()).append(")\n");
-                            report.append("    Data: ").append(dane.getCertificateData().substring(0,
-                                    Math.min(64, dane.getCertificateData().length()))).append("...\n");
-                        }
-                        report.append("\n");
-                    }
+            List<Map.Entry<String, Double>> nonZero = new ArrayList<>();
+            List<String> zeroRules = new ArrayList<>();
+
+            for (Map.Entry<String, Object> entry : symbols.entrySet()) {
+                double symScore = 0.0;
+                if (entry.getValue() instanceof Map) {
+                    Object s = ((Map<?, ?>) entry.getValue()).get("score");
+                    if (s instanceof Number) symScore = ((Number) s).doubleValue();
+                } else if (entry.getValue() instanceof Number) {
+                    symScore = ((Number) entry.getValue()).doubleValue();
                 }
-
-                if (!anyDaneFound) {
-                    report.append("DANE Status: NOT ENABLED\n");
-                    report.append("No TLSA records found for any MX hosts\n");
+                if (symScore != 0.0) {
+                    nonZero.add(Map.entry(entry.getKey(), symScore));
+                } else {
+                    zeroRules.add(entry.getKey());
                 }
             }
-        } catch (Exception e) {
-            report.append("DANE Check: ERROR\n");
-            report.append("Error: ").append(e.getMessage()).append("\n");
-            log.error("Error checking DANE for {}: {}", domain, e.getMessage());
+
+            if (!nonZero.isEmpty()) {
+                nonZero.sort((a, b) -> Double.compare(Math.abs(b.getValue()), Math.abs(a.getValue())));
+                r.append("Scored Rules:\n");
+                r.append(String.format("%-10s %s\n", "Score", "Rule"));
+                r.append("-".repeat(50)).append("\n");
+                for (var e : nonZero) {
+                    String desc = "";
+                    Object raw = symbols.get(e.getKey());
+                    if (raw instanceof Map) {
+                        Object d = ((Map<?, ?>) raw).get("description");
+                        if (d != null) desc = "  // " + d;
+                    }
+                    r.append(String.format("%-10.2f %s%s\n", e.getValue(), e.getKey(), desc));
+                }
+                r.append("\n");
+            }
+
+            if (!zeroRules.isEmpty()) {
+                r.append("Other rules (score 0): ").append(String.join(", ", zeroRules)).append("\n");
+            }
         }
 
-        report.append("\n");
+        if (!found) r.append("Status: NOT ANALYZED\nRspamd analysis was not performed\n");
+        r.append("\n");
     }
 
-    /**
-     * Append spam analysis results from Rspamd.
-     */
-    private void appendSpamAnalysis(StringBuilder report, Session session) {
-        report.append("Spam Analysis (Rspamd)\n");
-        report.append("-".repeat(70)).append("\n");
+    // ── 13. Verdict ───────────────────────────────────────────────────────────
 
-        if (!session.getEnvelopes().isEmpty()) {
-            MessageEnvelope envelope = session.getEnvelopes().getLast();
-            List<Map<String, Object>> scanResults = envelope.getScanResults();
-
-            boolean rspamdFound = false;
-            for (Map<String, Object> result : scanResults) {
-                if ("rspamd".equals(result.get("scanner"))) {
-                    rspamdFound = true;
-                    Double score = (Double) result.get("score");
-                    Boolean spam = (Boolean) result.get("spam");
-
-                    report.append("Spam Score: ").append(score != null ? score : "0.0").append("\n");
-                    report.append("Spam Status: ").append(Boolean.TRUE.equals(spam) ? "SPAM" : "NOT SPAM").append("\n\n");
-
-                    Object symbols = result.get("symbols");
-                    if (symbols instanceof Map) {
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> symbolMap = (Map<String, Object>) symbols;
-                        if (!symbolMap.isEmpty()) {
-                            report.append("Triggered Rules:\n");
-                            report.append(String.format("%-8s %-40s\n", "Score", "Rule Name"));
-                            report.append("-".repeat(70)).append("\n");
-
-                            symbolMap.forEach((key, value) -> {
-                                double symbolScore = value instanceof Number ? ((Number) value).doubleValue() : 0.0;
-                                report.append(String.format("%-8.2f %-40s\n", symbolScore, key));
-                            });
-                        }
-                    }
-                }
-            }
-
-            if (!rspamdFound) {
-                report.append("Status: NOT ANALYZED\n");
-                report.append("Rspamd analysis was not performed\n");
-            }
-        } else {
-            report.append("No analysis results available\n");
-        }
-
-        report.append("\n");
+    private void appendVerdict(StringBuilder r, Map<String, Boolean> signals) {
+        r.append("Verdict Summary\n").append("-".repeat(70)).append("\n");
+        boolean allPass = signals.values().stream().allMatch(Boolean::booleanValue);
+        r.append("Overall: ").append(allPass ? "PASS" : "FAIL").append("\n\n");
+        signals.forEach((check, pass) ->
+                r.append(String.format("  %-20s %s\n", check + ":", pass ? "PASS" : "FAIL")));
+        r.append("\n");
     }
 
-    /**
-     * Extract a specific symbol from Rspamd results.
-     */
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
     @SuppressWarnings("unchecked")
-    private Map<String, Object> extractRspamdSymbol(Session session, String symbolPrefix) {
-        if (!session.getEnvelopes().isEmpty()) {
-            MessageEnvelope envelope = session.getEnvelopes().getLast();
-            List<Map<String, Object>> scanResults = envelope.getScanResults();
+    private Map<String, Object> extractRspamdSymbol(Session session, String prefix) {
+        if (session.getEnvelopes().isEmpty()) return Collections.emptyMap();
+        MessageEnvelope env = session.getEnvelopes().getLast();
 
-            for (Map<String, Object> result : scanResults) {
-                if ("rspamd".equals(result.get("scanner"))) {
-                    Object symbols = result.get("symbols");
-                    if (symbols instanceof Map) {
-                        Map<String, Object> symbolMap = (Map<String, Object>) symbols;
-                        for (Map.Entry<String, Object> entry : symbolMap.entrySet()) {
-                            if (entry.getKey().startsWith(symbolPrefix)) {
-                                Map<String, Object> data = new HashMap<>();
-                                data.put("name", entry.getKey());
-                                data.put("score", entry.getValue());
-                                data.put("description", entry.getKey());
-                                return data;
-                            }
-                        }
-                    }
+        for (Map<String, Object> result : env.getScanResults()) {
+            if (!"rspamd".equals(result.get("scanner"))) continue;
+            Object symsObj = result.get("symbols");
+            if (!(symsObj instanceof Map)) continue;
+            Map<String, Object> symbols = (Map<String, Object>) symsObj;
+
+            for (Map.Entry<String, Object> entry : symbols.entrySet()) {
+                if (entry.getKey().startsWith(prefix)) {
+                    return Map.of("name", entry.getKey(), "score", entry.getValue());
                 }
             }
         }
         return Collections.emptyMap();
     }
 
-    /**
-     * Extract domain from envelope sender.
-     */
     private String extractDomain(Session session) {
         if (!session.getEnvelopes().isEmpty()) {
-            String mailFrom = session.getEnvelopes().getLast().getMail();
-            if (mailFrom != null && mailFrom.contains("@")) {
-                return mailFrom.substring(mailFrom.indexOf("@") + 1);
+            String mail = session.getEnvelopes().getLast().getMail();
+            if (mail != null && mail.contains("@")) {
+                return mail.substring(mail.indexOf("@") + 1);
             }
         }
         return null;
     }
 
-    /**
-     * Queues the response email for delivery.
-     */
+    private String resolveFirstMx(String domain) {
+        try {
+            List<DnsRecord> mxRecords = new MXResolver().resolveMx(domain);
+            if (!mxRecords.isEmpty()) {
+                String host = mxRecords.get(0).getValue();
+                return host.endsWith(".") ? host.substring(0, host.length() - 1) : host;
+            }
+        } catch (Exception e) {
+            log.debug("MX resolution failed for {}: {}", domain, e.getMessage());
+        }
+        return null;
+    }
+
+    /** Extracts CN value from an X.500 subject string like "CN=mail.example.com, O=Acme". */
+    private static String extractCN(String subject) {
+        if (subject == null) return "-";
+        for (String part : subject.split(",")) {
+            String trimmed = part.trim();
+            if (trimmed.startsWith("CN=")) return trimmed.substring(3);
+        }
+        return truncate(subject, 30);
+    }
+
+    private static String nvl(String v, String fallback) {
+        return v != null ? v : fallback;
+    }
+
+    private static String truncate(String s, int max) {
+        if (s == null || s.length() <= max) return s != null ? s : "";
+        return s.substring(0, max - 1) + "…";
+    }
+
     private void queueResponse(Session session, String botAddress, String replyTo, String report) {
         try {
-            // Create MIME part for the report.
             List<MimePart> parts = new ArrayList<>();
             parts.add(new TextMimePart(report.getBytes(StandardCharsets.UTF_8))
                     .addHeader("Content-Type", "text/plain; charset=\"UTF-8\"")
-                    .addHeader("Content-Transfer-Encoding", "8bit")
-            );
+                    .addHeader("Content-Transfer-Encoding", "8bit"));
 
-            // Use BotHelper to queue the response.
-            BotHelper.queueBotResponse(
-                    session,
-                    botAddress,
-                    replyTo,
-                    "Robin Email Analysis BOT - " + session.getUID(),
-                    parts
-            );
-
-            log.info("Queued email analysis bot response for delivery to: {}", replyTo);
-
+            BotHelper.queueBotResponse(session, botAddress, replyTo,
+                    "Robin Email Analysis BOT - " + session.getUID(), parts);
         } catch (IOException e) {
-            log.error("Failed to queue email analysis bot response: {}", e.getMessage(), e);
+            log.error("Failed to queue analysis response: {}", e.getMessage(), e);
         }
     }
 
     @Override
-    public String getName() {
-        return "email";
-    }
+    public String getName() { return "email"; }
 }

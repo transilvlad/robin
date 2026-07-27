@@ -38,36 +38,68 @@
 
     // Email Analysis Bot - Comprehensive email security and infrastructure analysis
     {
-      // Regex pattern for email analysis bot addresses.
-      // This pattern matches addresses like:
-      // - robotEmail@example.com
-      // - robotEmail+token@example.com
       addressPattern: "^robotEmail(\\+.+)?@example\\.com$",
 
-      // IP-based authorization (optional)
-      // Authorization succeeds if EITHER IP matches OR token is valid
       allowedIps: [
         "127.0.0.1",
         "::1",
         "192.168.1.0/24",
         "10.0.0.0/8"
       ],
+      allowedTokens: [],
 
-      // Token-based authorization (alternative to IP)
-      // Tokens provide a way to authorize requests from untrusted IPs
-      allowedTokens: [
-        // "emailBotToken123"
+      botName: "email",
+
+      // ── IP DNSBL ─────────────────────────────────────────────────────────
+      rblCheckEnabled: true,
+      rblProviders: [
+        "zen.spamhaus.org",
+        "bl.spamcop.net",
+        "b.barracudacentral.org",
+        "dnsbl.sorbs.net"
       ],
+      rblTimeoutSeconds: 5,
 
-      // Bot implementation name
-      // The "email" bot performs comprehensive analysis including:
-      // - DNSBL/RBL checks
-      // - rDNS and FCrDNS validation
-      // - SPF, DKIM, DMARC verification
-      // - MX records and MTA-STS policy
-      // - DANE/TLSA records
-      // - Virus and spam scan results
-      botName: "email"
+      // ── Domain Blocklist (DBL / SURBL / URIBL) ───────────────────────────
+      dblCheckEnabled: true,
+      dblProviders: [
+        "dbl.spamhaus.org",
+        "multi.surbl.org",
+        "dbl.nordspam.com"
+      ],
+      dblTimeoutSeconds: 5,
+
+      // ── rDNS + FCrDNS ────────────────────────────────────────────────────
+      rdnsCheckEnabled: true,
+
+      // ── SPF / DKIM / DMARC ───────────────────────────────────────────────
+      spfCheckEnabled: true,
+      dkimCheckEnabled: true,
+      dmarcCheckEnabled: true,
+
+      // ── MX Records ───────────────────────────────────────────────────────
+      mxCheckEnabled: true,
+
+      // ── Port / TLS ───────────────────────────────────────────────────────
+      portCheckEnabled: true,
+      portCheckPorts: [25, 465, 587, 993, 143],
+      portCheckTimeoutSeconds: 10,
+
+      // ── MTA-STS ──────────────────────────────────────────────────────────
+      mtaStsCheckEnabled: true,
+      // Set to a specific receiving domain to check inbound TLS policy instead
+      // of the sender's subdomain (which typically has no MTA-STS).
+      // Example: "mail.inboxment.com"
+      mtaStsTargetDomain: null,
+
+      // ── DANE ─────────────────────────────────────────────────────────────
+      daneCheckEnabled: true,
+
+      // ── Rspamd spam analysis ─────────────────────────────────────────────
+      spamAnalysisEnabled: true,
+
+      // ── Pass/Fail verdict summary ────────────────────────────────────────
+      verdictEnabled: true
     },
 
     // DMARC Report Bot - Extracts reports and calls endpoint with the data in JSON format

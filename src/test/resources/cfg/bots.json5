@@ -1,0 +1,99 @@
+{
+  // Bot configuration for unit tests.
+  // External-network checks (port/TLS, live RBL) are disabled so tests are
+  // fast and hermetic. DNS checks that use the LocalDnsResolver mock remain on.
+
+  bots: [
+    {
+      addressPattern: "^robotSession(\\+.+)?@example\\.com$",
+      allowedIps: ["127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12"],
+      allowedTokens: [],
+      botName: "session"
+    },
+
+    {
+      addressPattern: "^robotEmail(\\+.+)?@example\\.com$",
+      allowedIps: ["127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12"],
+      allowedTokens: [],
+
+      botName: "email",
+
+      // ── IP DNSBL ─────────────────────────────────────────────────────────
+      // Disabled: unit tests use LocalDnsResolver which won't have RBL records.
+      rblCheckEnabled: false,
+      rblProviders: ["zen.spamhaus.org", "bl.spamcop.net"],
+      rblTimeoutSeconds: 2,
+
+      // ── Domain Blocklist ─────────────────────────────────────────────────
+      dblCheckEnabled: false,
+      dblProviders: ["dbl.spamhaus.org", "multi.surbl.org"],
+      dblTimeoutSeconds: 2,
+
+      // ── rDNS + FCrDNS ────────────────────────────────────────────────────
+      rdnsCheckEnabled: true,
+
+      // ── SPF / DKIM / DMARC ───────────────────────────────────────────────
+      spfCheckEnabled: true,
+      dkimCheckEnabled: true,
+      dmarcCheckEnabled: true,
+
+      // ── MX Records ───────────────────────────────────────────────────────
+      mxCheckEnabled: true,
+
+      // ── Port / TLS ───────────────────────────────────────────────────────
+      // Disabled: unit tests cannot reach external hosts.
+      portCheckEnabled: false,
+      portCheckPorts: [25, 465, 587, 993, 143],
+      portCheckTimeoutSeconds: 2,
+
+      // ── MTA-STS ──────────────────────────────────────────────────────────
+      mtaStsCheckEnabled: true,
+      mtaStsTargetDomain: null,
+
+      // ── DANE ─────────────────────────────────────────────────────────────
+      daneCheckEnabled: true,
+
+      // ── Rspamd spam analysis ─────────────────────────────────────────────
+      spamAnalysisEnabled: true,
+
+      // ── Pass/Fail verdict summary ────────────────────────────────────────
+      verdictEnabled: true
+    },
+
+    {
+      addressPattern: "^dmarcReport(\\+.+)?@example\\.com$",
+      allowedIps: ["127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12"],
+      allowedTokens: [],
+      botName: "dmarc",
+      endpoint: "https://localhost/api/dmarc/reports",
+      insecure: true,
+      authType: "none",
+      authValue: "",
+      headers: {}
+    },
+
+    {
+      addressPattern: "^(tlsReport|tlsrpt)(\\+.+)?@example\\.com$",
+      allowedIps: ["127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12"],
+      allowedTokens: [],
+      botName: "tlsrpt",
+      endpoint: "https://localhost/api/tlsrpt/reports",
+      insecure: true,
+      authType: "none",
+      authValue: "",
+      headers: {}
+    },
+
+    {
+      addressPattern: "^(forensic|abuse)(\\+.+)?@example\\.com$",
+      allowedIps: ["127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12"],
+      allowedTokens: [],
+      botName: "forensic",
+      endpoint: "https://localhost/api/forensic/reports",
+      insecure: true,
+      authType: "none",
+      authValue: "",
+      headers: {}
+    }
+  ]
+}
