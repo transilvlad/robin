@@ -168,6 +168,18 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
+     * Gets DNS resolver configuration.
+     *
+     * @return DnsConfig instance.
+     */
+    public DnsConfig getDnsConfig() {
+        if (map.containsKey("dns")) {
+            return new DnsConfig(getMapProperty("dns"));
+        }
+        return new DnsConfig(null);
+    }
+
+    /**
      * Is AUTH enabled.
      *
      * @return Boolean.

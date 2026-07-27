@@ -2,6 +2,7 @@ package com.mimecast.robin.main;
 
 import com.mimecast.robin.auth.SqlAuthManager;
 import com.mimecast.robin.config.DovecotConfig;
+import com.mimecast.robin.config.server.DnsConfig;
 import com.mimecast.robin.config.server.ServerConfig;
 import com.mimecast.robin.db.SharedDataSource;
 import com.mimecast.robin.endpoints.ApiEndpoint;
@@ -18,6 +19,11 @@ import com.mimecast.robin.storage.StorageCleaner;
 import com.mimecast.robin.util.VaultClient;
 import com.mimecast.robin.util.VaultClientFactory;
 import com.mimecast.robin.util.VaultMagicProvider;
+
+import org.xbill.DNS.Cache;
+import org.xbill.DNS.ExtendedResolver;
+import org.xbill.DNS.Lookup;
+import org.xbill.DNS.SimpleResolver;
 
 import javax.naming.ConfigurationException;
 import java.io.BufferedInputStream;
@@ -146,6 +152,62 @@ public class Server extends Foundation {
      * This includes storage cleaning, queue management, service and API endpoints.
      */
     private static void startup() {
+        // Configure DNS resolver from the dns{} config block.
+        // When servers are listed, builds an ExtendedResolver so failed/timed-out
+        // queries automatically retry against the next server in the list.
+        // This prevents rate-limit responses (e.g. Spamhaus 127.255.255.255)
+        // that occur when using shared public resolvers.
+        DnsConfig dnsConfig = Config.getServer().getDnsConfig();
+        List<String> dnsServers = dnsConfig.getServers();
+        if (!dnsServers.isEmpty()) {
+            try {
+                java.time.Duration timeout = java.time.Duration.ofSeconds(dnsConfig.getTimeoutSeconds());
+                SimpleResolver[] resolvers = dnsServers.stream()
+                        .map(addr -> {
+                            try {
+                                SimpleResolver r = new SimpleResolver(addr);
+                                r.setPort(dnsConfig.getPort());
+                                r.setTimeout(timeout);
+                                r.setTCP(dnsConfig.isTcp());
+                                return r;
+                            } catch (Exception e) {
+                                log.warn("Invalid DNS server {}: {}", addr, e.getMessage());
+                                return null;
+                            }
+                        })
+                        .filter(r -> r != null)
+                        .toArray(SimpleResolver[]::new);
+                if (resolvers.length > 0) {
+                    Lookup.setDefaultResolver(new ExtendedResolver(resolvers));
+                    log.info("DNS resolvers: {} (timeout={}s, tcp={}, port={})",
+                            dnsServers, dnsConfig.getTimeoutSeconds(), dnsConfig.isTcp(), dnsConfig.getPort());
+                }
+            } catch (Exception e) {
+                log.warn("Failed to configure DNS resolvers {}: {}", dnsServers, e.getMessage());
+            }
+        }
+
+        // Configure the shared dnsjava response cache.
+        if (!dnsConfig.isCacheEnabled()) {
+            // Replace the default cache with a zero-entry cache to effectively disable caching.
+            Cache empty = new Cache();
+            empty.setMaxEntries(0);
+            empty.setMaxNCache(0);
+            Lookup.setDefaultCache(empty, org.xbill.DNS.Type.ANY);
+            log.info("DNS cache disabled");
+        } else {
+            Cache cache = Lookup.getDefaultCache(org.xbill.DNS.Type.ANY);
+            if (dnsConfig.getCacheMaxEntries() > 0) {
+                cache.setMaxEntries(dnsConfig.getCacheMaxEntries());
+            }
+            if (dnsConfig.getCacheMaxNegativeEntries() > 0) {
+                cache.setMaxNCache(dnsConfig.getCacheMaxNegativeEntries());
+            }
+            log.info("DNS cache enabled (maxEntries={}, maxNegativeEntries={})",
+                    dnsConfig.getCacheMaxEntries() > 0 ? dnsConfig.getCacheMaxEntries() : "default",
+                    dnsConfig.getCacheMaxNegativeEntries() > 0 ? dnsConfig.getCacheMaxNegativeEntries() : "default");
+        }
+
         // Wire the connection store (local or Redis) before any connections are accepted.
         ConnectionTracker.setStore(ConnectionStoreFactory.create(Config.getServer().getDistributedRateConfig()));
 
