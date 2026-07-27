@@ -73,6 +73,12 @@ class MockCall implements Call {
         return null;
     }
 
+    @NotNull
+    @Override
+    public Call addEventListener(@NotNull EventListener listener) {
+        return this;
+    }
+
     @Nullable
     @Override
     public <T> T tag(@NotNull KClass<T> kClass) {
