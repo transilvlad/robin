@@ -53,6 +53,13 @@ public class RspamdClient {
     private boolean dkimScanEnabled;
     private boolean dmarcScanEnabled;
 
+    // SMTP session context passed to Rspamd for SPF/DKIM/DMARC checks.
+    private String senderIp;
+    private String senderHelo;
+    private String senderHostname;
+    private String envelopeFrom;
+    private String envelopeRcpt;
+
     private Map<String, Object> lastScanResult;
 
     /**
@@ -190,13 +197,13 @@ public class RspamdClient {
                     .url(baseUrl + SCAN_ENDPOINT)
                     .post(body);
 
-            // Add email direction header
-            requestBuilder.addHeader("X-Email-Direction", emailDirection.toString());
-
-            // Add authentication scan options as headers
-            requestBuilder.addHeader("X-SPF-Scan", String.valueOf(spfScanEnabled));
-            requestBuilder.addHeader("X-DKIM-Scan", String.valueOf(dkimScanEnabled));
-            requestBuilder.addHeader("X-DMARC-Scan", String.valueOf(dmarcScanEnabled));
+            // Standard Rspamd /checkv2 SMTP context headers.
+            // Without IP/Helo/From, Rspamd cannot perform SPF (it has no sender IP).
+            if (senderIp != null && !senderIp.isEmpty()) requestBuilder.addHeader("IP", senderIp);
+            if (senderHelo != null && !senderHelo.isEmpty()) requestBuilder.addHeader("Helo", senderHelo);
+            if (senderHostname != null && !senderHostname.isEmpty()) requestBuilder.addHeader("Hostname", senderHostname);
+            if (envelopeFrom != null && !envelopeFrom.isEmpty()) requestBuilder.addHeader("From", envelopeFrom);
+            if (envelopeRcpt != null && !envelopeRcpt.isEmpty()) requestBuilder.addHeader("RCPT", envelopeRcpt);
 
             Request request = requestBuilder.build();
 
@@ -373,6 +380,27 @@ public class RspamdClient {
     public RspamdClient setDmarcScanEnabled(boolean enabled) {
         this.dmarcScanEnabled = enabled;
         log.debug("DMARC scan enabled: {}", enabled);
+        return this;
+    }
+
+    /**
+     * Sets the SMTP session context passed to Rspamd as standard /checkv2 headers.
+     * These are required for SPF (Rspamd needs IP + Helo to check the sender's SPF record).
+     *
+     * @param senderIp       Connecting client IP address.
+     * @param senderHelo     EHLO/HELO hostname.
+     * @param senderHostname Reverse DNS hostname (PTR).
+     * @param envelopeFrom   SMTP MAIL FROM address.
+     * @param envelopeRcpt   SMTP RCPT TO address (first recipient).
+     * @return Self.
+     */
+    public RspamdClient setSmtpContext(String senderIp, String senderHelo, String senderHostname,
+                                       String envelopeFrom, String envelopeRcpt) {
+        this.senderIp = senderIp;
+        this.senderHelo = senderHelo;
+        this.senderHostname = senderHostname;
+        this.envelopeFrom = envelopeFrom;
+        this.envelopeRcpt = envelopeRcpt;
         return this;
     }
 

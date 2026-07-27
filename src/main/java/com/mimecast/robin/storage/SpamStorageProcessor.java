@@ -34,13 +34,20 @@ public class SpamStorageProcessor extends AbstractStorageProcessor {
         RspamdConfig rspamdConfig = Config.getServer().getRspamd();
         if (rspamdConfig.isEnabled()) {
             var envelope = connection.getSession().getEnvelopes().getLast();
+            var session = connection.getSession();
             RspamdClient rspamdClient = new RspamdClient(
                     rspamdConfig.getHost(),
                     rspamdConfig.getPort())
-                    .setEmailDirection(connection.getSession().getDirection())
+                    .setEmailDirection(session.getDirection())
                     .setSpfScanEnabled(rspamdConfig.isSpfScanEnabled())
                     .setDkimScanEnabled(rspamdConfig.isDkimScanEnabled())
-                    .setDmarcScanEnabled(rspamdConfig.isDmarcScanEnabled());
+                    .setDmarcScanEnabled(rspamdConfig.isDmarcScanEnabled())
+                    .setSmtpContext(
+                            session.getFriendAddr(),
+                            session.getHelo(),
+                            session.getFriendRdns(),
+                            envelope.getMail(),
+                            envelope.getRcpt());
 
             // Scan the email and retrieve the score.
             // Stream file-backed messages from disk; in-memory messages are posted directly.
