@@ -73,10 +73,8 @@ class MockCall implements Call {
         return null;
     }
 
-    @NotNull
     @Override
-    public Call addEventListener(@NotNull EventListener listener) {
-        return this;
+    public void addEventListener(@NonNull EventListener eventListener) {
     }
 
     @Nullable
