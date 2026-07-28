@@ -5,6 +5,8 @@ import com.mimecast.robin.config.assertion.MimeConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.util.PathUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -25,6 +27,8 @@ import java.util.stream.Stream;
  * <p>It will store the metadata associated with each email sent.
  */
 public class MessageEnvelope implements Serializable, Cloneable {
+    private static final Logger log = LogManager.getLogger(MessageEnvelope.class);
+
     @Serial
     private static final long serialVersionUID = 1L;
 
@@ -416,7 +420,17 @@ public class MessageEnvelope implements Serializable, Cloneable {
      * @return Eml stream.
      */
     public InputStream getStream() {
-        return stream != null ? stream : (bytes != null ? new ByteArrayInputStream(bytes) : null);
+        // Serve through the message source so repeat callers get a fresh stream. The raw
+        // stream field is only a construction-time reference; it is closed once spooled.
+        if (messageSource != null) {
+            try {
+                return messageSource.openStream();
+            } catch (IOException e) {
+                log.error("Failed to open envelope message stream: {}", e.getMessage());
+                return null;
+            }
+        }
+        return bytes != null ? new ByteArrayInputStream(bytes) : null;
     }
 
     /**
@@ -426,9 +440,19 @@ public class MessageEnvelope implements Serializable, Cloneable {
      * @return Self.
      */
     public MessageEnvelope setStream(InputStream stream) {
+        // Wrap the one-shot stream in a spooling source so the payload stays re-readable.
+        // A raw stream can only be consumed once, which silently starves every consumer
+        // after the first (AV scan, spam scan, archive, webhook) on multi-consumer paths.
         this.stream = stream;
         this.bytes = null;
-        this.messageSource = null;
+        if (stream != null) {
+            // Mirror setFile: exactly one payload source wins, so Session.close() has a single
+            // thing to release and consumers cannot silently prefer a stale file over the stream.
+            this.file = null;
+            this.messageSource = new StreamMessageSource(stream);
+        } else {
+            this.messageSource = null;
+        }
         return this;
     }
 
