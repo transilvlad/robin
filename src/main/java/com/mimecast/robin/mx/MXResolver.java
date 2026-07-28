@@ -1,6 +1,7 @@
 package com.mimecast.robin.mx;
 
 import com.mimecast.robin.mx.assets.DnsRecord;
+import com.mimecast.robin.mx.assets.SimpleDnsRecord;
 import com.mimecast.robin.mx.assets.StsPolicy;
 import com.mimecast.robin.mx.client.XBillDnsRecordClient;
 import com.mimecast.robin.mx.dane.DaneChecker;
@@ -233,13 +234,29 @@ public class MXResolver {
     private List<DnsRecord> doResolveMx(String domain) {
         // Step 1: Get regular MX records via DNS client.
         var optionalDnsRecords = new XBillDnsRecordClient().getMxRecords(domain);
+        List<DnsRecord> mxRecords;
+        
         if (optionalDnsRecords.isEmpty() || optionalDnsRecords.get().isEmpty()) {
-            log.warn("No MX records found for domain: {}", domain);
-            return Collections.emptyList();
+            log.debug("No explicit MX records found for domain: {} - attempting RFC 5321 implicit fallback", domain);
+            
+            // RFC 5321: If no MX records exist, the domain itself is treated as a mail exchanger.
+            // This means we should query A/AAAA records for the domain (including CNAME resolution).
+            var addressRecords = new XBillDnsRecordClient().getARecords(domain);
+            if (addressRecords.isPresent() && !addressRecords.get().isEmpty()) {
+                log.info("Domain {} has no explicit MX records but has A/AAAA records - using implicit fallback per RFC 5321", domain);
+                // Create synthetic MX record with priority 10 (default) pointing to the domain itself
+                mxRecords = new ArrayList<>();
+                mxRecords.add(new SimpleDnsRecord(domain, 10));
+                // Include the A/AAAA records for resolution
+                mxRecords.addAll(addressRecords.get());
+            } else {
+                log.warn("No MX, A, or AAAA records found for domain: {}", domain);
+                return Collections.emptyList();
+            }
+        } else {
+            mxRecords = optionalDnsRecords.get();
+            log.debug("Found {} MX records for domain: {}", mxRecords.size(), domain);
         }
-
-        List<DnsRecord> mxRecords = optionalDnsRecords.get();
-        log.debug("Found {} MX records for domain: {}", mxRecords.size(), domain);
 
         // Step 2: Check for DANE TLSA records on any MX host.
         // Per RFC 8461 Section 2: DANE takes precedence over MTA-STS.

@@ -1269,8 +1269,7 @@ public class EmailAnalysisBot implements BotProcessor {
     record MessageContext(Session session, MessageEnvelope envelope, EmailParser parser,
                           String remoteIp, String rdns, String ehlo, String envelopeSender,
                           String envelopeDomain, String headerFrom, String headerFromDomain,
-                          List<DkimSignature> dkimSignatures, Map<String, Object> rspamdResult,
-                          Map<String, Object> headers) {
+                          List<DkimSignature> dkimSignatures, Map<String, Object> rspamdResult) {
 
         static MessageContext from(Session session, MessageEnvelope envelope, EmailParser parser) {
             String headerFrom = firstNonBlank(
@@ -1283,12 +1282,6 @@ public class EmailAnalysisBot implements BotProcessor {
                     if ("DKIM-Signature".equalsIgnoreCase(header.getName())) {
                         signatures.add(parseDkimSignature(header.getValue()));
                     }
-                }
-            }
-            Map<String, Object> headerMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-            if (parser != null) {
-                for (MimeHeader header : parser.getHeaders().get()) {
-                    headerMap.put(header.getName(), header.getValue());
                 }
             }
             Map<String, Object> rspamd = Collections.emptyMap();
@@ -1310,13 +1303,11 @@ public class EmailAnalysisBot implements BotProcessor {
                     headerFrom,
                     domainFromEmail(fromEmail),
                     signatures,
-                    rspamd,
-                    headerMap);
+                    rspamd);
         }
 
         String header(String name) {
-            Object value = headers.get(name);
-            return value == null ? null : String.valueOf(value);
+            return headerValue(parser, name);
         }
 
         RspamdSymbol findRspamdSymbol(String prefix) {
