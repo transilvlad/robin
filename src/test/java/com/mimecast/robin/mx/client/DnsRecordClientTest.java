@@ -39,6 +39,13 @@ class DnsRecordClientTest {
         LocalDnsResolver.put("v6only.example", Type.AAAA, new ArrayList<>() {{
             add("2001:db8::10");
         }});
+        // No MX, CNAME to A record.
+        LocalDnsResolver.put("cname-fallback.example", Type.CNAME, new ArrayList<>() {{
+            add("target-fallback.example.");
+        }});
+        LocalDnsResolver.put("target-fallback.example", Type.A, new ArrayList<>() {{
+            add("192.0.2.20");
+        }});
         // Null MX domain (RFC 7505).
         LocalDnsResolver.put("nullmx.example", Type.MX, new ArrayList<>() {{
             add("0 .");
@@ -103,6 +110,17 @@ class DnsRecordClientTest {
         assertTrue(records.isPresent());
         assertEquals(1, records.get().size());
         assertEquals("fallback.example", records.get().getFirst().getValue());
+        assertEquals(0, records.get().getFirst().getPriority());
+    }
+
+    @Test
+    void getMxRecordsImplicitFallbackViaCname() {
+        DnsRecordClient dnsRecordClient = new XBillDnsRecordClient();
+        Optional<List<com.mimecast.robin.mx.assets.DnsRecord>> records = dnsRecordClient.getMxRecords("cname-fallback.example");
+
+        assertTrue(records.isPresent());
+        assertEquals(1, records.get().size());
+        assertEquals("cname-fallback.example", records.get().getFirst().getValue());
         assertEquals(0, records.get().getFirst().getPriority());
     }
 

@@ -15,8 +15,10 @@ import org.xbill.DNS.Record;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -115,9 +117,7 @@ public class XBillDnsRecordClient implements DnsRecordClient {
      * @return Optional of List of MXRecord instances.
      */
     public Optional<List<DnsRecord>> getARecords(String domain) {
-        List<DnsRecord> records = new ArrayList<>();
-        collectAddressRecords(records, getRecord(domain, Type.A));
-        collectAddressRecords(records, getRecord(domain, Type.AAAA));
+        List<DnsRecord> records = resolveAddressRecords(domain, new HashSet<>(), 0);
         return records.isEmpty() ? Optional.empty() : Optional.of(records);
     }
 
@@ -243,6 +243,41 @@ public class XBillDnsRecordClient implements DnsRecordClient {
                 out.add(new XBillDnsRecord(record));
             }
         }
+    }
+
+    private List<DnsRecord> resolveAddressRecords(String domain, Set<String> seen, int depth) {
+        if (domain == null || domain.isBlank() || depth > 8) {
+            return List.of();
+        }
+
+        String normalized = domain.endsWith(".")
+                ? domain.substring(0, domain.length() - 1)
+                : domain;
+        String key = normalized.toLowerCase();
+        if (!seen.add(key)) {
+            return List.of();
+        }
+
+        List<DnsRecord> records = new ArrayList<>();
+        collectAddressRecords(records, getRecord(normalized, Type.A));
+        collectAddressRecords(records, getRecord(normalized, Type.AAAA));
+        if (!records.isEmpty()) {
+            return records;
+        }
+
+        Record[] cnameRecords = getRecord(normalized, Type.CNAME);
+        if (cnameRecords != null) {
+            for (Record record : cnameRecords) {
+                if (record instanceof CNAMERecord cname) {
+                    List<DnsRecord> aliasRecords = resolveAddressRecords(cname.getTarget().toString(true), seen, depth + 1);
+                    if (!aliasRecords.isEmpty()) {
+                        return aliasRecords;
+                    }
+                }
+            }
+        }
+
+        return List.of();
     }
 
     private boolean isNullMx(List<DnsRecord> records) {
