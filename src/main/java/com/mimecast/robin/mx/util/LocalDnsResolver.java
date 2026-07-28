@@ -18,7 +18,7 @@ import java.util.concurrent.Executor;
  * Local DNS Resolver.
  * <p>This provides a static resolver for DNS Java to aid in testing.
  * <p>It has limited capabilities but more than needed for this lib.
- * <p>It can only handle NS, A, MX, PTR and TXT types.
+ * <p>It can only handle NS, A, AAAA, CNAME, MX, PTR and TXT types.
  * <p>Strings should not exceed 255 bytes.
  * <p>A strings should be valid IPv4 addresses.
  * <p>NS, MX and PTR strings should not be empty.
@@ -93,9 +93,30 @@ public class LocalDnsResolver implements Resolver {
                     response.add(new ARecord(name, 1, 300L, InetAddress.getByName(record)));
                 }
                 break;
+            case Type.AAAA:
+                for (String record : records) {
+                    response.add(new AAAARecord(name, 1, 300L, InetAddress.getByName(record)));
+                }
+                break;
+            case Type.CNAME:
+                for (String record : records) {
+                    response.add(new CNAMERecord(name, 1, 300L, new Name(record)));
+                }
+                break;
             case Type.MX:
                 for (String record : records) {
-                    response.add(new MXRecord(name, 1, 300L, 1, new Name(record)));
+                    int priority = 1;
+                    String target = record;
+                    String[] parts = record.trim().split("\\s+", 2);
+                    if (parts.length == 2) {
+                        try {
+                            priority = Integer.parseInt(parts[0]);
+                            target = parts[1];
+                        } catch (NumberFormatException ignored) {
+                            // Keep compatibility with existing "hostname" only format.
+                        }
+                    }
+                    response.add(new MXRecord(name, 1, 300L, priority, new Name(target)));
                 }
                 break;
             case Type.PTR:

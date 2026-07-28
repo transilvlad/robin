@@ -19,7 +19,10 @@ import java.util.Map;
  *   servers: ["127.0.0.1"],
  *   timeoutSeconds: 5,
  *   tcp: false,
- *   port: 53
+ *   port: 53,
+ *   mxImplicitFallbackEnabled: true,
+ *   mxNullMxHardFailEnabled: true,
+ *   mxAddressFamilyPreference: "ipv4_first"
  * }
  * </pre>
  */
@@ -98,5 +101,41 @@ public class DnsConfig {
         return map.containsKey("cacheMaxNegativeEntries")
                 ? ((Number) map.get("cacheMaxNegativeEntries")).intValue()
                 : 0;
+    }
+
+    /**
+     * Enables RFC 5321 implicit MX fallback when no MX records are present.
+     * When enabled, delivery can fall back to A/AAAA lookup for the recipient domain.
+     * Default: true.
+     */
+    public boolean isMxImplicitFallbackEnabled() {
+        return !map.containsKey("mxImplicitFallbackEnabled") || (Boolean) map.get("mxImplicitFallbackEnabled");
+    }
+
+    /**
+     * Honors RFC 7505 Null MX semantics.
+     * When enabled and a domain publishes "MX 0 .", the domain is treated as non-deliverable
+     * and no implicit A/AAAA fallback is attempted.
+     * Default: true.
+     */
+    public boolean isMxNullMxHardFailEnabled() {
+        return !map.containsKey("mxNullMxHardFailEnabled") || (Boolean) map.get("mxNullMxHardFailEnabled");
+    }
+
+    /**
+     * Preferred address family order when both A and AAAA records are available.
+     * Accepted values:
+     * <ul>
+     *   <li>{@code ipv4_first} (default)</li>
+     *   <li>{@code ipv6_first}</li>
+     *   <li>{@code system}</li>
+     * </ul>
+     */
+    public String getMxAddressFamilyPreference() {
+        Object v = map.get("mxAddressFamilyPreference");
+        if (v instanceof String s && !s.isBlank()) {
+            return s.toLowerCase(java.util.Locale.ROOT);
+        }
+        return "ipv4_first";
     }
 }

@@ -1,7 +1,9 @@
 package com.mimecast.robin.mx.client;
 
+import com.mimecast.robin.config.server.DnsConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.mx.assets.DnsRecord;
+import com.mimecast.robin.mx.assets.SimpleDnsRecord;
 import com.mimecast.robin.mx.assets.StsRecord;
 import com.mimecast.robin.mx.assets.StsReport;
 import com.mimecast.robin.mx.assets.XBillDnsRecord;
@@ -113,25 +115,19 @@ public class XBillDnsRecordClient implements DnsRecordClient {
      * @return Optional of List of MXRecord instances.
      */
     public Optional<List<DnsRecord>> getARecords(String domain) {
-        Record[] recordList = getRecord(domain, Type.A);
-        if (recordList != null) {
-            List<DnsRecord> records = new ArrayList<>();
-            for (org.xbill.DNS.Record record : recordList) {
-                records.add(new XBillDnsRecord(record));
-            }
-
-            if (!records.isEmpty()) {
-                return Optional.of(records);
-            }
-        }
-
-        return Optional.empty();
+        List<DnsRecord> records = new ArrayList<>();
+        collectAddressRecords(records, getRecord(domain, Type.A));
+        collectAddressRecords(records, getRecord(domain, Type.AAAA));
+        return records.isEmpty() ? Optional.empty() : Optional.of(records);
     }
 
     /**
      * Gets DNS MX records.
      * <p>Will query for MX records of the domain provided.
-     * <p>Will not fall back to A record if none found.
+     * <p>When no MX records are present, can apply RFC 5321 implicit fallback to
+     * the domain's A/AAAA records (configurable).
+     * <p>If a Null MX (MX 0 .) is published and Null MX hard-fail is enabled,
+     * this method returns empty and no fallback is attempted (RFC 7505).
      *
      * @param domain Domain string.
      * @return Optional of List of MXRecord instances.
@@ -147,11 +143,28 @@ public class XBillDnsRecordClient implements DnsRecordClient {
             }
 
             if (!records.isEmpty()) {
+                if (isNullMx(records)) {
+                    if (dnsConfig().isMxNullMxHardFailEnabled()) {
+                        log.warn("Null MX detected for domain {}, skipping implicit fallback", domain);
+                        return Optional.empty();
+                    }
+                    log.warn("Null MX detected for domain {}, but hard-fail disabled by config", domain);
+                }
                 return Optional.of(records);
             }
         }
 
-        return getARecords(domain);
+        if (!dnsConfig().isMxImplicitFallbackEnabled()) {
+            log.debug("Implicit MX fallback disabled for domain {}", domain);
+            return Optional.empty();
+        }
+
+        Optional<List<DnsRecord>> addresses = getARecords(domain);
+        if (addresses.isPresent()) {
+            // RFC 5321 implicit MX: if no MX exists, treat the domain itself as the mail exchanger.
+            return Optional.of(List.of(new SimpleDnsRecord(domain, 0)));
+        }
+        return Optional.empty();
     }
 
     /**
@@ -221,5 +234,32 @@ public class XBillDnsRecordClient implements DnsRecordClient {
         long ttlMs = Config.getServer().getDnsNegativeTtl() * 1000L;
         long expires = Instant.now().toEpochMilli() + ttlMs;
         PTR_CACHE.put(ipAddress, new PtrCacheEntry(value, expires));
+    }
+
+    private void collectAddressRecords(List<DnsRecord> out, Record[] recordList) {
+        if (recordList == null) return;
+        for (org.xbill.DNS.Record record : recordList) {
+            if (record instanceof ARecord || record instanceof AAAARecord) {
+                out.add(new XBillDnsRecord(record));
+            }
+        }
+    }
+
+    private boolean isNullMx(List<DnsRecord> records) {
+        for (DnsRecord record : records) {
+            String value = record.getValue();
+            if (record.getPriority() == 0 && ".".equals(value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private DnsConfig dnsConfig() {
+        try {
+            return Config.getServer().getDnsConfig();
+        } catch (Exception e) {
+            return new DnsConfig(null);
+        }
     }
 }

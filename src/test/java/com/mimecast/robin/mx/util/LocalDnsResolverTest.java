@@ -1,6 +1,5 @@
 package com.mimecast.robin.mx.util;
 
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.xbill.DNS.Lookup;
@@ -58,6 +57,9 @@ class LocalDnsResolverTest {
         LocalDnsResolver.put("mimecast.com", Type.AAAA, new ArrayList<String>() {{
             add("::1");
         }});
+        LocalDnsResolver.put("bounce.mimecast.com", Type.CNAME, new ArrayList<String>() {{
+            add("service-alpha-inbound-a.mimecast.com.");
+        }});
 
         LocalDnsResolver.put("mimecast.eu", Type.A, new ArrayList<String>() {{
             add("a.b.c.d");
@@ -79,6 +81,8 @@ class LocalDnsResolverTest {
 
         assertEquals("91.220.42.231", lookup("service-alpha-inbound-a.mimecast.com", Type.A)[0].rdataToString());
         assertEquals("195.130.217.231", lookup("service-alpha-inbound-b.mimecast.com", Type.A)[0].rdataToString());
+        assertEquals("0:0:0:0:0:0:0:1", lookup("mimecast.com", Type.AAAA)[0].rdataToString());
+        assertEquals("service-alpha-inbound-a.mimecast.com.", lookup("bounce.mimecast.com", Type.CNAME)[0].rdataToString());
 
         assertEquals("\"v=STSv1; id=19840507T234501;\"", lookup("_mta-sts.mimecast.com", Type.TXT)[0].rdataToString());
         assertEquals("\"v=TLSRPTv1; rua=mailto:tlsrpt@mimecast.com;\"", lookup("_smtp._tls.mimecast.com", Type.TXT)[0].rdataToString());
@@ -89,8 +93,6 @@ class LocalDnsResolverTest {
 
     @Test
     void invalid() throws TextParseException {
-        Assertions.assertThrows(IllegalArgumentException.class, () -> lookup("mimecast.com", Type.AAAA));
-
         assertNull(lookup("mimecast.org", Type.A));
         assertNull(lookup("mimecast.net", Type.A));
         assertNull(lookup("mimecast.eu", Type.A));

@@ -8,6 +8,7 @@ import org.xbill.DNS.Lookup;
 import org.xbill.DNS.Type;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -29,6 +30,18 @@ class DnsRecordClientTest {
         }});
         LocalDnsResolver.put("_mta-sts.mimecast.us", Type.TXT, new ArrayList<>() {{
             add("id=19840507T234501;");
+        }});
+        // No MX, but has A fallback.
+        LocalDnsResolver.put("fallback.example", Type.A, new ArrayList<>() {{
+            add("192.0.2.10");
+        }});
+        // No MX, only AAAA fallback.
+        LocalDnsResolver.put("v6only.example", Type.AAAA, new ArrayList<>() {{
+            add("2001:db8::10");
+        }});
+        // Null MX domain (RFC 7505).
+        LocalDnsResolver.put("nullmx.example", Type.MX, new ArrayList<>() {{
+            add("0 .");
         }});
         // PTR for loopback
         LocalDnsResolver.put("1.0.0.127.in-addr.arpa", Type.PTR, new ArrayList<>() {{
@@ -80,5 +93,33 @@ class DnsRecordClientTest {
         Optional<StsRecord> optional = dnsRecordClient.getStsRecord("mimecast.net");
 
         assertFalse(optional.isPresent());
+    }
+
+    @Test
+    void getMxRecordsImplicitFallbackUsesDomainTarget() {
+        DnsRecordClient dnsRecordClient = new XBillDnsRecordClient();
+        Optional<List<com.mimecast.robin.mx.assets.DnsRecord>> records = dnsRecordClient.getMxRecords("fallback.example");
+
+        assertTrue(records.isPresent());
+        assertEquals(1, records.get().size());
+        assertEquals("fallback.example", records.get().getFirst().getValue());
+        assertEquals(0, records.get().getFirst().getPriority());
+    }
+
+    @Test
+    void getARecordsIncludesAaaa() {
+        XBillDnsRecordClient dnsRecordClient = new XBillDnsRecordClient();
+        Optional<List<com.mimecast.robin.mx.assets.DnsRecord>> records = dnsRecordClient.getARecords("v6only.example");
+
+        assertTrue(records.isPresent());
+        assertEquals("2001:db8:0:0:0:0:0:10", records.get().getFirst().getValue());
+    }
+
+    @Test
+    void getMxRecordsNullMxReturnsEmpty() {
+        DnsRecordClient dnsRecordClient = new XBillDnsRecordClient();
+        Optional<List<com.mimecast.robin.mx.assets.DnsRecord>> records = dnsRecordClient.getMxRecords("nullmx.example");
+
+        assertFalse(records.isPresent());
     }
 }

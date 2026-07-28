@@ -1,6 +1,8 @@
 package com.mimecast.robin.mx.assets;
 
 import org.xbill.DNS.ARecord;
+import org.xbill.DNS.AAAARecord;
+import org.xbill.DNS.CNAMERecord;
 import org.xbill.DNS.MXRecord;
 import org.xbill.DNS.Record;
 
@@ -37,7 +39,15 @@ public final class XBillDnsRecord implements DnsRecord {
                 (
                         record instanceof ARecord ?
                                 ((ARecord) record).getAddress().getHostAddress() :
-                                null
+                                (
+                                        record instanceof AAAARecord ?
+                                                ((AAAARecord) record).getAddress().getHostAddress() :
+                                                (
+                                                        record instanceof CNAMERecord ?
+                                                                ((CNAMERecord) record).getTarget().toString(true) :
+                                                                null
+                                                )
+                                )
                 );
     }
 

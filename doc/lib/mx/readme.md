@@ -29,6 +29,24 @@ Per RFC 8461 Section 2: **DANE takes precedence over MTA-STS**
 2. MTA-STS - If no DANE
 3. Opportunistic - If neither
 
+## SMTP Routing Behavior (RFC 5321 / RFC 7505)
+
+Robin routing follows these defaults for all outbound delivery:
+
+1. Try MX records first.
+2. If no MX exists, use implicit fallback (domain A/AAAA) per RFC 5321.
+3. If the domain publishes Null MX (`MX 0 .`), treat it as non-deliverable and do not fallback (RFC 7505).
+
+These are controlled via `server.json5` DNS options:
+
+```json5
+dns: {
+  mxImplicitFallbackEnabled: true,
+  mxNullMxHardFailEnabled: true,
+  mxAddressFamilyPreference: "ipv4_first" // ipv4_first | ipv6_first | system
+}
+```
+
 ## See Full Documentation
 
 - Complete API documentation in source JavaDoc  

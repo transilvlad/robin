@@ -290,7 +290,7 @@ public class MXResolver {
 
             List<DnsRecord> mxRecords = resolveMx(domain);
             if (mxRecords.isEmpty()) {
-                log.warn("Skipping domain with no MX: {}", domain);
+                log.warn("Skipping domain with no routeable DNS targets: {}", domain);
                 continue; // No route for this domain.
             }
 
