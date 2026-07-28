@@ -17,18 +17,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ChunkedInputStreamTest {
 
-    private static MessageEnvelope envelope;
-
     @BeforeAll
     static void before() throws ConfigurationException {
         Foundation.init("src/test/resources/cfg/");
-
-        envelope = new MessageEnvelope();
-        envelope.setFile("src/test/resources/mime/lipsum.eml");
-        envelope.setChunkBdat(true);
     }
 
-    ChunkedInputStream getStream() throws IOException {
+    ChunkedInputStream getStream(MessageEnvelope envelope) throws IOException {
         return new ChunkedInputStream(
                 new BufferedInputStream(new FileInputStream(envelope.getFile()), 8192),
                 envelope
@@ -37,9 +31,10 @@ class ChunkedInputStreamTest {
 
     @Test
     void getChunk256() throws IOException {
+        MessageEnvelope envelope = getEnvelope();
         envelope.setChunkSize(256);
 
-        ChunkedInputStream stream = getStream();
+        ChunkedInputStream stream = getStream(envelope);
         List<ByteArrayOutputStream> chunks = new ArrayList<>();
         while(stream.hasChunks()) {
             chunks.add(stream.getChunk());
@@ -54,9 +49,10 @@ class ChunkedInputStreamTest {
 
     @Test
     void getChunkZero() throws IOException {
+        MessageEnvelope envelope = getEnvelope();
         envelope.setChunkSize(0); // Defaults to 2048 as size has to be > 0.
 
-        ChunkedInputStream stream = getStream();
+        ChunkedInputStream stream = getStream(envelope);
         List<ByteArrayOutputStream> chunks = new ArrayList<>();
         while(stream.hasChunks()) {
             chunks.add(stream.getChunk());
@@ -69,9 +65,10 @@ class ChunkedInputStreamTest {
 
     @Test
     void getChunkLess() throws IOException {
+        MessageEnvelope envelope = getEnvelope();
         envelope.setChunkSize(100); // Defaults to 128 as size is under min viable limit of 128.
 
-        ChunkedInputStream stream = getStream();
+        ChunkedInputStream stream = getStream(envelope);
         List<ByteArrayOutputStream> chunks = new ArrayList<>();
         while(stream.hasChunks()) {
             chunks.add(stream.getChunk());
@@ -84,9 +81,10 @@ class ChunkedInputStreamTest {
 
     @Test
     void getChunkBreak() throws IOException {
+        MessageEnvelope envelope = getEnvelope();
         envelope.setChunkSize(512);
 
-        ChunkedInputStream stream = getStream();
+        ChunkedInputStream stream = getStream(envelope);
         List<ByteArrayOutputStream> chunks = new ArrayList<>();
         while(stream.hasChunks()) {
             chunks.add(stream.getChunk(true));
@@ -99,5 +97,12 @@ class ChunkedInputStreamTest {
         assertEquals(512, chunks.get(3).size());
         assertEquals(512, chunks.get(4).size());
         assertEquals(486, chunks.get(5).size());
+    }
+
+    private MessageEnvelope getEnvelope() {
+        MessageEnvelope envelope = new MessageEnvelope();
+        envelope.setFile("src/test/resources/mime/lipsum.eml");
+        envelope.setChunkBdat(true);
+        return envelope;
     }
 }

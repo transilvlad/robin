@@ -36,15 +36,15 @@ public class MessageEnvelope implements Serializable, Cloneable {
     private String mail = null;
     private String rcpt = null;
     private List<String> rcpts = new ArrayList<>();
-    private final Map<String, List<String>> params = new HashMap<>();
-    private final Map<String, String> headers = new HashMap<>();
+    private Map<String, List<String>> params = new HashMap<>();
+    private Map<String, String> headers = new HashMap<>();
     private boolean prependHeaders = false;
 
     // Blackholed status - true if email should be accepted but not saved.
     private boolean blackholed = false;
 
     // Bot addresses - recipients that matched bot patterns with their bot names
-    private final Map<String, List<String>> botAddresses = new HashMap<>();
+    private Map<String, List<String>> botAddresses = new LinkedHashMap<>();
 
     // Set MimeConfig.
     private MimeConfig mime = null;
@@ -215,6 +215,9 @@ public class MessageEnvelope implements Serializable, Cloneable {
      * @return Recipients address list.
      */
     public List<String> getRcpts() {
+        if (rcpts == null) {
+            rcpts = new ArrayList<>();
+        }
         if (rcpt != null && !rcpts.contains(rcpt)) {
             rcpts.add(rcpt);
         }
@@ -240,7 +243,8 @@ public class MessageEnvelope implements Serializable, Cloneable {
      * @return Self.
      */
     public MessageEnvelope setRcpts(List<String> rcpts) {
-        this.rcpts = rcpts;
+        this.rcpt = null;
+        this.rcpts = rcpts == null ? new ArrayList<>() : new ArrayList<>(rcpts);
         return this;
     }
 
@@ -960,9 +964,22 @@ public class MessageEnvelope implements Serializable, Cloneable {
      */
     public MessageEnvelope addBotAddress(String address, String botName) {
         if (address != null && !address.isEmpty() && botName != null && !botName.isEmpty()) {
-            botAddresses.computeIfAbsent(address, k -> new ArrayList<>()).add(botName);
+            String storedAddress = findStoredBotAddress(address);
+            List<String> botNames = botAddresses.computeIfAbsent(storedAddress, k -> new ArrayList<>());
+            if (botNames.stream().noneMatch(existing -> existing.equalsIgnoreCase(botName))) {
+                botNames.add(botName);
+            }
         }
         return this;
+    }
+
+    private String findStoredBotAddress(String address) {
+        for (String storedAddress : botAddresses.keySet()) {
+            if (storedAddress.equalsIgnoreCase(address)) {
+                return storedAddress;
+            }
+        }
+        return address;
     }
 
     /**
@@ -971,7 +988,11 @@ public class MessageEnvelope implements Serializable, Cloneable {
      * @return Unmodifiable map of bot addresses.
      */
     public Map<String, List<String>> getBotAddresses() {
-        return Collections.unmodifiableMap(botAddresses);
+        Map<String, List<String>> copy = new LinkedHashMap<>();
+        for (Map.Entry<String, List<String>> entry : botAddresses.entrySet()) {
+            copy.put(entry.getKey(), Collections.unmodifiableList(entry.getValue()));
+        }
+        return Collections.unmodifiableMap(copy);
     }
 
     /**
@@ -981,7 +1002,8 @@ public class MessageEnvelope implements Serializable, Cloneable {
      * @return true if address is a bot address.
      */
     public boolean isBotAddress(String address) {
-        return address != null && botAddresses.containsKey(address);
+        return address != null && botAddresses.keySet().stream()
+                .anyMatch(storedAddress -> storedAddress.equalsIgnoreCase(address));
     }
 
     /**
@@ -1007,18 +1029,18 @@ public class MessageEnvelope implements Serializable, Cloneable {
             MessageEnvelope cloned = (MessageEnvelope) super.clone();
 
             // Deep copy mutable collections.
-            cloned.rcpts = new ArrayList<>(this.rcpts);
+            cloned.rcpts = this.rcpts == null ? new ArrayList<>() : new ArrayList<>(this.rcpts);
 
-            cloned.params.clear();
+            cloned.params = new HashMap<>();
             for (Map.Entry<String, List<String>> entry : this.params.entrySet()) {
                 cloned.params.put(entry.getKey(), new ArrayList<>(entry.getValue()));
             }
 
-            cloned.headers.clear();
+            cloned.headers = new HashMap<>();
             cloned.headers.putAll(this.headers);
 
             // Deep copy botAddresses
-            cloned.botAddresses.clear();
+            cloned.botAddresses = new LinkedHashMap<>();
             for (Map.Entry<String, List<String>> entry : this.botAddresses.entrySet()) {
                 cloned.botAddresses.put(entry.getKey(), new ArrayList<>(entry.getValue()));
             }

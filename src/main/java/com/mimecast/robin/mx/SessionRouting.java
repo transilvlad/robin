@@ -22,6 +22,8 @@ public class SessionRouting {
      */
     private final Session session;
 
+    private final MXResolver mxResolver;
+
     /**
      * List of created sessions for each route.
      */
@@ -33,7 +35,12 @@ public class SessionRouting {
     private List<MXRoute> routes = new ArrayList<>();
 
     public SessionRouting(Session session) {
+        this(session, new MXResolver());
+    }
+
+    SessionRouting(Session session, MXResolver mxResolver) {
         this.session = session;
+        this.mxResolver = mxResolver;
     }
 
     /**
@@ -52,7 +59,7 @@ public class SessionRouting {
         }));
 
         // Resolve routes for domains.
-        routes = new MXResolver().resolveRoutes(domains);
+        routes = mxResolver.resolveRoutes(domains);
 
         // Create relay sessions for each unique resolved MX.
         for (MXRoute route : routes) {
@@ -83,8 +90,7 @@ public class SessionRouting {
                 // If we have recipients for this route, create a new envelope.
                 if (!routeRcpts.isEmpty()) {
                     MessageEnvelope routeEnvelope = envelope.clone();
-                    routeEnvelope.getRcpts().clear();
-                    routeEnvelope.getRcpts().addAll(routeRcpts);
+                    routeEnvelope.setRcpts(routeRcpts);
 
                     routeSession.addEnvelope(routeEnvelope);
                 }

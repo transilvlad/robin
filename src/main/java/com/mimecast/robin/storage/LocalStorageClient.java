@@ -26,7 +26,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -39,6 +41,9 @@ import java.util.concurrent.ExecutorService;
  */
 public class LocalStorageClient implements StorageClient {
     protected static final Logger log = LogManager.getLogger(LocalStorageClient.class);
+
+    private record BotDispatch(String address, String botName) {
+    }
 
     /**
      * Enablement.
@@ -339,80 +344,85 @@ public class LocalStorageClient implements StorageClient {
         // Get bot definitions for config lookup.
         List<BotConfig.BotDefinition> botDefinitions = Config.getServer().getBots().getBots();
 
-        // Process each bot address
+        Map<String, BotDispatch> dispatches = new LinkedHashMap<>();
         Map<String, List<String>> botAddresses = envelope.getBotAddresses();
         for (Map.Entry<String, List<String>> entry : botAddresses.entrySet()) {
             String address = entry.getKey();
-            List<String> botNames = entry.getValue();
+            for (String botName : entry.getValue()) {
+                dispatches.putIfAbsent(botName.toLowerCase(Locale.ROOT), new BotDispatch(address, botName));
+            }
+        }
 
-            for (String botName : botNames) {
-                Optional<BotProcessor> botOpt = Factories.getBot(botName);
-                if (botOpt.isPresent()) {
-                    BotProcessor bot = botOpt.get();
-                    
-                    // Find matching bot definition for this address.
-                    BotConfig.BotDefinition botDefinition = findBotDefinition(botDefinitions, address, botName);
-                    
-                    // Clone the session to avoid race conditions.
-                    // The bot processing happens asynchronously and the original connection/session
-                    // may be cleaned up or modified by the time the bot processes it.
-                    // We create a new connection with the cloned session for thread safety.
-                    // The clone acquires a reference to any RefCountedFileMessageSource, ensuring
-                    // the backing file is not deleted until all consumers are done.
-                    Session sessionClone = connection.getSession().clone();
-                    Connection connectionCopy = new Connection(sessionClone);
-                    
-                    // Submit bot processing to thread pool.
-                    // Each bot gets its own EmailParser created from the envelope's message stream.
-                    botExecutor.submit(() -> {
-                        InputStream input = null;
-                        try {
-                            // Create a fresh parser for this bot from the saved file.
-                            // The in-memory message source may be incomplete due to timing,
-                            // so we prefer the saved file which contains the complete message.
-                            MessageEnvelope botEnvelope = sessionClone.getEnvelopes().getLast();
-                            String savedFile = botEnvelope.getFile();
-                            
-                            if (savedFile != null && !savedFile.isEmpty()) {
-                                File file = new File(savedFile);
-                                if (file.exists() && file.canRead()) {
-                                    log.debug("Bot using saved file: {} ({} bytes)", savedFile, file.length());
-                                    input = new FileInputStream(file);
-                                }
+        // Process each bot type once per message.
+        for (BotDispatch dispatch : dispatches.values()) {
+            String address = dispatch.address();
+            String botName = dispatch.botName();
+            Optional<BotProcessor> botOpt = Factories.getBot(botName);
+            if (botOpt.isPresent()) {
+                BotProcessor bot = botOpt.get();
+
+                // Find matching bot definition for this address.
+                BotConfig.BotDefinition botDefinition = findBotDefinition(botDefinitions, address, botName);
+
+                // Clone the session to avoid race conditions.
+                // The bot processing happens asynchronously and the original connection/session
+                // may be cleaned up or modified by the time the bot processes it.
+                // We create a new connection with the cloned session for thread safety.
+                // The clone acquires a reference to any RefCountedFileMessageSource, ensuring
+                // the backing file is not deleted until all consumers are done.
+                Session sessionClone = connection.getSession().clone();
+                Connection connectionCopy = new Connection(sessionClone);
+
+                // Submit bot processing to thread pool.
+                // Each bot gets its own EmailParser created from the envelope's message stream.
+                botExecutor.submit(() -> {
+                    InputStream input = null;
+                    try {
+                        // Create a fresh parser for this bot from the saved file.
+                        // The in-memory message source may be incomplete due to timing,
+                        // so we prefer the saved file which contains the complete message.
+                        MessageEnvelope botEnvelope = sessionClone.getEnvelopes().getLast();
+                        String savedFile = botEnvelope.getFile();
+
+                        if (savedFile != null && !savedFile.isEmpty()) {
+                            File file = new File(savedFile);
+                            if (file.exists() && file.canRead()) {
+                                log.debug("Bot using saved file: {} ({} bytes)", savedFile, file.length());
+                                input = new FileInputStream(file);
                             }
-                            
-                            // Fall back to message source if file not available.
-                            if (input == null) {
-                                log.debug("Bot envelope file: {}, messageSource: {}", 
-                                        botEnvelope.getFile(), botEnvelope.getMessageSource());
-                                if (botEnvelope.getMessageSource() != null) {
-                                    log.debug("Bot messageSource size: {} bytes", botEnvelope.getMessageSource().size());
-                                }
-                                input = botEnvelope.openMessageStream();
-                            }
-                            
-                            // Create parser but don't parse yet - let the bot handle full parsing.
-                            EmailParser botParser = input != null ? new EmailParser(input) : null;
-                            bot.process(connectionCopy, botParser, address, botDefinition);
-                        } catch (Exception e) {
-                            log.error("Error processing bot {} for address {}: {}",
-                                    botName, address, e.getMessage(), e);
-                        } finally {
-                            // Close input stream if open.
-                            if (input != null) {
-                                try {
-                                    input.close();
-                                } catch (Exception ignored) {
-                                }
-                            }
-                            // Release the reference to message sources (decrements ref count).
-                            sessionClone.close();
                         }
-                    });
-                    log.info("Submitted bot {} for processing address: {}", botName, address);
-                } else {
-                    log.warn("Bot {} not found in factory for address: {}", botName, address);
-                }
+
+                        // Fall back to message source if file not available.
+                        if (input == null) {
+                            log.debug("Bot envelope file: {}, messageSource: {}",
+                                    botEnvelope.getFile(), botEnvelope.getMessageSource());
+                            if (botEnvelope.getMessageSource() != null) {
+                                log.debug("Bot messageSource size: {} bytes", botEnvelope.getMessageSource().size());
+                            }
+                            input = botEnvelope.openMessageStream();
+                        }
+
+                        // Create parser but don't parse yet - let the bot handle full parsing.
+                        EmailParser botParser = input != null ? new EmailParser(input) : null;
+                        bot.process(connectionCopy, botParser, address, botDefinition);
+                    } catch (Exception e) {
+                        log.error("Error processing bot {} for address {}: {}",
+                                botName, address, e.getMessage(), e);
+                    } finally {
+                        // Close input stream if open.
+                        if (input != null) {
+                            try {
+                                input.close();
+                            } catch (Exception ignored) {
+                            }
+                        }
+                        // Release the reference to message sources (decrements ref count).
+                        sessionClone.close();
+                    }
+                });
+                log.info("Submitted bot {} for processing address: {}", botName, address);
+            } else {
+                log.warn("Bot {} not found in factory for address: {}", botName, address);
             }
         }
     }
