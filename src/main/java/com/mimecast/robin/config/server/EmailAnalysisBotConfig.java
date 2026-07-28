@@ -25,7 +25,11 @@ public class EmailAnalysisBotConfig {
             "multi.surbl.org",
             "dbl.nordspam.com");
 
-    private static final List<Integer> DEFAULT_PORT_CHECK_PORTS = Arrays.asList(25, 465, 587, 993, 143);
+    private static final List<Integer> DEFAULT_PORT_CHECK_PORTS = List.of(25);
+
+    private static final List<String> DEFAULT_ROLE_ALIASES = Arrays.asList(
+            "postmaster",
+            "abuse");
 
     private final Map<String, Object> map;
 
@@ -85,6 +89,14 @@ public class EmailAnalysisBotConfig {
         return num("portCheckTimeoutSeconds", 10);
     }
 
+    public String getProbeEhloName() {
+        return str("probeEhloName", "robin-analysis.local");
+    }
+
+    public String getProbeMailFrom() {
+        return str("probeMailFrom", "");
+    }
+
     // ── rDNS / FCrDNS ────────────────────────────────────────────────────────
 
     public boolean isRdnsCheckEnabled() {
@@ -111,22 +123,22 @@ public class EmailAnalysisBotConfig {
         return bool("mxCheckEnabled", true);
     }
 
+    public boolean isRecipientProbeEnabled() {
+        return bool("recipientProbeEnabled", true);
+    }
+
+    public List<String> getRoleAliases() {
+        return stringList("roleAliases", DEFAULT_ROLE_ALIASES);
+    }
+
+    public int getRecipientProbeTimeoutSeconds() {
+        return num("recipientProbeTimeoutSeconds", 10);
+    }
+
     // ── MTA-STS ──────────────────────────────────────────────────────────────
 
     public boolean isMtaStsCheckEnabled() {
         return bool("mtaStsCheckEnabled", true);
-    }
-
-    /**
-     * Override domain for MTA-STS and DANE checks.
-     * When null, falls back to the first resolved MX hostname for the sender domain.
-     * Set this to the receiving domain (e.g. "mail.inboxment.com") to check your
-     * inbound infrastructure rather than the sender's sending subdomain.
-     */
-    public String getMtaStsTargetDomain() {
-        Object v = map.get("mtaStsTargetDomain");
-        if (v instanceof String && !((String) v).isEmpty()) return (String) v;
-        return null;
     }
 
     // ── DANE ─────────────────────────────────────────────────────────────────
@@ -135,16 +147,24 @@ public class EmailAnalysisBotConfig {
         return bool("daneCheckEnabled", true);
     }
 
+    // ── Domain age / registration age ───────────────────────────────────────
+
+    public boolean isDomainAgeCheckEnabled() {
+        return bool("domainAgeCheckEnabled", false);
+    }
+
+    public int getDomainAgeTimeoutSeconds() {
+        return num("domainAgeTimeoutSeconds", 5);
+    }
+
+    public int getNewDomainWarnDays() {
+        return num("newDomainWarnDays", 30);
+    }
+
     // ── Spam / Rspamd Analysis ───────────────────────────────────────────────
 
     public boolean isSpamAnalysisEnabled() {
         return bool("spamAnalysisEnabled", true);
-    }
-
-    // ── Pass / Fail Verdict Summary ──────────────────────────────────────────
-
-    public boolean isVerdictEnabled() {
-        return bool("verdictEnabled", true);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -158,6 +178,12 @@ public class EmailAnalysisBotConfig {
     private int num(String key, int def) {
         Object v = map.get(key);
         if (v instanceof Number) return ((Number) v).intValue();
+        return def;
+    }
+
+    private String str(String key, String def) {
+        Object v = map.get(key);
+        if (v instanceof String s && !s.isBlank()) return s;
         return def;
     }
 

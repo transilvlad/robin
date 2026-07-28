@@ -39,25 +39,28 @@
 
       // ── MX Records ───────────────────────────────────────────────────────
       mxCheckEnabled: true,
+      recipientProbeEnabled: false,
+      recipientProbeTimeoutSeconds: 2,
+      probeEhloName: "robin-analysis.local",
+      probeMailFrom: "",
+      roleAliases: ["postmaster", "abuse"],
 
       // ── Port / TLS ───────────────────────────────────────────────────────
       // Disabled: unit tests cannot reach external hosts.
       portCheckEnabled: false,
-      portCheckPorts: [25, 465, 587, 993, 143],
+      portCheckPorts: [25],
       portCheckTimeoutSeconds: 2,
 
       // ── MTA-STS ──────────────────────────────────────────────────────────
       mtaStsCheckEnabled: true,
-      mtaStsTargetDomain: null,
 
       // ── DANE ─────────────────────────────────────────────────────────────
       daneCheckEnabled: true,
 
       // ── Rspamd spam analysis ─────────────────────────────────────────────
-      spamAnalysisEnabled: true,
+      spamAnalysisEnabled: true
 
-      // ── Pass/Fail verdict summary ────────────────────────────────────────
-      verdictEnabled: true
+      // Report summary is always included in the text and HTML responses.
     },
 
     {

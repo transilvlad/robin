@@ -79,27 +79,41 @@
 
       // ── MX Records ───────────────────────────────────────────────────────
       mxCheckEnabled: true,
+      // Performs SMTP envelope probes against each MX without sending DATA.
+      // Checks the sender mailbox for the domain, plus RFC administrative aliases.
+      recipientProbeEnabled: true,
+      recipientProbeTimeoutSeconds: 10,
+      probeEhloName: "robin-analysis.local",
+      probeMailFrom: "",
+      roleAliases: [
+        "postmaster",
+        "abuse"
+      ],
 
       // ── Port / TLS ───────────────────────────────────────────────────────
       portCheckEnabled: true,
-      portCheckPorts: [25, 465, 587, 993, 143],
+      // Port 25 is the SMTP delivery port. Submission/access ports can be added
+      // here for site-specific audits, but are not general-purpose delivery checks.
+      portCheckPorts: [25],
       portCheckTimeoutSeconds: 10,
 
       // ── MTA-STS ──────────────────────────────────────────────────────────
       mtaStsCheckEnabled: true,
-      // Set to a specific receiving domain to check inbound TLS policy instead
-      // of the sender's subdomain (which typically has no MTA-STS).
-      // Example: "mail.inboxment.com"
-      mtaStsTargetDomain: null,
 
       // ── DANE ─────────────────────────────────────────────────────────────
       daneCheckEnabled: true,
 
-      // ── Rspamd spam analysis ─────────────────────────────────────────────
-      spamAnalysisEnabled: true,
+      // ── Optional reputation signal ───────────────────────────────────────
+      // Domain age is not an SMTP correctness requirement, so it is disabled by
+      // default. Enable only when external RDAP/registration lookups are desired.
+      domainAgeCheckEnabled: false,
+      domainAgeTimeoutSeconds: 5,
+      newDomainWarnDays: 30,
 
-      // ── Pass/Fail verdict summary ────────────────────────────────────────
-      verdictEnabled: true
+      // ── Rspamd spam analysis ─────────────────────────────────────────────
+      spamAnalysisEnabled: true
+
+      // Report summary is always included in the text and HTML responses.
     },
 
     // DMARC Report Bot - Extracts reports and calls endpoint with the data in JSON format

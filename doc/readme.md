@@ -24,6 +24,7 @@ New to Robin? Start here:
 **Server Administrators**:
 - [Server Configuration](user/server.md)
 - [Bot Configuration](features/bots.md)
+- [Email Analysis Bot Checks](features/email-analysis-checks.md)
 - [Bot Examples](features/bot-examples.md)
 
 **Test Engineers**:

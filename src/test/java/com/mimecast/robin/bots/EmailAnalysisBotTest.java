@@ -1,5 +1,7 @@
 package com.mimecast.robin.bots;
 
+import com.mimecast.robin.config.server.BotConfig;
+import com.mimecast.robin.config.server.EmailAnalysisBotConfig;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.smtp.MessageEnvelope;
@@ -10,6 +12,8 @@ import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -43,6 +47,43 @@ class EmailAnalysisBotTest {
     }
 
     @Test
+    void testDefaultConfigUsesDeliveryPortAndRoleAliases() {
+        EmailAnalysisBotConfig config = new EmailAnalysisBotConfig(null);
+
+        assertEquals(List.of(25), config.getPortCheckPorts());
+        assertTrue(config.isRecipientProbeEnabled());
+        assertTrue(config.getRoleAliases().contains("postmaster"));
+        assertTrue(config.getRoleAliases().contains("abuse"));
+    }
+
+    @Test
+    void testRspamdSpfNeutralRendersAsWarning() {
+        Session session = new Session();
+        session.setFriendAddr("192.0.2.10");
+        session.setFriendRdns("mail.example.com");
+        session.setEhlo("mail.example.com");
+
+        MessageEnvelope envelope = new MessageEnvelope();
+        envelope.setMail("sender@example.com");
+        envelope.addHeader("X-Parsed-From", "sender@example.com");
+        envelope.addScanResult(Map.of(
+                "scanner", "rspamd",
+                "symbols", Map.of("R_SPF_NEUTRAL", Map.of("description", "SPF neutral"))));
+        session.addEnvelope(envelope);
+
+        EmailAnalysisBot.AnalysisReport report = new EmailAnalysisBot().analyze(
+                new Connection(session), null, authOnlyConfig());
+
+        String text = EmailAnalysisBot.renderText(report);
+        String html = EmailAnalysisBot.renderHtml(report);
+
+        assertTrue(text.contains("[WARN] SPF authentication"));
+        assertTrue(text.contains("SPF returned neutral."));
+        assertTrue(html.contains("Robin Email Analysis Report"));
+        assertTrue(html.contains("class=\"pill WARN\""));
+    }
+
+    @Test
     void testBotProcessWithValidSession() {
         // Create a mock session with required data
         Session session = new Session();
@@ -73,7 +114,7 @@ class EmailAnalysisBotTest {
 
         // Process bot (should not throw)
         EmailAnalysisBot bot = new EmailAnalysisBot();
-        assertDoesNotThrow(() -> bot.process(connection, parser, "robotEmail@test.com", null));
+        assertDoesNotThrow(() -> bot.process(connection, parser, "robotEmail@test.com", noNetworkBotDefinition()));
     }
 
     @Test
@@ -91,7 +132,7 @@ class EmailAnalysisBotTest {
         EmailAnalysisBot bot = new EmailAnalysisBot();
 
         // Should handle null parser gracefully (bots run async after parser is closed).
-        assertDoesNotThrow(() -> bot.process(connection, null, "robotEmail@test.com", null));
+        assertDoesNotThrow(() -> bot.process(connection, null, "robotEmail@test.com", noNetworkBotDefinition()));
     }
 
     @Test
@@ -129,5 +170,35 @@ class EmailAnalysisBotTest {
         }
         assertTrue(hasSession, "Session bot should be registered");
         assertTrue(hasEmail, "Email bot should be registered");
+    }
+
+    private static EmailAnalysisBotConfig authOnlyConfig() {
+        return new EmailAnalysisBotConfig(Map.ofEntries(
+                Map.entry("rblCheckEnabled", false),
+                Map.entry("dblCheckEnabled", false),
+                Map.entry("rdnsCheckEnabled", false),
+                Map.entry("spfCheckEnabled", true),
+                Map.entry("dkimCheckEnabled", false),
+                Map.entry("dmarcCheckEnabled", false),
+                Map.entry("mxCheckEnabled", false),
+                Map.entry("portCheckEnabled", false),
+                Map.entry("mtaStsCheckEnabled", false),
+                Map.entry("daneCheckEnabled", false),
+                Map.entry("spamAnalysisEnabled", false)));
+    }
+
+    private static BotConfig.BotDefinition noNetworkBotDefinition() {
+        return new BotConfig.BotDefinition(Map.ofEntries(
+                Map.entry("rblCheckEnabled", false),
+                Map.entry("dblCheckEnabled", false),
+                Map.entry("rdnsCheckEnabled", false),
+                Map.entry("spfCheckEnabled", false),
+                Map.entry("dkimCheckEnabled", false),
+                Map.entry("dmarcCheckEnabled", false),
+                Map.entry("mxCheckEnabled", false),
+                Map.entry("portCheckEnabled", false),
+                Map.entry("mtaStsCheckEnabled", false),
+                Map.entry("daneCheckEnabled", false),
+                Map.entry("spamAnalysisEnabled", false)));
     }
 }

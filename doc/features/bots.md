@@ -200,59 +200,36 @@ echo "Test email" | mail -s "Session Analysis" \
 
 **Address Pattern**: Typically uses `robotEmail` or `emailcheck` as prefix
 
-**Description**: Performs comprehensive email security and infrastructure analysis similar to traditional email analysis tools. Checks all major email authentication and security protocols.
+**Description**: Performs message-centric email deliverability and security analysis. It reports on the SMTP session that delivered the message, the envelope/header domains in the message, Rspamd authentication results, and receiving MX infrastructure for those domains.
+
+For the complete standards mapping and check behavior, see [Email Analysis Bot Checks](email-analysis-checks.md).
 
 **Analysis Includes**:
 
-1. **DNSBL/RBL Check**
-   - Checks sender IP against multiple blacklist providers
-   - Default RBLs: Spamhaus ZEN, SpamCop, Barracuda, SORBS
-   - Reports listing status and response codes
+1. **Sending host identity**
+   - Shows connecting IP, EHLO/HELO, PTR, forward-confirmed reverse DNS, and EHLO/PTR alignment.
 
-2. **rDNS (Reverse DNS)**
-   - Looks up PTR record for sender IP
-   - Reports the rDNS hostname or "No rDNS" if missing
+2. **Reputation**
+   - Checks the connecting IP against configured DNSBLs.
+   - Checks message, DKIM, EHLO, and PTR domains against configured DBL/SURBL providers.
+   - Optionally checks domain age through RDAP.
 
-3. **FCrDNS (Forward Confirmed Reverse DNS)**
-   - Performs forward lookup of rDNS hostname
-   - Compares result with original sender IP
-   - Reports PASS/FAIL status
+3. **SPF, DKIM, and DMARC**
+   - Translates Rspamd SPF/DKIM/DMARC symbols into explicit pass/warn/fail/error statuses.
+   - Checks DKIM selector DNS and DMARC `_dmarc` DNS publication.
 
-4. **SPF (Sender Policy Framework)**
-   - Extracts SPF results from Rspamd analysis
-   - Reports SPF record and verification result
-   - Shows SPF score contribution
+4. **MX receiving infrastructure**
+   - Resolves MX records for message domains.
+   - Checks MX target correctness, A/AAAA resolution, and port 25 reachability.
+   - Probes the sender mailbox and configured administrative aliases with SMTP RCPT commands without sending DATA.
 
-5. **DKIM (DomainKeys Identified Mail)**
-   - Extracts DKIM results from Rspamd analysis
-   - Reports signature presence and verification status
-   - Shows which headers were signed
+5. **Transport security**
+   - Checks STARTTLS/certificate expiry on SMTP port 25.
+   - Checks MTA-STS, TLSRPT, and DANE/TLSA publication.
 
-6. **DMARC (Domain-based Message Authentication)**
-   - Extracts DMARC results from Rspamd analysis
-   - Reports DMARC policy and verification result
-   - Shows DKIM/SPF alignment status
-
-7. **MX Records**
-   - Lists all MX servers for sender domain
-   - Shows priority ordering
-   - Uses MXResolver with MTA-STS awareness
-
-8. **MTA-STS (Mail Transfer Agent Strict Transport Security)**
-   - Checks for MTA-STS policy
-   - Reports policy mode (enforce/testing/none)
-   - Lists allowed MX patterns and max age
-
-9. **DANE (DNS-Based Authentication of Named Entities)**
-   - Checks for TLSA records on MX hosts
-   - Reports DANE enablement status
-   - Shows certificate usage, selector, and matching type
-   - Displays certificate association data
-
-10. **Spam Analysis**
-    - Reports Rspamd spam score and status
-    - Lists triggered spam rules with scores
-    - Shows detailed symbol breakdown
+6. **Message and spam analysis**
+   - Reports Rspamd score and prominent symbols.
+   - Checks common RFC 5322 headers and List-Unsubscribe / one-click unsubscribe headers where relevant.
 
 **Reply-To Address Resolution**:
 
@@ -265,9 +242,6 @@ The Email Analysis Bot uses the same priority as Session Bot:
 2. **Reply-To header**: From the parsed email
 3. **From header**: From the parsed email
 4. **Envelope MAIL FROM**: From the SMTP envelope
-2. Reply-To header (extracted from envelope)
-3. From header (extracted from envelope)
-4. Envelope MAIL FROM
 
 **Example Usage**:
 
@@ -296,7 +270,7 @@ echo "Test email" | mail -s "Email Analysis" robotEmail+mytoken@example.com
 
 **Report Format**:
 
-The Email Analysis Bot generates a comprehensive plain text report with clearly sectioned results. Each security check is presented with its findings, making it easy to identify authentication failures, security issues, or infrastructure problems.
+The Email Analysis Bot generates a multipart report with both `text/plain` and `text/html` alternatives. Each check is grouped by category and includes a status, evidence, remediation where applicable, and standards references. The HTML variant uses colored status badges to make passes, warnings, failures, errors, and informational findings easy to scan.
 
 ## Architecture
 

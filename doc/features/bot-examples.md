@@ -9,7 +9,7 @@ Robin supports two types of automated analysis bots:
 1. **Session Bot** (`session`) - Analyzes the complete SMTP session
 2. **Email Analysis Bot** (`email`) - Performs comprehensive email security and infrastructure checks
 
-Both bots respond with **text/plain** content. The Session Bot additionally includes session data as JSON.
+The Session Bot responds with **text/plain** content and includes session data as JSON. The Email Analysis Bot responds with multipart `text/plain` and `text/html` alternatives.
 
 ## Bot Configuration
 
@@ -155,7 +155,7 @@ END OF SESSION ANALYSIS
 
 ### Response Format
 
-The Email Analysis Bot sends a **text/plain** email containing comprehensive security and infrastructure analysis.
+The Email Analysis Bot sends a multipart email containing comprehensive security and infrastructure analysis in both `text/plain` and `text/html` formats.
 
 ### Example Response Email
 

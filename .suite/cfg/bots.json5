@@ -84,25 +84,39 @@
 
       // ── MX Records ───────────────────────────────────────────────────────
       mxCheckEnabled: true,
+      // Disabled in suite: Docker containers should not probe external MX
+      // recipients during routine integration tests.
+      recipientProbeEnabled: false,
+      recipientProbeTimeoutSeconds: 5,
+      probeEhloName: "robin-analysis.local",
+      probeMailFrom: "",
+      roleAliases: [
+        "postmaster",
+        "abuse"
+      ],
 
       // ── Port / TLS ───────────────────────────────────────────────────────
       // Disabled in suite: Docker containers cannot reach external SMTP hosts.
       portCheckEnabled: false,
-      portCheckPorts: [25, 465, 587, 993, 143],
+      portCheckPorts: [25],
       portCheckTimeoutSeconds: 5,
 
       // ── MTA-STS ──────────────────────────────────────────────────────────
       mtaStsCheckEnabled: true,
-      mtaStsTargetDomain: null,
 
       // ── DANE ─────────────────────────────────────────────────────────────
       daneCheckEnabled: true,
 
-      // ── Rspamd spam analysis ─────────────────────────────────────────────
-      spamAnalysisEnabled: true,
+      // ── Optional reputation signal ───────────────────────────────────────
+      // Disabled in suite to avoid external RDAP lookups during routine tests.
+      domainAgeCheckEnabled: false,
+      domainAgeTimeoutSeconds: 5,
+      newDomainWarnDays: 30,
 
-      // ── Pass/Fail verdict summary ────────────────────────────────────────
-      verdictEnabled: true
+      // ── Rspamd spam analysis ─────────────────────────────────────────────
+      spamAnalysisEnabled: true
+
+      // Report summary is always included in the text and HTML responses.
     },
 
     // DMARC Report Bot - Extracts reports and calls endpoint with the data in JSON format
