@@ -16,6 +16,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -279,7 +280,8 @@ public class StrictTransportSecurity {
      */
     public List<DnsRecord> getMxRecords(String domain) {
         Optional<List<DnsRecord>> optional = dnsRecordClient.getMxRecords(domain);
-        List<DnsRecord> mxRecords = optional.orElseGet(ArrayList::new);
+        // Wrap in mutable ArrayList since the DNS client may return immutable lists
+        List<DnsRecord> mxRecords = new ArrayList<>(optional.orElse(Collections.emptyList()));
 
         Comparator<DnsRecord> compareByName = Comparator.comparing(DnsRecord::getValue);
         mxRecords.sort(compareByName);
