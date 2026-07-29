@@ -105,6 +105,16 @@ public class EmailAnalysisBot implements BotProcessor {
     AnalysisReport analyze(Connection connection, EmailParser emailParser, EmailAnalysisBotConfig cfg) {
         Session session = connection.getSession();
         MessageEnvelope envelope = currentEnvelope(session);
+
+        // Ensure email is parsed before creating context (parser may be unparsed from LocalStorageClient)
+        if (emailParser != null && emailParser.getHeaders().get().isEmpty()) {
+            try {
+                emailParser.parse();
+            } catch (Exception e) {
+                log.warn("Failed to parse email for analysis: {}", e.getMessage());
+            }
+        }
+
         MessageContext ctx = MessageContext.from(session, envelope, emailParser);
         AnalysisReport report = new AnalysisReport(session.getUID(), LocalDateTime.now(), ctx);
 
@@ -509,6 +519,12 @@ public class EmailAnalysisBot implements BotProcessor {
                     .build());
             return checks;
         }
+
+        // Check if this is implicit MX fallback (domain itself as MX, typically priority 0 or 10)
+        // Implicit fallback via CNAME is acceptable - RFC 2181 restriction is about explicit MX pointing to CNAME
+        boolean isImplicitFallback = mxRecords.size() == 1 &&
+                trimDot(mxRecords.getFirst().getValue()).equalsIgnoreCase(trimDot(domain));
+
         for (DnsRecord mx : mxRecords) {
             String hostValue = mx.getValue();
             if (hostValue == null || hostValue.isEmpty()) {
@@ -518,20 +534,31 @@ public class EmailAnalysisBot implements BotProcessor {
             boolean cname = hasRecord(host, Type.CNAME);
             Set<String> addresses = resolveHostAddresses(host);
             mxBuilder.evidence(mx.getPriority() + " " + host,
-                    (addresses.isEmpty() ? "no A/AAAA" : formatSet(addresses)) + (cname ? "; CNAME target" : ""));
+                    (addresses.isEmpty() ? "no A/AAAA" : formatSet(addresses)) +
+                    (cname ? (isImplicitFallback ? "; CNAME (implicit fallback)" : "; CNAME target") : ""));
             checks.add(checkMxPort(domain, host, cfg));
             if (cfg.isRecipientProbeEnabled()) {
                 checks.addAll(checkSenderAddresses(domain, host, ctx, cfg));
                 checks.addAll(checkRoleAddresses(domain, host, cfg));
             }
         }
+
+        // RFC 2181 §10.3: MX record target must not be a CNAME
+        // BUT: This only applies to explicit MX records, not implicit RFC 5321 fallback
+        // Implicit fallback uses A/AAAA for the domain itself - CNAME chains are acceptable there
         boolean anyBadTarget = mxRecords.stream()
                 .map(r -> trimDot(r.getValue() != null ? r.getValue() : ""))
                 .filter(host -> !host.isEmpty())
-                .anyMatch(host -> hasRecord(host, Type.CNAME) || resolveHostAddresses(host).isEmpty() || isIpLiteral(host));
+                .anyMatch(host -> {
+                    // CNAME is only a violation for explicit MX records, not implicit fallback
+                    boolean hasCname = hasRecord(host, Type.CNAME);
+                    boolean cnameViolation = hasCname && !isImplicitFallback;
+                    return cnameViolation || resolveHostAddresses(host).isEmpty() || isIpLiteral(host);
+                });
         checks.addFirst(mxBuilder.status(anyBadTarget ? Status.FAIL : Status.PASS)
                 .summary(anyBadTarget ? "At least one MX target is not RFC-correct." :
-                        "MX targets resolve to address records and are not CNAME aliases.")
+                        (isImplicitFallback ? "Domain uses RFC 5321 implicit MX fallback." :
+                                "MX targets resolve to address records and are not CNAME aliases."))
                 .remediation(anyBadTarget ? "Point MX records directly at hostnames that own A/AAAA records." : null)
                 .build());
         return checks;
@@ -589,6 +616,17 @@ public class EmailAnalysisBot implements BotProcessor {
 
     private List<CheckResult> checkRoleAddresses(String domain, String host, EmailAnalysisBotConfig cfg) {
         List<CheckResult> checks = new ArrayList<>();
+
+        // Skip role address checks for bounce/tracking subdomains - these are infrastructure domains
+        // that route through intermediary servers, not final destination domains.
+        // RFC 5321 postmaster requirement applies to domains that accept mail for final delivery.
+        String lowerDomain = domain.toLowerCase(Locale.ROOT);
+        if (lowerDomain.startsWith("bounce.") || lowerDomain.startsWith("track.") ||
+                lowerDomain.startsWith("click.") || lowerDomain.startsWith("link.") ||
+                lowerDomain.startsWith("return.") || lowerDomain.startsWith("reply.")) {
+            return checks; // Skip - bounce domains don't need postmaster
+        }
+
         for (String local : cfg.getRoleAliases()) {
             SmtpProbeResult probe = probeRecipient(host, cfg.getProbeMailFrom(), local + "@" + domain,
                     cfg.getProbeEhloName(), cfg.getRecipientProbeTimeoutSeconds());
