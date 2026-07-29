@@ -134,6 +134,7 @@ public class EmailAnalysisBot implements BotProcessor {
         }
         if (cfg.isSpfCheckEnabled()) {
             report.add(checkSpf(ctx));
+            report.add(checkSpfRecord(ctx));
         }
         if (cfg.isDkimCheckEnabled()) {
             report.add(checkDkim(ctx));
@@ -352,6 +353,49 @@ public class EmailAnalysisBot implements BotProcessor {
                     .build();
             default -> b.status(Status.INFO).summary("SPF returned " + symbol.name() + ".").build();
         };
+    }
+
+    private CheckResult checkSpfRecord(MessageContext ctx) {
+        String domain = ctx.envelopeDomain();
+        CheckResult.Builder b = CheckResult.builder(Category.DNS_PUBLISHING, "SPF DNS record")
+                .reference("RFC 7208")
+                .evidence("Envelope sender domain", nvl(domain, "N/A"));
+        if (isBlank(domain)) {
+            return b.status(Status.SKIPPED).summary("No envelope sender domain was available.").build();
+        }
+        List<String> txt = txtRecords(domain);
+        List<String> spf = txt.stream()
+                .filter(v -> v.toLowerCase(Locale.ROOT).startsWith("v=spf1"))
+                .toList();
+        b.evidence("SPF TXT", spf.isEmpty() ? "none" : String.join(" | ", spf));
+        if (spf.isEmpty()) {
+            return b.status(Status.WARN)
+                    .summary("No SPF record was found.")
+                    .remediation("Publish " + domain + " TXT with v=spf1 policy.")
+                    .build();
+        }
+        if (spf.size() > 1) {
+            return b.status(Status.FAIL)
+                    .summary("Multiple SPF records were found.")
+                    .remediation("Publish exactly one SPF TXT record; multiple records cause PermError.")
+                    .build();
+        }
+        String record = spf.getFirst();
+        if (record.contains("+all")) {
+            return b.status(Status.FAIL)
+                    .summary("SPF contains +all which authorizes any sender.")
+                    .remediation("Replace +all with ~all or -all.")
+                    .build();
+        }
+        if (record.contains("?all")) {
+            return b.status(Status.WARN)
+                    .summary("SPF uses ?all (neutral) which provides weak protection.")
+                    .remediation("Consider using ~all or -all for stronger protection.")
+                    .build();
+        }
+        return b.status(Status.PASS)
+                .summary("A single SPF record was found.")
+                .build();
     }
 
     private CheckResult checkDkim(MessageContext ctx) {
@@ -774,6 +818,10 @@ public class EmailAnalysisBot implements BotProcessor {
             if (isBlank(ctx.header(header))) missing.add(header);
         }
         b.evidence("Missing headers", missing.isEmpty() ? "none" : String.join(", ", missing));
+        String allHeaders = ctx.allHeaders();
+        if (!allHeaders.isEmpty()) {
+            b.evidence("All headers", "\n" + allHeaders);
+        }
         if (!missing.isEmpty()) {
             return b.status(Status.WARN)
                     .summary("Some common RFC 5322/deliverability headers are missing.")
@@ -1383,6 +1431,19 @@ public class EmailAnalysisBot implements BotProcessor {
                 if (!isBlank(sig.domain())) domains.add(trimDot(sig.domain().toLowerCase(Locale.ROOT)));
             }
             return domains;
+        }
+
+        /**
+         * Returns all message headers as a formatted string for display.
+         */
+        String allHeaders() {
+            if (parser == null) return "";
+            StringBuilder sb = new StringBuilder();
+            for (MimeHeader header : parser.getHeaders().get()) {
+                if (!sb.isEmpty()) sb.append("\n");
+                sb.append(header.getName()).append(": ").append(header.getValue());
+            }
+            return sb.toString();
         }
 
         Set<String> mailDomains() {
