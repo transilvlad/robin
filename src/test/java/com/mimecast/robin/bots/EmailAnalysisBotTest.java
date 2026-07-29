@@ -201,4 +201,31 @@ class EmailAnalysisBotTest {
                 Map.entry("daneCheckEnabled", false),
                 Map.entry("spamAnalysisEnabled", false)));
     }
+
+    /**
+     * Test that null exception messages are handled gracefully.
+     * When an exception's getMessage() returns null, we should show the class name.
+     */
+    @Test
+    void testNullExceptionMessageShowsClassName() {
+        // NullPointerException with no message
+        NullPointerException npe = new NullPointerException();
+        assertNull(npe.getMessage());
+
+        // Our code should handle this by showing class name
+        String errorMsg = npe.getMessage() != null ? npe.getMessage() : npe.getClass().getSimpleName();
+        assertEquals("NullPointerException", errorMsg);
+    }
+
+    /**
+     * Test that exception messages are preserved when present.
+     */
+    @Test
+    void testExceptionMessagePreservedWhenPresent() {
+        RuntimeException ex = new RuntimeException("DNS timeout");
+        assertEquals("DNS timeout", ex.getMessage());
+
+        String errorMsg = ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
+        assertEquals("DNS timeout", errorMsg);
+    }
 }

@@ -195,9 +195,10 @@ class LocalStorageClientTest {
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
         ExecutorService previousExecutor = setBotExecutor(executor);
+        Connection connection = null;
         LocalStorageClient localStorageClient = null;
         try {
-            Connection connection = new Connection(new Session());
+            connection = new Connection(new Session());
             MessageEnvelope envelope = new MessageEnvelope()
                     .addRcpt("counting+one@example.com")
                     .addRcpt("counting+two@example.com")
@@ -219,10 +220,13 @@ class LocalStorageClientTest {
             assertEquals(1, bot.invocations());
             assertEquals("counting+one@example.com", bot.botAddress());
         } finally {
-            executor.shutdownNow();
+            executor.shutdown();
+            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+            }
             setBotExecutor(previousExecutor);
-            if (localStorageClient != null) {
-                Files.deleteIfExists(Path.of(localStorageClient.getFile()));
+            if (connection != null) {
+                connection.getSession().close();
             }
         }
     }

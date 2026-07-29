@@ -124,6 +124,10 @@ public class MXResolver {
 
         for (DnsRecord mx : mxRecords) {
             String mxHostname = mx.getValue();
+            if (mxHostname == null || mxHostname.isEmpty()) {
+                log.warn("Skipping MX record with null/empty hostname for domain: {}", domain);
+                continue;
+            }
             List<DaneRecord> daneRecords = DaneChecker.checkDane(mxHostname);
             if (!daneRecords.isEmpty()) {
                 log.info("DANE TLSA records found for MX host: {} (domain: {})", mxHostname, domain);
@@ -138,6 +142,9 @@ public class MXResolver {
             List<SecureMxRecord> secureMxRecords = new ArrayList<>();
             for (DnsRecord mx : mxRecords) {
                 String mxHostname = mx.getValue();
+                if (mxHostname == null || mxHostname.isEmpty()) {
+                    continue;
+                }
                 SecurityPolicy policy;
 
                 if (daneRecordsByMx.containsKey(mxHostname)) {
@@ -168,6 +175,9 @@ public class MXResolver {
             List<SecureMxRecord> secureMxRecords = new ArrayList<>();
             for (DnsRecord mx : mxRecords) {
                 String mxHostname = mx.getValue();
+                if (mxHostname == null || mxHostname.isEmpty()) {
+                    continue;
+                }
                 if (stsPolicy.matchMx(mxHostname)) {
                     SecurityPolicy policy = SecurityPolicy.mtaSts(mxHostname, stsPolicy.getMode().toString());
                     secureMxRecords.add(new SecureMxRecord(mx, policy));
@@ -189,7 +199,11 @@ public class MXResolver {
         // Step 5: No DANE or MTA-STS, return with opportunistic policies.
         List<SecureMxRecord> secureMxRecords = new ArrayList<>();
         for (DnsRecord mx : mxRecords) {
-            SecurityPolicy policy = SecurityPolicy.opportunistic(mx.getValue());
+            String mxHostname = mx.getValue();
+            if (mxHostname == null || mxHostname.isEmpty()) {
+                continue;
+            }
+            SecurityPolicy policy = SecurityPolicy.opportunistic(mxHostname);
             secureMxRecords.add(new SecureMxRecord(mx, policy));
         }
         return secureMxRecords;
@@ -263,6 +277,10 @@ public class MXResolver {
         boolean daneAvailable = false;
         for (DnsRecord mx : mxRecords) {
             String mxHostname = mx.getValue();
+            if (mxHostname == null || mxHostname.isEmpty()) {
+                log.warn("Skipping MX record with null/empty hostname for domain: {}", domain);
+                continue;
+            }
             if (DaneChecker.isDaneEnabled(mxHostname)) {
                 log.info("DANE TLSA records found for MX host: {} (domain: {})", mxHostname, domain);
                 daneAvailable = true;

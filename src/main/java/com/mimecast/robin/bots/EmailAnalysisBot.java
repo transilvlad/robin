@@ -496,8 +496,9 @@ public class EmailAnalysisBot implements BotProcessor {
         try {
             mxRecords = new MXResolver().resolveMx(domain);
         } catch (Exception e) {
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
             checks.add(mxBuilder.status(Status.ERROR)
-                    .summary("MX lookup failed: " + e.getMessage())
+                    .summary("MX lookup failed: " + errorMsg)
                     .build());
             return checks;
         }
@@ -509,7 +510,11 @@ public class EmailAnalysisBot implements BotProcessor {
             return checks;
         }
         for (DnsRecord mx : mxRecords) {
-            String host = trimDot(mx.getValue());
+            String hostValue = mx.getValue();
+            if (hostValue == null || hostValue.isEmpty()) {
+                continue;
+            }
+            String host = trimDot(hostValue);
             boolean cname = hasRecord(host, Type.CNAME);
             Set<String> addresses = resolveHostAddresses(host);
             mxBuilder.evidence(mx.getPriority() + " " + host,
@@ -521,7 +526,8 @@ public class EmailAnalysisBot implements BotProcessor {
             }
         }
         boolean anyBadTarget = mxRecords.stream()
-                .map(r -> trimDot(r.getValue()))
+                .map(r -> trimDot(r.getValue() != null ? r.getValue() : ""))
+                .filter(host -> !host.isEmpty())
                 .anyMatch(host -> hasRecord(host, Type.CNAME) || resolveHostAddresses(host).isEmpty() || isIpLiteral(host));
         checks.addFirst(mxBuilder.status(anyBadTarget ? Status.FAIL : Status.PASS)
                 .summary(anyBadTarget ? "At least one MX target is not RFC-correct." :
@@ -674,11 +680,20 @@ public class EmailAnalysisBot implements BotProcessor {
                 .evidence("Domain", domain);
         try {
             List<DnsRecord> mxRecords = new MXResolver().resolveMx(domain);
+            if (mxRecords.isEmpty()) {
+                return b.status(Status.INFO)
+                        .summary("No MX records found for DANE check.")
+                        .build();
+            }
             boolean anyDane = false;
             for (DnsRecord mx : mxRecords) {
-                List<DaneRecord> tlsa = DaneChecker.checkDane(mx.getValue());
+                String mxHost = mx.getValue();
+                if (mxHost == null || mxHost.isEmpty()) {
+                    continue;
+                }
+                List<DaneRecord> tlsa = DaneChecker.checkDane(mxHost);
                 anyDane |= !tlsa.isEmpty();
-                b.evidence(trimDot(mx.getValue()), tlsa.isEmpty() ? "no TLSA" : tlsa.size() + " TLSA record(s)");
+                b.evidence(trimDot(mxHost), tlsa.isEmpty() ? "no TLSA" : tlsa.size() + " TLSA record(s)");
             }
             return b.status(anyDane ? Status.PASS : Status.INFO)
                     .summary(anyDane ? "At least one MX publishes TLSA records." :
@@ -686,7 +701,8 @@ public class EmailAnalysisBot implements BotProcessor {
                     .remediation(anyDane ? "Ensure DNSSEC validation is working; DANE depends on secure DNS." : null)
                     .build();
         } catch (Exception e) {
-            return b.status(Status.ERROR).summary("DANE check failed: " + e.getMessage()).build();
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            return b.status(Status.ERROR).summary("DANE check failed: " + errorMsg).build();
         }
     }
 
