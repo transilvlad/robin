@@ -77,6 +77,23 @@ public class ServerRcpt extends ServerMail {
             return true;
         }
 
+        // Check scenarios FIRST - allows custom responses before SQL validation.
+        // This enables test scenarios (tempfail/permfail addresses) to work with userLookup enabled.
+        Optional<ScenarioConfig> scenarioOpt = connection.getScenario();
+        if (scenarioOpt.isPresent() && scenarioOpt.get().getRcpt() != null) {
+            for (Map<String, String> entry : scenarioOpt.get().getRcpt()) {
+                if (getAddress() != null && getAddress().getAddress().matches(entry.get("value"))) {
+                    String response = entry.get("response");
+                    // Only add recipient if response is success and not blackholed.
+                    if (response.startsWith("2") && !connection.getSession().getEnvelopes().isEmpty() && !blackholedRecipient) {
+                        connection.getSession().getEnvelopes().getLast().addRcpt(getAddress().getAddress());
+                    }
+                    connection.write(response);
+                    return response.startsWith("2");
+                }
+            }
+        }
+
         // Check for proxy rule match first (only first matching rule proxies).
         Optional<ProxyRule> proxyRule = ProxyMatcher.findMatchingRule(
                 connection.getSession().getFriendAddr(),
@@ -137,23 +154,9 @@ public class ServerRcpt extends ServerMail {
                         return false;
                     }
                 }
-            } else if (Config.getServer().getUsers().isListEnabled()) {
-                // Scenario response.
-                Optional<ScenarioConfig> opt = connection.getScenario();
-                if (opt.isPresent() && opt.get().getRcpt() != null) {
-                    for (Map<String, String> entry : opt.get().getRcpt()) {
-                        if (getAddress() != null && getAddress().getAddress().matches(entry.get("value"))) {
-                            String response = entry.get("response");
-                            // Only add recipient if not blackholed.
-                            if (response.startsWith("2") && !connection.getSession().getEnvelopes().isEmpty() && !blackholedRecipient) {
-                                connection.getSession().getEnvelopes().getLast().addRcpt(getAddress().getAddress());
-                            }
-                            connection.write(response);
-                            return response.startsWith("2");
-                        }
-                    }
-                }
             }
+            // Note: Scenarios are checked early (before SQL validation) so no need for
+            // separate scenario handling here - they've already been processed above.
         }
 
         // Accept all, but only add recipient if not blackholed.

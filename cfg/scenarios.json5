@@ -2,6 +2,52 @@
   // Default scenario to use if no others match.
   "*": {
     rcpt: [
+      // Temporary failures (4xx) - sender should retry later.
+      // Use: RCPT TO:<tempfail@mirobinbot.com>
+      {
+        value: "tempfail@mirobinbot\\.com",
+        response: "450 4.2.1 Mailbox temporarily unavailable"
+      },
+      {
+        value: "tempfail-full@mirobinbot\\.com",
+        response: "452 4.2.2 Mailbox full, try again later"
+      },
+      {
+        value: "tempfail-busy@mirobinbot\\.com",
+        response: "451 4.7.1 Service temporarily busy"
+      },
+      {
+        value: "tempfail-grey@mirobinbot\\.com",
+        response: "450 4.7.1 Greylisted, please retry"
+      },
+
+      // Permanent failures (5xx) - sender should bounce.
+      // Use: RCPT TO:<permfail@mirobinbot.com>
+      {
+        value: "permfail@mirobinbot\\.com",
+        response: "550 5.1.1 User unknown"
+      },
+      {
+        value: "permfail-reject@mirobinbot\\.com",
+        response: "550 5.4.1 Recipient address rejected"
+      },
+      {
+        value: "permfail-quota@mirobinbot\\.com",
+        response: "552 5.2.2 Mailbox quota exceeded"
+      },
+      {
+        value: "permfail-policy@mirobinbot\\.com",
+        response: "553 5.7.1 Rejected by policy"
+      },
+      {
+        value: "permfail-relay@mirobinbot\\.com",
+        response: "550 5.7.1 Relaying denied"
+      },
+      {
+        value: "permfail-syntax@mirobinbot\\.com",
+        response: "553 5.1.3 Invalid address format"
+      },
+
       // Custom response for addresses matching value regex.
       {
         value: "friday\\-[0-9]+@example\\.com",
