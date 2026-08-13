@@ -104,6 +104,7 @@ public class AVStorageProcessor extends AbstractStorageProcessor {
 
             if ("reject".equalsIgnoreCase(onVirus)) {
                 connection.write(String.format(SmtpResponses.VIRUS_FOUND_550, connection.getSession().getUID()));
+                connection.markSmtpResponseSent();
                 return false;
             } else if ("discard".equalsIgnoreCase(onVirus)) {
                 log.warn("Virus found, discarding.");
@@ -160,6 +161,7 @@ public class AVStorageProcessor extends AbstractStorageProcessor {
 
             if ("reject".equalsIgnoreCase(onVirus)) {
                 connection.write(String.format(SmtpResponses.VIRUS_FOUND_550, connection.getSession().getUID()));
+                connection.markSmtpResponseSent();
                 return false;
             } else if ("discard".equalsIgnoreCase(onVirus)) {
                 log.warn("Virus found, discarding.");

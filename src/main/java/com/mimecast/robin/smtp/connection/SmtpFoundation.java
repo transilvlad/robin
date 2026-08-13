@@ -76,6 +76,14 @@ public abstract class SmtpFoundation {
     protected boolean logData = true;
 
     /**
+     * Set true by a storage processor that has already written its own terminal
+     * SMTP response (e.g. SpamStorageProcessor writing 541, AVStorageProcessor
+     * writing 550). ServerData reads this after storageClient.save() returns
+     * false and skips its fallback 451 to avoid emitting a duplicate reply.
+     */
+    private boolean smtpResponseSent = false;
+
+    /**
      * Constants.
      */
     private static final Charset UTF_8 = StandardCharsets.UTF_8;
@@ -90,6 +98,31 @@ public abstract class SmtpFoundation {
         if (socket != null) {
             socket.setSoTimeout(timeout);
         }
+    }
+
+    /**
+     * Marks that a storage processor has already written its own terminal SMTP
+     * response for the current envelope. ServerData checks this flag before
+     * emitting its fallback 451 on save() failure to avoid double replies.
+     */
+    public void markSmtpResponseSent() {
+        this.smtpResponseSent = true;
+    }
+
+    /**
+     * @return true if a terminal SMTP response has already been sent by a
+     *         storage processor since the flag was last reset.
+     */
+    public boolean isSmtpResponseSent() {
+        return smtpResponseSent;
+    }
+
+    /**
+     * Resets the smtpResponseSent flag. Called at the start of DATA/BDAT
+     * processing so the flag scope is one envelope at a time.
+     */
+    public void resetSmtpResponseSent() {
+        this.smtpResponseSent = false;
     }
 
     /**
