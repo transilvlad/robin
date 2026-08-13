@@ -26,7 +26,7 @@ class VaultClientTest {
     private static int getMockServerPort() {
         // The MockWebServer in VaultClientMockExtension will be started on a dynamic port
         // We'll use a ThreadLocal to pass the port from the extension
-        Integer port = VaultClientMockExtension.getMockServerPort();
+        Integer port = VaultClientMockExtension.getMockServerPort(VaultClientTest.class);
         return port != null ? port : 8200;
     }
 

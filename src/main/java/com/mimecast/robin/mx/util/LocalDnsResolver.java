@@ -8,10 +8,10 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 
 /**
@@ -22,6 +22,10 @@ import java.util.concurrent.Executor;
  * <p>Strings should not exceed 255 bytes.
  * <p>A strings should be valid IPv4 addresses.
  * <p>NS, MX and PTR strings should not be empty.
+ * <p>The database is static and shared by every test class in the JVM.
+ * As tests run concurrently (see junit-platform.properties) it must be
+ * thread safe, otherwise concurrent registrations corrupt it and records
+ * silently disappear.
  *
  * @author "Vlad Marian" (vmarian@mimecast.com)
  * @link <a href="http://mimecast.com">Mimecast</a>
@@ -32,17 +36,34 @@ public class LocalDnsResolver implements Resolver {
 
     /**
      * Static database.
+     * <p>Concurrent as test classes register records from parallel threads.
      */
-    private static final Map<String, Map<Integer, List<String>>> map = new HashMap<>();
+    private static final Map<String, Map<Integer, List<String>>> map = new ConcurrentHashMap<>();
 
     /**
      * Put entries in database.
      *
      * @param record Record string.
+     * @param type   Record type.
      * @param answer Answer list of strings.
      */
     public static void put(String record, int type, List<String> answer) {
-        map.computeIfAbsent(record, k -> new HashMap<>()).put(type, answer);
+        Map<Integer, List<String>> types = map.computeIfAbsent(record, k -> new ConcurrentHashMap<>());
+
+        if (answer == null) {
+            types.remove(type);
+        } else {
+            // Store an immutable snapshot so readers never observe a partially built list.
+            types.put(type, List.copyOf(answer));
+        }
+    }
+
+    /**
+     * Clears the database.
+     * <p>For testing.
+     */
+    public static void clear() {
+        map.clear();
     }
 
     /**

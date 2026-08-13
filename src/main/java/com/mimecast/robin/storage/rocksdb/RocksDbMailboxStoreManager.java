@@ -15,6 +15,8 @@ import java.util.function.Supplier;
 public final class RocksDbMailboxStoreManager {
     private static final Map<String, MailboxStore> STORES = new ConcurrentHashMap<>();
     private static volatile Supplier<MailboxStore> storeFactory;
+    private static volatile MailboxStore configuredStore;
+    private static volatile String configuredStorePath;
 
     private RocksDbMailboxStoreManager() {
         throw new IllegalStateException("Static class");
@@ -24,9 +26,10 @@ public final class RocksDbMailboxStoreManager {
         return storeFactory != null || getConfig().getBooleanProperty("enabled", false);
     }
 
-    public static synchronized MailboxStore getConfiguredStore() throws IOException {
-        if (storeFactory != null) {
-            return storeFactory.get();
+    public static MailboxStore getConfiguredStore() throws IOException {
+        Supplier<MailboxStore> factory = storeFactory;
+        if (factory != null) {
+            return factory.get();
         }
         BasicConfig config = getConfig();
         String path = config.getStringProperty("path", "");
@@ -34,21 +37,38 @@ public final class RocksDbMailboxStoreManager {
             throw new IOException("storage.rocksdb.path is required");
         }
         String normalizedPath = Path.of(path).toAbsolutePath().normalize().toString();
-        MailboxStore existing = STORES.get(normalizedPath);
-        if (existing != null) {
-            return existing;
+        MailboxStore cached = configuredStore;
+        if (storeFactory == null && cached != null && normalizedPath.equals(configuredStorePath)) {
+            return cached;
         }
-        MailboxStore created = new RocksDbMailboxStore(
-                normalizedPath,
-                config.getStringProperty("inboxFolder", "Inbox"),
-                config.getStringProperty("sentFolder", "Sent")
-        );
-        MailboxStore raced = STORES.putIfAbsent(normalizedPath, created);
-        if (raced != null) {
-            created.close();
-            return raced;
+        synchronized (RocksDbMailboxStoreManager.class) {
+            factory = storeFactory;
+            if (factory != null) {
+                return factory.get();
+            }
+            if (configuredStore != null && normalizedPath.equals(configuredStorePath)) {
+                return configuredStore;
+            }
+            MailboxStore existing = STORES.get(normalizedPath);
+            if (existing != null) {
+                configuredStore = existing;
+                configuredStorePath = normalizedPath;
+                return existing;
+            }
+            MailboxStore created = new RocksDbMailboxStore(
+                    normalizedPath,
+                    config.getStringProperty("inboxFolder", "Inbox"),
+                    config.getStringProperty("sentFolder", "Sent")
+            );
+            MailboxStore raced = STORES.putIfAbsent(normalizedPath, created);
+            MailboxStore resolved = raced != null ? raced : created;
+            if (raced != null) {
+                created.close();
+            }
+            configuredStore = resolved;
+            configuredStorePath = normalizedPath;
+            return resolved;
         }
-        return created;
     }
 
     public static synchronized void closeAll() throws IOException {
@@ -62,6 +82,8 @@ public final class RocksDbMailboxStoreManager {
         }
         STORES.clear();
         storeFactory = null;
+        configuredStore = null;
+        configuredStorePath = null;
         if (failure != null) {
             throw failure;
         }
@@ -75,6 +97,8 @@ public final class RocksDbMailboxStoreManager {
      */
     public static synchronized void setStoreFactory(Supplier<MailboxStore> factory) {
         storeFactory = factory;
+        configuredStore = null;
+        configuredStorePath = null;
     }
 
     private static BasicConfig getConfig() {
