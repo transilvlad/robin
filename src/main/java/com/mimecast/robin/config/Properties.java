@@ -4,7 +4,10 @@ import org.apache.commons.lang3.LocaleUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * General purpose configuration.
@@ -19,6 +22,7 @@ public class Properties extends ConfigFoundation {
      */
     public Properties() {
         super();
+        this.map = concurrent(this.map);
     }
 
     /**
@@ -29,6 +33,34 @@ public class Properties extends ConfigFoundation {
      */
     public Properties(String path) throws IOException {
         super(path);
+        this.map = concurrent(this.map);
+    }
+
+    /**
+     * Wraps the backing map in a concurrent map.
+     *
+     * <p>The global properties instance is shared process wide. It is mutated at runtime
+     * (ConfigLoader merges custom properties, properties auto reload replaces values)
+     * while other threads iterate it, for example Magic.putConfiguredMagic when a Session
+     * is constructed. Gson's LinkedTreeMap and HashMap are not thread safe and throw
+     * ConcurrentModificationException in that situation.
+     *
+     * <p>Null values are dropped as ConcurrentHashMap does not permit them. A null valued
+     * property is equivalent to an absent one for all callers of this class.
+     *
+     * @param source Source map, may be null.
+     * @return Thread safe map.
+     */
+    private static Map<String, Object> concurrent(Map<String, Object> source) {
+        Map<String, Object> target = new ConcurrentHashMap<>();
+        if (source != null) {
+            for (Map.Entry<String, Object> entry : new HashMap<>(source).entrySet()) {
+                if (entry.getKey() != null && entry.getValue() != null) {
+                    target.put(entry.getKey(), entry.getValue());
+                }
+            }
+        }
+        return target;
     }
 
     /**

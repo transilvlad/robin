@@ -2,12 +2,17 @@ package com.mimecast.robin.config.server;
 
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Foundation;
+import com.mimecast.robin.config.StalwartConfig;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import javax.naming.ConfigurationException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -98,5 +103,39 @@ class ServerConfigTest {
         assertFalse(serverConfig.getStalwart().isEnabled());
         assertNotNull(serverConfig.getStalwart().getMap());
         assertTrue(serverConfig.getStalwart().getMap().isEmpty());
+    }
+
+    @Test
+    void missingExternalConfigIsCachedUntilReloaded() throws Exception {
+        Path configDir = Files.createTempDirectory("server-config-missing-external-");
+        Files.writeString(configDir.resolve("server.json5"), "{ hostname: \"example.com\" }\n");
+
+        ServerConfig serverConfig = new ServerConfig(configDir.resolve("server.json5").toString());
+
+        StalwartConfig initial = serverConfig.getStalwart();
+        assertFalse(initial.isEnabled());
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            List<Callable<StalwartConfig>> tasks = List.of(
+                    serverConfig::getStalwart,
+                    serverConfig::getStalwart,
+                    serverConfig::getStalwart,
+                    serverConfig::getStalwart
+            );
+            for (var future : executor.invokeAll(tasks)) {
+                assertFalse(future.get().isEnabled());
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+
+        Files.writeString(configDir.resolve("stalwart.json5"), "{ enabled: true, baseUrl: \"http://127.0.0.1:8081\" }\n");
+
+        assertFalse(serverConfig.getStalwart().isEnabled());
+
+        ServerConfig reloaded = new ServerConfig(configDir.resolve("server.json5").toString());
+        assertTrue(reloaded.getStalwart().isEnabled());
+        assertEquals("http://127.0.0.1:8081", reloaded.getStalwart().getBaseUrl());
     }
 }

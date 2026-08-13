@@ -6,6 +6,13 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import javax.naming.ConfigurationException;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -43,5 +50,50 @@ class ConnectionTest {
         }}));
         assertTrue(connection.getScenario().isPresent());
         assertEquals("501 Not talking to you", connection.getScenario().get().getEhlo());
+    }
+
+    @Test
+    void buildStreams_usesDirectSocketOutputStream_withoutBufferedWrapper() throws Exception {
+        CapturingSocket socket = new CapturingSocket();
+        Connection connection = new Connection(new com.mimecast.robin.smtp.session.Session());
+        connection.socket = socket;
+
+        connection.buildStreams();
+        connection.out.write("250 OK\r\n".getBytes(StandardCharsets.UTF_8));
+
+        assertEquals(1, socket.output.writeCalls);
+        assertEquals("250 OK\r\n".getBytes(StandardCharsets.UTF_8).length, socket.output.byteCount);
+    }
+
+    private static final class CapturingSocket extends Socket {
+        private final TrackingOutputStream output = new TrackingOutputStream();
+        private final InetSocketAddress remote = new InetSocketAddress("127.0.0.1", 2525);
+
+        @Override
+        public InputStream getInputStream() {
+            return new ByteArrayInputStream(new byte[0]);
+        }
+
+        @Override
+        public OutputStream getOutputStream() {
+            return output;
+        }
+
+        @Override
+        public java.net.SocketAddress getRemoteSocketAddress() {
+            return remote;
+        }
+    }
+
+    private static final class TrackingOutputStream extends ByteArrayOutputStream {
+        private int writeCalls;
+        private int byteCount;
+
+        @Override
+        public synchronized void write(byte[] b, int off, int len) {
+            writeCalls++;
+            byteCount += len;
+            super.write(b, off, len);
+        }
     }
 }

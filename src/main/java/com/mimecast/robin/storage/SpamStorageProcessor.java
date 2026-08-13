@@ -88,6 +88,7 @@ public class SpamStorageProcessor extends AbstractStorageProcessor {
                         envelope.getFile(), score, rejectThreshold, rspamdClient.getSymbols());
                 SmtpMetrics.incrementEmailSpamRejection();
                 connection.write(String.format(SmtpResponses.SPAM_FOUND_550, connection.getSession().getUID()));
+                connection.markSmtpResponseSent();
                 return false;  // Reject
             } else {
                 log.info("Spam scan clean with score {}", score);

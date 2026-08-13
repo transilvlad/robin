@@ -7,6 +7,8 @@ import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
+import org.rocksdb.WriteBatch;
+import org.rocksdb.WriteOptions;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -23,6 +25,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.Set;
 
 /**
  * RocksDB-backed mailbox store for Robin webmail-style access patterns.
@@ -44,10 +49,13 @@ public class RocksDbMailboxStore implements MailboxStore {
     }
 
     private final Options options;
+    private final WriteOptions writeOptions;
     private final RocksDB db;
     private final String dbPath;
     private final String inboxFolder;
     private final String sentFolder;
+    private final ConcurrentMap<String, Object> mailboxInitLocks = new ConcurrentHashMap<>();
+    private final Set<String> initializedMailboxes = ConcurrentHashMap.newKeySet();
 
     public RocksDbMailboxStore(String dbPath, String inboxFolder, String sentFolder) throws IOException {
         try {
@@ -60,6 +68,7 @@ public class RocksDbMailboxStore implements MailboxStore {
                     .setCompressionType(org.rocksdb.CompressionType.LZ4_COMPRESSION)
                     .setParanoidChecks(true);
             this.db = RocksDB.open(this.options, this.dbPath);
+            this.writeOptions = new WriteOptions();
         } catch (RocksDBException e) {
             throw new IOException("Unable to open RocksDB mailbox store: " + dbPath, e);
         }
@@ -170,15 +179,15 @@ public class RocksDbMailboxStore implements MailboxStore {
         }
     }
 
-    public synchronized MessageSummary storeInbound(String recipient, byte[] content, String sourceFile, Map<String, String> headers) throws IOException {
+    public MessageSummary storeInbound(String recipient, byte[] content, String sourceFile, Map<String, String> headers) throws IOException {
         MailboxOwner owner = ownerFromAddress(recipient);
-        ensureDefaultFolders(owner);
+        ensureDefaultFoldersInitialized(owner);
         return toMessageSummary(putMessage(owner, inboxFolder, false, content, sourceFile, headers));
     }
 
-    public synchronized MessageSummary storeOutbound(String sender, byte[] content, String sourceFile, Map<String, String> headers) throws IOException {
+    public MessageSummary storeOutbound(String sender, byte[] content, String sourceFile, Map<String, String> headers) throws IOException {
         MailboxOwner owner = ownerFromAddress(sender);
-        ensureDefaultFolders(owner);
+        ensureDefaultFoldersInitialized(owner);
         return toMessageSummary(putMessage(owner, sentFolder, true, content, sourceFile, headers));
     }
 
@@ -270,6 +279,8 @@ public class RocksDbMailboxStore implements MailboxStore {
                 db.delete(iterator.key());
                 iterator.next();
             }
+            initializedMailboxes.clear();
+            mailboxInitLocks.clear();
         } catch (RocksDBException e) {
             throw new IOException("Unable to clear RocksDB mailbox store", e);
         }
@@ -278,6 +289,7 @@ public class RocksDbMailboxStore implements MailboxStore {
     @Override
     public synchronized void close() throws IOException {
         try {
+            writeOptions.close();
             db.close();
             options.close();
         } catch (Exception e) {
@@ -318,7 +330,9 @@ public class RocksDbMailboxStore implements MailboxStore {
     }
 
     private MessageRecord putMessage(MailboxOwner owner, String folder, boolean read, byte[] content, String sourceFile, Map<String, String> headers) throws IOException {
-        ensureFolder(owner, folder, isSystemFolder(folder));
+        if (!(isSystemFolder(folder) && initializedMailboxes.contains(owner.key()))) {
+            ensureFolder(owner, folder, isSystemFolder(folder));
+        }
         long now = System.currentTimeMillis();
         String id = "msg-" + now + "-" + UUID.randomUUID() + ".eml";
         MessageRecord record = new MessageRecord();
@@ -340,51 +354,55 @@ public class RocksDbMailboxStore implements MailboxStore {
     }
 
     private void writeMessage(MessageRecord record, byte[] content) throws IOException {
-        try {
-            db.put(bytes(messageKey(record.id)), bytes(GSON.toJson(record)));
-            db.put(bytes(blobKey(record.id)), content);
-            putIndex(record);
+        try (WriteBatch batch = new WriteBatch()) {
+            writeMessage(batch, record, content);
+            db.write(writeOptions, batch);
         } catch (RocksDBException e) {
             throw new IOException("Unable to write message " + record.id, e);
         }
     }
 
     private void updateMessage(MessageRecord record, String folder, boolean read) throws IOException {
-        removeIndex(record);
-        record.folder = folder;
-        record.read = read;
-        record.updatedAt = System.currentTimeMillis();
-        writeMessage(record, getBlob(record.id));
+        byte[] blob = getBlob(record.id);
+        try (WriteBatch batch = new WriteBatch()) {
+            removeIndex(batch, record);
+            record.folder = folder;
+            record.read = read;
+            record.updatedAt = System.currentTimeMillis();
+            writeMessage(batch, record, blob);
+            db.write(writeOptions, batch);
+        } catch (RocksDBException e) {
+            throw new IOException("Unable to update message " + record.id, e);
+        }
     }
 
     private void deleteMessage(MessageRecord record) throws IOException {
-        try {
-            removeIndex(record);
-            db.delete(bytes(messageKey(record.id)));
-            db.delete(bytes(blobKey(record.id)));
+        try (WriteBatch batch = new WriteBatch()) {
+            removeIndex(batch, record);
+            batch.delete(bytes(messageKey(record.id)));
+            batch.delete(bytes(blobKey(record.id)));
+            db.write(writeOptions, batch);
         } catch (RocksDBException e) {
             throw new IOException("Unable to delete message " + record.id, e);
         }
     }
 
-    private void putIndex(MessageRecord record) throws IOException {
-        try {
-            db.put(bytes(userIndexKey(record)), new byte[0]);
-            db.put(bytes(folderIndexKey(record)), new byte[0]);
-            db.put(bytes(stateIndexKey(record)), new byte[0]);
-        } catch (RocksDBException e) {
-            throw new IOException("Unable to index message " + record.id, e);
-        }
+    private void writeMessage(WriteBatch batch, MessageRecord record, byte[] content) throws RocksDBException {
+        batch.put(bytes(messageKey(record.id)), bytes(GSON.toJson(record)));
+        batch.put(bytes(blobKey(record.id)), content);
+        putIndex(batch, record);
     }
 
-    private void removeIndex(MessageRecord record) throws IOException {
-        try {
-            db.delete(bytes(userIndexKey(record)));
-            db.delete(bytes(folderIndexKey(record)));
-            db.delete(bytes(stateIndexKey(record)));
-        } catch (RocksDBException e) {
-            throw new IOException("Unable to remove index for message " + record.id, e);
-        }
+    private void putIndex(WriteBatch batch, MessageRecord record) throws RocksDBException {
+        batch.put(bytes(userIndexKey(record)), new byte[0]);
+        batch.put(bytes(folderIndexKey(record)), new byte[0]);
+        batch.put(bytes(stateIndexKey(record)), new byte[0]);
+    }
+
+    private void removeIndex(WriteBatch batch, MessageRecord record) throws RocksDBException {
+        batch.delete(bytes(userIndexKey(record)));
+        batch.delete(bytes(folderIndexKey(record)));
+        batch.delete(bytes(stateIndexKey(record)));
     }
 
     private FolderProperties buildFolderProperties(MailboxOwner owner, String folder, List<MessageRecord> messages) {
@@ -513,6 +531,20 @@ public class RocksDbMailboxStore implements MailboxStore {
     private void ensureDefaultFolders(MailboxOwner owner) throws IOException {
         ensureFolder(owner, inboxFolder, true);
         ensureFolder(owner, sentFolder, true);
+    }
+
+    private void ensureDefaultFoldersInitialized(MailboxOwner owner) throws IOException {
+        if (initializedMailboxes.contains(owner.key())) {
+            return;
+        }
+        Object lock = mailboxInitLocks.computeIfAbsent(owner.key(), ignored -> new Object());
+        synchronized (lock) {
+            if (initializedMailboxes.contains(owner.key())) {
+                return;
+            }
+            ensureDefaultFolders(owner);
+            initializedMailboxes.add(owner.key());
+        }
     }
 
     private void ensureFolder(MailboxOwner owner, String folder, boolean system) throws IOException {

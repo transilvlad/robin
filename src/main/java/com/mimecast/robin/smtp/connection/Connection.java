@@ -19,7 +19,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 
 import javax.net.ssl.SSLSocket;
-import java.io.BufferedOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -161,7 +160,7 @@ public class Connection extends SmtpFoundation {
     public void buildStreams() throws IOException {
         ThreadContext.put("bCode", socket.getRemoteSocketAddress().toString());
         inc = new LineInputStream(socket.getInputStream(), SOCKET_PUSHBACK_BUFFER_SIZE);
-        out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream(), 16384));
+        out = new DataOutputStream(socket.getOutputStream());
     }
 
     /**

@@ -50,18 +50,18 @@ public class VaultClientMockExtension implements BeforeAllCallback, AfterAllCall
     }
 
     /**
-     * Get the dynamically allocated port for the mock server.
-     * This should be called from test methods to get the port for the current test class.
+     * Get the dynamically allocated port of the mock server belonging to the given test class.
      *
+     * <p>Must be keyed by test class. Test classes run concurrently, so more than one class
+     * using this extension has a server registered at the same time. Returning an arbitrary
+     * entry hands out another class's port, and once that class finishes its server is shut
+     * down, so the connection is refused.
+     *
+     * @param testClass Test class the mock server was started for.
      * @return The port number, or 8200 if not available.
      */
-    public static Integer getMockServerPort() {
-        // Find the port for any test class (there should only be one running at a time per thread)
-        // In case of parallel execution, we return the first available port
-        if (!ports.isEmpty()) {
-            return ports.values().iterator().next();
-        }
-        return 8200;
+    public static Integer getMockServerPort(Class<?> testClass) {
+        return ports.getOrDefault(testClass, 8200);
     }
 
     /**

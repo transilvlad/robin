@@ -13,6 +13,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Server configuration.
@@ -35,6 +36,16 @@ public class ServerConfig extends ConfigFoundation {
      * Mapping of configuration keys to their filenames for lazy loading.
      */
     private static final Map<String, String> CONFIG_FILENAMES = new HashMap<>();
+
+    /**
+     * Keys that have already been resolved from external files, including missing files.
+     */
+    private final Set<String> resolvedExternalConfigs = ConcurrentHashMap.newKeySet();
+
+    /**
+     * Serializes the first resolution attempt for each external config key.
+     */
+    private final Object externalConfigLoadLock = new Object();
 
     static {
         CONFIG_FILENAMES.put("webhooks", "webhooks.json5");
@@ -656,17 +667,26 @@ public class ServerConfig extends ConfigFoundation {
      * @param clazz Class to parse the JSON into (e.g., Map.class, List.class).
      */
     private void loadExternalIfAbsent(String key, Class<?> clazz) {
-        if (!map.containsKey(key) && configDir != null && CONFIG_FILENAMES.containsKey(key)) {
+        if (map.containsKey(key) || resolvedExternalConfigs.contains(key) || configDir == null || !CONFIG_FILENAMES.containsKey(key)) {
+            return;
+        }
+
+        synchronized (externalConfigLoadLock) {
+            if (map.containsKey(key) || resolvedExternalConfigs.contains(key)) {
+                return;
+            }
             String filename = CONFIG_FILENAMES.get(key);
             String path = configDir + File.separator + filename;
-            if (PathUtils.isFile(path)) {
-                try {
+            try {
+                if (PathUtils.isFile(path)) {
                     String content = Magic.streamMagicReplace(PathUtils.readFile(path, Charset.defaultCharset()));
                     Object parsed = new Gson().fromJson(content, clazz);
                     map.put(key, parsed);
-                } catch (IOException e) {
-                    log.error("Failed to load " + key + " from " + path, e);
                 }
+            } catch (IOException e) {
+                log.error("Failed to load " + key + " from " + path, e);
+            } finally {
+                resolvedExternalConfigs.add(key);
             }
         }
     }

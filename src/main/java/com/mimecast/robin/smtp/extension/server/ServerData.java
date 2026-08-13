@@ -269,6 +269,7 @@ public class ServerData extends ServerProcessor {
      */
     protected boolean asciiRead(String extension) throws IOException, LimitExceededException {
         connection.write(SmtpResponses.READY_WILLING_354);
+        connection.resetSmtpResponseSent();
 
         StorageClient storageClient = Factories.getStorageClient(connection, extension);
         ListenerConfig config = getListenerConfig();
@@ -305,7 +306,13 @@ public class ServerData extends ServerProcessor {
         }
 
         if (!storageClient.save()) {
-            connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+            // A storage processor may have already written a specific rejection
+            // response (e.g. SpamStorageProcessor's 541, AVStorageProcessor's
+            // 550). Only emit the fallback 451 when no processor did — otherwise
+            // the client sees two consecutive replies for the same command.
+            if (!connection.isSmtpResponseSent()) {
+                connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+            }
             return false;
         }
 
@@ -379,8 +386,11 @@ public class ServerData extends ServerProcessor {
 
                 if (bdatVerb.isLast()) {
                     log.debug("Last chunk received.");
+                    connection.resetSmtpResponseSent();
                     if (!storageClient.save()) {
-                        connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+                        if (!connection.isSmtpResponseSent()) {
+                            connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+                        }
                         return false;
                     }
                 }
