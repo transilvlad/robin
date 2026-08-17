@@ -7,6 +7,7 @@ import com.mimecast.robin.mx.SessionRouting;
 import com.mimecast.robin.queue.PersistentQueue;
 import com.mimecast.robin.queue.QueueFiles;
 import com.mimecast.robin.queue.RelaySession;
+import com.mimecast.robin.signing.DkimSigningHelper;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.session.EmailDirection;
 import com.mimecast.robin.smtp.session.Session;
@@ -166,6 +167,12 @@ public class BotHelper {
         var originalFile = Path.of(envelope.getFile());
         QueueFiles.persistEnvelopeFiles(relaySession);
         Files.deleteIfExists(originalFile);
+
+        // Apply DKIM signatures for outbound emails before enqueueing. Bot responses
+        // are built in-process rather than accepted over SMTP, so they never hit the
+        // signing hook in RelayMessage.deliver(); do it here to keep the two outbound
+        // code paths symmetric.
+        DkimSigningHelper.applyDkimSignaturesIfEnabled(relaySession);
 
         // Queue for delivery.
         PersistentQueue.getInstance().enqueue(relaySession);
