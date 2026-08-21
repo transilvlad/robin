@@ -179,13 +179,20 @@ public class RocksDbMailboxStore implements MailboxStore {
         }
     }
 
-    public MessageSummary storeInbound(String recipient, byte[] content, String sourceFile, Map<String, String> headers) throws IOException {
+    // Synchronized like every other mutator below: concurrent native RocksDB put() calls from
+    // multiple threads (e.g. parallel inbound delivery, or JUnit's parallel test execution hammering
+    // this path) have been observed to crash the JVM with SIGSEGV inside librocksdbjni's JNI glue
+    // (Java_org_rocksdb_RocksDB_put), with the exact fault address varying between crashes — a
+    // signature of native memory corruption rather than a deterministic bug. Serializing writes
+    // through this single shared instance (see RocksDbMailboxStoreManager) trades write concurrency
+    // for stability until the underlying native thread-safety issue is root-caused upstream.
+    public synchronized MessageSummary storeInbound(String recipient, byte[] content, String sourceFile, Map<String, String> headers) throws IOException {
         MailboxOwner owner = ownerFromAddress(recipient);
         ensureDefaultFoldersInitialized(owner);
         return toMessageSummary(putMessage(owner, inboxFolder, false, content, sourceFile, headers));
     }
 
-    public MessageSummary storeOutbound(String sender, byte[] content, String sourceFile, Map<String, String> headers) throws IOException {
+    public synchronized MessageSummary storeOutbound(String sender, byte[] content, String sourceFile, Map<String, String> headers) throws IOException {
         MailboxOwner owner = ownerFromAddress(sender);
         ensureDefaultFoldersInitialized(owner);
         return toMessageSummary(putMessage(owner, sentFolder, true, content, sourceFile, headers));
