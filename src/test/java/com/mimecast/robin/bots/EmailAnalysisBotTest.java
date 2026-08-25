@@ -4,11 +4,14 @@ import com.mimecast.robin.config.server.BotConfig;
 import com.mimecast.robin.config.server.EmailAnalysisBotConfig;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.mime.EmailParser;
+import com.mimecast.robin.mx.util.LocalDnsResolver;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.io.LineInputStream;
 import com.mimecast.robin.smtp.session.Session;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.xbill.DNS.Lookup;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
@@ -21,6 +24,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * Unit tests for EmailAnalysisBot.
  */
 class EmailAnalysisBotTest {
+
+    @BeforeAll
+    static void beforeAll() {
+        Lookup.setDefaultResolver(new LocalDnsResolver());
+    }
 
     @Test
     void testEmailBotIsRegistered() {
@@ -172,6 +180,100 @@ class EmailAnalysisBotTest {
         assertTrue(hasEmail, "Email bot should be registered");
     }
 
+    @Test
+    void testDblChecksPtrAndApexBeforeSendingDomains() {
+        Session session = new Session();
+        session.setFriendAddr("203.0.113.50");
+        session.setFriendRdns("mail.ptr-sender.com.");
+        session.setEhlo("helo-sender.com");
+
+        MessageEnvelope envelope = new MessageEnvelope();
+        envelope.setMail("sender@bounce-sender.com");
+        session.addEnvelope(envelope);
+
+        EmailParser parser = parserFor("From: Sender <sender@from-sender.com>\r\n" +
+                "DKIM-Signature: v=1; a=rsa-sha256; d=dkim-sender.com; s=s1;\r\n" +
+                "\r\n" +
+                "Body\r\n");
+
+        EmailAnalysisBot.AnalysisReport report = new EmailAnalysisBot().analyze(
+                new Connection(session), parser, reputationOnlyConfig(true));
+
+        List<String> names = report.byCategory(EmailAnalysisBot.Category.REPUTATION).stream()
+                .map(EmailAnalysisBot.CheckResult::name)
+                .toList();
+
+        assertEquals(List.of(
+                "Sender IP DNSBL",
+                "PTR reputation: mail.ptr-sender.com",
+                "PTR reputation: ptr-sender.com",
+                "Domain reputation: bounce-sender.com",
+                "Domain reputation: from-sender.com",
+                "Domain reputation: dkim-sender.com",
+                "Domain reputation: helo-sender.com"), names);
+    }
+
+    @Test
+    void testDblDoesNotDuplicatePtrApexWhenPtrIsApex() {
+        Session session = new Session();
+        session.setFriendAddr("203.0.113.51");
+        session.setFriendRdns("ptr-sender.com");
+
+        MessageEnvelope envelope = new MessageEnvelope();
+        session.addEnvelope(envelope);
+
+        EmailAnalysisBot.AnalysisReport report = new EmailAnalysisBot().analyze(
+                new Connection(session), null, reputationOnlyConfig(false));
+
+        List<String> names = report.byCategory(EmailAnalysisBot.Category.REPUTATION).stream()
+                .map(EmailAnalysisBot.CheckResult::name)
+                .toList();
+
+        assertEquals(List.of("PTR reputation: ptr-sender.com"), names);
+    }
+
+    @Test
+    void testDblDoesNotRepeatPtrApexAsSendingDomain() {
+        Session session = new Session();
+        session.setFriendAddr("203.0.113.53");
+        session.setFriendRdns("mail.shared-sender.com");
+
+        MessageEnvelope envelope = new MessageEnvelope();
+        envelope.setMail("sender@shared-sender.com");
+        session.addEnvelope(envelope);
+
+        EmailAnalysisBot.AnalysisReport report = new EmailAnalysisBot().analyze(
+                new Connection(session), null, reputationOnlyConfig(false));
+
+        List<String> names = report.byCategory(EmailAnalysisBot.Category.REPUTATION).stream()
+                .map(EmailAnalysisBot.CheckResult::name)
+                .toList();
+
+        assertEquals(List.of(
+                "PTR reputation: mail.shared-sender.com",
+                "PTR reputation: shared-sender.com"), names);
+    }
+
+    @Test
+    void testDblSkipsInvalidPtrButKeepsSendingDomains() {
+        Session session = new Session();
+        session.setFriendAddr("203.0.113.52");
+        session.setFriendRdns("localhost");
+
+        MessageEnvelope envelope = new MessageEnvelope();
+        envelope.setMail("sender@only-sending.com");
+        session.addEnvelope(envelope);
+
+        EmailAnalysisBot.AnalysisReport report = new EmailAnalysisBot().analyze(
+                new Connection(session), null, reputationOnlyConfig(false));
+
+        List<String> names = report.byCategory(EmailAnalysisBot.Category.REPUTATION).stream()
+                .map(EmailAnalysisBot.CheckResult::name)
+                .toList();
+
+        assertEquals(List.of("Domain reputation: only-sending.com"), names);
+    }
+
     private static EmailAnalysisBotConfig authOnlyConfig() {
         return new EmailAnalysisBotConfig(Map.ofEntries(
                 Map.entry("rblCheckEnabled", false),
@@ -185,6 +287,31 @@ class EmailAnalysisBotTest {
                 Map.entry("mtaStsCheckEnabled", false),
                 Map.entry("daneCheckEnabled", false),
                 Map.entry("spamAnalysisEnabled", false)));
+    }
+
+    private static EmailAnalysisBotConfig reputationOnlyConfig(boolean includeRbl) {
+        return new EmailAnalysisBotConfig(Map.ofEntries(
+                Map.entry("rblCheckEnabled", includeRbl),
+                Map.entry("rblProviders", List.of("test-rbl.robin-email-analysis.example")),
+                Map.entry("rblTimeoutSeconds", 1),
+                Map.entry("dblCheckEnabled", true),
+                Map.entry("dblProviders", List.of("test-dbl.robin-email-analysis.example")),
+                Map.entry("dblTimeoutSeconds", 1),
+                Map.entry("rdnsCheckEnabled", false),
+                Map.entry("spfCheckEnabled", false),
+                Map.entry("dkimCheckEnabled", false),
+                Map.entry("dmarcCheckEnabled", false),
+                Map.entry("mxCheckEnabled", false),
+                Map.entry("portCheckEnabled", false),
+                Map.entry("mtaStsCheckEnabled", false),
+                Map.entry("daneCheckEnabled", false),
+                Map.entry("spamAnalysisEnabled", false)));
+    }
+
+    private static EmailParser parserFor(String message) {
+        return new EmailParser(
+                new LineInputStream(new ByteArrayInputStream(message.getBytes(StandardCharsets.UTF_8)))
+        );
     }
 
     private static BotConfig.BotDefinition noNetworkBotDefinition() {

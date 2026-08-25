@@ -51,10 +51,12 @@ The EHLO/PTR result is visible in both plain text and HTML. A mismatch is report
 The bot checks:
 
 - Connecting IP against configured DNSBL/RBL providers.
-- Message, DKIM, EHLO, and PTR domains against configured DBL/SURBL-style providers.
+- PTR hostname and, when it is a subdomain, its apex domain against configured DBL/SURBL-style providers.
+- Message, DKIM, and EHLO domains against configured DBL/SURBL-style providers.
 - Optional domain age over RDAP when `domainAgeCheckEnabled` is true.
 
 DNSBL and DBL lists are fully configurable through bot configuration. Defaults are examples only and should be reviewed for the deployment's policy and query entitlement.
+PTR DBL results are reported immediately after the connecting IP DNSBL result, followed by the sending-domain DBL results.
 
 Domain age is deliberately disabled by default. Very new domains can be useful reputation context, but domain age is not an RFC-defined deliverability correctness rule.
 

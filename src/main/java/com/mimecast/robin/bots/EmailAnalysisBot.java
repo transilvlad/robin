@@ -1,5 +1,6 @@
 package com.mimecast.robin.bots;
 
+import com.google.common.net.InternetDomainName;
 import com.google.gson.Gson;
 import com.mimecast.robin.config.server.BotConfig;
 import com.mimecast.robin.config.server.EmailAnalysisBotConfig;
@@ -262,22 +263,16 @@ public class EmailAnalysisBot implements BotProcessor {
 
     private List<CheckResult> checkDbl(MessageContext ctx, EmailAnalysisBotConfig cfg) {
         List<CheckResult> checks = new ArrayList<>();
-        for (String domain : ctx.reputationDomains()) {
-            CheckResult.Builder b = CheckResult.builder(Category.REPUTATION, "Domain reputation: " + domain)
-                    .reference("DBL/SURBL operational reputation check")
-                    .evidence("Domain", domain);
-            List<DblResult> results = DblChecker.checkDomainAgainstDbls(domain, cfg.getDblProviders(),
-                    cfg.getDblTimeoutSeconds());
-            boolean listed = results.stream().anyMatch(DblResult::isListed);
-            for (DblResult result : results) {
-                b.evidence(result.getDblProvider(),
-                        result.isListed() ? "LISTED " + result.getResponseRecords() : "clear");
+        Set<String> checkedDomains = new LinkedHashSet<>();
+        for (String domain : ctx.ptrReputationDomains()) {
+            if (checkedDomains.add(domain)) {
+                checks.add(checkDblDomain("PTR reputation: " + domain, domain, cfg));
             }
-            checks.add(b.status(listed ? Status.FAIL : Status.PASS)
-                    .summary(listed ? "Domain is listed by at least one configured DBL." :
-                            "Domain was not listed by configured DBLs.")
-                    .remediation(listed ? "Review the listed domain reputation result and remove abusive content or URLs." : null)
-                    .build());
+        }
+        for (String domain : ctx.sendingReputationDomains()) {
+            if (checkedDomains.add(domain)) {
+                checks.add(checkDblDomain("Domain reputation: " + domain, domain, cfg));
+            }
         }
         if (checks.isEmpty()) {
             checks.add(CheckResult.builder(Category.REPUTATION, "Domain reputation")
@@ -286,6 +281,24 @@ public class EmailAnalysisBot implements BotProcessor {
                     .build());
         }
         return checks;
+    }
+
+    private CheckResult checkDblDomain(String checkName, String domain, EmailAnalysisBotConfig cfg) {
+        CheckResult.Builder b = CheckResult.builder(Category.REPUTATION, checkName)
+                .reference("DBL/SURBL operational reputation check")
+                .evidence("Domain", domain);
+        List<DblResult> results = DblChecker.checkDomainAgainstDbls(domain, cfg.getDblProviders(),
+                cfg.getDblTimeoutSeconds());
+        boolean listed = results.stream().anyMatch(DblResult::isListed);
+        for (DblResult result : results) {
+            b.evidence(result.getDblProvider(),
+                    result.isListed() ? "LISTED " + result.getResponseRecords() : "clear");
+        }
+        return b.status(listed ? Status.FAIL : Status.PASS)
+                .summary(listed ? "Domain is listed by at least one configured DBL." :
+                        "Domain was not listed by configured DBLs.")
+                .remediation(listed ? "Review the listed domain reputation result and remove abusive content or URLs." : null)
+                .build();
     }
 
     private CheckResult checkDomainAge(String domain, EmailAnalysisBotConfig cfg) {
@@ -1210,6 +1223,19 @@ public class EmailAnalysisBot implements BotProcessor {
         return trimmed.endsWith(".") ? trimmed.substring(0, trimmed.length() - 1) : trimmed;
     }
 
+    private static Optional<String> apexDomain(String domain) {
+        if (isBlank(domain)) return Optional.empty();
+        try {
+            InternetDomainName name = InternetDomainName.from(IDN.toASCII(trimDot(domain).toLowerCase(Locale.ROOT)));
+            if (!name.hasPublicSuffix() || name.isTopPrivateDomain()) {
+                return Optional.empty();
+            }
+            return Optional.of(name.topPrivateDomain().toString());
+        } catch (IllegalArgumentException e) {
+            return Optional.empty();
+        }
+    }
+
     private static String formatSet(Set<String> values) {
         return values == null || values.isEmpty() ? "none" : String.join(", ", values);
     }
@@ -1453,11 +1479,20 @@ public class EmailAnalysisBot implements BotProcessor {
             return domains;
         }
 
-        Set<String> reputationDomains() {
+        Set<String> ptrReputationDomains() {
+            Set<String> domains = new LinkedHashSet<>();
+            if (!isBlank(rdns) && isValidSmtpDomain(trimDot(rdns))) {
+                String ptrDomain = trimDot(rdns).toLowerCase(Locale.ROOT);
+                domains.add(ptrDomain);
+                apexDomain(ptrDomain).ifPresent(domains::add);
+            }
+            return domains;
+        }
+
+        Set<String> sendingReputationDomains() {
             Set<String> domains = new LinkedHashSet<>(mailDomains());
             domains.addAll(dkimDomains());
             if (!isBlank(ehlo) && !ehlo.startsWith("[") && isValidSmtpDomain(trimDot(ehlo))) domains.add(trimDot(ehlo).toLowerCase(Locale.ROOT));
-            if (!isBlank(rdns) && isValidSmtpDomain(trimDot(rdns))) domains.add(trimDot(rdns).toLowerCase(Locale.ROOT));
             return domains;
         }
     }

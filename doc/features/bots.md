@@ -211,7 +211,8 @@ For the complete standards mapping and check behavior, see [Email Analysis Bot C
 
 2. **Reputation**
    - Checks the connecting IP against configured DNSBLs.
-   - Checks message, DKIM, EHLO, and PTR domains against configured DBL/SURBL providers.
+   - Checks the PTR hostname and its apex domain against configured DBL/SURBL providers immediately after the IP DNSBL result.
+   - Checks message, DKIM, and EHLO domains against configured DBL/SURBL providers after the PTR checks.
    - Optionally checks domain age through RDAP.
 
 3. **SPF, DKIM, and DMARC**
