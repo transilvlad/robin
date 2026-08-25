@@ -107,12 +107,30 @@ public class RelayQueueService {
 
         nextHousekeepingEpochSeconds = Instant.now().getEpochSecond() + START_DELAY_SECONDS;
         scheduler.scheduleAtFixedRate(housekeepingTask, START_DELAY_SECONDS, HOUSEKEEPING_INTERVAL_SECONDS, TimeUnit.SECONDS);
-        dispatcherExecutor.submit(() -> {
-            sleepQuietly(TimeUnit.SECONDS.toMillis(START_DELAY_SECONDS));
-            dispatchLoop();
-        });
+        dispatcherExecutor.submit(RelayQueueService::runDispatchLoop);
 
         Runtime.getRuntime().addShutdownHook(new Thread(RelayQueueService::shutdown));
+    }
+
+    private static void runDispatchLoop() {
+        sleepQuietly(TimeUnit.SECONDS.toMillis(START_DELAY_SECONDS));
+        if (!running) {
+            log.warn("RelayQueueService dispatcher: running=false after startup sleep, aborting");
+            return;
+        }
+        // Clear any interrupt set during the startup sleep so the dispatch loop
+        // can actually run. Log it to surface the underlying cause if it happens.
+        if (Thread.interrupted()) {
+            log.warn("RelayQueueService dispatcher: interrupt flag was set after startup sleep; clearing to allow dispatch loop to proceed");
+        }
+        dispatchLoop();
+        // If we exited the dispatch loop while still supposed to be running,
+        // re-schedule so delivery continues without a full Robin restart.
+        ExecutorService executor = dispatcherExecutor;
+        if (running && executor != null && !executor.isShutdown()) {
+            log.warn("RelayQueueService dispatcher: dispatch loop exited unexpectedly while running=true; re-scheduling");
+            executor.submit(RelayQueueService::runDispatchLoop);
+        }
     }
 
     private static void dispatchLoop() {
@@ -178,7 +196,7 @@ public class RelayQueueService {
                 currentDispatchIdleMillis = idleBackoffMillis;
                 sleepQuietly(idleBackoffMillis);
                 idleBackoffMillis = Math.min(DISPATCH_IDLE_MAX_MILLIS, Math.max(DISPATCH_IDLE_MIN_MILLIS, idleBackoffMillis * 2));
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 log.error("RelayQueueService dispatcher error: {}", e.getMessage(), e);
                 sleepQuietly(currentDispatchIdleMillis);
             }
