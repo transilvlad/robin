@@ -67,10 +67,12 @@ public class TlsrptBot implements BotProcessor {
             // Parse the full email to extract attachments.
             emailParser.parse();
 
-            // Find TLSRPT report attachment.
+            // Find TLSRPT report attachment. This bot is invoked for every abuse+ address
+            // alongside DMARC/forensic bots, so a missing TLSRPT payload is common and
+            // expected — log at debug rather than warn to avoid noise.
             String jsonContent = extractTlsrptReport(emailParser);
             if (jsonContent == null) {
-                log.warn("No TLSRPT report attachment found in email");
+                log.debug("No TLSRPT report attachment found in email (likely DMARC or other report)");
                 return;
             }
 
@@ -112,26 +114,38 @@ public class TlsrptBot implements BotProcessor {
             log.debug("Processing attachment with content-type: {} filename: {}", contentType, filename);
 
             try {
-                // Check by content-type first
-                if (contentType.contains("application/tlsrpt+gzip") ||
-                        contentType.contains("application/gzip") ||
-                        contentType.contains("application/x-gzip")) {
+                // Specific TLSRPT content types — trust them.
+                if (contentType.contains("application/tlsrpt+gzip")) {
                     return extractFromGzip(part);
-                } else if (contentType.contains("application/tlsrpt+json") ||
-                        contentType.contains("application/json")) {
-                    byte[] content = getPartContent(part);
-                    return new String(content);
+                }
+                if (contentType.contains("application/tlsrpt+json")) {
+                    return new String(getPartContent(part));
                 }
 
-                // For octet-stream, check filename extension
-                if (contentType.contains("application/octet-stream") && filename != null) {
+                // Generic gzip/json/octet-stream may also carry DMARC (XML) reports since
+                // this bot is invoked for every abuse+ address alongside the DMARC bot.
+                // Extract, then sniff the payload and skip if it isn't JSON.
+                String candidate = null;
+                if (contentType.contains("application/gzip") ||
+                        contentType.contains("application/x-gzip")) {
+                    candidate = extractFromGzip(part);
+                } else if (contentType.contains("application/json")) {
+                    candidate = new String(getPartContent(part));
+                } else if (contentType.contains("application/octet-stream") && filename != null) {
                     String lowerFilename = filename.toLowerCase();
                     if (lowerFilename.endsWith(".gz") || lowerFilename.endsWith(".gzip")) {
-                        return extractFromGzip(part);
+                        candidate = extractFromGzip(part);
                     } else if (lowerFilename.endsWith(".json")) {
-                        byte[] content = getPartContent(part);
-                        return new String(content);
+                        candidate = new String(getPartContent(part));
                     }
+                }
+
+                if (candidate != null) {
+                    if (looksLikeJson(candidate)) {
+                        return candidate;
+                    }
+                    log.debug("Skipping non-JSON attachment (content-type: {} filename: {}) — likely DMARC or other report",
+                            contentType, filename);
                 }
             } catch (IOException e) {
                 log.warn("Failed to extract content from attachment: {}", e.getMessage());
@@ -139,6 +153,21 @@ public class TlsrptBot implements BotProcessor {
         }
 
         return null;
+    }
+
+    /**
+     * Lightweight sniff: JSON objects and arrays start with '{' or '[' after whitespace.
+     * XML (DMARC) starts with '&lt;', which lets us cheaply reject non-JSON payloads
+     * before handing them to Gson.
+     */
+    private static boolean looksLikeJson(String content) {
+        if (content == null) return false;
+        for (int i = 0; i < content.length(); i++) {
+            char c = content.charAt(i);
+            if (Character.isWhitespace(c)) continue;
+            return c == '{' || c == '[';
+        }
+        return false;
     }
 
     /**
