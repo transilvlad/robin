@@ -223,7 +223,10 @@ public class RelayDequeue {
         List<RelaySession> bounces = new ArrayList<>();
         for (String recipient : recipients) {
             try {
-                bounces.add(createBounceSession(relaySession, recipient));
+                RelaySession bounceSession = createBounceSession(relaySession, recipient);
+                if (bounceSession != null) {
+                    bounces.add(bounceSession);
+                }
             } catch (Exception e) {
                 log.error("Failed to generate bounce for recipient {}: {}",
                         recipient, e.getMessage());
@@ -243,7 +246,10 @@ public class RelayDequeue {
                 .setRcpt(recipient)
                 .setBytes(bounce.getStream().toByteArray());
         bounceSession.getSession().addEnvelope(envelope);
-        QueueFiles.persistEnvelopeFiles(bounceSession);
+        if (!QueueFiles.persistEnvelopeFiles(bounceSession)) {
+            log.error("Failed to persist bounce envelope files before enqueue: uid={}", bounceSession.getSession().getUID());
+            return null;
+        }
         return bounceSession;
     }
 

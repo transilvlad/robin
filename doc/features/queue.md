@@ -11,10 +11,16 @@ MapDB is a lightweight, file-based embedded database. It is the default backend 
 **Configuration:**
 ```json5
 {
+  diskSafety: {
+    enabled: true,
+    minUsableBytes: 1073741824
+  },
   queueMapDB: {
     enabled: true,
     queueFile: "/usr/local/robin/relayQueue.db",
-    concurrencyScale: 32
+    concurrencyScale: 32,
+    validateOnStartup: true,
+    maxValidationEntries: 100
   }
 }
 ```
@@ -126,6 +132,15 @@ All backends share these common queue configuration options in `queue.json5`:
 | `queueInterval` | Integer | 30 | Interval between queue processing cycles (seconds) |
 | `maxDequeuePerTick` | Integer | 10 | Maximum messages to process per cycle |
 
+### Disk Safety
+
+Robin checks available disk space before MapDB startup, during queue housekeeping, and before accepting message data into durable storage. When usable space is below the configured threshold, SMTP DATA receives a temporary `451` so senders retry instead of Robin accepting mail it cannot safely persist.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `diskSafety.enabled` | Boolean | `true` | Enable disk-space checks for message storage and MapDB queue paths |
+| `diskSafety.minUsableBytes` | Integer | `1073741824` | Minimum usable bytes required before accepting durable writes |
+
 ### Retry Configuration
 
 Retry backoff configuration controls how the wait time between relay attempts grows. Uses geometric progression backoff.
@@ -154,6 +169,8 @@ Retry backoff configuration controls how the wait time between relay attempts gr
 | `queueMapDB.enabled` | Boolean | `true` | Enable MapDB backend |
 | `queueMapDB.queueFile` | String | `/usr/local/robin/relayQueue.db` | File path for MapDB backend |
 | `queueMapDB.concurrencyScale` | Integer | 32 | MapDB-specific concurrency configuration |
+| `queueMapDB.validateOnStartup` | Boolean | `true` | Validate queue indexes on startup and abort clearly if the file is corrupt |
+| `queueMapDB.maxValidationEntries` | Integer | 100 | Maximum entries per MapDB index to sample during startup validation |
 
 ### Redis Options
 | Option | Type | Default | Description |

@@ -165,7 +165,9 @@ public class BotHelper {
 
         // Persist envelope files to queue folder and delete original.
         var originalFile = Path.of(envelope.getFile());
-        QueueFiles.persistEnvelopeFiles(relaySession);
+        if (!QueueFiles.persistEnvelopeFiles(relaySession)) {
+            throw new IOException("Failed to persist bot response envelope files before enqueue");
+        }
         Files.deleteIfExists(originalFile);
 
         // Apply DKIM signatures for outbound emails before enqueueing. Bot responses

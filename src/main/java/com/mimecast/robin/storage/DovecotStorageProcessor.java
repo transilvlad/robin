@@ -149,7 +149,7 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
     }
 
     private void enqueueLmtpDelivery(Connection connection, MessageEnvelope envelope,
-                                     List<String> recipients, ServerConfig config) {
+                                     List<String> recipients, ServerConfig config) throws IOException {
         RelaySession relaySession = new RelaySession(Factories.getSession())
                 .setProtocol("lmtp");
 
@@ -168,7 +168,9 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
         queuedEnvelope.setMessageSource(envelope.getMessageSource());
 
         relaySession.getSession().addEnvelope(queuedEnvelope);
-        QueueFiles.persistEnvelopeFiles(relaySession);
+        if (!QueueFiles.persistEnvelopeFiles(relaySession)) {
+            throw new IOException("Failed to persist LMTP delivery envelope files before enqueue");
+        }
         PersistentQueue.getInstance().enqueue(relaySession);
 
         log.info("Queued LMTP delivery for sender={} recipients={} uid={}",
@@ -178,7 +180,7 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
     }
 
     private void enqueueLdaDelivery(Connection connection, MessageEnvelope envelope,
-                                    List<String> recipients, String folder) {
+                                    List<String> recipients, String folder) throws IOException {
         RelaySession relaySession = new RelaySession(Factories.getSession())
                 .setProtocol("dovecot-lda")
                 .setMailbox(folder);
@@ -192,7 +194,9 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
         queuedEnvelope.setMessageSource(envelope.getMessageSource());
 
         relaySession.getSession().addEnvelope(queuedEnvelope);
-        QueueFiles.persistEnvelopeFiles(relaySession);
+        if (!QueueFiles.persistEnvelopeFiles(relaySession)) {
+            throw new IOException("Failed to persist Dovecot LDA delivery envelope files before enqueue");
+        }
         PersistentQueue.getInstance().enqueue(relaySession);
 
         log.info("Queued Dovecot LDA delivery for sender={} recipients={} folder={} uid={}",
@@ -344,7 +348,7 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
      * @param config     Server configuration.
      * @param mailbox    The email address of the rejected mailbox.
      */
-    protected void processFailure(Connection connection, ServerConfig config, String mailbox) {
+    protected void processFailure(Connection connection, ServerConfig config, String mailbox) throws IOException {
         String sender = connection.getSession().getEnvelopes().getLast().getMail();
 
         // Build the session.
@@ -392,7 +396,9 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
             }
 
             // Persist any envelope files (no-op for bytes-only envelopes) before enqueue.
-            QueueFiles.persistEnvelopeFiles(relaySession);
+            if (!QueueFiles.persistEnvelopeFiles(relaySession)) {
+                throw new IOException("Failed to persist Dovecot retry envelope files before enqueue");
+            }
         }
 
         log.debug("Enqueuing for action={}", dovecotConfig.getFailureBehaviour());

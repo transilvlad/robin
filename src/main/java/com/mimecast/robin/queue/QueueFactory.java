@@ -54,8 +54,16 @@ public class QueueFactory {
             if (mapDBConfig.getBooleanProperty("enabled", true)) {
                 String queueFile = mapDBConfig.getStringProperty("queueFile", "/usr/local/robin/relayQueue.db");
                 int concurrencyScale = Math.toIntExact(mapDBConfig.getLongProperty("concurrencyScale", 32L));
+                boolean validateOnStartup = mapDBConfig.getBooleanProperty("validateOnStartup", true);
+                int maxValidationEntries = Math.toIntExact(mapDBConfig.getLongProperty("maxValidationEntries", 100L));
+                try {
+                    QueueDiskSpaceGuard.requireWritableQueueSpace(java.nio.file.Path.of(queueFile));
+                } catch (java.io.IOException e) {
+                    throw new IllegalStateException("MapDB queue startup aborted: " + e.getMessage(), e);
+                }
                 log.info("Using MapDB queue backend with config file: {}", queueFile);
-                database = new MapDBQueueDatabase<>(new java.io.File(queueFile), concurrencyScale);
+                database = new MapDBQueueDatabase<>(new java.io.File(queueFile), concurrencyScale,
+                        validateOnStartup, maxValidationEntries);
                 database.initialize();
                 return database;
             }
@@ -101,4 +109,3 @@ public class QueueFactory {
         return database;
     }
 }
-

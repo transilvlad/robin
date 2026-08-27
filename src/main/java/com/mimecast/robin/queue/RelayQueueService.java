@@ -96,6 +96,7 @@ public class RelayQueueService {
                 lastHousekeepingEpochSeconds = now;
                 nextHousekeepingEpochSeconds = now + HOUSEKEEPING_INTERVAL_SECONDS;
 
+                QueueDiskSpaceGuard.requireWritableStorageAndQueueSpace();
                 int released = queue.releaseExpiredClaims(now);
                 if (released > 0) {
                     log.info("Released {} expired queue claims", released);
@@ -255,6 +256,10 @@ public class RelayQueueService {
         int cleanupCount = pendingCleanupPaths.size();
         long startedAt = System.nanoTime();
         try {
+            if (queue == null) {
+                log.warn("RelayQueueService mutation flush skipped because queue is closed");
+                return false;
+            }
             if (!batch.isEmpty()) {
                 queue.applyMutations(batch);
                 lastMutationBatchSize = batch.mutations().size();

@@ -19,6 +19,12 @@
     growthFactor: 1.2
   },
 
+  // Disk-space guard for durable message and queue writes.
+  diskSafety: {
+    enabled: true,
+    minUsableBytes: 1073741824
+  },
+
   // MapDB backend configuration.
   // MapDB is enabled by default for file-based queue persistence.
   queueMapDB: {
@@ -28,7 +34,11 @@
     queueFile: "/usr/local/robin/relayQueue.db",
 
     // Concurrency scale for MapDB (defaults to 32 if not specified).
-    concurrencyScale: 32
+    concurrencyScale: 32,
+
+    // Validate queue indexes on startup and fail clearly on corruption.
+    validateOnStartup: true,
+    maxValidationEntries: 100
   },
 
   // Redis backend configuration.

@@ -5,6 +5,7 @@ import com.mimecast.robin.config.server.ScenarioConfig;
 import com.mimecast.robin.config.server.WebhookConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
+import com.mimecast.robin.queue.QueueDiskSpaceGuard;
 import com.mimecast.robin.smtp.ProxyEmailDelivery;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
@@ -268,6 +269,9 @@ public class ServerData extends ServerProcessor {
      * @throws LimitExceededException Limit exceeded.
      */
     protected boolean asciiRead(String extension) throws IOException, LimitExceededException {
+        if (!ensureDurableStorageAvailable()) {
+            return false;
+        }
         connection.write(SmtpResponses.READY_WILLING_354);
         connection.resetSmtpResponseSent();
 
@@ -301,6 +305,12 @@ public class ServerData extends ServerProcessor {
                 connection.readMultiline(cos, emailSizeLimit);
                 bytesReceived = cos.getByteCount();
             }
+        } catch (IOException e) {
+            log.error("Failed receiving SMTP DATA into durable storage: {}", e.getMessage());
+            if (!connection.isSmtpResponseSent()) {
+                connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+            }
+            return false;
         } finally {
             connection.setTimeout(connection.getSession().getTimeout());
         }
@@ -378,11 +388,20 @@ public class ServerData extends ServerProcessor {
                 }
             } else {
                 // Read bytes.
+                if (!ensureDurableStorageAvailable()) {
+                    return false;
+                }
                 StorageClient storageClient = Factories.getStorageClient(connection, "eml");
-                CountingOutputStream cos = new CountingOutputStream(storageClient.getStream());
-
-                binaryRead(bdatVerb, cos);
-                bytesReceived = cos.getByteCount();
+                try (CountingOutputStream cos = new CountingOutputStream(storageClient.getStream())) {
+                    binaryRead(bdatVerb, cos);
+                    bytesReceived = cos.getByteCount();
+                } catch (IOException e) {
+                    log.error("Failed receiving SMTP BDAT into durable storage: {}", e.getMessage());
+                    if (!connection.isSmtpResponseSent()) {
+                        connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+                    }
+                    return false;
+                }
 
                 if (bdatVerb.isLast()) {
                     log.debug("Last chunk received.");
@@ -406,6 +425,17 @@ public class ServerData extends ServerProcessor {
         }
 
         return true;
+    }
+
+    private boolean ensureDurableStorageAvailable() throws IOException {
+        try {
+            QueueDiskSpaceGuard.requireWritableStorageAndQueueSpace();
+            return true;
+        } catch (IOException e) {
+            log.error("Durable storage unavailable for SMTP DATA: {}", e.getMessage());
+            connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
+            return false;
+        }
     }
 
     /**

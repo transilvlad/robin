@@ -130,7 +130,10 @@ public class ClientQueueHandler implements ApiHandler {
                 .setProtocol(protocolOverride)
                 .setMailbox(mailboxOverride);
 
-        QueueFiles.persistEnvelopeFiles(relaySession);
+        if (!QueueFiles.persistEnvelopeFiles(relaySession)) {
+            endpoint.sendText(exchange, 507, "Insufficient Storage");
+            return;
+        }
 
         PersistentQueue<RelaySession> queue = PersistentQueue.getInstance();
         queue.enqueue(relaySession);
@@ -196,7 +199,10 @@ public class ClientQueueHandler implements ApiHandler {
                 .setProtocol(protocolOverride)
                 .setMailbox(mailboxOverride);
 
-        QueueFiles.persistEnvelopeFiles(relaySession);
+        if (!QueueFiles.persistEnvelopeFiles(relaySession)) {
+            endpoint.sendText(exchange, 507, "Insufficient Storage");
+            return;
+        }
 
         PersistentQueue<RelaySession> queue = PersistentQueue.getInstance();
         queue.enqueue(relaySession);

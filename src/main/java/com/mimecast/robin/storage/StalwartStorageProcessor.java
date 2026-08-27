@@ -99,7 +99,7 @@ public class StalwartStorageProcessor extends AbstractStorageProcessor {
         return true;
     }
 
-    private void enqueueDelivery(Connection connection, MessageEnvelope envelope, List<String> recipients) {
+    private void enqueueDelivery(Connection connection, MessageEnvelope envelope, List<String> recipients) throws IOException {
         RelaySession relaySession = new RelaySession(Factories.getSession()).setProtocol("stalwart-direct");
         relaySession.getSession().setDirection(connection.getSession().getDirection());
 
@@ -110,7 +110,9 @@ public class StalwartStorageProcessor extends AbstractStorageProcessor {
         queuedEnvelope.setMessageSource(envelope.getMessageSource());
 
         relaySession.getSession().addEnvelope(queuedEnvelope);
-        QueueFiles.persistEnvelopeFiles(relaySession);
+        if (!QueueFiles.persistEnvelopeFiles(relaySession)) {
+            throw new IOException("Failed to persist Stalwart direct delivery envelope files before enqueue");
+        }
         PersistentQueue.getInstance().enqueue(relaySession);
 
         log.info("Queued Stalwart direct delivery for sender={} recipients={} uid={}",
@@ -147,7 +149,7 @@ public class StalwartStorageProcessor extends AbstractStorageProcessor {
         return resolved;
     }
 
-    protected void processFailure(Connection connection, ServerConfig config, String mailbox) {
+    protected void processFailure(Connection connection, ServerConfig config, String mailbox) throws IOException {
         String sender = connection.getSession().getEnvelopes().getLast().getMail();
         RelaySession relaySession = new RelaySession(Factories.getSession()).setProtocol("esmtp");
         MessageEnvelope envelope = new MessageEnvelope();
@@ -166,7 +168,9 @@ public class StalwartStorageProcessor extends AbstractStorageProcessor {
             envelope.setRcpts(new ArrayList<>(List.of(mailbox)));
             relaySession.getSession().setDirection(connection.getSession().getDirection());
             relaySession.setProtocol("stalwart-direct");
-            QueueFiles.persistEnvelopeFiles(relaySession);
+            if (!QueueFiles.persistEnvelopeFiles(relaySession)) {
+                throw new IOException("Failed to persist Stalwart retry envelope files before enqueue");
+            }
         }
 
         PersistentQueue.getInstance().enqueue(relaySession);

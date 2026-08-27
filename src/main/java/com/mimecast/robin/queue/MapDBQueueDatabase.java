@@ -12,8 +12,10 @@ import org.mapdb.serializer.SerializerJava;
 import java.io.File;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * MapDB-backed scheduled work queue.
@@ -32,10 +34,19 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
     private BTreeMap<String, String> readyIndex;
     private BTreeMap<String, String> claimedIndex;
     private Atomic.Long deadCount;
+    private final boolean validateOnStartup;
+    private final int maxValidationEntries;
+    private final Set<String> quarantinedUids = new HashSet<>();
 
     public MapDBQueueDatabase(File file, int concurrencyScale) {
+        this(file, concurrencyScale, true, 100);
+    }
+
+    public MapDBQueueDatabase(File file, int concurrencyScale, boolean validateOnStartup, int maxValidationEntries) {
         this.file = file;
         this.concurrencyScale = concurrencyScale;
+        this.validateOnStartup = validateOnStartup;
+        this.maxValidationEntries = Math.max(0, maxValidationEntries);
     }
 
     @Override
@@ -50,18 +61,30 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
                 .concurrencyScale(concurrencyScale)
                 .closeOnJvmShutdown();
 
-        if (isTempFile) {
-            this.db = dbMaker.fileLockDisable().fileChannelEnable().make();
-        } else {
-            this.db = dbMaker.fileMmapEnableIfSupported().transactionEnable().make();
-        }
+        try {
+            if (isTempFile) {
+                this.db = dbMaker.fileLockDisable().fileChannelEnable().make();
+            } else {
+                this.db = dbMaker.fileMmapEnableIfSupported().transactionEnable().make();
+            }
 
-        SerializerJava serializer = new SerializerJava();
-        this.items = (BTreeMap<String, QueueItem<T>>) db.treeMap("queue_items", Serializer.STRING, serializer).createOrOpen();
-        this.createdIndex = db.treeMap("queue_created_index", Serializer.STRING, Serializer.STRING).createOrOpen();
-        this.readyIndex = db.treeMap("queue_ready_index", Serializer.STRING, Serializer.STRING).createOrOpen();
-        this.claimedIndex = db.treeMap("queue_claimed_index", Serializer.STRING, Serializer.STRING).createOrOpen();
-        this.deadCount = db.atomicLong("queue_dead_count").createOrOpen();
+            SerializerJava serializer = new SerializerJava();
+            this.items = (BTreeMap<String, QueueItem<T>>) db.treeMap("queue_items", Serializer.STRING, serializer).createOrOpen();
+            this.createdIndex = db.treeMap("queue_created_index", Serializer.STRING, Serializer.STRING).createOrOpen();
+            this.readyIndex = db.treeMap("queue_ready_index", Serializer.STRING, Serializer.STRING).createOrOpen();
+            this.claimedIndex = db.treeMap("queue_claimed_index", Serializer.STRING, Serializer.STRING).createOrOpen();
+            this.deadCount = db.atomicLong("queue_dead_count").createOrOpen();
+
+            if (validateOnStartup) {
+                validateIntegrity();
+            }
+        } catch (RuntimeException | AssertionError e) {
+            closeAfterFailedValidation();
+            String message = "MapDB queue file failed integrity check for " + file.getAbsolutePath()
+                    + "; switch backend or rebuild queue file";
+            log.error(message, e);
+            throw new IllegalStateException(message, e);
+        }
     }
 
     @Override
@@ -85,36 +108,45 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
             }
 
             QueueItem<T> item = mutation.item();
-            switch (mutation.type()) {
-                case ACK -> deleteInternal(item.getUid());
-                case RESCHEDULE -> {
-                    QueueItem<T> existing = items.get(item.getUid());
-                    if (existing != null) {
-                        removeIndexes(existing);
-                        existing.setPayload(item.getPayload())
-                                .setRetryCount(item.getRetryCount())
-                                .setProtocol(item.getProtocol())
-                                .setSessionUid(item.getSessionUid())
-                                .setLastError(mutation.lastError())
-                                .readyAt(mutation.nextAttemptAtEpochSeconds());
-                        putItem(existing);
-                    }
-                }
-                case DEAD -> {
-                    QueueItem<T> existing = items.get(item.getUid());
-                    if (existing != null) {
-                        removeIndexes(existing);
-                        if (existing.getState() != QueueItemState.DEAD) {
-                            deadCount.set(deadCount.get() + 1L);
+            if (quarantinedUids.contains(item.getUid())) {
+                log.warn("Skipping quarantined MapDB queue mutation: uid={}, type={}", item.getUid(), mutation.type());
+                continue;
+            }
+
+            try {
+                switch (mutation.type()) {
+                    case ACK -> deleteInternal(item.getUid());
+                    case RESCHEDULE -> {
+                        QueueItem<T> existing = items.get(item.getUid());
+                        if (existing != null) {
+                            removeIndexes(existing);
+                            existing.setPayload(item.getPayload())
+                                    .setRetryCount(item.getRetryCount())
+                                    .setProtocol(item.getProtocol())
+                                    .setSessionUid(item.getSessionUid())
+                                    .setLastError(mutation.lastError())
+                                    .readyAt(mutation.nextAttemptAtEpochSeconds());
+                            putItem(existing);
                         }
-                        existing.setPayload(item.getPayload())
-                                .setRetryCount(item.getRetryCount())
-                                .setProtocol(item.getProtocol())
-                                .setSessionUid(item.getSessionUid())
-                                .dead(mutation.lastError());
-                        putItem(existing);
+                    }
+                    case DEAD -> {
+                        QueueItem<T> existing = items.get(item.getUid());
+                        if (existing != null) {
+                            removeIndexes(existing);
+                            if (existing.getState() != QueueItemState.DEAD) {
+                                deadCount.set(deadCount.get() + 1L);
+                            }
+                            existing.setPayload(item.getPayload())
+                                    .setRetryCount(item.getRetryCount())
+                                    .setProtocol(item.getProtocol())
+                                    .setSessionUid(item.getSessionUid())
+                                    .dead(mutation.lastError());
+                            putItem(existing);
+                        }
                     }
                 }
+            } catch (RuntimeException | AssertionError e) {
+                quarantineMutation(item.getUid(), String.valueOf(mutation.type()), e);
             }
         }
 
@@ -141,15 +173,24 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
             if (claimed.size() >= limit) {
                 break;
             }
-            String uid = readyIndex.remove(readyKey);
-            QueueItem<T> item = items.get(uid);
-            if (item == null || item.getState() != QueueItemState.READY) {
-                continue;
+            String uid = null;
+            try {
+                uid = readyIndex.remove(readyKey);
+                if (uid != null && quarantinedUids.contains(uid)) {
+                    log.warn("Skipping quarantined MapDB queue item during claim: uid={}", uid);
+                    continue;
+                }
+                QueueItem<T> item = items.get(uid);
+                if (item == null || item.getState() != QueueItemState.READY) {
+                    continue;
+                }
+                item.claim(consumerId, claimUntilEpochSeconds);
+                items.put(uid, item);
+                claimedIndex.put(sortKey(item.getClaimedUntilEpochSeconds(), item.getCreatedAtEpochSeconds(), uid), uid);
+                claimed.add(copyItem(item));
+            } catch (RuntimeException | AssertionError e) {
+                quarantineMutation(uid, "CLAIM", e);
             }
-            item.claim(consumerId, claimUntilEpochSeconds);
-            items.put(uid, item);
-            claimedIndex.put(sortKey(item.getClaimedUntilEpochSeconds(), item.getCreatedAtEpochSeconds(), uid), uid);
-            claimed.add(copyItem(item));
         }
         commit();
         return claimed;
@@ -343,6 +384,64 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
     private void commit() {
         if (db != null && !db.isClosed()) {
             db.commit();
+        }
+    }
+
+    private void validateIntegrity() {
+        try {
+            items.sizeLong();
+            createdIndex.sizeLong();
+            readyIndex.sizeLong();
+            claimedIndex.sizeLong();
+            deadCount.get();
+            validateIndex(createdIndex, "created");
+            validateIndex(readyIndex, "ready");
+            validateIndex(claimedIndex, "claimed");
+        } catch (RuntimeException | AssertionError e) {
+            closeAfterFailedValidation();
+            String message = "MapDB queue file failed integrity check for " + file.getAbsolutePath()
+                    + "; switch backend or rebuild queue file";
+            log.error(message, e);
+            throw new IllegalStateException(message, e);
+        }
+    }
+
+    private void validateIndex(BTreeMap<String, String> index, String name) {
+        if (maxValidationEntries <= 0) {
+            log.debug("Skipped {} MapDB queue index validation: file={}", name, file.getAbsolutePath());
+            return;
+        }
+        int checked = 0;
+        for (String key : index.keySet()) {
+            if (checked >= maxValidationEntries) {
+                break;
+            }
+            String uid = index.get(key);
+            if (uid != null) {
+                items.get(uid);
+            }
+            checked++;
+        }
+        log.debug("Validated {} MapDB queue index entries: index={}, file={}", checked, name, file.getAbsolutePath());
+    }
+
+    private void quarantineMutation(String uid, String operation, Throwable e) {
+        if (uid != null) {
+            quarantinedUids.add(uid);
+        }
+        log.error("Quarantining MapDB queue operation: uid={}, operation={}, file={}, error={}",
+                uid, operation, file.getAbsolutePath(), e.getMessage(), e);
+    }
+
+    private void closeAfterFailedValidation() {
+        try {
+            if (db != null && !db.isClosed()) {
+                db.close();
+            }
+        } catch (Exception closeError) {
+            log.warn("Error closing failed MapDB database for file {}: {}", file.getAbsolutePath(), closeError.getMessage());
+        } finally {
+            db = null;
         }
     }
 

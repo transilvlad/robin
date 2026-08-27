@@ -31,31 +31,31 @@ public final class QueueFiles {
      *
      * @param relaySession RelaySession containing a Session with envelopes.
      */
-    public static void persistEnvelopeFiles(RelaySession relaySession) {
-        if (relaySession == null || relaySession.getSession() == null) return;
+    public static boolean persistEnvelopeFiles(RelaySession relaySession) {
+        if (relaySession == null || relaySession.getSession() == null) return true;
         List<MessageEnvelope> envelopes = relaySession.getSession().getEnvelopes();
-        if (envelopes == null || envelopes.isEmpty()) return;
+        if (envelopes == null || envelopes.isEmpty()) return true;
 
         String storagePath = Config.getServer().getStorage().getStringProperty("path", "/tmp/store");
         Path queueDir = Paths.get(storagePath, "queue");
         try {
+            QueueDiskSpaceGuard.requireWritableStorageAndQueueSpace();
             Files.createDirectories(queueDir);
         } catch (IOException e) {
             log.error("Unable to create queue folder at {}: {}", queueDir, e.getMessage());
-            return;
+            return false;
         }
 
+        boolean success = true;
         for (int i = 0; i < envelopes.size(); i++) {
             MessageEnvelope env = envelopes.get(i);
-            String filePath = env != null ? env.getFile() : null;
-            if (StringUtils.isBlank(filePath)) {
-                filePath = Paths.get(queueDir.toString(),
-                        "qeml-" + relaySession.getSession().getUID() + "-" + i + ".eml").toString();
-                env.setFile(filePath);
+            if (env == null) {
+                continue;
             }
+            String filePath = env.getFile();
 
             try {
-                if (filePath.contains("qeml-") && Files.exists(Path.of(filePath))) {
+                if (StringUtils.isNotBlank(filePath) && filePath.contains("qeml-") && Files.exists(Path.of(filePath))) {
                     log.trace("Envelope file already in queue, skipping move: {}", filePath);
                     continue;
                 }
@@ -78,11 +78,7 @@ public final class QueueFiles {
                         // valid for any consumers still referencing it.
                         Files.createLink(target, src);
                     } catch (IOException | UnsupportedOperationException linkEx) {
-                        try {
-                            Files.copy(src, target);
-                        } catch (IOException ex) {
-                            log.debug("Copy failed ({}),  {}", src, ex.getMessage());
-                        }
+                        Files.copy(src, target);
                     }
                 } else {
                     env.materializeMessageFile(target);
@@ -91,9 +87,12 @@ public final class QueueFiles {
                 env.setFile(target.toString());
                 log.info("Copied envelope file to persistent queue: {} -> {}", src, target);
             } catch (Exception ex) {
-                log.error("Failed copying envelope file to queue: {} ({}): {}", filePath, new File(filePath).exists(), ex.getMessage());
+                boolean sourceExists = StringUtils.isNotBlank(filePath) && new File(filePath).exists();
+                log.error("Failed copying envelope file to queue: {} ({}): {}", filePath, sourceExists, ex.getMessage());
+                success = false;
             }
         }
+        return success;
     }
 
     /**

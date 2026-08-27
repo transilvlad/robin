@@ -110,7 +110,9 @@ public class RelayMessage {
                 }
 
                 // Persist any envelope files to storage/queue before enqueueing.
-                QueueFiles.persistEnvelopeFiles(relaySession);
+                if (!QueueFiles.persistEnvelopeFiles(relaySession)) {
+                    throw new IllegalStateException("Failed to persist relay envelope files before enqueue");
+                }
 
                 // Apply DKIM signatures for outbound emails before delivery.
                 if (connection.getSession().isOutbound()) {
