@@ -377,6 +377,7 @@ public class LocalStorageClient implements StorageClient {
                 // Each bot gets its own EmailParser created from the envelope's message stream.
                 botExecutor.submit(() -> {
                     InputStream input = null;
+                    EmailParser botParser = null;
                     try {
                         // Create a fresh parser for this bot from the saved file.
                         // The in-memory message source may be incomplete due to timing,
@@ -403,12 +404,24 @@ public class LocalStorageClient implements StorageClient {
                         }
 
                         // Create parser but don't parse yet - let the bot handle full parsing.
-                        EmailParser botParser = input != null ? new EmailParser(input) : null;
+                        botParser = input != null ? new EmailParser(input) : null;
                         bot.process(connectionCopy, botParser, address, botDefinition);
                     } catch (Exception e) {
                         log.error("Error processing bot {} for address {}: {}",
                                 botName, address, e.getMessage(), e);
                     } finally {
+                        // Close the parser so its temporary MIME part files (mimepart-*.tmp
+                        // in java.io.tmpdir) are deleted. Bots receive the parser as a
+                        // parameter and do not own it, so the owner must close it here.
+                        // Leaking these can fill the disk (millions of files).
+                        // EmailParser.close() only deletes temp files; it does not close the
+                        // backing stream, so input is still closed separately below.
+                        if (botParser != null) {
+                            try {
+                                botParser.close();
+                            } catch (Exception ignored) {
+                            }
+                        }
                         // Close input stream if open.
                         if (input != null) {
                             try {
