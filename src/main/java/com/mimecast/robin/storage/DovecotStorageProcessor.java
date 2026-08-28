@@ -13,6 +13,7 @@ import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.queue.bounce.BounceMessageGenerator;
 import com.mimecast.robin.queue.relay.DovecotLdaClient;
 import com.mimecast.robin.smtp.MessageEnvelope;
+import com.mimecast.robin.smtp.RefCountedFileMessageSource;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
 import org.apache.logging.log4j.LogManager;
@@ -119,14 +120,26 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
             return;
         }
 
-        // Clone the envelope with only non-bot recipients
+        // Clone the envelope with only non-bot recipients. clone() acquires an
+        // extra reference on any shared RefCountedFileMessageSource.
+        var originalSource = envelope.getMessageSource();
         MessageEnvelope lmtpEnvelope = envelope.clone();
         lmtpEnvelope.getRcpts().clear();
         lmtpEnvelope.setRcpt(null);
         lmtpEnvelope.setRcpts(new ArrayList<>(nonBotRecipients));
 
+        // Swap the session's envelope for the recipient-filtered clone. The original
+        // envelope is removed from the session here, so Session.close() will never
+        // release its reference-counted message source. Release the original's
+        // reference now to balance the one it held; the clone (added below) keeps
+        // the source alive until Session.close() releases it after delivery. Without
+        // this, the spooled tmp file in store/robin/tmp is never deleted and leaks
+        // on every inline LMTP delivery (INF 2026-08-28: filled mi-robin to 100% disk).
         connection.getSession().getEnvelopes().clear();
         connection.getSession().addEnvelope(lmtpEnvelope);
+        if (originalSource instanceof RefCountedFileMessageSource refCounted) {
+            refCounted.release();
+        }
 
         // Attempt inline delivery with retries
         long maxAttempts = config.getDovecot().getInlineSaveMaxAttempts();
