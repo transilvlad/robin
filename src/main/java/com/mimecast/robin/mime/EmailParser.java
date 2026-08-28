@@ -580,8 +580,15 @@ public class EmailParser implements AutoCloseable {
     @Override
     public void close() {
         for (MimePart part : parts) {
-            if (part instanceof FileMimePart) {
-                File file = ((FileMimePart) part).getFile();
+            if (part instanceof FileMimePart fileMimePart) {
+                // Close the backing stream first — an open handle blocks deletion on
+                // Windows and leaks a file descriptor everywhere.
+                try {
+                    fileMimePart.close();
+                } catch (IOException e) {
+                    log.warn("Failed to close temporary part stream: {}", e.getMessage());
+                }
+                File file = fileMimePart.getFile();
                 if (file != null && file.exists()) {
                     if (file.delete()) {
                         log.trace("Deleted temporary part file: {}", file.getAbsolutePath());

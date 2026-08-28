@@ -9,7 +9,7 @@ import java.security.SecureRandom;
 /**
  * MIME part container from file path.
  */
-public class FileMimePart extends MimePart {
+public class FileMimePart extends MimePart implements Closeable {
 
     /**
      * Append random bytes to the end of the file.
@@ -126,5 +126,20 @@ public class FileMimePart extends MimePart {
      */
     public File getFile() {
         return file;
+    }
+
+    /**
+     * Closes the backing file input stream so the temporary file can be deleted.
+     * <p>An open handle blocks file deletion on Windows and leaks a file
+     * descriptor on any OS, so the stream must be closed before the temp file is
+     * removed.
+     *
+     * @throws IOException If closing the stream fails.
+     */
+    @Override
+    public void close() throws IOException {
+        if (body != null) {
+            body.close();
+        }
     }
 }

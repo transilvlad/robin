@@ -133,8 +133,8 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
         // release its reference-counted message source. Release the original's
         // reference now to balance the one it held; the clone (added below) keeps
         // the source alive until Session.close() releases it after delivery. Without
-        // this, the spooled tmp file in store/robin/tmp is never deleted and leaks
-        // on every inline LMTP delivery (INF 2026-08-28: filled mi-robin to 100% disk).
+        // this, the spooled message file is never deleted and leaks on every inline
+        // LMTP delivery.
         connection.getSession().getEnvelopes().clear();
         connection.getSession().addEnvelope(lmtpEnvelope);
         if (originalSource instanceof RefCountedFileMessageSource refCounted) {

@@ -11,6 +11,7 @@ import com.mimecast.robin.queue.QueueFiles;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.signing.DkimSigningHelper;
 import com.mimecast.robin.smtp.MessageEnvelope;
+import com.mimecast.robin.smtp.RefCountedFileMessageSource;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.session.Session;
 import org.apache.logging.log4j.LogManager;
@@ -79,8 +80,13 @@ public class RelayMessage {
             }
         }
 
-        // Inbound relay if enabled.
-        if (connection.getSession().isInbound() && relayConfig.getBooleanProperty("enabled")) {
+        // Inbound relay if enabled. Gated by its own inboundEnabled flag, NOT the
+        // master "enabled" switch (which only controls whether the relay queue
+        // workers run and must stay true wherever bot replies are
+        // queued). Reusing "enabled" here relayed every inbound message to the
+        // configured host and, worse, cloned its envelope without ever releasing
+        // the reference, leaking the spool file on every message.
+        if (connection.getSession().isInbound() && relayConfig.getBooleanProperty("inboundEnabled")) {
             sessions.add(getRelaySession(relayConfig, connection.getSession().getEnvelopes().getLast()));
         }
 
@@ -109,6 +115,17 @@ public class RelayMessage {
                     relaySession.setMailbox(folder);
                 }
 
+                // Capture reference-counted sources before persist repoints the
+                // envelope files to the queue. Every relay envelope is a clone that
+                // acquired a reference on the shared source; release it after enqueue
+                // so the spool file is not leaked.
+                List<RefCountedFileMessageSource> acquired = new ArrayList<>();
+                for (MessageEnvelope env : relaySession.getSession().getEnvelopes()) {
+                    if (env != null && env.getMessageSource() instanceof RefCountedFileMessageSource rc) {
+                        acquired.add(rc);
+                    }
+                }
+
                 // Persist any envelope files to storage/queue before enqueueing.
                 if (!QueueFiles.persistEnvelopeFiles(relaySession)) {
                     throw new IllegalStateException("Failed to persist relay envelope files before enqueue");
@@ -132,6 +149,10 @@ public class RelayMessage {
                 // Enqueue for relay delivery.
                 PersistentQueue.getInstance()
                         .enqueue(relaySession);
+
+                // Message is safely persisted to the queue; release the references
+                // the envelope clones acquired so the spool file can be freed.
+                acquired.forEach(RefCountedFileMessageSource::release);
             }
         }
 
@@ -146,8 +167,10 @@ public class RelayMessage {
      * @return Session instance.
      */
     protected Session getRelaySession(MimeHeader header, MessageEnvelope envelope) {
+        // Clone so every relay session owns its envelope copy, consistent with the
+        // config/MX overloads. The clone's reference is released after enqueue.
         Session session = Factories.getSession()
-                .addEnvelope(envelope);
+                .addEnvelope(envelope.clone());
 
         if (header.getValue().contains(":")) {
             String[] splits = header.getValue().split(":");
