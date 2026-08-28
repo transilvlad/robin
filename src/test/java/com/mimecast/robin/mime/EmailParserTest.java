@@ -1,5 +1,6 @@
 package com.mimecast.robin.mime;
 
+import com.mimecast.robin.mime.parts.FileMimePart;
 import com.mimecast.robin.mime.parts.MimePart;
 import com.mimecast.robin.mime.parts.TextMimePart;
 import com.mimecast.robin.smtp.io.LineInputStream;
@@ -12,7 +13,10 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.List;
 
+import java.util.ArrayList;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SuppressWarnings("OptionalGetWithoutIsPresent")
@@ -165,6 +169,32 @@ class EmailParserTest {
         }
         
         assertTrue(content.length > 0, "ZIP content should not be empty");
+    }
+
+    @Test
+    @DisplayName("close() deletes temporary MIME part files")
+    void closeDeletesTempPartFiles() throws IOException {
+        List<java.nio.file.Path> tempFiles = new ArrayList<>();
+        try (EmailParser parser = new EmailParser(new LineInputStream(
+                new BufferedInputStream(new FileInputStream(dir + "mime/dmarc/example-report.eml"), 8192), 1024))) {
+            parser.parse();
+
+            for (MimePart part : parser.getParts()) {
+                if (part instanceof FileMimePart fileMimePart && fileMimePart.getFile() != null) {
+                    tempFiles.add(fileMimePart.getFile().toPath());
+                }
+            }
+
+            assertTrue(!tempFiles.isEmpty(), "Binary attachment must be spooled to a temp file");
+            for (java.nio.file.Path p : tempFiles) {
+                assertTrue(java.nio.file.Files.exists(p), "Temp part file must exist before close()");
+            }
+        }
+
+        // try-with-resources closed the parser; temp part files must be gone.
+        for (java.nio.file.Path p : tempFiles) {
+            assertFalse(java.nio.file.Files.exists(p), "close() must delete temp part files");
+        }
     }
 
     @SuppressWarnings("SameParameterValue")

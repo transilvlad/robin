@@ -6,7 +6,9 @@ import com.mimecast.robin.config.server.WebhookConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.queue.QueueDiskSpaceGuard;
+import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.ProxyEmailDelivery;
+import com.mimecast.robin.smtp.RefCountedFileMessageSource;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
@@ -157,7 +159,33 @@ public class ServerData extends ServerProcessor {
             connection.write(String.format(SmtpResponses.RECEIVED_OK_250, connection.getSession().getUID()));
         }
 
+        releaseCompletedEnvelopeSource();
         return true;
+    }
+
+    /**
+     * Releases the just-completed message's reference-counted spool source.
+     * <p>By this point the message is stored, run through the synchronous storage
+     * processors, dispatched to async bots (which hold their own references via
+     * {@code Session.clone()}), the RAW webhook has run and the 250 has been sent.
+     * The envelope stays in the session for transaction logging, but keeping its
+     * {@link RefCountedFileMessageSource} until {@code Session.close()} (connection
+     * end) would accumulate spool files across every message on a long-lived
+     * connection and orphan them on restart. Release it now; the file survives for
+     * any async consumer and is deleted once the last reference is released. The
+     * source and file refs are cleared so {@code Session.close()} neither
+     * double-releases nor deletes the file via its fallback.
+     */
+    void releaseCompletedEnvelopeSource() {
+        var envelopes = connection.getSession().getEnvelopes();
+        if (envelopes.isEmpty()) {
+            return;
+        }
+        MessageEnvelope done = envelopes.getLast();
+        if (done.getMessageSource() instanceof RefCountedFileMessageSource refCounted) {
+            refCounted.release();
+            done.setFile(null);
+        }
     }
 
     /**
@@ -424,6 +452,7 @@ public class ServerData extends ServerProcessor {
             scenarioResponse(connection.getSession().getUID());
         }
 
+        releaseCompletedEnvelopeSource();
         return true;
     }
 

@@ -5,6 +5,7 @@ import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Foundation;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.ProxyEmailDelivery;
+import com.mimecast.robin.smtp.RefCountedFileMessageSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -286,6 +287,54 @@ class SessionTest {
         assertTrue(japaneseSession.getDate().contains(currentMonthMarker(Locale.JAPAN)));
         assertDoesNotThrow(() -> new SimpleDateFormat("E, d MMM yyyy HH:mm:ss Z", Locale.JAPAN)
                 .parse(japaneseSession.getDate()));
+    }
+
+    @Test
+    void cloneAcquiresAndCloseReleasesRefCountedSource() throws IOException {
+        Path file = Files.createTempFile("session-clone-", ".eml");
+        Files.writeString(file, "body");
+        RefCountedFileMessageSource source = new RefCountedFileMessageSource(file);
+
+        Session session = new Session();
+        MessageEnvelope envelope = new MessageEnvelope();
+        envelope.setMessageSource(source);
+        session.addEnvelope(envelope);
+        assertEquals(1, source.getRefCount());
+
+        Session clone = session.clone();
+        assertEquals(2, source.getRefCount(), "clone() must acquire a reference");
+
+        clone.close();
+        assertEquals(1, source.getRefCount(), "close() on the clone must release its reference");
+        assertTrue(Files.exists(file));
+
+        session.close();
+        assertEquals(0, source.getRefCount());
+        assertFalse(Files.exists(file), "file must be deleted once all references are released");
+    }
+
+    @Test
+    void clearEnvelopesReleasesRefCountedSource() throws IOException {
+        Path file = Files.createTempFile("session-clearenv-", ".eml");
+        Files.writeString(file, "body");
+        RefCountedFileMessageSource source = new RefCountedFileMessageSource(file);
+
+        Session session = new Session();
+        MessageEnvelope envelope = new MessageEnvelope();
+        envelope.setMessageSource(source);
+        session.addEnvelope(envelope);
+
+        // SessionRouting / WebhookCaller / bounce paths do clone().clearEnvelopes().
+        Session clone = session.clone();
+        assertEquals(2, source.getRefCount());
+
+        clone.clearEnvelopes();
+        assertEquals(1, source.getRefCount(), "clearEnvelopes() must release acquired references");
+        assertTrue(Files.exists(file));
+
+        session.close();
+        assertEquals(0, source.getRefCount());
+        assertFalse(Files.exists(file));
     }
 
     private Path writePropertiesFile(String locale) throws IOException {

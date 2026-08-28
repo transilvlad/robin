@@ -3,6 +3,7 @@ package com.mimecast.robin.smtp.extension.server;
 import com.mimecast.robin.main.Foundation;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.smtp.MessageEnvelope;
+import com.mimecast.robin.smtp.RefCountedFileMessageSource;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.ConnectionMock;
 import com.mimecast.robin.smtp.verb.Verb;
@@ -13,6 +14,8 @@ import org.junit.jupiter.api.parallel.Isolated;
 import javax.naming.ConfigurationException;
 import java.io.IOException;
 import java.net.Socket;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -148,6 +151,33 @@ class ServerDataTest {
                 Config.getServer().getQueue().getMap().put("diskSafety", originalDiskSafety);
             }
         }
+    }
+
+    @Test
+    void releaseCompletedEnvelopeSourceReleasesSpoolFile() throws IOException {
+        Path file = Files.createTempFile("serverdata-release-", ".eml");
+        Files.writeString(file, "body");
+        RefCountedFileMessageSource source = new RefCountedFileMessageSource(file);
+
+        ConnectionMock connection = new ConnectionMock(new StringBuilder());
+        connection.setSocket(new Socket());
+        MessageEnvelope envelope = new MessageEnvelope();
+        envelope.setMessageSource(source);
+        connection.getSession().addEnvelope(envelope);
+
+        ServerData data = new ServerData();
+        data.connection = connection;
+
+        // A completed message with no async consumers: releasing the receipt's
+        // reference must delete the spool file instead of holding it until the
+        // connection closes.
+        data.releaseCompletedEnvelopeSource();
+        assertEquals(0, source.getRefCount());
+        assertFalse(Files.exists(file), "completed message spool file must be released");
+
+        // The source/file refs are cleared so Session.close() does not double-release.
+        connection.getSession().close();
+        assertEquals(0, source.getRefCount(), "Session.close() must not double-release");
     }
 
     @Test
