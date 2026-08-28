@@ -377,10 +377,19 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
         // Queue bounce email.
         if (dovecotConfig.getFailureBehaviour().equalsIgnoreCase("bounce")) {
 
-            BounceMessageGenerator bounce = new BounceMessageGenerator(new RelaySession(connection.getSession().clone()), mailbox);
-            envelope.setMail("mailer-daemon@" + config.getHostname())
-                    .setRcpt(sender)
-                    .setBytes(bounce.getStream().toByteArray());
+            // Clone only to build the bounce; release its references afterwards.
+            // clone() acquired a reference on each shared message source and this
+            // clone is never Session.close()d, so clearEnvelopes() (which releases
+            // reference-counted sources) balances the acquire and avoids a leak.
+            var bounceSource = connection.getSession().clone();
+            try {
+                BounceMessageGenerator bounce = new BounceMessageGenerator(new RelaySession(bounceSource), mailbox);
+                envelope.setMail("mailer-daemon@" + config.getHostname())
+                        .setRcpt(sender)
+                        .setBytes(bounce.getStream().toByteArray());
+            } finally {
+                bounceSource.clearEnvelopes();
+            }
 
             log.info("Bouncing rejected mailbox='{}' sender='{}' uid={}", mailbox, sender, connection.getSession().getUID());
         }

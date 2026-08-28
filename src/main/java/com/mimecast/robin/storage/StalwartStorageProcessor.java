@@ -12,6 +12,7 @@ import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.queue.bounce.BounceMessageGenerator;
 import com.mimecast.robin.sasl.SqlUserLookup;
 import com.mimecast.robin.smtp.MessageEnvelope;
+import com.mimecast.robin.smtp.RefCountedFileMessageSource;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
 import org.apache.logging.log4j.LogManager;
@@ -68,11 +69,18 @@ public class StalwartStorageProcessor extends AbstractStorageProcessor {
             return true;
         }
 
+        var originalSource = envelope.getMessageSource();
         MessageEnvelope directEnvelope = envelope.clone();
         directEnvelope.setRcpt(null);
         directEnvelope.setRcpts(new ArrayList<>(recipients));
+        // The original envelope is removed from the session here and will never be
+        // released by Session.close(); release the reference clone() acquired so the
+        // spooled tmp file is not leaked (see DovecotStorageProcessor for details).
         connection.getSession().getEnvelopes().clear();
         connection.getSession().addEnvelope(directEnvelope);
+        if (originalSource instanceof RefCountedFileMessageSource refCounted) {
+            refCounted.release();
+        }
 
         boolean deliverySucceeded = directDelivery.deliver(connection.getSession(), 1, 0);
         EnvelopeTransactionList transactionList = connection.getSession().getSessionTransactionList().getEnvelopes().isEmpty()
@@ -157,10 +165,19 @@ public class StalwartStorageProcessor extends AbstractStorageProcessor {
         StalwartConfig stalwartConfig = config.getStalwart();
 
         if (stalwartConfig.getFailureBehaviour().equalsIgnoreCase("bounce")) {
-            BounceMessageGenerator bounce = new BounceMessageGenerator(new RelaySession(connection.getSession().clone()), mailbox);
-            envelope.setMail("mailer-daemon@" + config.getHostname())
-                    .setRcpt(sender)
-                    .setBytes(bounce.getStream().toByteArray());
+            // Clone only to build the bounce; release its references afterwards.
+            // clone() acquired a reference on each shared message source and this
+            // clone is never Session.close()d, so clearEnvelopes() (which releases
+            // reference-counted sources) balances the acquire and avoids a leak.
+            var bounceSource = connection.getSession().clone();
+            try {
+                BounceMessageGenerator bounce = new BounceMessageGenerator(new RelaySession(bounceSource), mailbox);
+                envelope.setMail("mailer-daemon@" + config.getHostname())
+                        .setRcpt(sender)
+                        .setBytes(bounce.getStream().toByteArray());
+            } finally {
+                bounceSource.clearEnvelopes();
+            }
             log.info("Bouncing rejected Stalwart mailbox='{}' sender='{}' uid={}", mailbox, sender, connection.getSession().getUID());
         } else {
             envelope.setFile(connection.getSession().getEnvelopes().getLast().getFile());

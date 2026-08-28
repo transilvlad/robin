@@ -7,6 +7,7 @@ import com.mimecast.robin.config.server.ProxyRule;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.MessageSource;
+import com.mimecast.robin.smtp.RefCountedFileMessageSource;
 import com.mimecast.robin.smtp.ProxyEmailDelivery;
 import com.mimecast.robin.smtp.connection.SmtpFoundation;
 import com.mimecast.robin.smtp.security.SecurityPolicy;
@@ -1194,6 +1195,18 @@ public class Session implements Serializable, Cloneable {
      * @return Self.
      */
     public Session clearEnvelopes() {
+        // Release reference-counted message sources before dropping the envelopes.
+        // clearEnvelopes() is called on freshly cloned sessions (e.g. SessionRouting,
+        // WebhookCaller); clone() acquired a reference on each shared
+        // RefCountedFileMessageSource, so releasing here balances that acquire.
+        // Without it the spooled tmp file's reference count could never reach zero
+        // and the file would leak.
+        for (MessageEnvelope envelope : envelopes) {
+            if (envelope != null
+                    && envelope.getMessageSource() instanceof RefCountedFileMessageSource refCounted) {
+                refCounted.release();
+            }
+        }
         envelopes.clear();
         return this;
     }
