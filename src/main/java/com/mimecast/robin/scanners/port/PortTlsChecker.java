@@ -4,6 +4,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
@@ -13,7 +15,11 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.security.PublicKey;
 import java.security.cert.X509Certificate;
+import java.security.interfaces.ECPublicKey;
+import java.security.interfaces.EdECPublicKey;
+import java.security.interfaces.RSAPublicKey;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
@@ -47,6 +53,19 @@ public class PortTlsChecker {
      * @return One result per port.
      */
     public static List<PortTlsResult> checkPorts(String host, List<Integer> ports, int timeoutSeconds) {
+        return checkPorts(host, ports, timeoutSeconds, "portcheck.local");
+    }
+
+    /**
+     * Probes all requested ports on a host in parallel.
+     *
+     * @param host           Target hostname.
+     * @param ports          Ports to check.
+     * @param timeoutSeconds Connect + handshake timeout per port.
+     * @param ehloName       EHLO name used for SMTP STARTTLS probing.
+     * @return One result per port.
+     */
+    public static List<PortTlsResult> checkPorts(String host, List<Integer> ports, int timeoutSeconds, String ehloName) {
         if (host == null || host.isEmpty() || ports == null || ports.isEmpty()) {
             return new ArrayList<>();
         }
@@ -54,7 +73,7 @@ public class PortTlsChecker {
         ExecutorService executor = Executors.newFixedThreadPool(Math.min(ports.size(), 10));
         try {
             List<CompletableFuture<PortTlsResult>> futures = ports.stream()
-                    .map(port -> CompletableFuture.supplyAsync(() -> checkPort(host, port, timeoutSeconds), executor))
+                    .map(port -> CompletableFuture.supplyAsync(() -> checkPort(host, port, timeoutSeconds, ehloName), executor))
                     .collect(Collectors.toList());
 
             return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
@@ -72,6 +91,13 @@ public class PortTlsChecker {
      * Probes a single port.
      */
     public static PortTlsResult checkPort(String host, int port, int timeoutSeconds) {
+        return checkPort(host, port, timeoutSeconds, "portcheck.local");
+    }
+
+    /**
+     * Probes a single port.
+     */
+    public static PortTlsResult checkPort(String host, int port, int timeoutSeconds, String ehloName) {
         int timeoutMs = timeoutSeconds * 1000;
         PortTlsResult.Builder result = PortTlsResult.builder(host, port);
 
@@ -88,18 +114,26 @@ public class PortTlsChecker {
         boolean implicitTls = (port == 465 || port == 993);
         try {
             SSLSocketFactory factory = buildTrustAllFactory();
-            X509Certificate cert = implicitTls
+            ProbeDetails details = implicitTls
                     ? probeImplicitTls(host, port, timeoutMs, factory)
-                    : probeStartTls(host, port, timeoutMs, factory);
+                    : probeStartTls(host, port, timeoutMs, factory, ehloName);
 
+            result.banner(details.banner())
+                    .extensions(details.extensions())
+                    .negotiatedProtocol(details.protocol());
+
+            X509Certificate cert = details.cert();
             if (cert != null) {
                 LocalDate expiry = cert.getNotAfter().toInstant()
                         .atZone(ZoneId.systemDefault()).toLocalDate();
                 int days = (int) ChronoUnit.DAYS.between(LocalDate.now(), expiry);
                 result.tlsStatus(PortTlsResult.TlsStatus.ENABLED)
                         .certSubject(cert.getSubjectX500Principal().getName())
+                        .certIssuer(cert.getIssuerX500Principal().getName())
                         .certExpiry(expiry)
-                        .daysUntilExpiry(days);
+                        .daysUntilExpiry(days)
+                        .certKeyBits(publicKeyBits(cert.getPublicKey()))
+                        .hostnameMatch(hostnameMatches(host, details.session()));
             } else {
                 result.tlsStatus(PortTlsResult.TlsStatus.DISABLED);
             }
@@ -113,18 +147,19 @@ public class PortTlsChecker {
 
     // ── TLS helpers ───────────────────────────────────────────────────────────
 
-    private static X509Certificate probeImplicitTls(String host, int port, int timeoutMs,
-                                                      SSLSocketFactory factory) throws Exception {
+    private static ProbeDetails probeImplicitTls(String host, int port, int timeoutMs,
+                                                 SSLSocketFactory factory) throws Exception {
         try (SSLSocket ssl = (SSLSocket) factory.createSocket()) {
             ssl.connect(new InetSocketAddress(host, port), timeoutMs);
             ssl.setSoTimeout(timeoutMs);
             ssl.startHandshake();
-            return (X509Certificate) ssl.getSession().getPeerCertificates()[0];
+            X509Certificate cert = (X509Certificate) ssl.getSession().getPeerCertificates()[0];
+            return new ProbeDetails(null, List.of(), cert, ssl.getSession(), ssl.getSession().getProtocol());
         }
     }
 
-    private static X509Certificate probeStartTls(String host, int port, int timeoutMs,
-                                                   SSLSocketFactory factory) throws Exception {
+    private static ProbeDetails probeStartTls(String host, int port, int timeoutMs,
+                                              SSLSocketFactory factory, String ehloName) throws Exception {
         try (Socket plain = new Socket()) {
             plain.connect(new InetSocketAddress(host, port), timeoutMs);
             plain.setSoTimeout(timeoutMs);
@@ -134,8 +169,9 @@ public class PortTlsChecker {
 
             // Read banner
             String banner = in.readLine();
-            if (banner == null) return null;
+            if (banner == null) return ProbeDetails.noTls(null, List.of());
 
+            List<String> extensions = new ArrayList<>();
             boolean isImap = (port == 143);
             if (isImap) {
                 // IMAP: send CAPABILITY, look for STARTTLS, then STARTTLS
@@ -146,23 +182,26 @@ public class PortTlsChecker {
                     if (line.contains("STARTTLS")) hasStartTls = true;
                     if (line.startsWith("A001 ")) break;
                 }
-                if (!hasStartTls) return null;
+                if (!hasStartTls) return ProbeDetails.noTls(banner, extensions);
                 out.println("A002 STARTTLS");
                 String stResp = in.readLine();
-                if (stResp == null || !stResp.contains("OK")) return null;
+                if (stResp == null || !stResp.contains("OK")) return ProbeDetails.noTls(banner, extensions);
             } else {
                 // SMTP: EHLO + STARTTLS
-                out.println("EHLO portcheck.local");
+                out.println("EHLO " + ((ehloName == null || ehloName.isBlank()) ? "portcheck.local" : ehloName));
                 String line;
                 boolean hasStartTls = false;
                 while ((line = in.readLine()) != null) {
                     if (line.toUpperCase().contains("STARTTLS")) hasStartTls = true;
+                    if (line.startsWith("250-") || line.startsWith("250 ")) {
+                        extensions.add(line.length() > 4 ? line.substring(4).trim() : "");
+                    }
                     if (!line.startsWith("250-")) break;
                 }
-                if (!hasStartTls) return null;
+                if (!hasStartTls) return ProbeDetails.noTls(banner, extensions);
                 out.println("STARTTLS");
                 String stResp = in.readLine();
-                if (stResp == null || !stResp.startsWith("220")) return null;
+                if (stResp == null || !stResp.startsWith("220")) return ProbeDetails.noTls(banner, extensions);
             }
 
             // Upgrade to TLS
@@ -170,8 +209,38 @@ public class PortTlsChecker {
             ssl.setSoTimeout(timeoutMs);
             ssl.startHandshake();
             X509Certificate cert = (X509Certificate) ssl.getSession().getPeerCertificates()[0];
+            SSLSession session = ssl.getSession();
+            String protocol = session.getProtocol();
             ssl.close();
-            return cert;
+            return new ProbeDetails(banner, extensions, cert, session, protocol);
+        }
+    }
+
+    private static boolean hostnameMatches(String host, SSLSession session) {
+        if (host == null || host.isBlank() || session == null) {
+            return false;
+        }
+        return HttpsURLConnection.getDefaultHostnameVerifier().verify(host, session);
+    }
+
+    private static int publicKeyBits(PublicKey key) {
+        if (key instanceof RSAPublicKey rsa) {
+            return rsa.getModulus().bitLength();
+        }
+        if (key instanceof ECPublicKey ec) {
+            return ec.getParams().getCurve().getField().getFieldSize();
+        }
+        if (key instanceof EdECPublicKey ed) {
+            return "Ed25519".equalsIgnoreCase(ed.getParams().getName()) ? 256 : 0;
+        }
+        return 0;
+    }
+
+    private record ProbeDetails(String banner, List<String> extensions, X509Certificate cert,
+                                SSLSession session, String protocol) {
+        static ProbeDetails noTls(String banner, List<String> extensions) {
+            return new ProbeDetails(banner, extensions == null ? List.of() : List.copyOf(extensions),
+                    null, null, null);
         }
     }
 

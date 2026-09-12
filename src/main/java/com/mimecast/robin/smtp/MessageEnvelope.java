@@ -91,12 +91,12 @@ public class MessageEnvelope implements Serializable, Cloneable {
     public MessageEnvelope() {
         date = new SimpleDateFormat("E, d MMM yyyy HH:mm:ss Z", Config.getProperties().getLocale())
                 .format(new Date());
-        String now = String.valueOf(System.currentTimeMillis());
-        String uid = UUID.randomUUID() + "-" + now;
+        String now = Long.toString(System.currentTimeMillis(), 36);
+        String uid = UUID.randomUUID().toString().replace("-", "") + now;
 
         int size = 50 + 31 - date.length(); // Fixed length for unit tests stability.
         if (uid.length() >= size) {
-            msgId = uid;
+            msgId = uid.substring(0, size);
         } else {
             StringBuilder padded = new StringBuilder(size);
             for (int i = uid.length(); i < size; i++) {

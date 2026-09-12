@@ -117,6 +117,22 @@ public class EmailAnalysisBotConfig {
         return bool("dmarcCheckEnabled", true);
     }
 
+    public boolean isAuthenticationResultsCheckEnabled() {
+        return bool("authenticationResultsCheckEnabled", true);
+    }
+
+    public boolean isEaiCheckEnabled() {
+        return bool("eaiCheckEnabled", true);
+    }
+
+    public boolean isRequireTlsCheckEnabled() {
+        return bool("requireTlsCheckEnabled", true);
+    }
+
+    public boolean isArcDkim2AdvisoryEnabled() {
+        return bool("arcDkim2AdvisoryEnabled", true);
+    }
+
     // ── MX Records ───────────────────────────────────────────────────────────
 
     public boolean isMxCheckEnabled() {
@@ -135,6 +151,14 @@ public class EmailAnalysisBotConfig {
         return num("recipientProbeTimeoutSeconds", 10);
     }
 
+    public boolean isMxRblCheckEnabled() {
+        return bool("mxRblCheckEnabled", true);
+    }
+
+    public boolean isMxPtrCheckEnabled() {
+        return bool("mxPtrCheckEnabled", false);
+    }
+
     // ── MTA-STS ──────────────────────────────────────────────────────────────
 
     public boolean isMtaStsCheckEnabled() {
@@ -145,6 +169,22 @@ public class EmailAnalysisBotConfig {
 
     public boolean isDaneCheckEnabled() {
         return bool("daneCheckEnabled", true);
+    }
+
+    public boolean isCertStrengthCheckEnabled() {
+        return bool("certStrengthCheckEnabled", true);
+    }
+
+    public boolean isBimiCheckEnabled() {
+        return bool("bimiCheckEnabled", false);
+    }
+
+    public boolean isSoaCheckEnabled() {
+        return bool("soaCheckEnabled", true);
+    }
+
+    public int getSoaCheckTimeoutSeconds() {
+        return num("soaCheckTimeoutSeconds", 5);
     }
 
     // ── Domain age / registration age ───────────────────────────────────────

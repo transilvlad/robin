@@ -60,6 +60,16 @@ class EmailAnalysisBotTest {
 
         assertEquals(List.of(25), config.getPortCheckPorts());
         assertTrue(config.isRecipientProbeEnabled());
+        assertTrue(config.isAuthenticationResultsCheckEnabled());
+        assertTrue(config.isEaiCheckEnabled());
+        assertTrue(config.isRequireTlsCheckEnabled());
+        assertTrue(config.isArcDkim2AdvisoryEnabled());
+        assertTrue(config.isMxRblCheckEnabled());
+        assertFalse(config.isMxPtrCheckEnabled());
+        assertTrue(config.isCertStrengthCheckEnabled());
+        assertFalse(config.isBimiCheckEnabled());
+        assertTrue(config.isSoaCheckEnabled());
+        assertEquals(5, config.getSoaCheckTimeoutSeconds());
         assertTrue(config.getRoleAliases().contains("postmaster"));
         assertTrue(config.getRoleAliases().contains("abuse"));
     }
@@ -282,6 +292,10 @@ class EmailAnalysisBotTest {
                 Map.entry("spfCheckEnabled", true),
                 Map.entry("dkimCheckEnabled", false),
                 Map.entry("dmarcCheckEnabled", false),
+                Map.entry("authenticationResultsCheckEnabled", false),
+                Map.entry("eaiCheckEnabled", false),
+                Map.entry("requireTlsCheckEnabled", false),
+                Map.entry("arcDkim2AdvisoryEnabled", false),
                 Map.entry("mxCheckEnabled", false),
                 Map.entry("portCheckEnabled", false),
                 Map.entry("mtaStsCheckEnabled", false),
@@ -301,6 +315,10 @@ class EmailAnalysisBotTest {
                 Map.entry("spfCheckEnabled", false),
                 Map.entry("dkimCheckEnabled", false),
                 Map.entry("dmarcCheckEnabled", false),
+                Map.entry("authenticationResultsCheckEnabled", false),
+                Map.entry("eaiCheckEnabled", false),
+                Map.entry("requireTlsCheckEnabled", false),
+                Map.entry("arcDkim2AdvisoryEnabled", false),
                 Map.entry("mxCheckEnabled", false),
                 Map.entry("portCheckEnabled", false),
                 Map.entry("mtaStsCheckEnabled", false),
@@ -322,6 +340,10 @@ class EmailAnalysisBotTest {
                 Map.entry("spfCheckEnabled", false),
                 Map.entry("dkimCheckEnabled", false),
                 Map.entry("dmarcCheckEnabled", false),
+                Map.entry("authenticationResultsCheckEnabled", false),
+                Map.entry("eaiCheckEnabled", false),
+                Map.entry("requireTlsCheckEnabled", false),
+                Map.entry("arcDkim2AdvisoryEnabled", false),
                 Map.entry("mxCheckEnabled", false),
                 Map.entry("portCheckEnabled", false),
                 Map.entry("mtaStsCheckEnabled", false),

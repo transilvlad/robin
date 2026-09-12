@@ -24,6 +24,9 @@ class LocalDnsResolverTest {
             add("dns03.mimecast.com.");
             add("dns04.mimecast.com.");
         }});
+        LocalDnsResolver.put("mimecast.com", Type.SOA, new ArrayList<String>() {{
+            add("dns01.mimecast.com. hostmaster.mimecast.com. 2026091201");
+        }});
 
         LocalDnsResolver.put("mimecast.com", Type.MX, new ArrayList<String>() {{
             add("service-alpha-inbound-a.mimecast.com.");
@@ -75,6 +78,8 @@ class LocalDnsResolverTest {
         assertTrue(lookup("mimecast.com.", Type.NS)[1].rdataToString().matches("^dns0\\d\\.mimecast\\.com\\.$"));
         assertTrue(lookup("mimecast.com.", Type.NS)[2].rdataToString().matches("^dns0\\d\\.mimecast\\.com\\.$"));
         assertTrue(lookup("mimecast.com.", Type.NS)[3].rdataToString().matches("^dns0\\d\\.mimecast\\.com\\.$"));
+        assertTrue(lookup("mimecast.com.", Type.SOA)[0].rdataToString()
+                .startsWith("dns01.mimecast.com. hostmaster.mimecast.com. 2026091201"));
 
         assertTrue(lookup("mimecast.com.", Type.MX)[0].rdataToString().matches("^1 service-alpha-inbound-[ab]\\.mimecast\\.com\\.$"));
         assertTrue(lookup("mimecast.com.", Type.MX)[1].rdataToString().matches("^1 service-alpha-inbound-[ab]\\.mimecast\\.com\\.$"));

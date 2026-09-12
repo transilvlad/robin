@@ -30,25 +30,38 @@ import okhttp3.Response;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.xbill.DNS.Address;
+import org.xbill.DNS.Flags;
+import org.xbill.DNS.Message;
+import org.xbill.DNS.Name;
+import org.xbill.DNS.NSRecord;
 import org.xbill.DNS.Lookup;
 import org.xbill.DNS.Record;
+import org.xbill.DNS.SOARecord;
+import org.xbill.DNS.Section;
+import org.xbill.DNS.SimpleResolver;
 import org.xbill.DNS.Type;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.net.Inet4Address;
 import java.net.IDN;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyFactory;
+import java.security.interfaces.RSAPublicKey;
+import java.security.spec.X509EncodedKeySpec;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -144,10 +157,33 @@ public class EmailAnalysisBot implements BotProcessor {
         if (cfg.isDmarcCheckEnabled()) {
             report.add(checkDmarc(ctx));
             report.add(checkDmarcRecord(ctx));
+            report.add(checkDmarcAlignment(ctx));
+        }
+        if (cfg.isAuthenticationResultsCheckEnabled()) {
+            report.add(checkAuthenticationResults(ctx));
+        }
+        if (cfg.isEaiCheckEnabled()) {
+            report.add(checkEai(ctx));
+        }
+        if (cfg.isRequireTlsCheckEnabled()) {
+            report.add(checkRequireTls(ctx));
+        }
+        if (cfg.isArcDkim2AdvisoryEnabled()) {
+            report.add(checkArcDkim2Advisory(ctx));
         }
         if (cfg.isMxCheckEnabled()) {
+            Set<String> bimiDomains = new LinkedHashSet<>();
             for (String domain : ctx.mailDomains()) {
+                if (cfg.isSoaCheckEnabled()) {
+                    report.add(checkAuthoritativeDns(domain, cfg));
+                }
                 report.addAll(checkMxDomain(domain, ctx, cfg));
+                if (cfg.isBimiCheckEnabled()) {
+                    effectiveOrganizationalDomain(domain).ifPresent(bimiDomains::add);
+                }
+            }
+            for (String domain : bimiDomains) {
+                report.add(checkBimi(domain));
             }
         }
         if (cfg.isPortCheckEnabled()) {
@@ -406,6 +442,29 @@ public class EmailAnalysisBot implements BotProcessor {
                     .remediation("Consider using ~all or -all for stronger protection.")
                     .build();
         }
+        SpfAnalysis analysis = analyzeSpf(domain, record, new LinkedHashSet<>(), new ArrayList<>());
+        b.evidence("DNS lookup count", String.valueOf(analysis.lookupCount()))
+                .evidence("SPF chain", analysis.chain().isEmpty() ? "none" : String.join(" -> ", analysis.chain()))
+                .evidence("Void lookups", String.valueOf(analysis.voidLookups()));
+        if (!analysis.problems().isEmpty()) {
+            return b.status(Status.FAIL)
+                    .summary("SPF record has syntax or DNS lookup-budget issues.")
+                    .evidence("Problems", String.join("; ", analysis.problems()))
+                    .remediation("Fix malformed SPF terms and keep DNS-consuming mechanisms within RFC 7208 limits.")
+                    .build();
+        }
+        if (analysis.lookupCount() > 10) {
+            return b.status(Status.FAIL)
+                    .summary("SPF exceeds the 10-DNS-lookup limit.")
+                    .remediation("Flatten or remove SPF include, redirect, a, mx, ptr, and exists mechanisms.")
+                    .build();
+        }
+        if (analysis.lookupCount() >= 8) {
+            return b.status(Status.WARN)
+                    .summary("SPF is close to the 10-DNS-lookup limit.")
+                    .remediation("Reduce DNS-consuming SPF mechanisms before future includes push the record over the limit.")
+                    .build();
+        }
         return b.status(Status.PASS)
                 .summary("A single SPF record was found.")
                 .build();
@@ -446,9 +505,14 @@ public class EmailAnalysisBot implements BotProcessor {
             CheckResult.Builder b = CheckResult.builder(Category.DNS_PUBLISHING,
                     "DKIM selector DNS: " + sig.selector() + "._domainkey." + sig.domain())
                     .reference("RFC 6376")
+                    .reference("RFC 8301")
+                    .reference("RFC 8463")
                     .evidence("Signing domain", sig.domain())
                     .evidence("Selector", sig.selector())
-                    .evidence("Algorithm", nvl(sig.algorithm(), "N/A"));
+                    .evidence("Algorithm", nvl(sig.algorithm(), "N/A"))
+                    .evidence("Canonicalization", nvl(sig.canonicalization(), "N/A"))
+                    .evidence("Signed headers", nvl(sig.signedHeaders(), "N/A"))
+                    .evidence("Body hash", nvl(sig.bodyHash(), "N/A"));
             if (isBlank(sig.domain()) || isBlank(sig.selector())) {
                 checks.add(b.status(Status.FAIL)
                         .summary("DKIM signature is missing d= or s=.")
@@ -456,6 +520,9 @@ public class EmailAnalysisBot implements BotProcessor {
                         .build());
                 continue;
             }
+            boolean fromSigned = signedHeaderContains(sig.signedHeaders(), "from");
+            b.evidence("From header signed", yesNo(fromSigned))
+                    .evidence("Common mutable headers signed", commonSignedHeaders(sig.signedHeaders()));
             String name = sig.selector() + "._domainkey." + sig.domain();
             List<String> txt = txtRecords(name);
             b.evidence("TXT records", txt.isEmpty() ? "none" : String.join(" | ", txt));
@@ -465,13 +532,19 @@ public class EmailAnalysisBot implements BotProcessor {
                         .remediation("Publish the public key at " + name + ".")
                         .build());
             } else if (sig.algorithm() != null && sig.algorithm().toLowerCase(Locale.ROOT).contains("sha1")) {
-                checks.add(b.status(Status.WARN)
+                checks.add(b.status(Status.FAIL)
                         .summary("DKIM signature uses SHA-1.")
                         .remediation("Use a modern DKIM signing algorithm such as rsa-sha256 or ed25519-sha256.")
                         .build());
             } else {
-                checks.add(b.status(Status.PASS)
-                        .summary("DKIM selector TXT record exists.")
+                DkimKeyAssessment key = assessDkimKey(txt);
+                b.evidence("Key algorithm", nvl(key.algorithm(), "N/A"))
+                        .evidence("Key size", key.keyBits() > 0 ? key.keyBits() + " bits" : "N/A");
+                Status status = highest(Status.PASS, key.status(), fromSigned ? Status.PASS : Status.WARN);
+                checks.add(b.status(status)
+                        .summary(dkimSelectorSummary(status, fromSigned, key))
+                        .remediation(status == Status.PASS ? null :
+                                "Publish a valid modern DKIM key and sign the From header.")
                         .build());
             }
         }
@@ -521,27 +594,41 @@ public class EmailAnalysisBot implements BotProcessor {
         if (isBlank(domain)) {
             return b.status(Status.SKIPPED).summary("No header From domain was available.").build();
         }
-        List<String> txt = txtRecords("_dmarc." + domain);
-        List<String> dmarc = txt.stream()
-                .filter(v -> v.toLowerCase(Locale.ROOT).startsWith("v=dmarc1"))
-                .toList();
-        b.evidence("_dmarc TXT", dmarc.isEmpty() ? "none" : String.join(" | ", dmarc));
-        if (dmarc.isEmpty()) {
+        DmarcPolicy policy = discoverDmarcPolicy(domain);
+        b.reference("RFC 9989")
+                .reference("RFC 9990")
+                .reference("RFC 9991")
+                .evidence("Policy domain", nvl(policy.policyDomain(), "none"))
+                .evidence("Organizational domain", nvl(policy.organizationalDomain(), "N/A"))
+                .evidence("DNS tree walk", String.join(" -> ", policy.queries()))
+                .evidence("_dmarc TXT", isBlank(policy.record()) ? "none" : policy.record());
+        if (isBlank(policy.record())) {
             return b.status(Status.WARN)
                     .summary("No DMARC record was found.")
                     .remediation("Publish _dmarc." + domain + " TXT with at least v=DMARC1; p=none.")
                     .build();
         }
-        if (dmarc.size() > 1) {
+        if (policy.multipleRecords()) {
             return b.status(Status.FAIL)
                     .summary("Multiple DMARC records were found.")
                     .remediation("Publish exactly one DMARC TXT record.")
                     .build();
         }
-        Map<String, String> tags = tagMap(dmarc.getFirst());
+        Map<String, String> tags = policy.tags();
         b.evidence("Policy", nvl(tags.get("p"), "missing"))
                 .evidence("Subdomain policy", nvl(tags.get("sp"), "not set"))
-                .evidence("Aggregate reports", nvl(tags.get("rua"), "not set"));
+                .evidence("Non-existent domain policy", nvl(tags.get("np"), "not set"))
+                .evidence("PSD flag", nvl(tags.get("psd"), "not set"))
+                .evidence("Testing flag", nvl(tags.get("t"), "not set"))
+                .evidence("Aggregate reports", nvl(tags.get("rua"), "not set"))
+                .evidence("Failure reports", nvl(tags.get("ruf"), "not set"));
+        if (!policy.errors().isEmpty()) {
+            return b.status(Status.FAIL)
+                    .summary("DMARC record has syntax issues.")
+                    .evidence("Problems", String.join("; ", policy.errors()))
+                    .remediation("Fix malformed or duplicate DMARC tags before relying on the policy.")
+                    .build();
+        }
         if (!tags.containsKey("p")) {
             return b.status(Status.FAIL)
                     .summary("DMARC record has no p= policy.")
@@ -551,6 +638,209 @@ public class EmailAnalysisBot implements BotProcessor {
         return b.status(Status.PASS)
                 .summary("A single DMARC record was found.")
                 .build();
+    }
+
+    private CheckResult checkDmarcAlignment(MessageContext ctx) {
+        DmarcPolicy policy = discoverDmarcPolicy(ctx.headerFromDomain());
+        String aspf = policy.tags().getOrDefault("aspf", "r");
+        String adkim = policy.tags().getOrDefault("adkim", "r");
+        String spfDomain = !isBlank(ctx.envelopeDomain()) ? ctx.envelopeDomain() :
+                (!isBlank(ctx.ehlo()) && !ctx.ehlo().startsWith("[") ? trimDot(ctx.ehlo()) : null);
+        boolean spfAligned = aligned(spfDomain, ctx.headerFromDomain(), aspf, policy);
+        List<String> dkimAlignment = new ArrayList<>();
+        boolean dkimAligned = false;
+        for (String dkimDomain : ctx.dkimDomains()) {
+            boolean ok = aligned(dkimDomain, ctx.headerFromDomain(), adkim, policy);
+            dkimAligned |= ok;
+            dkimAlignment.add(dkimDomain + "=" + (ok ? "aligned" : "not aligned"));
+        }
+
+        CheckResult.Builder b = CheckResult.builder(Category.AUTHENTICATION, "DMARC identifier alignment")
+                .reference("RFC 9989")
+                .evidence("Header From domain", nvl(ctx.headerFromDomain(), "N/A"))
+                .evidence("Policy domain", nvl(policy.policyDomain(), "none"))
+                .evidence("SPF domain", nvl(spfDomain, "N/A"))
+                .evidence("SPF alignment mode", alignmentMode(aspf))
+                .evidence("SPF aligned", yesNo(spfAligned))
+                .evidence("DKIM domains", dkimAlignment.isEmpty() ? "none" : String.join(", ", dkimAlignment))
+                .evidence("DKIM alignment mode", alignmentMode(adkim))
+                .evidence("DKIM aligned", yesNo(dkimAligned));
+        if (isBlank(ctx.headerFromDomain())) {
+            return b.status(Status.SKIPPED).summary("No header From domain was available.").build();
+        }
+        if (spfAligned || dkimAligned) {
+            return b.status(Status.PASS).summary("At least one authenticated identifier aligns with the From domain.").build();
+        }
+        return b.status(Status.INFO)
+                .summary("No SPF or DKIM identifier alignment was visible in parsed message evidence.")
+                .build();
+    }
+
+    private CheckResult checkAuthenticationResults(MessageContext ctx) {
+        List<String> headers = ctx.headers("Authentication-Results");
+        CheckResult.Builder b = CheckResult.builder(Category.AUTHENTICATION, "Authentication-Results headers")
+                .reference("RFC 8601")
+                .evidence("Header count", String.valueOf(headers.size()));
+        if (headers.isEmpty()) {
+            return b.status(Status.SKIPPED).summary("No Authentication-Results headers were present.").build();
+        }
+        int index = 1;
+        for (String header : headers) {
+            b.evidence("Authentication-Results " + index++, summarizeAuthenticationResults(header));
+        }
+        return b.status(Status.INFO)
+                .summary("Authentication-Results headers are present as upstream evidence; trust depends on the receiving boundary.")
+                .build();
+    }
+
+    private CheckResult checkEai(MessageContext ctx) {
+        boolean needsEai = containsNonAscii(ctx.envelopeSender()) || containsNonAscii(ctx.headerFrom()) ||
+                ctx.headers("To").stream().anyMatch(EmailAnalysisBot::containsNonAscii) ||
+                ctx.headers("Cc").stream().anyMatch(EmailAnalysisBot::containsNonAscii);
+        CheckResult.Builder b = CheckResult.builder(Category.AUTHENTICATION, "Internationalized email")
+                .reference("RFC 6531")
+                .reference("RFC 8616")
+                .evidence("Envelope sender", nvl(ctx.envelopeSender(), "N/A"))
+                .evidence("Header From", nvl(ctx.headerFrom(), "N/A"))
+                .evidence("Requires SMTPUTF8", yesNo(needsEai))
+                .evidence("Normalized mail domains", formatSet(ctx.mailDomains()));
+        return b.status(needsEai ? Status.INFO : Status.SKIPPED)
+                .summary(needsEai ? "Message contains internationalized address or header evidence." :
+                        "Message does not appear to require SMTPUTF8 handling.")
+                .build();
+    }
+
+    private CheckResult checkRequireTls(MessageContext ctx) {
+        List<String> headers = ctx.headers("TLS-Required");
+        CheckResult.Builder b = CheckResult.builder(Category.TRANSPORT_SECURITY, "TLS-Required header")
+                .reference("RFC 8689")
+                .evidence("Header count", String.valueOf(headers.size()));
+        if (headers.isEmpty()) {
+            return b.status(Status.SKIPPED).summary("No TLS-Required header was present.").build();
+        }
+        b.evidence("TLS-Required", String.join(" | ", headers));
+        boolean validSingleNo = headers.size() == 1 && "No".equalsIgnoreCase(headers.getFirst().trim());
+        return b.status(validSingleNo ? Status.INFO : Status.WARN)
+                .summary(validSingleNo ? "TLS-Required explicitly asks relays not to require policy-based TLS." :
+                        "TLS-Required header is repeated or malformed.")
+                .remediation(validSingleNo ? null : "Use at most one TLS-Required header, with the value No.")
+                .build();
+    }
+
+    private CheckResult checkArcDkim2Advisory(MessageContext ctx) {
+        List<String> aar = ctx.headers("ARC-Authentication-Results");
+        List<String> ams = ctx.headers("ARC-Message-Signature");
+        List<String> seal = ctx.headers("ARC-Seal");
+        RspamdSymbol arc = ctx.findRspamdSymbol("ARC");
+        CheckResult.Builder b = CheckResult.builder(Category.AUTHENTICATION, "ARC / DKIM2 advisory")
+                .reference("RFC 8617")
+                .evidence("ARC-Authentication-Results", String.valueOf(aar.size()))
+                .evidence("ARC-Message-Signature", String.valueOf(ams.size()))
+                .evidence("ARC-Seal", String.valueOf(seal.size()))
+                .evidence("DKIM2", "active Internet-Draft; not a runtime validation target");
+        if (arc != null) {
+            b.evidence("Rspamd ARC symbol", arc.name()).evidence("Details", arc.details());
+        }
+        return b.status(Status.INFO)
+                .summary("ARC and DKIM2 are advisory context only and do not affect the DMARC conclusion.")
+                .build();
+    }
+
+    private CheckResult checkAuthoritativeDns(String domain, EmailAnalysisBotConfig cfg) {
+        CheckResult.Builder b = CheckResult.builder(Category.DNS_PUBLISHING, "Authoritative DNS: " + domain)
+                .reference("RFC 1034")
+                .reference("RFC 1035")
+                .evidence("Domain", domain);
+        if (isBlank(domain)) {
+            return b.status(Status.SKIPPED).summary("No domain was available for authoritative DNS checks.").build();
+        }
+        Optional<String> zone = findAuthoritativeZone(domain);
+        if (zone.isEmpty()) {
+            return b.status(Status.FAIL)
+                    .summary("No enclosing authoritative DNS zone with SOA was found.")
+                    .remediation("Publish a valid DNS zone with NS and SOA records.")
+                    .build();
+        }
+        b.evidence("Discovered zone", zone.get());
+        Record[] nsRecords = lookupRecords(zone.get(), Type.NS);
+        if (nsRecords.length == 0) {
+            return b.status(Status.FAIL)
+                    .summary("Authoritative zone has no NS records.")
+                    .remediation("Publish NS records for the authoritative zone.")
+                    .build();
+        }
+        int authoritative = 0;
+        long serial = -1;
+        for (Record record : nsRecords) {
+            if (!(record instanceof NSRecord ns)) continue;
+            String nsHost = trimDot(ns.getTarget().toString(true));
+            String evidence = querySoaAtNameserver(zone.get(), nsHost, cfg.getSoaCheckTimeoutSeconds());
+            if (evidence.contains("AA=yes")) {
+                authoritative++;
+            }
+            Matcher serialMatcher = Pattern.compile("serial=(\\d+)").matcher(evidence);
+            if (serialMatcher.find()) {
+                long nextSerial = Long.parseLong(serialMatcher.group(1));
+                if (serial < 0) {
+                    serial = nextSerial;
+                } else if (serial != nextSerial) {
+                    evidence += "; serial-mismatch";
+                }
+            }
+            b.evidence(nsHost, evidence);
+        }
+        if (authoritative == nsRecords.length) {
+            return b.status(Status.PASS).summary("All nameservers answered authoritatively for the discovered zone.").build();
+        }
+        if (authoritative > 0) {
+            return b.status(Status.WARN)
+                    .summary("Some nameservers did not answer authoritatively for the discovered zone.")
+                    .remediation("Fix lame or inconsistent nameserver delegation.")
+                    .build();
+        }
+        return b.status(Status.FAIL)
+                .summary("No nameserver answered authoritatively for the discovered zone.")
+                .remediation("Fix the domain's NS delegation and authoritative zone service.")
+                .build();
+    }
+
+    private CheckResult checkBimi(String domain) {
+        DmarcPolicy dmarc = discoverDmarcPolicy(domain);
+        List<String> txt = txtRecords("default._bimi." + domain);
+        List<String> bimi = txt.stream()
+                .filter(v -> v.toLowerCase(Locale.ROOT).startsWith("v=bimi1"))
+                .toList();
+        CheckResult.Builder b = CheckResult.builder(Category.DNS_PUBLISHING, "BIMI: " + domain)
+                .reference("BIMI ecosystem specification")
+                .evidence("Domain", domain)
+                .evidence("BIMI TXT", bimi.isEmpty() ? "none" : String.join(" | ", bimi))
+                .evidence("DMARC enforcement", yesNo(isDmarcEnforced(dmarc)));
+        if (bimi.isEmpty()) {
+            return b.status(Status.INFO).summary("No BIMI assertion record was found.").build();
+        }
+        if (bimi.size() > 1) {
+            return b.status(Status.WARN)
+                    .summary("Multiple BIMI assertion records were found.")
+                    .remediation("Publish exactly one BIMI TXT record at default._bimi." + domain + ".")
+                    .build();
+        }
+        TagParse tags = parseTagList(bimi.getFirst(), true);
+        b.evidence("Logo URL", nvl(tags.tags().get("l"), "missing"))
+                .evidence("Evidence URL", nvl(tags.tags().get("a"), "not set"));
+        List<String> problems = new ArrayList<>(tags.errors());
+        String logo = tags.tags().get("l");
+        String evidence = tags.tags().get("a");
+        if (isBlank(logo) || !isHttpsUri(logo)) problems.add("l must be an HTTPS SVG URL");
+        if (!isBlank(evidence) && !isHttpsUri(evidence)) problems.add("a must be an HTTPS certificate URL when present");
+        if (!isDmarcEnforced(dmarc)) problems.add("DMARC must be at quarantine or reject enforcement for BIMI display");
+        if (!problems.isEmpty()) {
+            return b.status(Status.WARN)
+                    .summary("BIMI record was found, but prerequisites or syntax need attention.")
+                    .evidence("Problems", String.join("; ", problems))
+                    .remediation("Fix the BIMI record and enforce DMARC before expecting mailbox-provider display.")
+                    .build();
+        }
+        return b.status(Status.PASS).summary("BIMI record and DMARC enforcement prerequisite are present.").build();
     }
 
     private List<CheckResult> checkMxDomain(String domain, MessageContext ctx, EmailAnalysisBotConfig cfg) {
@@ -582,6 +872,7 @@ public class EmailAnalysisBot implements BotProcessor {
         boolean isImplicitFallback = mxRecords.size() == 1 &&
                 trimDot(mxRecords.getFirst().getValue()).equalsIgnoreCase(trimDot(domain));
 
+        Set<String> checkedMxIps = new LinkedHashSet<>();
         for (DnsRecord mx : mxRecords) {
             String hostValue = mx.getValue();
             if (hostValue == null || hostValue.isEmpty()) {
@@ -593,7 +884,21 @@ public class EmailAnalysisBot implements BotProcessor {
             mxBuilder.evidence(mx.getPriority() + " " + host,
                     (addresses.isEmpty() ? "no A/AAAA" : formatSet(addresses)) +
                     (cname ? (isImplicitFallback ? "; CNAME (implicit fallback)" : "; CNAME target") : ""));
-            checks.add(checkMxPort(domain, host, cfg));
+            PortTlsResult tlsResult = probeMxPort(host, cfg);
+            checks.add(checkMxPort(domain, host, tlsResult));
+            if (cfg.isCertStrengthCheckEnabled()) {
+                checks.add(checkMxCertificateStrength(domain, host, tlsResult));
+            }
+            if (cfg.isMxPtrCheckEnabled()) {
+                checks.add(checkMxPtrAlignment(domain, host, addresses));
+            }
+            if (cfg.isMxRblCheckEnabled()) {
+                for (String address : addresses) {
+                    if (checkedMxIps.add(address)) {
+                        checks.add(checkMxReputation(domain, host, address, cfg));
+                    }
+                }
+            }
             if (cfg.isRecipientProbeEnabled()) {
                 checks.addAll(checkSenderAddresses(domain, host, ctx, cfg));
                 checks.addAll(checkRoleAddresses(domain, host, cfg));
@@ -639,21 +944,32 @@ public class EmailAnalysisBot implements BotProcessor {
         return checks;
     }
 
-    private CheckResult checkMxPort(String domain, String host, EmailAnalysisBotConfig cfg) {
+    private PortTlsResult probeMxPort(String host, EmailAnalysisBotConfig cfg) {
+        List<PortTlsResult> results = PortTlsChecker.checkPorts(host, List.of(25),
+                cfg.getPortCheckTimeoutSeconds(), cfg.getProbeEhloName());
+        return results.isEmpty() ? null : results.getFirst();
+    }
+
+    private CheckResult checkMxPort(String domain, String host, PortTlsResult result) {
         CheckResult.Builder b = CheckResult.builder(Category.MX_RECEIVING, "MX SMTP port 25: " + host)
                 .reference("RFC 5321")
                 .reference("RFC 3207")
+                .reference("RFC 6531")
+                .reference("RFC 8689")
                 .evidence("Domain", domain)
                 .evidence("MX host", host);
-        List<PortTlsResult> results = PortTlsChecker.checkPorts(host, List.of(25), cfg.getPortCheckTimeoutSeconds());
-        if (results.isEmpty()) {
+        if (result == null) {
             return b.status(Status.ERROR).summary("Port probe did not return a result.").build();
         }
-        PortTlsResult result = results.getFirst();
         b.evidence("Open", yesNo(result.isOpen()))
                 .evidence("STARTTLS/TLS", result.getTlsStatus().name())
+                .evidence("Server greeting", nvl(result.getBanner(), "N/A"))
+                .evidence("EHLO extensions", result.getExtensions().isEmpty() ? "none" : String.join(", ", result.getExtensions()))
+                .evidence("SMTPUTF8", yesNo(hasExtension(result, "SMTPUTF8")))
+                .evidence("REQUIRETLS", yesNo(hasExtension(result, "REQUIRETLS")))
                 .evidence("Certificate expiry", result.getCertExpiry() != null ? result.getCertExpiry().toString() : "N/A")
-                .evidence("Certificate subject", nvl(result.getCertSubject(), "N/A"));
+                .evidence("Certificate subject", nvl(result.getCertSubject(), "N/A"))
+                .evidence("Certificate issuer", nvl(result.getCertIssuer(), "N/A"));
         if (!result.isOpen()) {
             return b.status(Status.FAIL)
                     .summary("MX host did not accept SMTP on port 25.")
@@ -668,6 +984,111 @@ public class EmailAnalysisBot implements BotProcessor {
         }
         return b.status(Status.PASS)
                 .summary("MX SMTP port 25 is reachable.")
+                .build();
+    }
+
+    private CheckResult checkMxCertificateStrength(String domain, String host, PortTlsResult result) {
+        CheckResult.Builder b = CheckResult.builder(Category.TRANSPORT_SECURITY, "MX TLS certificate: " + host)
+                .reference("RFC 3207")
+                .reference("RFC 8461")
+                .reference("RFC 8996")
+                .reference("RFC 8446")
+                .evidence("Domain", domain)
+                .evidence("MX host", host);
+        if (result == null || !result.isOpen()) {
+            return b.status(Status.SKIPPED).summary("MX port 25 was not reachable.").build();
+        }
+        b.evidence("TLS status", result.getTlsStatus().name())
+                .evidence("Negotiated protocol", nvl(result.getNegotiatedProtocol(), "N/A"))
+                .evidence("Hostname matches certificate", yesNo(result.isHostnameMatch()))
+                .evidence("Certificate subject", nvl(result.getCertSubject(), "N/A"))
+                .evidence("Certificate issuer", nvl(result.getCertIssuer(), "N/A"))
+                .evidence("Certificate key size", result.getCertKeyBits() > 0 ? result.getCertKeyBits() + " bits" : "N/A");
+        if (result.getTlsStatus() != PortTlsResult.TlsStatus.ENABLED) {
+            return b.status(Status.WARN)
+                    .summary("MX did not complete STARTTLS during probing.")
+                    .remediation("Enable STARTTLS with a valid certificate on the advertised MX host.")
+                    .build();
+        }
+        if (isLegacyTls(result.getNegotiatedProtocol())) {
+            return b.status(Status.FAIL)
+                    .summary("MX negotiated a deprecated TLS protocol.")
+                    .remediation("Disable SSLv3, TLS 1.0, and TLS 1.1; support TLS 1.2 or TLS 1.3.")
+                    .build();
+        }
+        if (result.getCertKeyBits() > 0 && result.getCertKeyBits() < 2048) {
+            return b.status(Status.WARN)
+                    .summary("MX TLS certificate uses a small public key.")
+                    .remediation("Use a certificate with at least a 2048-bit RSA key or modern equivalent.")
+                    .build();
+        }
+        if (!result.isHostnameMatch()) {
+            return b.status(Status.WARN)
+                    .summary("MX TLS certificate does not match the MX hostname.")
+                    .remediation("Use a certificate whose SAN covers the advertised MX hostname.")
+                    .build();
+        }
+        return b.status(Status.PASS).summary("MX TLS certificate negotiated with modern parameters.").build();
+    }
+
+    private CheckResult checkMxReputation(String domain, String host, String ip, EmailAnalysisBotConfig cfg) {
+        CheckResult.Builder b = CheckResult.builder(Category.REPUTATION, "MX host reputation: " + ip)
+                .reference("DNSBL operational reputation check")
+                .evidence("Domain", domain)
+                .evidence("MX host", host)
+                .evidence("MX IP", ip);
+        if (!isIpv4(ip)) {
+            return b.status(Status.SKIPPED)
+                    .summary("MX IP reputation checks currently query IPv4 DNSBL zones only.")
+                    .build();
+        }
+        List<RblResult> results = RblChecker.checkIpAgainstRbls(ip, cfg.getRblProviders(), cfg.getRblTimeoutSeconds());
+        boolean listed = results.stream().anyMatch(RblResult::isListed);
+        for (RblResult result : results) {
+            b.evidence(result.getRblProvider(),
+                    result.isListed() ? "LISTED " + result.getResponseRecords() : "clear");
+        }
+        return b.status(listed ? Status.FAIL : Status.PASS)
+                .summary(listed ? "The MX IP is listed by at least one DNSBL." :
+                        "The MX IP was not listed by configured DNSBLs.")
+                .remediation(listed ? "Review the listed DNSBL result and remediate MX host reputation issues." : null)
+                .build();
+    }
+
+    private CheckResult checkMxPtrAlignment(String domain, String host, Set<String> addresses) {
+        CheckResult.Builder b = CheckResult.builder(Category.MX_RECEIVING, "MX PTR alignment: " + host)
+                .reference("RFC 5321 4.1.4")
+                .evidence("Domain", domain)
+                .evidence("MX host", host)
+                .evidence("MX addresses", formatSet(addresses));
+        if (addresses == null || addresses.isEmpty()) {
+            return b.status(Status.SKIPPED).summary("MX host has no resolved address records.").build();
+        }
+        XBillDnsRecordClient dns = new XBillDnsRecordClient();
+        boolean anyConfirmed = false;
+        boolean anyExact = false;
+        for (String address : addresses) {
+            Optional<String> ptr = dns.getPtrRecord(address);
+            String ptrName = ptr.map(EmailAnalysisBot::trimDot).orElse("none");
+            Set<String> ptrAddresses = ptr.map(EmailAnalysisBot::resolveHostAddresses).orElse(Collections.emptySet());
+            boolean confirmed = ptrAddresses.contains(address);
+            boolean exact = ptr.isPresent() && trimDot(ptr.get()).equalsIgnoreCase(host);
+            anyConfirmed |= confirmed;
+            anyExact |= exact;
+            b.evidence(address + " PTR", ptrName + "; forward-confirmed=" + yesNo(confirmed));
+        }
+        if (anyExact && anyConfirmed) {
+            return b.status(Status.PASS).summary("At least one MX PTR exactly matches and forward-confirms the MX host.").build();
+        }
+        if (anyConfirmed) {
+            return b.status(Status.WARN)
+                    .summary("MX PTR is forward-confirmed, but does not exactly match the MX hostname.")
+                    .remediation("For self-hosted MX infrastructure, align PTR names with the advertised MX hostname where practical.")
+                    .build();
+        }
+        return b.status(Status.WARN)
+                .summary("MX PTR records are missing or not forward-confirmed.")
+                .remediation("Configure reverse DNS and forward-confirmation for MX host addresses.")
                 .build();
     }
 
@@ -716,7 +1137,8 @@ public class EmailAnalysisBot implements BotProcessor {
         }
         boolean anyOpen = false;
         for (String host : hosts) {
-            List<PortTlsResult> results = PortTlsChecker.checkPorts(host, cfg.getPortCheckPorts(), cfg.getPortCheckTimeoutSeconds());
+            List<PortTlsResult> results = PortTlsChecker.checkPorts(host, cfg.getPortCheckPorts(),
+                    cfg.getPortCheckTimeoutSeconds(), cfg.getProbeEhloName());
             for (PortTlsResult result : results) {
                 anyOpen |= result.isOpen();
                 b.evidence(host + ":" + result.getPort(),
@@ -1073,7 +1495,7 @@ public class EmailAnalysisBot implements BotProcessor {
     private static String domainFromEmail(String email) {
         if (isBlank(email) || !email.contains("@")) return null;
         String domain = email.substring(email.lastIndexOf('@') + 1).trim().toLowerCase(Locale.ROOT);
-        return domain.isEmpty() ? null : trimDot(domain);
+        return normalizeDomain(domain);
     }
 
     private static boolean isValidSmtpDomain(String value) {
@@ -1147,7 +1569,455 @@ public class EmailAnalysisBot implements BotProcessor {
         while (matcher.find()) {
             tags.put(matcher.group(2).toLowerCase(Locale.ROOT), matcher.group(3).trim());
         }
-        return new DkimSignature(tags.get("d"), tags.get("s"), tags.get("a"));
+        return new DkimSignature(normalizeDomain(tags.get("d")), tags.get("s"), tags.get("a"),
+                tags.get("c"), tags.get("h"), tags.get("bh"));
+    }
+
+    private static SpfAnalysis analyzeSpf(String domain, String record, Set<String> seen, List<String> chain) {
+        List<String> problems = new ArrayList<>();
+        if (isBlank(domain) || isBlank(record)) {
+            return new SpfAnalysis(0, 0, List.copyOf(chain), List.of("missing SPF record"));
+        }
+        String normalized = normalizeDomain(domain);
+        if (normalized == null || !seen.add(normalized)) {
+            return new SpfAnalysis(0, 0, List.copyOf(chain), List.of("recursive include or redirect for " + domain));
+        }
+        chain.add(normalized);
+        int lookupCount = 0;
+        int voidLookups = 0;
+        for (String rawTerm : record.split("\\s+")) {
+            String term = rawTerm.trim();
+            if (term.isEmpty() || term.equalsIgnoreCase("v=spf1")) continue;
+            char first = term.charAt(0);
+            if (first == '+' || first == '-' || first == '~' || first == '?') {
+                term = term.substring(1);
+            }
+            String mechanism = spfMechanismName(term);
+            String value;
+            if (term.contains(":")) {
+                value = term.substring(term.indexOf(':') + 1);
+            } else if (term.contains("=")) {
+                value = term.substring(term.indexOf('=') + 1);
+            } else {
+                value = normalized;
+            }
+            value = value.contains("/") ? value.substring(0, value.indexOf('/')) : value;
+            if ("include".equals(mechanism)) {
+                lookupCount++;
+                List<String> includes = spfRecords(value);
+                if (includes.isEmpty()) {
+                    voidLookups++;
+                } else {
+                    SpfAnalysis nested = analyzeSpf(value, includes.getFirst(), seen, chain);
+                    lookupCount += nested.lookupCount();
+                    voidLookups += nested.voidLookups();
+                    problems.addAll(nested.problems());
+                }
+            } else if ("redirect".equals(mechanism)) {
+                lookupCount++;
+                List<String> redirects = spfRecords(value);
+                if (redirects.isEmpty()) {
+                    voidLookups++;
+                } else {
+                    SpfAnalysis nested = analyzeSpf(value, redirects.getFirst(), seen, chain);
+                    lookupCount += nested.lookupCount();
+                    voidLookups += nested.voidLookups();
+                    problems.addAll(nested.problems());
+                }
+            } else if ("a".equals(mechanism) || "exists".equals(mechanism) || "ptr".equals(mechanism)) {
+                lookupCount++;
+                int type = "exists".equals(mechanism) ? Type.A : Type.A;
+                if (lookupRecords(value, type).length == 0) voidLookups++;
+                if ("ptr".equals(mechanism)) problems.add("ptr mechanism is slow and discouraged");
+            } else if ("mx".equals(mechanism)) {
+                lookupCount++;
+                Record[] mxRecords = lookupRecords(value, Type.MX);
+                if (mxRecords.length == 0) {
+                    voidLookups++;
+                }
+                for (Record mxRecord : mxRecords) {
+                    if (mxRecord instanceof org.xbill.DNS.MXRecord mx) {
+                        lookupCount++;
+                        String mxHost = trimDot(mx.getTarget().toString(true));
+                        if (lookupRecords(mxHost, Type.A).length == 0 && lookupRecords(mxHost, Type.AAAA).length == 0) {
+                            voidLookups++;
+                        }
+                    }
+                }
+            } else if (term.contains("=") && !Set.of("redirect", "exp").contains(mechanism)) {
+                problems.add("unknown SPF modifier: " + rawTerm);
+            } else if (!Set.of("all", "ip4", "ip6", "exp").contains(mechanism)) {
+                problems.add("unknown SPF mechanism: " + rawTerm);
+            }
+        }
+        return new SpfAnalysis(lookupCount, voidLookups, List.copyOf(chain), List.copyOf(problems));
+    }
+
+    private static String spfMechanismName(String term) {
+        int colon = term.indexOf(':');
+        int slash = term.indexOf('/');
+        int equals = term.indexOf('=');
+        int end = term.length();
+        for (int idx : List.of(colon, slash, equals)) {
+            if (idx >= 0) end = Math.min(end, idx);
+        }
+        return term.substring(0, end).toLowerCase(Locale.ROOT);
+    }
+
+    private static List<String> spfRecords(String domain) {
+        return txtRecords(domain).stream()
+                .filter(v -> v.toLowerCase(Locale.ROOT).startsWith("v=spf1"))
+                .toList();
+    }
+
+    private static DkimKeyAssessment assessDkimKey(List<String> txt) {
+        if (txt == null || txt.isEmpty()) {
+            return new DkimKeyAssessment(Status.FAIL, null, 0, List.of("missing DKIM selector record"));
+        }
+        List<String> problems = new ArrayList<>();
+        Status status = Status.PASS;
+        String algorithm = null;
+        int bits = 0;
+        List<String> dkim = txt.stream()
+                .filter(v -> v.toLowerCase(Locale.ROOT).startsWith("v=dkim1"))
+                .toList();
+        if (dkim.size() > 1) {
+            return new DkimKeyAssessment(Status.FAIL, null, 0, List.of("multiple DKIM selector records"));
+        }
+        Map<String, String> tags = tagMap(dkim.isEmpty() ? txt.getFirst() : dkim.getFirst());
+        algorithm = tags.getOrDefault("k", "rsa").toLowerCase(Locale.ROOT);
+        String key = tags.get("p");
+        if (isBlank(key)) {
+            return new DkimKeyAssessment(Status.FAIL, algorithm, 0, List.of("empty or revoked DKIM public key"));
+        }
+        if ("rsa".equals(algorithm)) {
+            try {
+                RSAPublicKey publicKey = (RSAPublicKey) KeyFactory.getInstance("RSA")
+                        .generatePublic(new X509EncodedKeySpec(Base64.getMimeDecoder().decode(key)));
+                bits = publicKey.getModulus().bitLength();
+                if (bits < 1024) {
+                    problems.add("RSA key is below the RFC 8301 minimum of 1024 bits");
+                    status = Status.FAIL;
+                } else if (bits < 2048) {
+                    problems.add("RSA key is below the RFC 8301 2048-bit recommendation");
+                    status = Status.WARN;
+                }
+            } catch (Exception e) {
+                problems.add("RSA key could not be parsed");
+                status = Status.WARN;
+            }
+        } else if ("ed25519".equals(algorithm)) {
+            bits = 256;
+        } else {
+            problems.add("unknown DKIM key algorithm: " + algorithm);
+            status = Status.WARN;
+        }
+        return new DkimKeyAssessment(status, algorithm, bits, List.copyOf(problems));
+    }
+
+    private static boolean signedHeaderContains(String signedHeaders, String headerName) {
+        if (isBlank(signedHeaders) || isBlank(headerName)) return false;
+        for (String header : signedHeaders.split(":")) {
+            if (headerName.equalsIgnoreCase(header.trim())) return true;
+        }
+        return false;
+    }
+
+    private static String commonSignedHeaders(String signedHeaders) {
+        if (isBlank(signedHeaders)) return "none";
+        List<String> important = new ArrayList<>();
+        for (String name : List.of("subject", "date", "message-id", "to", "cc", "reply-to", "mime-version", "content-type")) {
+            if (signedHeaderContains(signedHeaders, name)) important.add(name);
+        }
+        return important.isEmpty() ? "none" : String.join(", ", important);
+    }
+
+    private static String dkimSelectorSummary(Status status, boolean fromSigned, DkimKeyAssessment key) {
+        if (status == Status.PASS) return "DKIM selector TXT record exists and uses acceptable key material.";
+        List<String> issues = new ArrayList<>(key.problems());
+        if (!fromSigned) issues.add("From header is not signed");
+        return issues.isEmpty() ? "DKIM selector needs attention." : String.join("; ", issues) + ".";
+    }
+
+    private static DmarcPolicy discoverDmarcPolicy(String domain) {
+        String normalized = normalizeDomain(domain);
+        if (normalized == null) return DmarcPolicy.empty(domain, List.of());
+        List<String> queries = new ArrayList<>();
+        List<String> candidates = new ArrayList<>();
+        candidates.add(normalized);
+        effectiveOrganizationalDomain(normalized).ifPresent(org -> {
+            String cursor = normalized;
+            while (cursor.contains(".") && !cursor.equalsIgnoreCase(org)) {
+                cursor = cursor.substring(cursor.indexOf('.') + 1);
+                if (!candidates.contains(cursor)) candidates.add(cursor);
+            }
+            if (!candidates.contains(org)) candidates.add(org);
+        });
+        if (candidates.size() == 1 && normalized.contains(".")) {
+            String parent = normalized.substring(normalized.indexOf('.') + 1);
+            if (!candidates.contains(parent)) candidates.add(parent);
+        }
+        for (String candidate : candidates) {
+            String name = "_dmarc." + candidate;
+            queries.add(name);
+            List<String> dmarc = txtRecords(name).stream()
+                    .filter(v -> v.toLowerCase(Locale.ROOT).startsWith("v=dmarc1"))
+                    .toList();
+            if (dmarc.isEmpty()) continue;
+            TagParse parsed = parseDmarcTags(dmarc.getFirst());
+            return new DmarcPolicy(candidate, organizationalDomainFromPolicy(normalized, candidate),
+                    dmarc.getFirst(), parsed.tags(), List.copyOf(queries), parsed.errors(), dmarc.size() > 1);
+        }
+        return DmarcPolicy.empty(normalized, queries);
+    }
+
+    private static TagParse parseDmarcTags(String record) {
+        Map<String, String> tags = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        List<String> errors = new ArrayList<>();
+        for (String part : nullToEmpty(record).split(";")) {
+            String trimmed = part.trim();
+            if (trimmed.isEmpty()) continue;
+            String[] kv = trimmed.split("=", 2);
+            if (kv.length != 2 || kv[0].isBlank()) {
+                errors.add("malformed tag: " + trimmed);
+                continue;
+            }
+            String key = kv[0].trim().toLowerCase(Locale.ROOT);
+            String value = kv[1].trim();
+            if (tags.containsKey(key)) {
+                errors.add("duplicate tag: " + key);
+                continue;
+            }
+            tags.put(key, value);
+        }
+        if (!"DMARC1".equalsIgnoreCase(tags.get("v"))) errors.add("missing v=DMARC1");
+        for (String key : List.of("p", "sp", "np")) {
+            String value = tags.get(key);
+            if (value != null && !Set.of("none", "quarantine", "reject").contains(value.toLowerCase(Locale.ROOT))) {
+                errors.add("invalid " + key + "=" + value);
+            }
+        }
+        for (String key : List.of("adkim", "aspf")) {
+            String value = tags.get(key);
+            if (value != null && !Set.of("r", "s").contains(value.toLowerCase(Locale.ROOT))) {
+                errors.add("invalid " + key + "=" + value);
+            }
+        }
+        if (tags.containsKey("pct")) {
+            try {
+                int pct = Integer.parseInt(tags.get("pct"));
+                if (pct < 0 || pct > 100) errors.add("pct must be between 0 and 100");
+            } catch (NumberFormatException e) {
+                errors.add("pct must be an integer");
+            }
+        }
+        for (String uri : parseTagList(tags.get("rua"))) {
+            if (!isMailtoUri(uri)) errors.add("rua must contain mailto URIs: " + uri);
+        }
+        for (String uri : parseTagList(tags.get("ruf"))) {
+            if (!isMailtoUri(uri)) errors.add("ruf must contain mailto URIs: " + uri);
+        }
+        return new TagParse(Collections.unmodifiableMap(tags), List.copyOf(errors));
+    }
+
+    private static List<String> parseTagList(String value) {
+        if (isBlank(value)) return List.of();
+        List<String> values = new ArrayList<>();
+        for (String item : value.split(",")) {
+            String trimmed = item.trim();
+            if (!trimmed.isEmpty()) values.add(trimmed);
+        }
+        return values;
+    }
+
+    private static TagParse parseTagList(String record, boolean requireVersion) {
+        Map<String, String> tags = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        List<String> errors = new ArrayList<>();
+        for (String part : nullToEmpty(record).split(";")) {
+            String trimmed = part.trim();
+            if (trimmed.isEmpty()) continue;
+            String[] kv = trimmed.split("=", 2);
+            if (kv.length != 2 || kv[0].isBlank()) {
+                errors.add("malformed tag: " + trimmed);
+                continue;
+            }
+            String key = kv[0].trim().toLowerCase(Locale.ROOT);
+            if (tags.containsKey(key)) {
+                errors.add("duplicate tag: " + key);
+                continue;
+            }
+            tags.put(key, kv[1].trim());
+        }
+        if (requireVersion && !"BIMI1".equalsIgnoreCase(tags.get("v"))) {
+            errors.add("missing v=BIMI1");
+        }
+        return new TagParse(Collections.unmodifiableMap(tags), List.copyOf(errors));
+    }
+
+    private static boolean aligned(String authenticatedDomain, String headerFromDomain, String mode, DmarcPolicy policy) {
+        String auth = normalizeDomain(authenticatedDomain);
+        String from = normalizeDomain(headerFromDomain);
+        if (auth == null || from == null) return false;
+        if ("s".equalsIgnoreCase(mode)) return auth.equalsIgnoreCase(from);
+        String authOrg = effectiveOrganizationalDomain(auth).orElse(auth);
+        String fromOrg = !isBlank(policy.organizationalDomain()) ? policy.organizationalDomain() :
+                effectiveOrganizationalDomain(from).orElse(from);
+        return authOrg.equalsIgnoreCase(fromOrg);
+    }
+
+    private static String organizationalDomainFromPolicy(String originalDomain, String policyDomain) {
+        return effectiveOrganizationalDomain(originalDomain)
+                .or(() -> effectiveOrganizationalDomain(policyDomain))
+                .orElse(policyDomain);
+    }
+
+    private static Optional<String> effectiveOrganizationalDomain(String domain) {
+        if (isBlank(domain)) return Optional.empty();
+        try {
+            InternetDomainName name = InternetDomainName.from(IDN.toASCII(trimDot(domain).toLowerCase(Locale.ROOT)));
+            if (name.hasPublicSuffix()) return Optional.of(name.topPrivateDomain().toString());
+        } catch (IllegalArgumentException ignored) {
+            // Fall through to the conservative two-label fallback.
+        }
+        String normalized = normalizeDomain(domain);
+        if (normalized == null || !normalized.contains(".")) return Optional.empty();
+        String[] labels = normalized.split("\\.");
+        return Optional.of(labels[labels.length - 2] + "." + labels[labels.length - 1]);
+    }
+
+    private static String alignmentMode(String mode) {
+        return "s".equalsIgnoreCase(mode) ? "strict" : "relaxed";
+    }
+
+    private static Status highest(Status... statuses) {
+        Status worst = Status.PASS;
+        for (Status status : statuses) {
+            if (severity(status) > severity(worst)) worst = status;
+        }
+        return worst;
+    }
+
+    private static int severity(Status status) {
+        return switch (status) {
+            case FAIL -> 5;
+            case ERROR -> 4;
+            case WARN -> 3;
+            case INFO -> 2;
+            case SKIPPED -> 1;
+            case PASS -> 0;
+        };
+    }
+
+    private static String summarizeAuthenticationResults(String header) {
+        String compact = nullToEmpty(header).replaceAll("\\s+", " ").trim();
+        return compact.length() <= 240 ? compact : compact.substring(0, 237) + "...";
+    }
+
+    private static boolean containsNonAscii(String value) {
+        if (value == null) return false;
+        for (int i = 0; i < value.length(); i++) {
+            if (value.charAt(i) > 0x7f) return true;
+        }
+        return false;
+    }
+
+    private static boolean isLegacyTls(String protocol) {
+        return "TLSv1".equalsIgnoreCase(protocol) || "TLSv1.1".equalsIgnoreCase(protocol) ||
+                "SSLv3".equalsIgnoreCase(protocol);
+    }
+
+    private static boolean hasExtension(PortTlsResult result, String extension) {
+        if (result == null || result.getExtensions().isEmpty()) return false;
+        for (String value : result.getExtensions()) {
+            String token = value.split("\\s+", 2)[0];
+            if (extension.equalsIgnoreCase(token)) return true;
+        }
+        return false;
+    }
+
+    private static boolean isIpv4(String value) {
+        if (isBlank(value)) return false;
+        try {
+            return InetAddress.getByName(value) instanceof Inet4Address;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static boolean isHttpsUri(String value) {
+        try {
+            URI uri = URI.create(value);
+            return "https".equalsIgnoreCase(uri.getScheme());
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    private static boolean isMailtoUri(String value) {
+        try {
+            URI uri = URI.create(value);
+            return "mailto".equalsIgnoreCase(uri.getScheme());
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    private static String normalizeDomain(String domain) {
+        if (isBlank(domain)) return null;
+        String trimmed = trimDot(domain).toLowerCase(Locale.ROOT);
+        try {
+            String ascii = IDN.toASCII(trimmed);
+            return ascii.isBlank() ? null : ascii;
+        } catch (IllegalArgumentException e) {
+            return trimmed.isBlank() ? null : trimmed;
+        }
+    }
+
+    private static boolean isDmarcEnforced(DmarcPolicy policy) {
+        if (policy == null || policy.tags().isEmpty()) return false;
+        String p = policy.tags().get("p");
+        return "quarantine".equalsIgnoreCase(p) || "reject".equalsIgnoreCase(p);
+    }
+
+    private static Optional<String> findAuthoritativeZone(String domain) {
+        String cursor = normalizeDomain(domain);
+        while (!isBlank(cursor)) {
+            if (lookupRecords(cursor, Type.SOA).length > 0) return Optional.of(cursor);
+            int dot = cursor.indexOf('.');
+            if (dot < 0) break;
+            cursor = cursor.substring(dot + 1);
+        }
+        return Optional.empty();
+    }
+
+    private static String querySoaAtNameserver(String zone, String nameserver, int timeoutSeconds) {
+        try {
+            SimpleResolver resolver = new SimpleResolver(nameserver);
+            resolver.setTimeout(java.time.Duration.ofSeconds(Math.max(1, timeoutSeconds)));
+            Message query = Message.newQuery(Record.newRecord(Name.fromString(zone + "."),
+                    Type.SOA, org.xbill.DNS.DClass.IN));
+            Message response = resolver.send(query);
+            boolean aa = response.getHeader().getFlag(Flags.AA);
+            String serial = "none";
+            for (Record record : response.getSectionArray(Section.ANSWER)) {
+                if (record instanceof SOARecord soa) {
+                    serial = String.valueOf(soa.getSerial());
+                    break;
+                }
+            }
+            return "AA=" + yesNo(aa) + "; serial=" + serial;
+        } catch (Exception e) {
+            return "error=" + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+        }
+    }
+
+    private static Record[] lookupRecords(String name, int type) {
+        try {
+            Record[] records = new Lookup(name, type).run();
+            return records == null ? new Record[0] : records;
+        } catch (Exception e) {
+            return new Record[0];
+        }
     }
 
     private static String readReply(BufferedReader in) throws IOException {
@@ -1385,7 +2255,28 @@ public class EmailAnalysisBot implements BotProcessor {
         }
     }
 
-    record DkimSignature(String domain, String selector, String algorithm) {
+    record SpfAnalysis(int lookupCount, int voidLookups, List<String> chain, List<String> problems) {
+    }
+
+    record DkimSignature(String domain, String selector, String algorithm, String canonicalization,
+                         String signedHeaders, String bodyHash) {
+    }
+
+    record DkimKeyAssessment(Status status, String algorithm, int keyBits, List<String> problems) {
+    }
+
+    record TagParse(Map<String, String> tags, List<String> errors) {
+    }
+
+    record DmarcPolicy(String policyDomain, String organizationalDomain, String record,
+                       Map<String, String> tags, List<String> queries, List<String> errors,
+                       boolean multipleRecords) {
+        static DmarcPolicy empty(String domain, List<String> queries) {
+            String normalized = normalizeDomain(domain);
+            String organizational = effectiveOrganizationalDomain(normalized).orElse(normalized);
+            return new DmarcPolicy(null, organizational, null, Map.of(),
+                    List.copyOf(queries == null ? List.of() : queries), List.of(), false);
+        }
     }
 
     record SmtpProbeResult(boolean accepted, String reply, String summary) {
@@ -1438,6 +2329,15 @@ public class EmailAnalysisBot implements BotProcessor {
             return headerValue(parser, name);
         }
 
+        List<String> headers(String name) {
+            if (parser == null || isBlank(name)) return List.of();
+            List<String> values = new ArrayList<>();
+            for (MimeHeader header : parser.getHeaders().get()) {
+                if (header.getName().equalsIgnoreCase(name)) values.add(header.getValue());
+            }
+            return List.copyOf(values);
+        }
+
         RspamdSymbol findRspamdSymbol(String prefix) {
             for (Map.Entry<String, Object> entry : rspamdSymbols().entrySet()) {
                 if (entry.getKey().startsWith(prefix)) return new RspamdSymbol(entry.getKey(), entry.getValue());
@@ -1454,7 +2354,7 @@ public class EmailAnalysisBot implements BotProcessor {
         Set<String> dkimDomains() {
             Set<String> domains = new LinkedHashSet<>();
             for (DkimSignature sig : dkimSignatures) {
-                if (!isBlank(sig.domain())) domains.add(trimDot(sig.domain().toLowerCase(Locale.ROOT)));
+                if (!isBlank(sig.domain())) domains.add(normalizeDomain(sig.domain()));
             }
             return domains;
         }

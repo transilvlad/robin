@@ -109,6 +109,15 @@ public class LocalDnsResolver implements Resolver {
                     response.add(new NSRecord(name, 1, 300L, new Name(record)));
                 }
                 break;
+            case Type.SOA:
+                for (String record : records) {
+                    String[] parts = record.trim().split("\\s+");
+                    Name mname = new Name(parts.length > 0 ? parts[0] : "ns.example.");
+                    Name rname = new Name(parts.length > 1 ? parts[1] : "hostmaster.example.");
+                    long serial = parts.length > 2 ? Long.parseLong(parts[2]) : 1L;
+                    response.add(new SOARecord(name, 1, 300L, mname, rname, serial, 3600L, 600L, 604800L, 300L));
+                }
+                break;
             case Type.A:
                 for (String record : records) {
                     response.add(new ARecord(name, 1, 300L, InetAddress.getByName(record)));
