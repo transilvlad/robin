@@ -10,4 +10,3 @@ log/
 store/
 target/
 *.class
-.claude/

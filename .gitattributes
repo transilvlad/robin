@@ -1,0 +1,15 @@
+# Normalize ordinary text files to LF in the repository.
+* text=auto eol=lf
+
+# EML fixtures are byte-for-byte protocol samples; preserve mixed line endings.
+*.eml -text -diff -merge !eol
+
+# Common binary assets.
+*.gif binary
+*.ico binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary
+*.png binary
+*.webp binary
+*.zip binary

@@ -249,10 +249,10 @@ public class MXResolver {
         // Step 1: Get regular MX records via DNS client.
         var optionalDnsRecords = new XBillDnsRecordClient().getMxRecords(domain);
         List<DnsRecord> mxRecords;
-        
+
         if (optionalDnsRecords.isEmpty() || optionalDnsRecords.get().isEmpty()) {
             log.debug("No explicit MX records found for domain: {} - attempting RFC 5321 implicit fallback", domain);
-            
+
             // RFC 5321: If no MX records exist, the domain itself is treated as a mail exchanger.
             // This means we should query A/AAAA records for the domain (including CNAME resolution).
             var addressRecords = new XBillDnsRecordClient().getARecords(domain);
