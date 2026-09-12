@@ -1,9 +1,11 @@
 package com.mimecast.robin.endpoints;
 
 import com.google.gson.Gson;
+import com.mimecast.robin.auth.SqlAuthManager;
 import com.mimecast.robin.config.server.UserConfig;
 import com.mimecast.robin.db.SharedDataSource;
 import com.mimecast.robin.main.Config;
+import com.mimecast.robin.sasl.SqlAuthProvider;
 import com.sun.net.httpserver.HttpExchange;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -338,37 +340,27 @@ public class UsersHandler implements ApiHandler {
     /**
      * Authenticates a user against the SQL database backend.
      *
+     * <p>Delegates to the shared {@link SqlAuthProvider} (the same component {@code ServerAuth} uses
+     * for SMTP AUTH) rather than issuing its own query, because the configured
+     * {@code authSql.passwordQuery} is not guaranteed to have the 2-placeholder,
+     * boolean-returning shape of {@link SqlAuthProvider#DEFAULT_AUTH_QUERY} — it may instead be a
+     * 1-placeholder query that returns the stored password hash for the caller to verify itself
+     * (the Dovecot {@code password_query} convention), which is exactly what this deployment's
+     * {@code authSql.passwordQuery} is. Binding a second parameter to such a query previously threw
+     * a driver-level "column index out of range" error for every login attempt. SqlAuthProvider
+     * already handles both shapes correctly (see its {@code paramCount} branch).
+     *
      * @param username Username to authenticate.
      * @param password Password to validate.
      * @return {@code true} if credentials are valid.
-     * @throws Exception If a database error occurs.
+     * @throws Exception If the shared SQL auth provider is unavailable.
      */
     private boolean sqlAuthenticate(String username, String password) throws Exception {
-        String authQuery = Config.getServer().getDovecot().getAuthSqlPasswordQuery();
-        if (authQuery == null || authQuery.isBlank()) {
-            authQuery = "SELECT (crypt(?, regexp_replace(password, '^\\{[^}]+\\}', '')) = regexp_replace(password, '^\\{[^}]+\\}', '')) AS ok FROM users WHERE email = ?";
+        SqlAuthProvider sqlAuth = SqlAuthManager.getAuthProvider();
+        if (sqlAuth == null) {
+            throw new IllegalStateException("SQL auth requested but SqlAuthManager not initialized");
         }
-
-        try (Connection c = SharedDataSource.getDataSource().getConnection();
-             PreparedStatement ps = c.prepareStatement(authQuery)) {
-            ps.setString(1, password);
-            ps.setString(2, username);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) {
-                    return false;
-                }
-
-                Object ok = rs.getObject(1);
-                if (ok instanceof Boolean) {
-                    return (Boolean) ok;
-                }
-                if (ok != null) {
-                    String value = String.valueOf(ok).trim();
-                    return "1".equals(value) || "true".equalsIgnoreCase(value) || "t".equalsIgnoreCase(value);
-                }
-                return false;
-            }
-        }
+        return sqlAuth.authenticate(username, password);
     }
 }
 
