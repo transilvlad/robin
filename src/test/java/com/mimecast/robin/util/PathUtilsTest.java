@@ -3,6 +3,10 @@ package com.mimecast.robin.util;
 import com.mimecast.robin.main.Foundation;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.naming.ConfigurationException;
 import java.io.File;
@@ -56,5 +60,36 @@ class PathUtilsTest {
         String payload = PathUtils.readFile("src/test/resources/cfg/properties.json5", Charset.defaultCharset());
         assertEquals(123, payload.charAt(0));
         assertEquals(125, payload.charAt(payload.length() - 1));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "robin.eml,robin.eml",
+        "../../etc/passwd,passwd",
+        "..\\..\\windows\\evil.exe,evil.exe",
+        "/etc/passwd,passwd",
+        "C:\\Windows\\System32\\evil.exe,evil.exe",
+        "\\\\server\\share\\evil.exe,evil.exe",
+        "foo/../../bar.eml,bar.eml"
+    })
+    void safeFileNameStripsDirectoryComponents(String value, String expected) {
+        assertEquals(expected, PathUtils.safeFileName(value));
+    }
+
+    @Test
+    void safeFileNameTrimsWhitespace() {
+        assertEquals("robin.eml", PathUtils.safeFileName("  robin.eml  "));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {".", "..", "", "   ", "/", "../", "..\\"})
+    void safeFileNameRejectsUnsafeValues(String value) {
+        assertNull(PathUtils.safeFileName(value));
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    void safeFileNameRejectsNullAndEmpty(String value) {
+        assertNull(PathUtils.safeFileName(value));
     }
 }

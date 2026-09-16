@@ -91,6 +91,17 @@ class ServerConfigTest {
         assertTrue(Config.getServer().isXclientEnabled(), "XCLIENT should be enabled in test config");
     }
 
+    @Test
+    void isRenameHeaderEnabled() {
+        // Test config has renameHeaderEnabled set to true for testing
+        assertTrue(Config.getServer().isRenameHeaderEnabled(), "Rename header should be enabled in test config");
+    }
+
+    @Test
+    void isRenameHeaderEnabledDefaultsFalse() {
+        assertFalse(new ServerConfig(new java.util.HashMap<>()).isRenameHeaderEnabled());
+    }
+
     
     @Test
     void emptyExternalConfigFileFallsBackToEmptyMap() throws Exception {

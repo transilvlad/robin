@@ -223,6 +223,10 @@
   // and is intended strictly for development and testing purposes.
   chaosHeaders: true,
 
+  // X-Robin-Filename rename header, so test cases can fetch a message back by a stable name.
+  // WARNING: Do NOT enable in production. Intended strictly for development and testing purposes.
+  renameHeaderEnabled: true,
+
   // Enable XCLIENT extension for development and testing only.
   // WARNING: Do NOT enable in production. XCLIENT allows clients to forge sender information
   // and is intended strictly for development and testing purposes.

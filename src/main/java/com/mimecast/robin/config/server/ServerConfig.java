@@ -582,6 +582,19 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
+     * Is filename override header (X-Robin-Filename) enabled.
+     * <p>Lets a message consistently overwrite its own stored filename, so test cases
+     * can fetch it back by a stable name via the API.
+     * <p>WARNING: Do NOT enable in production. Intended strictly for development and
+     * testing purposes.
+     *
+     * @return Boolean (default: false).
+     */
+    public boolean isRenameHeaderEnabled() {
+        return getBooleanProperty("renameHeaderEnabled", false);
+    }
+
+    /**
      * Is XCLIENT extension enabled.
      * <p>WARNING: This feature is intended for development and testing purposes only.
      * Do NOT enable in production environments as XCLIENT allows clients to forge sender information.

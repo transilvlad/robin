@@ -115,6 +115,56 @@ class LocalStorageClientTest {
         assertFalse(Files.exists(Path.of(localStorageClient.getFile())));
     }
 
+    @Test
+    void filenameRejectsPathTraversal() throws IOException {
+        Connection connection = new Connection(new Session());
+        MessageEnvelope envelope = new MessageEnvelope().addRcpt("tony@example.com");
+        connection.getSession().addEnvelope(envelope);
+        LocalStorageClient localStorageClient = new LocalStorageClient()
+                .setConnection(connection)
+                .setExtension("dat");
+
+        String content = "Mime-Version: 1.0\r\n" +
+                "X-Robin-Filename: ../../evil.eml\r\n" +
+                "\r\n";
+        localStorageClient.getStream().write(content.getBytes());
+
+        localStorageClient.save();
+
+        // Traversal segments are stripped: the renamed file stays confined to the storage directory.
+        assertEquals(Path.of(localStorageClient.getPath(), "evil.eml").toString(), localStorageClient.getFile());
+        assertFalse(localStorageClient.getFile().contains(".."));
+        assertNotNull(envelope.getMessageSource());
+        assertEquals(content, new String(envelope.readMessageBytes(), StandardCharsets.UTF_8));
+        assertFalse(Files.exists(Path.of(localStorageClient.getFile())));
+    }
+
+    @Test
+    void filenameHeaderDisabledByDefault() throws IOException {
+        Config.getServer().getMap().put("renameHeaderEnabled", false);
+        try {
+            Connection connection = new Connection(new Session());
+            MessageEnvelope envelope = new MessageEnvelope().addRcpt("tony@example.com");
+            connection.getSession().addEnvelope(envelope);
+            LocalStorageClient localStorageClient = new LocalStorageClient()
+                    .setConnection(connection)
+                    .setExtension("dat");
+
+            String content = "Mime-Version: 1.0\r\n" +
+                    "X-Robin-Filename: robin.eml\r\n" +
+                    "\r\n";
+            localStorageClient.getStream().write(content.getBytes());
+
+            localStorageClient.save();
+
+            // Disabled by default: the header is ignored and the generated filename is kept.
+            assertTrue(localStorageClient.getFile().endsWith(".dat"));
+            assertFalse(localStorageClient.getFile().endsWith("robin.eml"));
+        } finally {
+            Config.getServer().getMap().put("renameHeaderEnabled", true);
+        }
+    }
+
     @ParameterizedTest
     @CsvSource({"0", "1"})
     void saveToDovecotLda(int param) throws IOException {

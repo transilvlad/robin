@@ -202,7 +202,7 @@ public class LocalStorageClient implements StorageClient {
                                  : new EmailParser(getFile()).parse(!parseFullEmail)) {
                         parser = emailParser;
 
-                        if (!config.getStorage().getBooleanProperty("disableRenameHeader")) {
+                        if (isRenameHeaderActive()) {
                             rename(envelope);
                         }
 
@@ -260,8 +260,20 @@ public class LocalStorageClient implements StorageClient {
 
     private boolean shouldParseHeadersOnly(MessageEnvelope envelope) {
         return Config.getServer().isChaosHeaders()
-                || !config.getStorage().getBooleanProperty("disableRenameHeader")
+                || isRenameHeaderActive()
                 || (envelope != null && envelope.hasBotAddresses());
+    }
+
+    /**
+     * Is the X-Robin-Filename rename feature active.
+     * <p>Requires both the server-wide opt-in ({@code renameHeaderEnabled}, default false)
+     * and that it hasn't been explicitly disabled for this storage config.
+     *
+     * @return Boolean.
+     */
+    private boolean isRenameHeaderActive() {
+        return Config.getServer().isRenameHeaderEnabled()
+                && !config.getStorage().getBooleanProperty("disableRenameHeader");
     }
 
     private boolean isFullEmailParseRequired() {
@@ -281,19 +293,21 @@ public class LocalStorageClient implements StorageClient {
     /**
      * Rename filename.
      * <p>Will parse and lookup if an X-Robin-Filename header exists and use its value as a filename.
+     * <p>The header value is reduced to a bare filename (no directory components), so it can only
+     * ever target a file inside {@link #getPath()}.
      *
      * @throws IOException Unable to delete file.
      */
     private void rename(MessageEnvelope envelope) throws IOException {
         Optional<MimeHeader> optional = parser.getHeaders().get("x-robin-filename");
         if (optional.isPresent()) {
-            MimeHeader header = optional.get();
+            String safeName = PathUtils.safeFileName(optional.get().getValue());
 
-            String source = getFile();
-            Path target = Paths.get(getPath(), header.getValue());
+            if (StringUtils.isNotBlank(safeName)) {
+                String source = getFile();
+                Path target = Paths.get(getPath(), safeName);
 
-            if (StringUtils.isNotBlank(header.getValue())) {
-                fileName = header.getValue();
+                fileName = safeName;
                 if (envelope != null) {
                     envelope.setFile(target.toString());
                 }

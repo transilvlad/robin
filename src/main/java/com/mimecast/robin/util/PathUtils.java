@@ -74,6 +74,27 @@ public final class PathUtils extends File {
     }
 
     /**
+     * Extracts a bare filename from a potentially untrusted value.
+     * <p>Strips any directory components (both / and \ separators, regardless of platform)
+     * so the result is safe to join with a base directory without risk of path traversal.
+     *
+     * @param value Raw filename or path value.
+     * @return Bare filename with no directory components, or null if blank, ".", "..", or unset.
+     */
+    public static String safeFileName(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        String name = FilenameUtils.getName(value.trim());
+        if (name == null || name.isBlank() || name.equals(".") || name.equals("..")) {
+            return null;
+        }
+
+        return name;
+    }
+
+    /**
      * Get file contents as a string using given charset.
      *
      * @param path    File path.
