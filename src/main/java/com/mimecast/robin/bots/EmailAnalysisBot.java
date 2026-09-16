@@ -95,7 +95,8 @@ public class EmailAnalysisBot implements BotProcessor {
             log.info("Processing email analysis bot for: {} session: {}",
                     botAddress, connection.getSession().getUID());
 
-            String replyTo = BotReplyAddressResolver.resolveReplyAddress(connection, botAddress);
+            boolean preferEnvelope = botDefinition != null && botDefinition.isReplyToEnvelope();
+            String replyTo = BotReplyAddressResolver.resolveReplyAddress(connection, botAddress, preferEnvelope);
             if (replyTo == null || replyTo.isEmpty()) {
                 log.warn("Cannot determine reply address for bot request from session: {}",
                         connection.getSession().getUID());

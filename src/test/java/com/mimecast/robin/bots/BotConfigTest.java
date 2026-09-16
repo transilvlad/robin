@@ -176,6 +176,23 @@ class BotConfigTest {
 
 
     @Test
+    void testReplyToEnvelopeDefaultsFalse() {
+        Map<String, Object> botMap = createBotMap("^robot@example\\.com$", "session", List.of(), List.of());
+        BotConfig.BotDefinition bot = new BotConfig.BotDefinition(botMap);
+
+        assertFalse(bot.isReplyToEnvelope());
+    }
+
+    @Test
+    void testReplyToEnvelopeEnabled() {
+        Map<String, Object> botMap = createBotMap("^robot@example\\.com$", "session", List.of(), List.of());
+        botMap.put("replyToEnvelope", true);
+        BotConfig.BotDefinition bot = new BotConfig.BotDefinition(botMap);
+
+        assertTrue(bot.isReplyToEnvelope());
+    }
+
+    @Test
     void testInvalidPatternThrowsException() {
         Map<String, Object> botMap = new HashMap<>();
         botMap.put("addressPattern", "[invalid(regex"); // Invalid regex

@@ -66,7 +66,8 @@ public class SessionBot implements BotProcessor {
                     botAddress, connection.getSession().getUID());
 
             // Determine reply address.
-            String replyTo = BotReplyAddressResolver.resolveReplyAddress(connection, botAddress);
+            boolean preferEnvelope = botDefinition != null && botDefinition.isReplyToEnvelope();
+            String replyTo = BotReplyAddressResolver.resolveReplyAddress(connection, botAddress, preferEnvelope);
             if (replyTo == null || replyTo.isEmpty()) {
                 log.warn("Could not determine reply address for bot request from session UID: {}",
                         connection.getSession().getUID());

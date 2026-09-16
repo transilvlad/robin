@@ -55,7 +55,13 @@ Create a `bots.json5` file in your configuration directory:
 
       // Name of the bot implementation to use from the factory
       // Currently supported: "session", "email"
-      botName: "session"
+      botName: "session",
+
+      // Default reply-address source for the session/email bots: false (default)
+      // prefers header addresses (Reply-To/From) then falls back to envelope
+      // MAIL FROM; true prefers envelope MAIL FROM then falls back to headers.
+      // Can be overridden per message; see Reply-To Address Resolution below.
+      replyToEnvelope: false
     }
   ]
 }
@@ -130,6 +136,12 @@ With this configuration:
 
 **Security Note**: If both `allowedIps` and `allowedTokens` are empty lists, **all requests are authorized**. This is not recommended for production environments.
 
+#### Reply Source Default
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `replyToEnvelope` | boolean | `false` | Applies to the `session` and `email` bots. `false` prefers header addresses (Reply-To/From) with envelope MAIL FROM as a fallback; `true` prefers envelope MAIL FROM with header addresses as a fallback. Overridable per message; see Reply-To Address Resolution below. |
+
 #### Report Bot Endpoint Options
 
 The `dmarc`, `tlsrpt`, and `forensic` bots support forwarding parsed reports to an HTTP endpoint.
@@ -175,9 +187,15 @@ The Session Bot determines where to send the reply using the following priority:
    - Examples:
      - `robotSession+admin+internal.com@example.com` → replies to `admin@internal.com`
      - `robotSession+abc+admin+internal.com@example.com` → replies to `admin@internal.com` (with token)
-2. **Reply-To header**: From the parsed email
-3. **From header**: From the parsed email
-4. **Envelope MAIL FROM**: From the SMTP envelope
+2. **Reply source override**: Switches between header and envelope addresses for this message only,
+   regardless of the bot's `replyToEnvelope` default
+   - Format 1 (without token): `robotSession+envelope@botdomain.com` or `robotSession+header@botdomain.com`
+   - Format 2 (with token): `robotSession+token+envelope@botdomain.com` or `robotSession+token+header@botdomain.com`
+   - `envelope` prefers the envelope MAIL FROM; `header` prefers Reply-To/From headers
+   - Token, if present, must come first, same as the explicit reply address format above
+3. **Header or envelope, per the bot's `replyToEnvelope` default** (see Reply Source Default above):
+   - Default (`replyToEnvelope: false`): Reply-To header → From header → envelope MAIL FROM (fallback)
+   - `replyToEnvelope: true`: envelope MAIL FROM → Reply-To header → From header (fallback)
 
 **Example Usage**:
 
@@ -192,6 +210,12 @@ echo "Test email" | mail -s "Session Analysis" \
 # With token and custom reply address
 echo "Test email" | mail -s "Session Analysis" \
   robotSession+mytoken+admin+mydomain.com@example.com
+
+# Force this reply to use the envelope MAIL FROM, overriding the bot's default
+echo "Test email" | mail -s "Session Analysis" robotSession+envelope@example.com
+
+# Force this reply to use header addresses, overriding the bot's default
+echo "Test email" | mail -s "Session Analysis" robotSession+header@example.com
 ```
 
 ### Email Analysis Bot
@@ -240,9 +264,12 @@ The Email Analysis Bot uses the same priority as Session Bot:
    - Format 1 (without token): `robotEmail+localpart+domain.com@botdomain.com`
    - Format 2 (with token): `robotEmail+token+localpart+domain.com@botdomain.com`
    - Token is optional if the sender IP is authorized
-2. **Reply-To header**: From the parsed email
-3. **From header**: From the parsed email
-4. **Envelope MAIL FROM**: From the SMTP envelope
+2. **Reply source override**: `robotEmail+envelope@botdomain.com` / `robotEmail+header@botdomain.com`
+   (or `robotEmail+token+envelope@botdomain.com` / `robotEmail+token+header@botdomain.com` with a token),
+   overriding the bot's `replyToEnvelope` default for this message only
+3. **Header or envelope, per the bot's `replyToEnvelope` default** (see Reply Source Default above):
+   - Default (`replyToEnvelope: false`): Reply-To header → From header → envelope MAIL FROM (fallback)
+   - `replyToEnvelope: true`: envelope MAIL FROM → Reply-To header → From header (fallback)
 
 **Example Usage**:
 

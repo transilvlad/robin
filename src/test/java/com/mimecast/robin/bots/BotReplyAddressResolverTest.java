@@ -86,5 +86,68 @@ class BotReplyAddressResolverTest {
         String actual = BotReplyAddressResolver.resolveReplyAddress(connection, botAddress);
         assertNull(actual);
     }
+
+    private Connection connectionWithHeadersAndMailFrom() {
+        Session session = new Session();
+        MessageEnvelope envelope = new MessageEnvelope();
+        envelope.setMail("mailfrom@example.com");
+        envelope.addHeader("X-Parsed-Reply-To", "reply@example.com");
+        envelope.addHeader("X-Parsed-From", "from@example.com");
+        session.addEnvelope(envelope);
+        return new Connection(session);
+    }
+
+    @Test
+    @DisplayName("Bot default: header preferred (explicit false)")
+    void testDefaultPreferHeader() {
+        Connection connection = connectionWithHeadersAndMailFrom();
+        String actual = BotReplyAddressResolver.resolveReplyAddress(connection, "robot@botdomain.com", false);
+        assertEquals("reply@example.com", actual);
+    }
+
+    @Test
+    @DisplayName("Bot default: envelope preferred")
+    void testDefaultPreferEnvelope() {
+        Connection connection = connectionWithHeadersAndMailFrom();
+        String actual = BotReplyAddressResolver.resolveReplyAddress(connection, "robot@botdomain.com", true);
+        assertEquals("mailfrom@example.com", actual);
+    }
+
+    @ParameterizedTest
+    @DisplayName("Per-message source override beats bot default")
+    @CsvSource({
+        // botAddress, botDefault, expected
+        "robot+envelope@botdomain.com,false,mailfrom@example.com",
+        "robot+header@botdomain.com,true,reply@example.com",
+        "robot+token+envelope@botdomain.com,false,mailfrom@example.com",
+        "robot+token+header@botdomain.com,true,reply@example.com",
+        "robot+ENVELOPE@botdomain.com,false,mailfrom@example.com",
+        "robot+Header@botdomain.com,true,reply@example.com"
+    })
+    void testPerMessageSourceOverride(String botAddress, boolean botDefault, String expected) {
+        Connection connection = connectionWithHeadersAndMailFrom();
+        String actual = BotReplyAddressResolver.resolveReplyAddress(connection, botAddress, botDefault);
+        assertEquals(expected, actual);
+    }
+
+    @Test
+    @DisplayName("Explicit sieve address named 'header' is not swallowed by the override keyword")
+    void testExplicitAddressNotConfusedWithKeyword() {
+        Connection connection = connectionWithHeadersAndMailFrom();
+        String actual = BotReplyAddressResolver.resolveReplyAddress(connection, "robot+header+envelope.com@botdomain.com", false);
+        assertEquals("header@envelope.com", actual);
+    }
+
+    @Test
+    @DisplayName("Envelope preferred but MAIL FROM blank falls back to headers")
+    void testEnvelopePreferredFallsBackWhenMailFromBlank() {
+        Session session = new Session();
+        MessageEnvelope envelope = new MessageEnvelope();
+        envelope.addHeader("X-Parsed-From", "from@example.com");
+        session.addEnvelope(envelope);
+        Connection connection = new Connection(session);
+        String actual = BotReplyAddressResolver.resolveReplyAddress(connection, "robot@botdomain.com", true);
+        assertEquals("from@example.com", actual);
+    }
 }
 

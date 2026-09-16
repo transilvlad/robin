@@ -33,23 +33,61 @@ public class BotReplyAddressResolver {
     );
 
     /**
+     * Pattern to detect a per-message reply-source override.
+     * <p>Format: robot+envelope@botdomain.com, robot+header@botdomain.com,
+     * robot+token+envelope@botdomain.com or robot+token+header@botdomain.com.
+     * <p>The keyword must be the final segment (token, if present, always comes first),
+     * which keeps this from ever matching an explicit sieve reply address such as
+     * robot+header+example.com@botdomain.com (that still resolves to header@example.com).
+     * <p>Group 1: Optional token. Group 2: envelope or header (case-insensitive).
+     */
+    private static final Pattern REPLY_SOURCE_OVERRIDE_PATTERN = Pattern.compile(
+            "(?i)^[^+]+\\+(?:([^+@]+)\\+)?(envelope|header)@[^@]+$"
+    );
+
+    /**
      * Determines the reply address based on the sieve address, headers, or envelope.
-     * <p>Priority order:
-     * <ol>
-     *   <li>Sieve reply address (robot+user+domain.com@example.com or robot+token+user+domain.com@example.com)</li>
-     *   <li>Reply-To header from envelope (extracted before parser closed)</li>
-     *   <li>From header from envelope (extracted before parser closed)</li>
-     *   <li>Envelope MAIL FROM</li>
-     * </ol>
+     * <p>Equivalent to {@link #resolveReplyAddress(Connection, String, boolean)} with the
+     * bot's default source preference set to header-first, preserving prior behavior.
      *
      * @param connection SMTP connection.
      * @param botAddress The bot address that was matched.
      * @return Reply address or null if none found.
      */
     public static String resolveReplyAddress(Connection connection, String botAddress) {
+        return resolveReplyAddress(connection, botAddress, false);
+    }
+
+    /**
+     * Determines the reply address based on the sieve address, headers, or envelope.
+     * <p>Priority order:
+     * <ol>
+     *   <li>Sieve reply address (robot+user+domain.com@example.com or robot+token+user+domain.com@example.com)</li>
+     *   <li>Sieve reply-source override (robot+envelope@example.com or robot+header@example.com,
+     *       optionally with a token first), which overrides {@code defaultPreferEnvelope} for this message</li>
+     *   <li>Reply-To header, then From header, then envelope MAIL FROM &mdash; or the reverse,
+     *       depending on the effective source preference</li>
+     * </ol>
+     *
+     * @param connection            SMTP connection.
+     * @param botAddress            The bot address that was matched.
+     * @param defaultPreferEnvelope Bot's configured default: true to prefer envelope MAIL FROM
+     *                              over header addresses when no per-message override is present.
+     * @return Reply address or null if none found.
+     */
+    public static String resolveReplyAddress(Connection connection, String botAddress, boolean defaultPreferEnvelope) {
         // Handle null or empty bot address.
         if (botAddress == null || botAddress.isEmpty()) {
-            return resolveFromEnvelope(connection);
+            return resolveFromEnvelope(connection, defaultPreferEnvelope);
+        }
+
+        // Match robot+envelope@botdomain.com, robot+header@botdomain.com,
+        // and their robot+token+envelope@... / robot+token+header@... equivalents.
+        Matcher overrideMatcher = REPLY_SOURCE_OVERRIDE_PATTERN.matcher(botAddress);
+        if (overrideMatcher.matches()) {
+            boolean preferEnvelope = "envelope".equalsIgnoreCase(overrideMatcher.group(2));
+            log.debug("Using per-message reply source override: {}", preferEnvelope ? "envelope" : "header");
+            return resolveFromEnvelope(connection, preferEnvelope);
         }
 
         // Match both robot+user+domain.com@botdomain.com
@@ -93,18 +131,29 @@ public class BotReplyAddressResolver {
             }
         }
 
-        return resolveFromEnvelope(connection);
+        return resolveFromEnvelope(connection, defaultPreferEnvelope);
     }
 
     /**
      * Resolves reply address from envelope headers and MAIL FROM.
      *
-     * @param connection SMTP connection.
+     * @param connection     SMTP connection.
+     * @param preferEnvelope true to try the envelope MAIL FROM before header addresses.
      * @return Reply address or null if none found.
      */
-    private static String resolveFromEnvelope(Connection connection) {
+    private static String resolveFromEnvelope(Connection connection, boolean preferEnvelope) {
         if (!connection.getSession().getEnvelopes().isEmpty()) {
             MessageEnvelope envelope = connection.getSession().getEnvelopes().getLast();
+
+            // Envelope preferred: try MAIL FROM first, falling back to headers below if blank.
+            if (preferEnvelope) {
+                String preferredMailFrom = envelope.getMail();
+                if (preferredMailFrom != null && !preferredMailFrom.isEmpty()) {
+                    log.debug("Using envelope MAIL FROM (preferred source): {}", preferredMailFrom);
+                    return preferredMailFrom;
+                }
+                log.debug("Envelope MAIL FROM unavailable, falling back to header addresses");
+            }
 
             boolean hasReplyToHeader = envelope.getHeaders().containsKey("X-Parsed-Reply-To");
             boolean hasFromHeader = envelope.getHeaders().containsKey("X-Parsed-From");
@@ -146,11 +195,13 @@ public class BotReplyAddressResolver {
                 }
             }
 
-            // Fall back to envelope MAIL FROM.
-            String mailFrom = envelope.getMail();
-            if (mailFrom != null && !mailFrom.isEmpty()) {
-                log.debug("Using envelope MAIL FROM: {}", mailFrom);
-                return mailFrom;
+            // Fall back to envelope MAIL FROM (already tried above when preferEnvelope is true).
+            if (!preferEnvelope) {
+                String mailFrom = envelope.getMail();
+                if (mailFrom != null && !mailFrom.isEmpty()) {
+                    log.debug("Using envelope MAIL FROM: {}", mailFrom);
+                    return mailFrom;
+                }
             }
         }
 

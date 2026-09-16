@@ -188,6 +188,18 @@ public class BotConfig extends BasicConfig {
         }
 
         /**
+         * Checks if this bot should prefer the envelope MAIL FROM over header
+         * addresses (Reply-To/From) when auto-detecting a reply address.
+         * <p>Can be overridden per message with the {@code +envelope}/{@code +header}
+         * sieve keyword handled by {@link com.mimecast.robin.bots.BotReplyAddressResolver}.
+         *
+         * @return true if the envelope MAIL FROM should be preferred by default.
+         */
+        public boolean isReplyToEnvelope() {
+            return getBooleanProperty("replyToEnvelope", false);
+        }
+
+        /**
          * Gets authentication type (none, basic, bearer) for endpoint calls.
          *
          * @return Auth type string.
