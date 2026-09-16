@@ -60,6 +60,14 @@ public class EmailParser implements AutoCloseable {
     private static final Logger log = LogManager.getLogger(EmailParser.class);
 
     /**
+     * Maximum nesting depth for multipart and message/rfc822 parts.
+     * <p>Bounds recursive descent so a maliciously (or accidentally) deeply nested message
+     * cannot exhaust the call stack. Structure beyond this depth is kept as an opaque part
+     * rather than expanded further.
+     */
+    private static final int MAX_NESTING_DEPTH = 10;
+
+    /**
      * Email input stream with line-based reading and pushback buffer support.
      * Maintains position for boundary detection and part parsing.
      */
@@ -204,10 +212,23 @@ public class EmailParser implements AutoCloseable {
      * @throws IOException If an error occurs while reading the email file
      */
     public EmailParser parse(boolean headersOnly) throws IOException {
+        return parse(headersOnly, 0);
+    }
+
+    /**
+     * Parses the email with optional header-only mode, tracking multipart/message nesting depth.
+     *
+     * @param headersOnly If true, only headers are parsed; if false, headers and body are parsed
+     * @param depth       Current nesting depth, incremented across both nested multipart parts
+     *                    and nested message/rfc822 parts. See {@link #MAX_NESTING_DEPTH}.
+     * @return Self for method chaining
+     * @throws IOException If an error occurs while reading the email file
+     */
+    private EmailParser parse(boolean headersOnly, int depth) throws IOException {
         parseHeaders();
 
         if (!headersOnly) {
-            parseBody();
+            parseBody(depth);
         }
 
         stream.close();
@@ -262,9 +283,10 @@ public class EmailParser implements AutoCloseable {
      * each part. For single-part messages, reads the body content and processes encoding.
      * Supports nested multipart structures and embedded messages (message/rfc822).
      *
+     * @param depth Current nesting depth. See {@link #MAX_NESTING_DEPTH}.
      * @throws IOException If an error occurs while reading from the stream
      */
-    private void parseBody() throws IOException {
+    private void parseBody(int depth) throws IOException {
         Optional<MimeHeader> optional = headers.get("Content-Type");
         if (optional.isPresent()) {
             MimeHeader contentType = optional.get();
@@ -291,7 +313,7 @@ public class EmailParser implements AutoCloseable {
             if (boundary == null || boundary.isEmpty()) {
                 parsePartContent(true, headers, "");
             } else {
-                parsePart(boundary);
+                parsePart(boundary, depth);
             }
         }
     }
@@ -357,9 +379,10 @@ public class EmailParser implements AutoCloseable {
      * multipart structures.
      *
      * @param boundary MIME boundary string that separates parts
+     * @param depth    Current nesting depth. See {@link #MAX_NESTING_DEPTH}.
      * @throws IOException If an error occurs while reading from the stream
      */
-    private void parsePart(String boundary) throws IOException {
+    private void parsePart(String boundary, int depth) throws IOException {
         MimeHeaders partHeaders = new MimeHeaders();
         byte[] bytes;
         StringBuilder header = new StringBuilder();
@@ -404,22 +427,27 @@ public class EmailParser implements AutoCloseable {
                 Optional<MimeHeader> optional = partHeaders.get("Content-Type");
                 if (optional.isPresent()) {
                     MimeHeader ct = optional.get();
+                    boolean withinDepthLimit = depth < MAX_NESTING_DEPTH;
 
-                    if (ct.getValue().startsWith("multipart/")) {
+                    if (ct.getValue().startsWith("multipart/") && withinDepthLimit) {
                         part = new MultipartMimePart();
                         partHeaders.get().forEach(h -> part.addHeader(h.getName(), h.getValue()));
                         parts.add(part);
-                        parsePart(ct.getParameter("boundary"));
+                        parsePart(ct.getParameter("boundary"), depth + 1);
 
-                    } else if (ct.getValue().startsWith("message/rfc822")) {
+                    } else if (ct.getValue().startsWith("message/rfc822") && withinDepthLimit) {
                         part = parsePartContent(true, partHeaders, boundary);
 
                         EmailParser rfc822 = new EmailParser(new LineInputStream(new ByteArrayInputStream(part.getBytes()), 1024))
-                                .parse();
+                                .parse(false, depth + 1);
 
                         parts.addAll(rfc822.getParts());
 
                     } else {
+                        if (!withinDepthLimit && (ct.getValue().startsWith("multipart/") || ct.getValue().startsWith("message/rfc822"))) {
+                            log.warn("MIME nesting depth limit ({}) reached, storing remaining structure as an opaque part", MAX_NESTING_DEPTH);
+                        }
+
                         part = parsePartContent(ct.getValue().startsWith("text/") || ct.getValue().startsWith("message/"), partHeaders, boundary);
 
                         partHeaders.get().forEach(h -> part.addHeader(h.getName(), h.getValue()));

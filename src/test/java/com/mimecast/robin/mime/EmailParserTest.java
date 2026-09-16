@@ -11,6 +11,7 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import java.util.ArrayList;
@@ -169,6 +170,31 @@ class EmailParserTest {
         }
         
         assertTrue(content.length > 0, "ZIP content should not be empty");
+    }
+
+    @Test
+    @DisplayName("Deeply nested multipart structure is capped instead of recursing without bound")
+    void deeplyNestedMultipartIsBounded() throws IOException {
+        int nestingLevels = 15; // Exceeds the parser's internal nesting depth cap.
+
+        String current = "Content-Type: text/plain\r\n\r\nLeaf content\r\n";
+        for (int level = nestingLevels - 1; level >= 0; level--) {
+            String boundary = String.format("bnd%02dz", level);
+            current = "Content-Type: multipart/mixed; boundary=" + boundary + "\r\n\r\n"
+                    + "--" + boundary + "\r\n"
+                    + current + "\r\n"
+                    + "--" + boundary + "--\r\n";
+        }
+        String raw = "Mime-Version: 1.0\r\n" + current;
+
+        EmailParser parser = new EmailParser(new LineInputStream(
+                new ByteArrayInputStream(raw.getBytes(StandardCharsets.UTF_8)), 4096))
+                .parse();
+
+        // The parser must not fully expand every nesting level (that's the whole point of the cap),
+        // while still completing without a StackOverflowError.
+        assertTrue(parser.getParts().size() < nestingLevels, "Nesting expansion should stop before the full depth");
+        assertFalse(parser.getParts().isEmpty(), "Parser should still produce at least one part");
     }
 
     @Test
