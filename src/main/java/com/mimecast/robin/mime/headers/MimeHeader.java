@@ -5,7 +5,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import javax.mail.internet.HeaderTokenizer;
+import javax.mail.internet.MimeUtility;
 import javax.mail.internet.ParseException;
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +33,11 @@ public class MimeHeader {
      * Header clean value.
      */
     protected String cleanValue;
+
+    /**
+     * Header value with RFC 2047 encoded-words decoded.
+     */
+    protected String decodedValue;
 
     /**
      * Header parameters.
@@ -75,6 +82,33 @@ public class MimeHeader {
      */
     public String getValue() {
         return value;
+    }
+
+    /**
+     * Gets header value with RFC 2047 encoded-words (e.g. {@code =?UTF-8?B?...?=}) decoded to
+     * readable text.
+     * <p>{@link #getValue()} deliberately returns the raw wire value untouched (needed for
+     * signature verification and faithful pass-through); use this method when a human-readable
+     * value is wanted instead, such as for display or reporting.
+     * <p>Falls back to the raw value if the header contains no encoded words, or decoding fails
+     * (e.g. an unsupported or malformed charset).
+     *
+     * @return Decoded header value.
+     */
+    public String getDecodedValue() {
+        if (decodedValue == null) {
+            if (value.contains("=?")) {
+                try {
+                    decodedValue = MimeUtility.decodeText(value);
+                } catch (UnsupportedEncodingException e) {
+                    log.debug("Failed to decode header value, keeping raw: {}", e.getMessage());
+                    decodedValue = value;
+                }
+            } else {
+                decodedValue = value;
+            }
+        }
+        return decodedValue;
     }
 
     /**
