@@ -62,6 +62,76 @@ class EmailParserTest {
     }
 
     @Test
+    @DisplayName("Invalid header names are discarded rather than captured")
+    void invalidHeaderNamesAreDiscarded() throws IOException {
+        String mime = "Subject: Robin likes\r\n" +
+                "Bad Header: should-be-ignored\r\n" +
+                "X-Valid: kept\r\n" +
+                "\r\n" +
+                "Body";
+        EmailParser parser = new EmailParser(new LineInputStream(new ByteArrayInputStream(mime.getBytes()), 1024))
+                .parse(true);
+
+        assertEquals("Robin likes", parser.getHeaders().get("Subject").get().getValue());
+        assertEquals("kept", parser.getHeaders().get("X-Valid").get().getValue());
+        assertTrue(parser.getHeaders().get("Bad Header").isEmpty(), "Invalid header name must not be captured");
+    }
+
+    @Test
+    @DisplayName("Spurious blank line inside a folded parameterized header is treated as noise")
+    void spuriousBlankLineInFoldedHeaderIsSkipped() throws IOException {
+        String mime = "Content-Type: multipart/mixed;\r\n" +
+                "\r\n" +
+                "\tboundary=\"abc\"\r\n" +
+                "Subject: after the fold\r\n" +
+                "\r\n" +
+                "Body";
+        EmailParser parser = new EmailParser(new LineInputStream(new ByteArrayInputStream(mime.getBytes()), 1024))
+                .parse(true);
+
+        assertEquals("abc", parser.getHeaders().get("Content-Type").get().getParameter("boundary"),
+                "Boundary parameter must survive the spurious blank line inside the fold");
+        assertEquals("after the fold", parser.getHeaders().get("Subject").get().getValue(),
+                "Header after the folded one must still be parsed");
+    }
+
+    @Test
+    @DisplayName("Semicolon-terminated header before a genuine blank line parses safely with a minimal pushback buffer")
+    void semicolonHeaderBeforeGenuineBlankLineWorksWithTinyPushbackBuffer() throws IOException {
+        // A default-size LineInputStream has only a 1-byte pushback buffer. The fold-detection
+        // peek must never push back more than that, or this throws "Push back buffer is full"
+        // and aborts the whole parse.
+        String mime = "From: Sender <sender@from-sender.com>\r\n" +
+                "Content-Type: text/plain\r\n" +
+                "DKIM-Signature: v=1; a=rsa-sha256; d=dkim-sender.com; s=s1;\r\n" +
+                "\r\n" +
+                "Body\r\n";
+        EmailParser parser = new EmailParser(new LineInputStream(new ByteArrayInputStream(mime.getBytes(StandardCharsets.UTF_8))))
+                .parse();
+
+        assertEquals("v=1; a=rsa-sha256; d=dkim-sender.com; s=s1;", parser.getHeaders().get("DKIM-Signature").get().getValue());
+        String body = new String(parser.getParts().get(0).getBytes(), StandardCharsets.UTF_8);
+        assertEquals("Body", body.trim());
+    }
+
+    @Test
+    @DisplayName("A genuine header/body blank line is not swallowed even if the body looks header-like")
+    void genuineBlankLineEndsHeadersEvenIfBodyLooksLikeAHeader() throws IOException {
+        String mime = "Subject: Fwd: hello\r\n" +
+                "Content-Type: text/plain\r\n" +
+                "\r\n" +
+                "From: quoted@example.com\r\n" +
+                "This is the forwarded body.";
+        EmailParser parser = new EmailParser(new LineInputStream(new ByteArrayInputStream(mime.getBytes()), 1024))
+                .parse();
+
+        assertEquals("Fwd: hello", parser.getHeaders().get("Subject").get().getValue());
+        assertTrue(parser.getHeaders().get("From").isEmpty(), "Quoted From line in the body must not be captured as a header");
+        String body = new String(parser.getParts().get(0).getBytes(), StandardCharsets.UTF_8);
+        assertTrue(body.contains("From: quoted@example.com"), "Body content must be preserved as-is");
+    }
+
+    @Test
     @DisplayName("Parse lipsum.eml gives 2 parts")
     void parseLipsum() throws IOException {
         EmailParser parser = new EmailParser(new LineInputStream(

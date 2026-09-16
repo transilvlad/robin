@@ -12,12 +12,22 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.regex.Pattern;
 
 /**
  * MIME header container.
  */
 public class MimeHeader {
     private static final Logger log = LogManager.getLogger(MimeHeader.class);
+
+    /**
+     * Pattern for a valid header field name.
+     * <p>Deliberately conservative (letters, digits, and hyphen only) rather than the full
+     * RFC 5322 {@code ftext} range, so malformed or attacker-crafted lines (e.g. plain body
+     * text that happens to contain a colon) are rejected rather than captured as a header
+     * under an unexpected name.
+     */
+    private static final Pattern VALID_NAME_PATTERN = Pattern.compile("[A-Za-z0-9-]+");
 
     /**
      * Header name.
@@ -73,6 +83,26 @@ public class MimeHeader {
      */
     public String getName() {
         return name;
+    }
+
+    /**
+     * Checks if the given header name contains only characters valid for a header field name.
+     * See {@link #VALID_NAME_PATTERN}.
+     *
+     * @param name Header name to validate.
+     * @return true if the name is non-blank and contains only letters, digits, or hyphens.
+     */
+    public static boolean isValidName(String name) {
+        return name != null && VALID_NAME_PATTERN.matcher(name).matches();
+    }
+
+    /**
+     * Checks if this header's name is valid. See {@link #isValidName(String)}.
+     *
+     * @return true if this header's name is valid.
+     */
+    public boolean isValid() {
+        return isValidName(name);
     }
 
     /**

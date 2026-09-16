@@ -283,12 +283,20 @@ public class EmailParser implements AutoCloseable {
             // we need to produce a header from what we got so far
             // if any.
             if (!Character.isWhitespace(bytes[0]) && header.length() > 0) {
-                headers.put(new MimeHeader(header.toString()));
+                putIfValid(headers, header.toString());
                 header = new StringBuilder();
             }
 
             // Break if found end of headers.
             if (StringUtils.isBlank(line.trim())) {
+                // Some malformed messages (commonly report/DSN-style) insert a spurious blank
+                // line in the middle of a folded parameterized header. If the header value being
+                // accumulated looks mid-fold (ends with ';') and the next line is itself a fold
+                // continuation (starts with whitespace), treat this blank line as noise rather
+                // than the real header/body separator.
+                if (header.toString().trim().endsWith(";") && nextByteIsFoldedContinuation()) {
+                    continue;
+                }
                 break;
             }
 
@@ -297,7 +305,44 @@ public class EmailParser implements AutoCloseable {
 
         // Last header
         if (header.length() > 0) {
-            headers.put(new MimeHeader(header.toString()));
+            putIfValid(headers, header.toString());
+        }
+    }
+
+    /**
+     * Peeks the next byte to see if it looks like the start of a folded header continuation,
+     * i.e. whitespace. Only a single byte is ever read and pushed back (never a whole line),
+     * so this is safe regardless of the stream's configured pushback buffer size.
+     *
+     * @return true if there is a next byte and it is whitespace.
+     * @throws IOException If an error occurs while reading from the stream.
+     */
+    private boolean nextByteIsFoldedContinuation() throws IOException {
+        int nextByte = stream.read();
+        if (nextByte == -1) {
+            return false;
+        }
+
+        stream.unread(nextByte);
+        return Character.isWhitespace(nextByte);
+    }
+
+    /**
+     * Constructs a MimeHeader from a raw header line and adds it to the given collection,
+     * discarding it instead if its name doesn't look like a valid RFC 5322 field name.
+     * <p>Guards against malformed or attacker-crafted lines (e.g. plain body text containing a
+     * colon) being captured as an unexpected header.
+     *
+     * @param headers   Collection to add the header to.
+     * @param rawHeader Raw, unfolded header text ("Name: value").
+     * @see MimeHeader#isValid()
+     */
+    private static void putIfValid(MimeHeaders headers, String rawHeader) {
+        MimeHeader header = new MimeHeader(rawHeader);
+        if (header.isValid()) {
+            headers.put(header);
+        } else {
+            log.debug("Discarding line with invalid header name: {}", header.getName());
         }
     }
 
@@ -431,7 +476,7 @@ public class EmailParser implements AutoCloseable {
             // if any.
             if ((!Character.isWhitespace(bytes[0]) || line.trim().isEmpty()) && header.length() > 0) {
                 if (!header.toString().trim().isEmpty()) {
-                    partHeaders.put(new MimeHeader(header.toString().trim()));
+                    putIfValid(partHeaders, header.toString().trim());
                 }
                 header = new StringBuilder();
             }
@@ -443,7 +488,7 @@ public class EmailParser implements AutoCloseable {
                 // we need to produce a header from what we got so far
                 // if any.
                 if (!header.toString().trim().isEmpty()) {
-                    partHeaders.put(new MimeHeader(header.toString().trim()));
+                    putIfValid(partHeaders, header.toString().trim());
                 }
 
                 header = new StringBuilder();
@@ -491,7 +536,7 @@ public class EmailParser implements AutoCloseable {
 
         // Last header.
         if (header.length() > 0) {
-            headers.put(new MimeHeader(header.toString().trim()));
+            putIfValid(headers, header.toString().trim());
         }
     }
 

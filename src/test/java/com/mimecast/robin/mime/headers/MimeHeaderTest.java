@@ -2,9 +2,14 @@ package com.mimecast.robin.mime.headers;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for MimeHeader class.
@@ -67,5 +72,33 @@ class MimeHeaderTest {
         String first = header.getDecodedValue();
         String second = header.getDecodedValue();
         assertSame(first, second);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Subject", "Content-Type", "X-Robin-Filename", "X-Custom-123", "a", "123"})
+    @DisplayName("isValidName accepts letters, digits, and hyphens")
+    void isValidNameAcceptsValidNames(String name) {
+        assertTrue(MimeHeader.isValidName(name));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Bad Header", "Sub:ject", "X_Custom", "héader", "Header\t", "Header\r"})
+    @DisplayName("isValidName rejects names with spaces, colons, or other invalid characters")
+    void isValidNameRejectsInvalidNames(String name) {
+        assertFalse(MimeHeader.isValidName(name));
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @DisplayName("isValidName rejects null and empty names")
+    void isValidNameRejectsNullAndEmpty(String name) {
+        assertFalse(MimeHeader.isValidName(name));
+    }
+
+    @Test
+    @DisplayName("isValid reflects the constructed header's own name")
+    void isValidReflectsOwnName() {
+        assertTrue(new MimeHeader("Subject: hello").isValid());
+        assertFalse(new MimeHeader("Bad Header: hello").isValid());
     }
 }
