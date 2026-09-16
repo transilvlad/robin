@@ -198,6 +198,54 @@ class EmailParserTest {
     }
 
     @Test
+    @DisplayName("Boundary token appearing inside body content is not mistaken for a delimiter")
+    void boundaryTokenInBodyIsNotTruncated() throws IOException {
+        String boundary = "XYZ123";
+        String raw = "Mime-Version: 1.0\r\n" +
+                "Content-Type: multipart/mixed; boundary=\"" + boundary + "\"\r\n" +
+                "\r\n" +
+                "--" + boundary + "\r\n" +
+                "Content-Type: text/plain\r\n" +
+                "\r\n" +
+                "This body mentions " + boundary + " in passing, not as a real delimiter.\r\n" +
+                "More text after.\r\n" +
+                "--" + boundary + "--\r\n";
+
+        EmailParser parser = new EmailParser(new LineInputStream(
+                new ByteArrayInputStream(raw.getBytes(StandardCharsets.UTF_8)), 4096))
+                .parse();
+
+        // parts[0] is the multipart wrapper, parts[1] is the text/plain leaf.
+        assertEquals(2, parser.getParts().size(), "Expected the multipart wrapper plus one text part");
+        String content = new String(parser.getParts().get(1).getBytes(), StandardCharsets.UTF_8);
+        assertTrue(content.contains("This body mentions " + boundary + " in passing"),
+                "Body line containing the boundary token as plain text must be preserved");
+        assertTrue(content.contains("More text after."),
+                "Content after the boundary-like line must be preserved");
+    }
+
+    @Test
+    @DisplayName("Boundary delimiter with trailing whitespace is still recognized")
+    void boundaryLineWithTrailingWhitespaceIsRecognized() throws IOException {
+        String boundary = "sep1";
+        String raw = "Mime-Version: 1.0\r\n" +
+                "Content-Type: multipart/mixed; boundary=\"" + boundary + "\"\r\n" +
+                "\r\n" +
+                "--" + boundary + "  \r\n" +
+                "Content-Type: text/plain\r\n" +
+                "\r\n" +
+                "Hello\r\n" +
+                "--" + boundary + "--  \r\n";
+
+        EmailParser parser = new EmailParser(new LineInputStream(
+                new ByteArrayInputStream(raw.getBytes(StandardCharsets.UTF_8)), 4096))
+                .parse();
+
+        assertEquals(2, parser.getParts().size());
+        assertEquals("Hello", new String(parser.getParts().get(1).getBytes(), StandardCharsets.UTF_8).trim());
+    }
+
+    @Test
     @DisplayName("close() deletes temporary MIME part files")
     void closeDeletesTempPartFiles() throws IOException {
         List<java.nio.file.Path> tempFiles = new ArrayList<>();

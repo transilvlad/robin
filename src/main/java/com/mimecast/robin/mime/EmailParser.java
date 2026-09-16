@@ -68,6 +68,32 @@ public class EmailParser implements AutoCloseable {
     private static final int MAX_NESTING_DEPTH = 10;
 
     /**
+     * Checks whether a line is a MIME part boundary delimiter, per RFC 2046: "--" followed by
+     * the boundary value, alone on the line (aside from surrounding whitespace/line terminator).
+     * <p>Deliberately exact rather than a substring check, so body content that merely mentions
+     * the boundary token cannot be mistaken for a real delimiter and desynchronize parsing.
+     *
+     * @param line     Raw line, including its line terminator.
+     * @param boundary MIME boundary value (without the leading "--"), may be null/empty.
+     * @return true if the line is the mid-part delimiter "--boundary".
+     */
+    private static boolean isBoundaryLine(String line, String boundary) {
+        return boundary != null && !boundary.isEmpty() && line.trim().equals("--" + boundary);
+    }
+
+    /**
+     * Checks whether a line is the final MIME part boundary delimiter "--boundary--".
+     *
+     * @param line     Raw line, including its line terminator.
+     * @param boundary MIME boundary value (without the leading "--"), may be null/empty.
+     * @return true if the line is the closing delimiter "--boundary--".
+     * @see #isBoundaryLine(String, String)
+     */
+    private static boolean isEndBoundaryLine(String line, String boundary) {
+        return boundary != null && !boundary.isEmpty() && line.trim().equals("--" + boundary + "--");
+    }
+
+    /**
      * Email input stream with line-based reading and pushback buffer support.
      * Maintains position for boundary detection and part parsing.
      */
@@ -391,12 +417,12 @@ public class EmailParser implements AutoCloseable {
             String line = new String(bytes);
 
             // Break on end boundaries.
-            if (line.contains(boundary + "--")) {
+            if (isEndBoundaryLine(line, boundary)) {
                 break;
             }
 
             // Skip boundaries.
-            if (line.contains(boundary)) {
+            if (isBoundaryLine(line, boundary)) {
                 continue;
             }
 
@@ -514,10 +540,11 @@ public class EmailParser implements AutoCloseable {
                 byte[] bytes;
                 while ((bytes = stream.readLine()) != null) {
                     String line = new String(bytes);
-                    if (boundary != null && !boundary.isEmpty() && line.contains(boundary)) {
-                        if (line.contains(boundary + "--")) {
-                            stream.unread(bytes);
-                        }
+                    if (isEndBoundaryLine(line, boundary)) {
+                        stream.unread(bytes);
+                        break;
+                    }
+                    if (isBoundaryLine(line, boundary)) {
                         break;
                     }
 
@@ -546,10 +573,11 @@ public class EmailParser implements AutoCloseable {
                 byte[] bytes;
                 while ((bytes = stream.readLine()) != null) {
                     String line = new String(bytes);
-                    if (boundary != null && !boundary.isEmpty() && line.contains(boundary)) {
-                        if (line.contains(boundary + "--")) {
-                            stream.unread(bytes);
-                        }
+                    if (isEndBoundaryLine(line, boundary)) {
+                        stream.unread(bytes);
+                        break;
+                    }
+                    if (isBoundaryLine(line, boundary)) {
                         break;
                     }
                     baos.write(bytes);
