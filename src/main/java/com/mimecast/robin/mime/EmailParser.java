@@ -8,6 +8,7 @@ import com.mimecast.robin.mime.parts.MultipartMimePart;
 import com.mimecast.robin.mime.parts.TextMimePart;
 import com.mimecast.robin.smtp.io.LineInputStream;
 import com.mimecast.robin.util.QuotedPrintableDecoder;
+import com.mimecast.robin.util.UuencodeDecoder;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.lang3.StringUtils;
@@ -400,10 +401,17 @@ public class EmailParser implements AutoCloseable {
      * @param headers MimeHeaders instance containing part headers
      * @return Filename string, or empty string if unable to determine
      */
-    private String getFileName(MimeHeaders headers) {
+    String getFileName(MimeHeaders headers) {
         Optional<MimeHeader> optional = headers.get("Content-Disposition");
-        if (optional.isPresent() && optional.get().getParameter("filename") != null) {
-            return optional.get().getParameter("filename");
+        if (optional.isPresent()) {
+            MimeHeader header = optional.get();
+            String filename = header.getParameter("filename");
+            if (filename == null) {
+                filename = header.getExtendedParameter("filename");
+            }
+            if (filename != null) {
+                return filename;
+            }
         }
 
         optional = headers.get("Content-Type");
@@ -411,8 +419,11 @@ public class EmailParser implements AutoCloseable {
             MimeHeader header = optional.get();
 
             String name = header.getParameter("name");
+            if (name == null) {
+                name = header.getExtendedParameter("name");
+            }
             if (name != null) {
-                return optional.get().getParameter("name");
+                return name;
             }
 
             String type = header.getCleanValue();
@@ -562,6 +573,7 @@ public class EmailParser implements AutoCloseable {
     private MimePart parsePartContent(boolean isTextPart, MimeHeaders headers, String boundary) throws IOException {
         boolean isBase64 = false;
         boolean isQuotedPrintable = false;
+        boolean isUuencode = false;
 
         // Get encoding.
         Optional<MimeHeader> cte = headers.get("content-transfer-encoding");
@@ -570,6 +582,9 @@ public class EmailParser implements AutoCloseable {
 
             isBase64 = encoding.compareToIgnoreCase("base64") == 0;
             isQuotedPrintable = encoding.compareToIgnoreCase("quoted-printable") == 0;
+            isUuencode = encoding.compareToIgnoreCase("uuencode") == 0
+                    || encoding.compareToIgnoreCase("x-uuencode") == 0
+                    || encoding.compareToIgnoreCase("x-uue") == 0;
         }
 
         try {
@@ -608,6 +623,8 @@ public class EmailParser implements AutoCloseable {
                         log.error("EmailParser decoder exception: {}", de.getMessage());
                         content.write(baos.toByteArray());
                     }
+                } else if (isUuencode || UuencodeDecoder.looksLikeUuencode(baos.toByteArray())) {
+                    content.write(decodeUuencodeOrRaw(baos.toByteArray()));
                 } else {
                     content.write(baos.toByteArray());
                 }
@@ -638,6 +655,8 @@ public class EmailParser implements AutoCloseable {
                         log.error("EmailParser decoder exception: {}", e.getMessage());
                         content.write(baos.toByteArray());
                     }
+                } else if (isUuencode || UuencodeDecoder.looksLikeUuencode(baos.toByteArray())) {
+                    content.write(decodeUuencodeOrRaw(baos.toByteArray()));
                 } else {
                     content.write(baos.toByteArray());
                 }
@@ -668,6 +687,17 @@ public class EmailParser implements AutoCloseable {
         } catch (NoSuchAlgorithmException nsae) {
             throw new IOException("No such algorithm", nsae);
         }
+    }
+
+    /**
+     * Decodes uuencoded content, falling back to the raw bytes if decoding doesn't
+     * actually produce anything (e.g. a false-positive "begin" line match).
+     *
+     * @param raw Raw content bytes.
+     * @return Decoded bytes, or the original raw bytes if decoding failed.
+     */
+    private static byte[] decodeUuencodeOrRaw(byte[] raw) {
+        return UuencodeDecoder.decode(raw).map(UuencodeDecoder.Result::content).orElse(raw);
     }
 
     /**

@@ -8,6 +8,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -100,5 +101,47 @@ class MimeHeaderTest {
     void isValidReflectsOwnName() {
         assertTrue(new MimeHeader("Subject: hello").isValid());
         assertFalse(new MimeHeader("Bad Header: hello").isValid());
+    }
+
+    @Test
+    @DisplayName("getExtendedParameter decodes UTF-8 with no language tag")
+    void getExtendedParameterDecodesUtf8NoLanguage() {
+        MimeHeader header = new MimeHeader("Content-Disposition: attachment; filename*=UTF-8''%C3%A9vil.exe");
+        assertEquals("évil.exe", header.getExtendedParameter("filename"));
+    }
+
+    @Test
+    @DisplayName("getExtendedParameter decodes UTF-8 with a language tag")
+    void getExtendedParameterDecodesUtf8WithLanguage() {
+        MimeHeader header = new MimeHeader("Content-Disposition: attachment; filename*=UTF-8'en'%C3%A9vil.exe");
+        assertEquals("évil.exe", header.getExtendedParameter("filename"));
+    }
+
+    @Test
+    @DisplayName("getExtendedParameter decodes ISO-8859-1")
+    void getExtendedParameterDecodesLatin1() {
+        MimeHeader header = new MimeHeader("Content-Disposition: attachment; filename*=ISO-8859-1''%E9vil.exe");
+        assertEquals("évil.exe", header.getExtendedParameter("filename"));
+    }
+
+    @Test
+    @DisplayName("getExtendedParameter leaves a literal '+' untouched, unlike URL decoding")
+    void getExtendedParameterDoesNotTreatPlusAsSpace() {
+        MimeHeader header = new MimeHeader("Content-Disposition: attachment; filename*=UTF-8''a+b");
+        assertEquals("a+b", header.getExtendedParameter("filename"));
+    }
+
+    @Test
+    @DisplayName("getExtendedParameter handles a quoted extended value")
+    void getExtendedParameterHandlesQuotedValue() {
+        MimeHeader header = new MimeHeader("Content-Disposition: attachment; filename*=\"UTF-8''%C3%A9vil.exe\"");
+        assertEquals("évil.exe", header.getExtendedParameter("filename"));
+    }
+
+    @Test
+    @DisplayName("getExtendedParameter returns null when the extended form isn't present")
+    void getExtendedParameterReturnsNullWhenAbsent() {
+        MimeHeader header = new MimeHeader("Content-Disposition: attachment; filename=plain.txt");
+        assertNull(header.getExtendedParameter("filename"));
     }
 }

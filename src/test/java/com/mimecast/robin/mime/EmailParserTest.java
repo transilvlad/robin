@@ -1,5 +1,7 @@
 package com.mimecast.robin.mime;
 
+import com.mimecast.robin.mime.headers.MimeHeader;
+import com.mimecast.robin.mime.headers.MimeHeaders;
 import com.mimecast.robin.mime.parts.FileMimePart;
 import com.mimecast.robin.mime.parts.MimePart;
 import com.mimecast.robin.mime.parts.TextMimePart;
@@ -16,6 +18,7 @@ import java.util.List;
 
 import java.util.ArrayList;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -112,6 +115,75 @@ class EmailParserTest {
         assertEquals("v=1; a=rsa-sha256; d=dkim-sender.com; s=s1;", parser.getHeaders().get("DKIM-Signature").get().getValue());
         String body = new String(parser.getParts().get(0).getBytes(), StandardCharsets.UTF_8);
         assertEquals("Body", body.trim());
+    }
+
+    @Test
+    @DisplayName("getFileName decodes an RFC 2231 extended filename parameter from Content-Disposition")
+    void getFileNameDecodesExtendedFilenameParameter() throws IOException {
+        EmailParser parser = new EmailParser(new LineInputStream(new ByteArrayInputStream(new byte[0])));
+        MimeHeaders headers = new MimeHeaders();
+        headers.put(new MimeHeader("Content-Disposition", "attachment; filename*=UTF-8''%C3%A9vil.exe"));
+
+        assertEquals("évil.exe", parser.getFileName(headers));
+    }
+
+    @Test
+    @DisplayName("getFileName decodes an RFC 2231 extended name parameter from Content-Type")
+    void getFileNameDecodesExtendedNameParameter() throws IOException {
+        EmailParser parser = new EmailParser(new LineInputStream(new ByteArrayInputStream(new byte[0])));
+        MimeHeaders headers = new MimeHeaders();
+        headers.put(new MimeHeader("Content-Type", "application/octet-stream; name*=UTF-8''%C3%A9vil.exe"));
+
+        assertEquals("évil.exe", parser.getFileName(headers));
+    }
+
+    @Test
+    @DisplayName("getFileName prefers a plain filename over the extended form when both are present")
+    void getFileNamePrefersPlainFilenameOverExtended() throws IOException {
+        EmailParser parser = new EmailParser(new LineInputStream(new ByteArrayInputStream(new byte[0])));
+        MimeHeaders headers = new MimeHeaders();
+        headers.put(new MimeHeader("Content-Disposition", "attachment; filename=plain.txt; filename*=UTF-8''extended.txt"));
+
+        assertEquals("plain.txt", parser.getFileName(headers));
+    }
+
+    @Test
+    @DisplayName("Uuencoded content without a declared Content-Transfer-Encoding is auto-detected and decoded")
+    void uuencodedContentIsAutoDecoded() throws IOException {
+        String raw = "Mime-Version: 1.0\r\n" +
+                "Content-Type: application/octet-stream\r\n" +
+                "\r\n" +
+                "begin 644 cat.txt\r\n" +
+                "#0V%T\r\n" +
+                "`\r\n" +
+                "end\r\n";
+
+        EmailParser parser = new EmailParser(new LineInputStream(
+                new ByteArrayInputStream(raw.getBytes(StandardCharsets.UTF_8))))
+                .parse();
+
+        assertEquals(1, parser.getParts().size());
+        assertArrayEquals("Cat".getBytes(StandardCharsets.UTF_8), parser.getParts().get(0).getBytes());
+    }
+
+    @Test
+    @DisplayName("Explicit Content-Transfer-Encoding: x-uuencode is decoded")
+    void explicitUuencodeEncodingIsDecoded() throws IOException {
+        String raw = "Mime-Version: 1.0\r\n" +
+                "Content-Type: text/plain\r\n" +
+                "Content-Transfer-Encoding: x-uuencode\r\n" +
+                "\r\n" +
+                "begin 644 cat.txt\r\n" +
+                "#0V%T\r\n" +
+                "`\r\n" +
+                "end\r\n";
+
+        EmailParser parser = new EmailParser(new LineInputStream(
+                new ByteArrayInputStream(raw.getBytes(StandardCharsets.UTF_8))))
+                .parse();
+
+        assertEquals(1, parser.getParts().size());
+        assertArrayEquals("Cat".getBytes(StandardCharsets.UTF_8), parser.getParts().get(0).getBytes());
     }
 
     @Test

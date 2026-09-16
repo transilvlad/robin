@@ -7,11 +7,14 @@ import org.apache.logging.log4j.Logger;
 import javax.mail.internet.HeaderTokenizer;
 import javax.mail.internet.MimeUtility;
 import javax.mail.internet.ParseException;
+import java.io.ByteArrayOutputStream;
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -28,6 +31,12 @@ public class MimeHeader {
      * under an unexpected name.
      */
     private static final Pattern VALID_NAME_PATTERN = Pattern.compile("[A-Za-z0-9-]+");
+
+    /**
+     * Pattern for the RFC 2231 extended-value shape: {@code charset'language'value}.
+     * The language tag may be empty (e.g. {@code UTF-8''value}).
+     */
+    private static final Pattern EXTENDED_VALUE_PATTERN = Pattern.compile("^([^']*)'[^']*'(.*)$");
 
     /**
      * Header name.
@@ -160,6 +169,77 @@ public class MimeHeader {
     public String getParameter(String name) {
         parseValue();
         return parameters.get(name);
+    }
+
+    /**
+     * Gets an RFC 2231/5987 extended parameter (e.g. {@code filename*=UTF-8''%C3%A9vil.exe}),
+     * decoded to its actual value.
+     * <p>Handled separately from {@link #getParameter(String)}: the star form's
+     * {@code charset'language'value} shape doesn't tokenize correctly under the generic
+     * parameter parser, since the single quotes are themselves token delimiters.
+     * <p>Only the single-segment form is supported, not the {@code name*0*}/{@code name*1*}
+     * continuation form for values split across multiple parameters.
+     *
+     * @param name Base parameter name, without the trailing {@code *} (e.g. "filename").
+     * @return Decoded parameter value, or null if the extended form isn't present.
+     */
+    public String getExtendedParameter(String name) {
+        Matcher paramMatcher = Pattern.compile("(?i)(?:^|;)\\s*" + Pattern.quote(name) + "\\*\\s*=\\s*([^;]+)")
+                .matcher(value);
+        if (!paramMatcher.find()) {
+            return null;
+        }
+
+        String raw = paramMatcher.group(1).trim();
+        if (raw.length() >= 2 && ((raw.startsWith("\"") && raw.endsWith("\"")) || (raw.startsWith("'") && raw.endsWith("'")))) {
+            raw = raw.substring(1, raw.length() - 1);
+        }
+
+        // Format: charset'language'percent-encoded-value.
+        Matcher extValueMatcher = EXTENDED_VALUE_PATTERN.matcher(raw);
+        if (!extValueMatcher.matches()) {
+            return percentDecode(raw, "UTF-8");
+        }
+
+        String charset = extValueMatcher.group(1);
+        String javaCharset;
+        try {
+            javaCharset = MimeUtility.javaCharset(charset);
+        } catch (Exception e) {
+            javaCharset = "UTF-8";
+        }
+        return percentDecode(extValueMatcher.group(2), javaCharset);
+    }
+
+    /**
+     * Decodes a percent-encoded ({@code %XX}) string. Unlike {@link java.net.URLDecoder}, a
+     * literal {@code +} is left untouched rather than turned into a space, matching RFC 2231.
+     *
+     * @param value   Percent-encoded value.
+     * @param charset Charset to decode the resulting bytes with.
+     * @return Decoded string, or the original value if the charset is unsupported.
+     */
+    private static String percentDecode(String value, String charset) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c == '%' && i + 3 <= value.length()) {
+                try {
+                    out.write(Integer.parseInt(value.substring(i + 1, i + 3), 16));
+                    i += 2;
+                    continue;
+                } catch (NumberFormatException ignored) {
+                    // Not a valid escape; fall through and write the literal '%'.
+                }
+            }
+            out.write(c);
+        }
+
+        try {
+            return out.toString(charset);
+        } catch (UnsupportedEncodingException e) {
+            return out.toString(StandardCharsets.UTF_8);
+        }
     }
 
     /**
