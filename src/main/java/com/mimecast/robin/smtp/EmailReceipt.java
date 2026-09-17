@@ -165,7 +165,7 @@ public class EmailReceipt implements Runnable {
             for (int i = 0; i < config.getTransactionsLimit(); i++) {
                 String read = connection.read().trim();
                 if (read.isEmpty()) {
-                    log.error("Read empty, breaking.");
+                    log.debug("Read empty, breaking.");
                     break;
                 }
                 verb = new Verb(read);

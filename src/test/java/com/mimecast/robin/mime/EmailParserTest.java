@@ -118,6 +118,26 @@ class EmailParserTest {
     }
 
     @Test
+    @DisplayName("Filename with escaped quotes and slash (HTML-injection-style) parses correctly")
+    void filenameWithEscapedQuotesParsesCorrectly() throws IOException {
+        String raw = "Content-type: image/png; name=\"<script>alert(\\\"kitten\\\")<script>.png\"\r\n" +
+                "Content-disposition: attachment;\r\n" +
+                "\tfilename=\"<script>alert(\\\"kitten\\\")<\\/script>.png\"\r\n" +
+                "Content-transfer-encoding: base64\r\n" +
+                "\r\n" +
+                "aGVsbG8=\r\n";
+
+        EmailParser parser = new EmailParser(new LineInputStream(new ByteArrayInputStream(raw.getBytes(StandardCharsets.UTF_8))))
+                .parse();
+
+        assertEquals(1, parser.getParts().size());
+        MimePart part = parser.getParts().get(0);
+        assertEquals("<script>alert(\"kitten\")</script>.png", parser.getFileName(part.getHeaders()));
+        assertEquals("<script>alert(\"kitten\")</script>.png",
+                part.getHeaders().get("Content-Disposition").get().getParameter("filename"));
+    }
+
+    @Test
     @DisplayName("getFileName decodes an RFC 2231 extended filename parameter from Content-Disposition")
     void getFileNameDecodesExtendedFilenameParameter() throws IOException {
         EmailParser parser = new EmailParser(new LineInputStream(new ByteArrayInputStream(new byte[0])));

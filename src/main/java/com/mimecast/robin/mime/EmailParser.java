@@ -620,7 +620,7 @@ public class EmailParser implements AutoCloseable {
                         content.write(QuotedPrintableDecoder.decode(baos.toByteArray()));
 
                     } catch (DecoderException de) {
-                        log.error("EmailParser decoder exception: {}", de.getMessage());
+                        log.warn("EmailParser decoder exception: {}", de.getMessage());
                         content.write(baos.toByteArray());
                     }
                 } else if (isUuencode || UuencodeDecoder.looksLikeUuencode(baos.toByteArray())) {
@@ -652,7 +652,7 @@ public class EmailParser implements AutoCloseable {
                     try {
                         content.write(QuotedPrintableDecoder.decode(baos.toByteArray()));
                     } catch (DecoderException e) {
-                        log.error("EmailParser decoder exception: {}", e.getMessage());
+                        log.warn("EmailParser decoder exception: {}", e.getMessage());
                         content.write(baos.toByteArray());
                     }
                 } else if (isUuencode || UuencodeDecoder.looksLikeUuencode(baos.toByteArray())) {
