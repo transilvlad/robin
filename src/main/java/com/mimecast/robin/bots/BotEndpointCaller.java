@@ -16,6 +16,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Shared HTTP caller for bot endpoint POST requests.
@@ -24,6 +26,15 @@ public final class BotEndpointCaller {
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
     private static final OkHttpClient HTTP_CLIENT = new OkHttpClient();
     private static final OkHttpClient INSECURE_HTTP_CLIENT = createInsecureClient();
+
+    private static final Map<String, CircuitState> CIRCUITS = new ConcurrentHashMap<>();
+    private static final int CIRCUIT_FAILURE_THRESHOLD = 5;
+    private static final long CIRCUIT_OPEN_MILLIS = 30_000;
+
+    private static final class CircuitState {
+        final AtomicInteger consecutiveFailures = new AtomicInteger();
+        volatile long openUntilEpochMillis = 0;
+    }
 
     private BotEndpointCaller() {
         throw new IllegalStateException("Utility class");
@@ -66,6 +77,13 @@ public final class BotEndpointCaller {
             return;
         }
 
+        CircuitState circuit = CIRCUITS.computeIfAbsent(endpoint, k -> new CircuitState());
+        if (circuit.openUntilEpochMillis > System.currentTimeMillis()) {
+            log.debug("Skipping {} report to {}: circuit open after {} consecutive failures",
+                    botName, endpoint, circuit.consecutiveFailures.get());
+            return;
+        }
+
         RequestBody body = RequestBody.create(payload, JSON);
         Request.Builder builder = new Request.Builder()
                 .url(endpoint)
@@ -81,11 +99,23 @@ public final class BotEndpointCaller {
                 String responseBody = response.body() != null ? response.body().string() : "no body";
                 log.error("Failed to send {} report to endpoint. Status: {} Response: {}",
                         botName, response.code(), responseBody);
+                recordFailure(circuit, endpoint, botName, log);
             } else {
                 log.debug("Successfully sent {} report to endpoint", botName);
+                circuit.consecutiveFailures.set(0);
             }
         } catch (Exception e) {
             log.error("Error sending {} report to endpoint: {}", botName, e.getMessage(), e);
+            recordFailure(circuit, endpoint, botName, log);
+        }
+    }
+
+    private static void recordFailure(CircuitState circuit, String endpoint, String botName, Logger log) {
+        int failures = circuit.consecutiveFailures.incrementAndGet();
+        if (failures >= CIRCUIT_FAILURE_THRESHOLD) {
+            circuit.openUntilEpochMillis = System.currentTimeMillis() + CIRCUIT_OPEN_MILLIS;
+            log.warn("Opening circuit for {} endpoint {} after {} consecutive failures; pausing {}ms",
+                    botName, endpoint, failures, CIRCUIT_OPEN_MILLIS);
         }
     }
 
