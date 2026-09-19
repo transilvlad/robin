@@ -281,6 +281,12 @@ public class ImapClient implements AutoCloseable {
                 return false;
             }
 
+            // Capture UID before any close: closing a Jakarta Mail Folder invalidates every
+            // Message reference obtained from it, so setFlag after reopen silently fails.
+            long uid = (messageFolder instanceof UIDFolder)
+                    ? ((UIDFolder) messageFolder).getUID(message)
+                    : -1L;
+
             // Reopen folder in READ_WRITE mode if needed.
             if (messageFolder.isOpen() && messageFolder.getMode() != Folder.READ_WRITE) {
                 messageFolder.close(false);
@@ -289,7 +295,14 @@ public class ImapClient implements AutoCloseable {
                 messageFolder.open(Folder.READ_WRITE);
             }
 
-            message.setFlag(Flags.Flag.DELETED, true);
+            Message target = (uid >= 0 && messageFolder instanceof UIDFolder)
+                    ? ((UIDFolder) messageFolder).getMessageByUID(uid)
+                    : message;
+            if (target == null) {
+                log.warn("Message no longer exists in folder '{}' (uid={})", messageFolder.getName(), uid);
+                return false;
+            }
+            target.setFlag(Flags.Flag.DELETED, true);
             messageFolder.expunge();
             log.info("Deleted message from folder '{}'", messageFolder.getName());
             return true;
