@@ -75,6 +75,9 @@ public class EmailReceipt implements Runnable {
      */
     EmailReceipt(Connection connection) {
         this.connection = connection;
+        connection.enableSmtpAudit(listenerName(
+                connection.getSession().isSecurePort(),
+                connection.getSession().isOutbound()));
     }
 
     /**
@@ -108,6 +111,8 @@ public class EmailReceipt implements Runnable {
             connection = new Connection(socket);
             this.config = config;
             errorLimit = config.getErrorLimit();
+            connection.getSession().setDirection(submission ? EmailDirection.OUTBOUND : EmailDirection.INBOUND);
+            connection.enableSmtpAudit(listenerName(secure, submission));
 
             // Enable TLS handling if secure listener.
             if (secure) {
@@ -118,8 +123,6 @@ public class EmailReceipt implements Runnable {
                 connection.getSession().setSecurePort(true);
             }
 
-            // Set session direction depending on if submission port or not.
-            connection.getSession().setDirection(submission ? EmailDirection.OUTBOUND : EmailDirection.INBOUND);
             log.debug("Created EmailReceipt for {}:{} (secure={}, submission={}) {}",
                     socket.getInetAddress().getHostAddress(),
                     socket.getPort(),
@@ -140,6 +143,7 @@ public class EmailReceipt implements Runnable {
      * <p>Once the loop breaks the connection is closed.
      */
     public void run() {
+        boolean transactionLimitReached = true;
         try {
             // Check client against RBLs and send appropriate greeting.
             // If blacklisted and inbound non-secure, send rejection.
@@ -150,6 +154,7 @@ public class EmailReceipt implements Runnable {
                     !whitelisted &&
                     !isReputableIp()) {
                 // Send rejection message for blacklisted IP.
+                connection.getSmtpAuditContext().setTerminationReason("rbl_rejection");
                 connection.write(String.format(SmtpResponses.LISTED_CLIENT_550, connection.getSession().getUID()));
                 return;
             } else {
@@ -166,13 +171,16 @@ public class EmailReceipt implements Runnable {
                 String read = connection.read().trim();
                 if (read.isEmpty()) {
                     log.debug("Read empty, breaking.");
+                    transactionLimitReached = false;
                     break;
                 }
                 verb = new Verb(read);
+                connection.getSmtpAuditContext().recordCommand();
 
                 // Apply DoS protections before processing command.
                 if (config.isDosProtectionEnabled()) {
                     if (!checkCommandRateLimits()) {
+                        transactionLimitReached = false;
                         break; // Disconnect due to rate limit violation.
                     }
                 }
@@ -190,7 +198,9 @@ public class EmailReceipt implements Runnable {
                         !whitelisted &&
                         !isReputableIp()) {
                     // Send rejection message for blacklisted IP.
+                    connection.getSmtpAuditContext().setTerminationReason("rbl_rejection");
                     connection.write(String.format(SmtpResponses.LISTED_CLIENT_550, connection.getSession().getUID()));
+                    transactionLimitReached = false;
                     break;
                 }
 
@@ -200,14 +210,23 @@ public class EmailReceipt implements Runnable {
                     if (errorLimit <= 0) {
                         log.warn("Error limit reached.");
                         SmtpMetrics.incrementEmailReceiptLimit();
+                        connection.getSmtpAuditContext().setTerminationReason("error_limit");
+                    } else {
+                        connection.getSmtpAuditContext().setTerminationReason("quit");
                     }
+                    transactionLimitReached = false;
                     break;
                 }
             }
+            if (transactionLimitReached) {
+                connection.getSmtpAuditContext().setTerminationReason("transaction_limit");
+            }
         } catch (Exception e) {
             SmtpMetrics.incrementEmailReceiptException(e.getClass().getSimpleName());
+            connection.getSmtpAuditContext().setException(e);
             log.info("Error reading/writing: {}", e.getMessage());
         } finally {
+            connection.getSmtpAuditContext().recordConnection(connection.getSession());
             connection.getSession().closeProxyConnections();
 
             if (Config.getServer().getStorage().getBooleanProperty("autoDelete", true)) {
@@ -215,6 +234,13 @@ public class EmailReceipt implements Runnable {
             }
             connection.close();
         }
+    }
+
+    private static String listenerName(boolean secure, boolean submission) {
+        if (submission) {
+            return secure ? "submissions" : "submission";
+        }
+        return secure ? "smtps" : "smtp";
     }
 
     /**
@@ -448,6 +474,7 @@ public class EmailReceipt implements Runnable {
                 if (tarpitViolations >= 3) {
                     log.warn("Disconnecting {} after {} tarpit violations", clientIp, tarpitViolations);
                     SmtpMetrics.incrementDosCommandFloodRejection();
+                    connection.getSmtpAuditContext().setTerminationReason("rate_limit");
                     connection.write(SmtpResponses.CLOSING_221 + " [" + connection.getSession().getUID() + "]");
                     return false;
                 }

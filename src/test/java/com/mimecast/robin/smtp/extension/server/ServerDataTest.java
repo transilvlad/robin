@@ -43,6 +43,7 @@ class ServerDataTest {
 
         ConnectionMock connection = new ConnectionMock(stringBuilder);
         connection.setSocket(new Socket());
+        connection.enableSmtpAudit("smtp");
         connection.getSession().addEnvelope(new MessageEnvelope());
         connection.getSession().getEnvelopes().getLast().addRcpt("john@example.com");
 
@@ -57,6 +58,8 @@ class ServerDataTest {
         assertEquals(SmtpResponses.READY_WILLING_354 + "\r\n", connection.getLine(1));
         assertTrue(connection.getLine(2).startsWith("250 2.0.0 Received OK"), "startsWith(\"250 2.0.0 Received OK\")");
         assertEquals(stringBuilder.toString().length() - (5 + 4), data.getBytesReceived());
+        assertEquals(1, connection.getSmtpAuditContext().getAcceptedMessages());
+        assertEquals(data.getBytesReceived(), connection.getSmtpAuditContext().getMessageBytes());
     }
 
     @Test
@@ -72,6 +75,7 @@ class ServerDataTest {
 
         ConnectionMock connection = new ConnectionMock(stringBuilder);
         connection.setSocket(new Socket());
+        connection.enableSmtpAudit("smtp");
         connection.getSession().addEnvelope(new MessageEnvelope());
         connection.getSession().getEnvelopes().getLast().addRcpt("john@example.com");
 
@@ -101,6 +105,7 @@ class ServerDataTest {
 
         ConnectionMock connection = new ConnectionMock(stringBuilder);
         connection.setSocket(new Socket());
+        connection.enableSmtpAudit("smtp");
         connection.getSession().addEnvelope(new MessageEnvelope());
         connection.getSession().getEnvelopes().getLast().addRcpt("john@example.com");
 
@@ -136,6 +141,7 @@ class ServerDataTest {
 
             ConnectionMock connection = new ConnectionMock(stringBuilder);
             connection.setSocket(new Socket());
+            connection.enableSmtpAudit("smtp");
             connection.getSession().addEnvelope(new MessageEnvelope());
             connection.getSession().getEnvelopes().getLast().addRcpt("john@example.com");
 
@@ -144,6 +150,8 @@ class ServerDataTest {
             assertFalse(process);
             connection.parseLines();
             assertTrue(connection.getLine(1).startsWith("451 4.3.2 Internal server error"));
+            assertEquals(1, connection.getSmtpAuditContext().getRejectedMessages());
+            assertEquals(451, connection.getSmtpAuditContext().getLastSmtpStatus());
         } finally {
             if (originalDiskSafety == null) {
                 Config.getServer().getQueue().getMap().remove("diskSafety");

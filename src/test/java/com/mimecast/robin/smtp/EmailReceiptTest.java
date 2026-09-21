@@ -42,6 +42,7 @@ class EmailReceiptTest {
         ConnectionMock connection = getConnection(stringBuilder);
         new EmailReceipt(connection).run();
 
+        assertEquals("quit", connection.getSmtpAuditContext().getTerminationReason());
         connection.parseLines();
         assertEquals("500 ESMTP Error (Try again using SMTP)\r\n", connection.getLine(2));
         assertEquals("250 Welcome [example.net (127.0.0.1)]\r\n", connection.getLine(3));
@@ -70,6 +71,10 @@ class EmailReceiptTest {
         connection.getSession().setStartTls(true);
         new EmailReceipt(connection).run();
 
+        assertEquals(5, connection.getSmtpAuditContext().getCommandCount());
+        assertEquals(1, connection.getSmtpAuditContext().getAcceptedMessages());
+        assertTrue(connection.getSmtpAuditContext().getMessageBytes() > 0);
+        assertEquals("quit", connection.getSmtpAuditContext().getTerminationReason());
         connection.parseLines();
         assertEquals("250-Welcome [example.net (127.0.0.1)]\r\n", connection.getLine(2));
         assertEquals("250-SMTPUTF8\r\n", connection.getLine(3));

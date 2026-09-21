@@ -9,6 +9,8 @@ import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.mx.client.XBillDnsRecordClient;
 import com.mimecast.robin.smtp.EmailDelivery;
 import com.mimecast.robin.smtp.EmailReceipt;
+import com.mimecast.robin.smtp.MessageEnvelope;
+import com.mimecast.robin.smtp.audit.SmtpAuditContext;
 import com.mimecast.robin.smtp.io.LineInputStream;
 import com.mimecast.robin.smtp.security.SecurityPolicy;
 import com.mimecast.robin.smtp.session.Session;
@@ -52,6 +54,11 @@ public class Connection extends SmtpFoundation {
      * ScenarioConfig instance.
      */
     private ScenarioConfig scenario = null;
+
+    /**
+     * SMTP server audit context. Null for outbound client connections.
+     */
+    private SmtpAuditContext smtpAuditContext;
 
     /**
      * [Client] Constructs a new Connection instance with given Session.
@@ -170,6 +177,48 @@ public class Connection extends SmtpFoundation {
      */
     public Session getSession() {
         return session;
+    }
+
+    /**
+     * Enables bounded lifecycle auditing for an accepted SMTP server connection.
+     *
+     * @param listener Listener name.
+     */
+    public void enableSmtpAudit(String listener) {
+        smtpAuditContext = new SmtpAuditContext(listener);
+    }
+
+    /**
+     * Gets the audit context when lifecycle auditing is enabled.
+     *
+     * @return Audit context, or null for non-server connections.
+     */
+    public SmtpAuditContext getSmtpAuditContext() {
+        return smtpAuditContext;
+    }
+
+    /**
+     * Records a terminal DATA or BDAT result when auditing is enabled.
+     */
+    public void recordMessageOutcome(
+            MessageEnvelope envelope,
+            String protocol,
+            String successfulOutcome,
+            boolean processed,
+            long bytes,
+            long durationMillis) {
+        if (smtpAuditContext != null) {
+            smtpAuditContext.recordMessage(
+                    session, envelope, protocol, successfulOutcome, processed, bytes, durationMillis);
+        }
+    }
+
+    @Override
+    public void write(byte[] bytes) throws IOException {
+        super.write(bytes);
+        if (smtpAuditContext != null) {
+            smtpAuditContext.recordResponse(bytes);
+        }
     }
 
     /**

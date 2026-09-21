@@ -85,24 +85,44 @@ public class ServerData extends ServerProcessor {
     public boolean process(Connection connection, Verb verb) throws IOException {
         super.process(connection, verb);
 
-        if (verb.getKey().equals("bdat")) {
-            if (!binary()) {
+        long startedAt = System.nanoTime();
+        boolean processed = false;
+        boolean proxying = verb.getKey().equals("data") && hasActiveProxyConnection();
+        MessageEnvelope envelope = connection.getSession().getEnvelopes().isEmpty()
+                ? null
+                : connection.getSession().getEnvelopes().getLast();
+        boolean blackholed = envelope != null && envelope.isBlackholed();
+        boolean terminalMessage = verb.getKey().equals("data")
+                || (verb.getKey().equals("bdat") && new BdatVerb(verb).isLast());
+
+        try {
+            if (verb.getKey().equals("bdat")) {
+                processed = binary();
                 log.debug("Received: {} bytes", bytesReceived);
+            } else if (verb.getKey().equals("data")) {
+                processed = ascii();
+            }
+
+            if (!processed) {
                 return false;
             }
-            log.debug("Received: {} bytes", bytesReceived);
 
-        } else if (verb.getKey().equals("data")) {
-            if (!ascii()) {
-                log.debug("Received: {} bytes", bytesReceived);
-                return false;
+            // Track successful email receipt.
+            SmtpMetrics.incrementEmailReceiptSuccess();
+            return true;
+        } finally {
+            if (terminalMessage) {
+                String successfulOutcome = blackholed ? "blackholed" : proxying ? "proxied" : "accepted";
+                long durationMillis = (System.nanoTime() - startedAt) / 1_000_000;
+                connection.recordMessageOutcome(
+                        envelope,
+                        verb.getKey().toLowerCase(),
+                        successfulOutcome,
+                        processed,
+                        bytesReceived,
+                        durationMillis);
             }
         }
-
-        // Track successful email receipt.
-        SmtpMetrics.incrementEmailReceiptSuccess();
-
-        return true;
     }
 
     /**
