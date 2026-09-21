@@ -101,4 +101,29 @@ class BotEndpointCallerTest {
             assertEquals("v", request.getHeader("X-Test"));
         }
     }
+
+    @Test
+    void testPostJsonStopsCallingEndpointWhileCircuitIsOpen() throws Exception {
+        try (MockWebServer server = new MockWebServer()) {
+            for (int i = 0; i < 5; i++) {
+                server.enqueue(new MockResponse().setResponseCode(503));
+            }
+            server.start();
+
+            Session session = new Session();
+            session.addEnvelope(new MessageEnvelope().setMail("sender@example.com").addRcpt("recipient@example.com"));
+            Connection connection = new Connection(session);
+
+            Map<String, Object> map = new HashMap<>();
+            map.put("endpoint", server.url("/unavailable").toString());
+            BotConfig.BotDefinition botDefinition = new BotConfig.BotDefinition(map);
+
+            for (int i = 0; i < 6; i++) {
+                BotEndpointCaller.postJson("{\"ok\":true}", connection, botDefinition, "dmarc",
+                        LogManager.getLogger(getClass()));
+            }
+
+            assertEquals(5, server.getRequestCount());
+        }
+    }
 }

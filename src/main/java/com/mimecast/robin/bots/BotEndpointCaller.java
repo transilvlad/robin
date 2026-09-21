@@ -17,14 +17,19 @@ import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Shared HTTP caller for bot endpoint POST requests.
  */
 public final class BotEndpointCaller {
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
-    private static final OkHttpClient HTTP_CLIENT = new OkHttpClient();
+    private static final OkHttpClient HTTP_CLIENT = new OkHttpClient.Builder()
+            .connectTimeout(3, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .writeTimeout(10, TimeUnit.SECONDS)
+            .callTimeout(15, TimeUnit.SECONDS)
+            .build();
     private static final OkHttpClient INSECURE_HTTP_CLIENT = createInsecureClient();
 
     private static final Map<String, CircuitState> CIRCUITS = new ConcurrentHashMap<>();
@@ -32,8 +37,30 @@ public final class BotEndpointCaller {
     private static final long CIRCUIT_OPEN_MILLIS = 30_000;
 
     private static final class CircuitState {
-        final AtomicInteger consecutiveFailures = new AtomicInteger();
-        volatile long openUntilEpochMillis = 0;
+        private int consecutiveFailures;
+        private long openUntilEpochMillis;
+
+        synchronized boolean isOpen(long now) {
+            return openUntilEpochMillis > now;
+        }
+
+        synchronized int consecutiveFailures() {
+            return consecutiveFailures;
+        }
+
+        synchronized boolean recordFailure(long now) {
+            consecutiveFailures++;
+            if (consecutiveFailures < CIRCUIT_FAILURE_THRESHOLD || openUntilEpochMillis > now) {
+                return false;
+            }
+            openUntilEpochMillis = now + CIRCUIT_OPEN_MILLIS;
+            return true;
+        }
+
+        synchronized void recordSuccess() {
+            consecutiveFailures = 0;
+            openUntilEpochMillis = 0;
+        }
     }
 
     private BotEndpointCaller() {
@@ -78,9 +105,9 @@ public final class BotEndpointCaller {
         }
 
         CircuitState circuit = CIRCUITS.computeIfAbsent(endpoint, k -> new CircuitState());
-        if (circuit.openUntilEpochMillis > System.currentTimeMillis()) {
+        if (circuit.isOpen(System.currentTimeMillis())) {
             log.debug("Skipping {} report to {}: circuit open after {} consecutive failures",
-                    botName, endpoint, circuit.consecutiveFailures.get());
+                    botName, endpoint, circuit.consecutiveFailures());
             return;
         }
 
@@ -102,20 +129,20 @@ public final class BotEndpointCaller {
                 recordFailure(circuit, endpoint, botName, log);
             } else {
                 log.debug("Successfully sent {} report to endpoint", botName);
-                circuit.consecutiveFailures.set(0);
+                circuit.recordSuccess();
             }
         } catch (Exception e) {
-            log.error("Error sending {} report to endpoint: {}", botName, e.getMessage(), e);
+            log.error("Error sending {} report to endpoint {}: {}: {}",
+                    botName, endpoint, e.getClass().getSimpleName(), e.getMessage());
             recordFailure(circuit, endpoint, botName, log);
         }
     }
 
     private static void recordFailure(CircuitState circuit, String endpoint, String botName, Logger log) {
-        int failures = circuit.consecutiveFailures.incrementAndGet();
-        if (failures >= CIRCUIT_FAILURE_THRESHOLD) {
-            circuit.openUntilEpochMillis = System.currentTimeMillis() + CIRCUIT_OPEN_MILLIS;
+        long now = System.currentTimeMillis();
+        if (circuit.recordFailure(now)) {
             log.warn("Opening circuit for {} endpoint {} after {} consecutive failures; pausing {}ms",
-                    botName, endpoint, failures, CIRCUIT_OPEN_MILLIS);
+                    botName, endpoint, circuit.consecutiveFailures(), CIRCUIT_OPEN_MILLIS);
         }
     }
 
