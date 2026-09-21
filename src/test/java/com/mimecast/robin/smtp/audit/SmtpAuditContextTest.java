@@ -1,13 +1,19 @@
 package com.mimecast.robin.smtp.audit;
 
+import com.mimecast.robin.metrics.MetricsRegistry;
 import com.mimecast.robin.smtp.MessageEnvelope;
+import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.mimecast.robin.smtp.session.Session;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.prometheusmetrics.PrometheusConfig;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.Logger;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Property;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Isolated;
 
@@ -17,10 +23,47 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Isolated
 class SmtpAuditContextTest {
+
+    @AfterEach
+    void tearDown() {
+        MetricsRegistry.register(null, null);
+    }
+
+    @Test
+    void recordMessageAndConnection_incrementBoundedOutcomeMetrics() {
+        PrometheusMeterRegistry testRegistry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+        MetricsRegistry.register(testRegistry, null);
+
+        Session session = new Session();
+        MessageEnvelope envelope = new MessageEnvelope()
+                .setMail("sender@example.com")
+                .addRcpt("first@example.net");
+        SmtpAuditContext context = new SmtpAuditContext("smtp");
+
+        context.recordResponse("250 accepted".getBytes(StandardCharsets.US_ASCII));
+        context.recordMessage(session, envelope, "data", "accepted", true, 100, 5);
+        context.setTerminationReason("quit");
+        context.recordConnection(session);
+
+        Counter messageCounter = testRegistry.find("robin.email.message.outcome")
+                .tag("outcome", "accepted")
+                .tag("protocol", "data")
+                .counter();
+        assertNotNull(messageCounter, "Message outcome metric should be recorded");
+        assertEquals(1.0, messageCounter.count(), 0.001);
+
+        Counter connectionCounter = testRegistry.find("robin.email.connection.outcome")
+                .tag("listener", "smtp")
+                .tag("termination_reason", "quit")
+                .counter();
+        assertNotNull(connectionCounter, "Connection outcome metric should be recorded");
+        assertEquals(1.0, connectionCounter.count(), 0.001);
+    }
 
     @Test
     void recordMessage_tracksAcceptedAndRejectedOutcomesWithoutAddresses() {

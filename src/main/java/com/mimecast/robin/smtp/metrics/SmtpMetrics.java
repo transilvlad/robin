@@ -3,9 +3,11 @@ package com.mimecast.robin.smtp.metrics;
 import com.mimecast.robin.metrics.MetricsRegistry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
@@ -215,6 +217,124 @@ public final class SmtpMetrics {
             }
         } catch (Exception e) {
             log.warn("Failed to increment email receipt exception counter: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Increment the message outcome counter.
+     * <p>Called once per terminal DATA/BDAT result with a bounded outcome and protocol tag.
+     *
+     * @param outcome  Bounded outcome value (e.g. accepted, blackholed, proxied, temp_rejected, perm_rejected, failed).
+     * @param protocol Bounded protocol value (data or bdat).
+     */
+    public static void incrementMessageOutcome(String outcome, String protocol) {
+        incrementTaggedCounter(
+                "robin.email.message.outcome",
+                "Number of terminal SMTP message outcomes",
+                "message outcome counter",
+                "outcome", outcome,
+                "protocol", protocol);
+    }
+
+    /**
+     * Records the processing duration of a terminal DATA/BDAT result.
+     *
+     * @param outcome        Bounded outcome value.
+     * @param durationMillis Duration in milliseconds.
+     */
+    public static void recordMessageDuration(String outcome, long durationMillis) {
+        recordTaggedDuration(
+                "robin.email.message.duration",
+                "Duration of terminal SMTP message processing",
+                "message duration timer",
+                durationMillis,
+                "outcome", outcome);
+    }
+
+    /**
+     * Increment the connection outcome counter.
+     * <p>Called once per connection with a bounded listener and termination reason tag.
+     *
+     * @param listener          Bounded listener value (e.g. smtp, smtps, submission, submissions).
+     * @param terminationReason Bounded termination reason (e.g. quit, timeout, exception, rbl_rejection).
+     */
+    public static void incrementConnectionOutcome(String listener, String terminationReason) {
+        incrementTaggedCounter(
+                "robin.email.connection.outcome",
+                "Number of completed SMTP connections",
+                "connection outcome counter",
+                "listener", listener,
+                "termination_reason", terminationReason);
+    }
+
+    /**
+     * Records the duration of a completed SMTP connection.
+     *
+     * @param listener       Bounded listener value.
+     * @param durationMillis Duration in milliseconds.
+     */
+    public static void recordConnectionDuration(String listener, long durationMillis) {
+        recordTaggedDuration(
+                "robin.email.connection.duration",
+                "Duration of completed SMTP connections",
+                "connection duration timer",
+                durationMillis,
+                "listener", listener);
+    }
+
+    /**
+     * Generic helper to increment a two-tag counter, registering it lazily on first use.
+     */
+    private static void incrementTaggedCounter(
+            String name, String description, String logLabel,
+            String tagKeyA, String tagValueA, String tagKeyB, String tagValueB) {
+        try {
+            MeterRegistry registry = MetricsRegistry.getCompositeRegistry();
+            if (registry == null) {
+                return;
+            }
+
+            try {
+                Counter.builder(name)
+                        .description(description)
+                        .tag(tagKeyA, tagValueA)
+                        .tag(tagKeyB, tagValueB)
+                        .register(registry)
+                        .increment();
+            } catch (IllegalArgumentException e) {
+                // Counter with these tags already exists, find and increment it.
+                Counter counter = registry.find(name)
+                        .tag(tagKeyA, tagValueA)
+                        .tag(tagKeyB, tagValueB)
+                        .counter();
+                if (counter != null) {
+                    counter.increment();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to increment {}: {}", logLabel, e.getMessage());
+        }
+    }
+
+    /**
+     * Generic helper to record a single-tag duration timer, registering it lazily on first use.
+     */
+    private static void recordTaggedDuration(
+            String name, String description, String logLabel,
+            long durationMillis, String tagKey, String tagValue) {
+        try {
+            MeterRegistry registry = MetricsRegistry.getCompositeRegistry();
+            if (registry == null) {
+                return;
+            }
+
+            Timer timer = Timer.builder(name)
+                    .description(description)
+                    .tag(tagKey, tagValue)
+                    .register(registry);
+            timer.record(Math.max(0, durationMillis), TimeUnit.MILLISECONDS);
+        } catch (Exception e) {
+            log.warn("Failed to record {}: {}", logLabel, e.getMessage());
         }
     }
 

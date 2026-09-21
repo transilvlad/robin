@@ -1,6 +1,7 @@
 package com.mimecast.robin.smtp.audit;
 
 import com.mimecast.robin.smtp.MessageEnvelope;
+import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.mimecast.robin.smtp.session.Session;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -92,6 +93,9 @@ public final class SmtpAuditContext {
         }
         messageBytes += Math.max(0, bytes);
 
+        SmtpMetrics.incrementMessageOutcome(outcome, value(protocol));
+        SmtpMetrics.recordMessageDuration(outcome, durationMillis);
+
         AUDIT_LOG.info(
                 "event=message_outcome session_uid={} direction={} protocol={} outcome={} smtp_status={} "
                         + "message_id={} sender_domain={} recipient_domains={} recipient_count={} bytes={} duration_ms={}",
@@ -133,6 +137,9 @@ public final class SmtpAuditContext {
             reason = terminationReason;
             exception = exceptionType;
         }
+
+        SmtpMetrics.incrementConnectionOutcome(listener, reason);
+        SmtpMetrics.recordConnectionDuration(listener, durationMillis);
 
         AUDIT_LOG.info(
                 "event=connection_outcome session_uid={} remote_ip={} remote_rdns={} listener={} direction={} "
