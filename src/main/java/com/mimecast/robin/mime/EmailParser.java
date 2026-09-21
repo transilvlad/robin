@@ -113,6 +113,16 @@ public class EmailParser implements AutoCloseable {
     private final List<MimePart> parts = new ArrayList<>();
 
     /**
+     * Whether this single-pass parser has completed parsing.
+     */
+    private boolean parsed = false;
+
+    /**
+     * Whether the completed parse stopped after the message headers.
+     */
+    private boolean parsedHeadersOnly = false;
+
+    /**
      * Constructs a new EmailParser instance from a file path.
      * <p>
      * Uses a default pushback buffer size of 1024 bytes, which is sufficient for most
@@ -231,15 +241,28 @@ public class EmailParser implements AutoCloseable {
      * the body. This is useful for quick header extraction or when full message parsing
      * is not needed. The underlying stream is automatically closed after parsing.
      * <p>
-     * Parsing is a single-pass operation. After calling this method, the parser's
-     * state is finalized and cannot be reset.
+     * Parsing is a single-pass operation. Repeating the same parse, or requesting
+     * headers-only after a full parse, returns the finalized parser unchanged. A
+     * headers-only parser cannot later be upgraded to a full parse because its stream
+     * has already been consumed and closed.
      *
      * @param headersOnly If true, only headers are parsed; if false, headers and body are parsed
      * @return Self for method chaining
      * @throws IOException If an error occurs while reading the email file
      */
-    public EmailParser parse(boolean headersOnly) throws IOException {
-        return parse(headersOnly, 0);
+    public synchronized EmailParser parse(boolean headersOnly) throws IOException {
+        if (parsed) {
+            if (headersOnly || !parsedHeadersOnly) {
+                return this;
+            }
+            throw new IllegalStateException(
+                    "Cannot fully parse an EmailParser that was already parsed in headers-only mode");
+        }
+
+        EmailParser result = parse(headersOnly, 0);
+        parsed = true;
+        parsedHeadersOnly = headersOnly;
+        return result;
     }
 
     /**

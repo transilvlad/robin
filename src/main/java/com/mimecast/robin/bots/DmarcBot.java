@@ -64,7 +64,7 @@ public class DmarcBot implements BotProcessor {
             // Find DMARC report attachment.
             byte[] xmlContent = extractDmarcReport(emailParser);
             if (xmlContent == null) {
-                log.warn("No DMARC report attachment found in email");
+                log.debug("No DMARC report attachment found in email (likely another report type)");
                 return;
             }
 

@@ -67,7 +67,7 @@ public class ForensicBot implements BotProcessor {
             // Find and parse the feedback-report part.
             Map<String, Object> report = extractForensicReport(emailParser);
             if (report == null || report.isEmpty()) {
-                log.warn("No forensic report found in email");
+                log.debug("No forensic report found in email (likely another report type)");
                 return;
             }
 

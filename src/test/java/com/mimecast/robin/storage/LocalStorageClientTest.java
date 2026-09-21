@@ -35,6 +35,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -281,6 +282,55 @@ class LocalStorageClientTest {
         }
     }
 
+    @Test
+    void botAddressDispatch_sharesParsedEmailAndContinuesAfterBotFailure() throws Exception {
+        SharedParserBot firstBot = new SharedParserBot("shared-parser-first", true, 1);
+        SharedParserBot secondBot = new SharedParserBot("shared-parser-second", false, 1);
+        Factories.registerBot(firstBot);
+        Factories.registerBot(secondBot);
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        ExecutorService previousExecutor = setBotExecutor(executor);
+        Connection connection = null;
+        try {
+            connection = new Connection(new Session());
+            MessageEnvelope envelope = new MessageEnvelope()
+                    .addRcpt("shared@example.com")
+                    .addBotAddress("shared@example.com", firstBot.getName())
+                    .addBotAddress("shared@example.com", secondBot.getName());
+            connection.getSession().addEnvelope(envelope);
+
+            LocalStorageClient localStorageClient = new LocalStorageClient()
+                    .setConnection(connection)
+                    .setExtension("eml");
+            localStorageClient.getStream().write(("From: sender@example.com\r\n" +
+                    "To: shared@example.com\r\n" +
+                    "Content-Type: text/plain\r\n" +
+                    "\r\n" +
+                    "Shared body\r\n").getBytes(StandardCharsets.UTF_8));
+
+            assertTrue(localStorageClient.save());
+            assertTrue(firstBot.await());
+            assertTrue(secondBot.await());
+            assertEquals(1, firstBot.invocations());
+            assertEquals(1, secondBot.invocations());
+            assertNotNull(firstBot.parser());
+            assertTrue(firstBot.parser() == secondBot.parser());
+            assertEquals(1, secondBot.parser().getParts().size());
+            assertEquals("sender@example.com",
+                    secondBot.parser().getHeaders().get("From").orElseThrow().getValue());
+        } finally {
+            executor.shutdown();
+            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+            }
+            setBotExecutor(previousExecutor);
+            if (connection != null) {
+                connection.getSession().close();
+            }
+        }
+    }
+
     private ExecutorService setBotExecutor(ExecutorService executor) throws ReflectiveOperationException {
         Field field = Server.class.getDeclaredField("botExecutor");
         field.setAccessible(true);
@@ -316,6 +366,48 @@ class LocalStorageClientTest {
 
         String botAddress() {
             return botAddress;
+        }
+    }
+
+    private static class SharedParserBot implements BotProcessor {
+        private final String name;
+        private final boolean fail;
+        private final CountDownLatch latch;
+        private final AtomicInteger invocations = new AtomicInteger();
+        private final AtomicReference<EmailParser> parser = new AtomicReference<>();
+
+        private SharedParserBot(String name, boolean fail, int expectedInvocations) {
+            this.name = name;
+            this.fail = fail;
+            this.latch = new CountDownLatch(expectedInvocations);
+        }
+
+        @Override
+        public void process(Connection connection, EmailParser emailParser, String botAddress,
+                            BotConfig.BotDefinition botDefinition) {
+            parser.set(emailParser);
+            invocations.incrementAndGet();
+            latch.countDown();
+            if (fail) {
+                throw new IllegalStateException("Expected test failure");
+            }
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        boolean await() throws InterruptedException {
+            return latch.await(5, TimeUnit.SECONDS);
+        }
+
+        int invocations() {
+            return invocations.get();
+        }
+
+        EmailParser parser() {
+            return parser.get();
         }
     }
 }

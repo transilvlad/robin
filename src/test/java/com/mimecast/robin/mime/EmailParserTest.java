@@ -21,12 +21,36 @@ import java.util.ArrayList;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SuppressWarnings("OptionalGetWithoutIsPresent")
 class EmailParserTest {
 
     static final String dir = "src/test/resources/";
+
+    @Test
+    void parse_repeatedFullParse_returnsSameParsedResult() throws IOException {
+        String mime = "Subject: shared\r\nContent-Type: text/plain\r\n\r\nBody\r\n";
+        EmailParser parser = new EmailParser(new ByteArrayInputStream(mime.getBytes(StandardCharsets.UTF_8)));
+
+        assertSame(parser, parser.parse());
+        assertSame(parser, parser.parse());
+        assertEquals("shared", parser.getHeaders().get("Subject").orElseThrow().getValue());
+        assertEquals(1, parser.getParts().size());
+    }
+
+    @Test
+    void parse_fullParseAfterHeadersOnly_throwsClearException() throws IOException {
+        String mime = "Subject: headers\r\n\r\nBody\r\n";
+        EmailParser parser = new EmailParser(new ByteArrayInputStream(mime.getBytes(StandardCharsets.UTF_8)));
+
+        parser.parse(true);
+
+        IllegalStateException error = assertThrows(IllegalStateException.class, parser::parse);
+        assertTrue(error.getMessage().contains("headers-only"));
+    }
 
     @Test
     @DisplayName("Parse headers of email finds correct headers")
