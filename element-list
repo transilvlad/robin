@@ -43,6 +43,7 @@ com.mimecast.robin.scanners.port
 com.mimecast.robin.scanners.rbl
 com.mimecast.robin.signing
 com.mimecast.robin.smtp
+com.mimecast.robin.smtp.audit
 com.mimecast.robin.smtp.auth
 com.mimecast.robin.smtp.connection
 com.mimecast.robin.smtp.extension
