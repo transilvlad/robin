@@ -10,7 +10,7 @@ on:
       - synchronize
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:
@@ -29,6 +29,6 @@ jobs:
         if: contains(fromJson('["version-update:semver-patch","version-update:semver-minor"]'), steps.metadata.outputs.update-type)
         uses: peter-evans/enable-pull-request-automerge@v3
         with:
-          token: ${{ secrets.DEPENDABOT_AUTOMERGE_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           pull-request-number: ${{ github.event.pull_request.number }}
           merge-method: squash
