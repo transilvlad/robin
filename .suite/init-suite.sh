@@ -15,7 +15,18 @@ mkdir -p "$SCRIPT_DIR/../log/"{postgres,clamav,rspamd,robin,dovecot,roundcube}
 
 # Create store directories
 echo "Creating store directories..."
-mkdir -p "$SCRIPT_DIR/../store/"{postgres,clamav,rspamd,robin,dovecot}
+mkdir -p "$SCRIPT_DIR/../store/"{postgres,clamav,robin,dovecot}
+
+# Generate self-signed Dovecot TLS certificate (git-ignored, required by 10-ssl.conf)
+CERT_DIR="$SCRIPT_DIR/etc/dovecot/certs"
+if [ ! -f "$CERT_DIR/imap.crt" ] || [ ! -f "$CERT_DIR/imap.key" ]; then
+    echo "Generating self-signed Dovecot certificate..."
+    mkdir -p "$CERT_DIR"
+    openssl req -x509 -newkey rsa:2048 -days 3650 -nodes \
+      -subj "/CN=imap-backend" \
+      -keyout "$CERT_DIR/imap.key" -out "$CERT_DIR/imap.crt" 2>/dev/null
+    chmod 600 "$CERT_DIR/imap.key"
+fi
 
 echo ""
 echo "Setting file permissions..."
