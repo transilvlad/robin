@@ -201,9 +201,27 @@ services:
     volumes:
       - ../log/roundcube:/var/log
 
+  # Integration test runner (Maven 3.9.9 / Corretto 21), only started with --profile test.
+  # Usage: docker compose --profile test run --rm suite-tests [extra Maven args]
+  suite-tests:
+    profiles: ["test"]
+    build:
+      context: ./
+      dockerfile: ./tests.Dockerfile
+    depends_on:
+      suite-robin:
+        condition: service_healthy
+    volumes:
+      - ../:/src:ro
+      - ../log:/src-log
+      - suite-tests-m2:/root/.m2
+    networks:
+      - suite
+
 networks:
   suite:
     driver: bridge
 
 volumes:
   rspamd-data:
+  suite-tests-m2:
