@@ -70,7 +70,8 @@ services:
     container_name: suite-rspamd
     volumes:
       - ../log/rspamd:/var/log
-      - ../store/rspamd:/var/lib/rspamd
+      # Named volume: rspamd creates a Unix socket here, which macOS bind mounts can't host.
+      - rspamd-data:/var/lib/rspamd
       - ./etc/rspamd/local.d:/etc/rspamd/local.d
     ports:
       - "11333:11333"  # Rspamd normal worker.
@@ -205,3 +206,6 @@ services:
 networks:
   suite:
     driver: bridge
+
+volumes:
+  rspamd-data:
