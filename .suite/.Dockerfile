@@ -27,7 +27,7 @@ RUN --mount=type=cache,target=/root/.m2,id=robin-m2 \
 # STAGE: production
 # Combined Robin + Dovecot in single Alpine Java container
 # ============================================================================
-FROM alpine/java:21-jdk AS production
+FROM amazoncorretto:21-alpine AS production
 
 # Copy scripts and configs
 COPY .suite/build/supervisord.conf /etc/supervisord.conf
