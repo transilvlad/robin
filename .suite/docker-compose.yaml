@@ -66,7 +66,6 @@ services:
   # Rspamd spam/phishing detection.
   suite-rspamd:
     image: rspamd/rspamd:latest
-    platform: linux/amd64
     container_name: suite-rspamd
     volumes:
       - ../log/rspamd:/var/log
@@ -89,7 +88,6 @@ services:
   # Robin MTA server.
   suite-robin:
     container_name: suite-robin
-    platform: linux/amd64
     build:
       context: ../
       dockerfile: ./Dockerfile

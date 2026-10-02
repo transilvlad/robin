@@ -26,7 +26,7 @@ RUN --mount=type=cache,target=/root/.m2,id=robin-m2 \
 # STAGE: production
 # Standalone Robin MTA without Dovecot
 # ============================================================================
-FROM alpine/java:21-jdk AS production
+FROM amazoncorretto:21-alpine AS production
 
 # Copy Robin artifacts from build stage
 COPY --from=robin-build /usr/src/robin/target/classes/lib /usr/local/robin/lib
