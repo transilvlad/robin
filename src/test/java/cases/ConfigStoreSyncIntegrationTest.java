@@ -6,6 +6,7 @@ import com.google.gson.stream.JsonReader;
 import com.mimecast.robin.config.store.ConfigStoreSyncManager;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
@@ -26,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @Tag("integration")
 @Tag("suite")
+@Isolated // ConfigStoreSyncManager.configDir is static and reset by Foundation.init in other test classes
 public class ConfigStoreSyncIntegrationTest {
 
     @Test
