@@ -103,8 +103,8 @@ services:
         condition: service_healthy
       suite-clamav:
         condition: service_healthy
-      # suite-rspamd:
-      #   condition: service_healthy
+      suite-rspamd:
+        condition: service_healthy
       suite-dovecot:
         condition: service_healthy
     ports:
