@@ -13,7 +13,7 @@
         <jdk.version>21</jdk.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <javamail.version>1.6.2</javamail.version>
-        <guava.version>33.7.1-jre</guava.version>
+        <guava.version>33.7.2-jre</guava.version>
         <okhttp.version>5.5.0</okhttp.version>
         <jetbrains-annotations.version>26.1.0</jetbrains-annotations.version>
         <micrometer.version>1.17.1</micrometer.version>
