@@ -80,15 +80,22 @@ tail -5 log/suite.log
 
 ### JUnit Integration Tests
 
-```bash
-# Run all active tests (currently 3)
-mvn test -Dtest=SuiteIntegrationTest
+Integration tests (tagged `integration`) are excluded from normal builds and run in the
+`suite-tests` container, which pins Maven 3.9.9 and Corretto 21 so results are the same on
+any machine. It starts the suite if needed, waits for it to be healthy, and exits with
+Maven's exit code.
 
-# Run specific test
-mvn test -Dtest=SuiteIntegrationTest#test00_basicSmtp
-mvn test -Dtest=SuiteIntegrationTest#test01_deliverySuccess
-mvn test -Dtest=SuiteIntegrationTest#test08_virusEicar
+```bash
+# From .suite directory: run all integration tests
+docker compose --profile test run --rm suite-tests
+
+# Extra arguments are passed to Maven, e.g. a single test
+docker compose --profile test run --rm suite-tests -Dtest='IntegrationTest#test01_basicSmtp'
 ```
+
+Surefire reports are copied to `log/suite-tests/`. The runner forwards the host ports the
+tests expect (`2525`, `28090`, `2143`, `5434`) to the suite services; see
+`.suite/run-tests.sh`. Dependencies are cached in the `suite_suite-tests-m2` volume.
 
 ### Individual Test Cases
 
