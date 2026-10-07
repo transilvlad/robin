@@ -44,10 +44,10 @@ Read more [here](contributing.md).
 
 Full Suite
 ----------
-Complete email infrastructure with Dovecot, PostgreSQL, ClamAV, Rspamd, and Roundcube:
+Complete email infrastructure with Dovecot, PostgreSQL, Redis, ClamAV, Rspamd, and Roundcube:
 
 ```bash
-docker-compose -f docker-compose.suite.yaml up -d
+docker compose -f .suite/docker-compose.yaml up -d
 ```
 
 - **[Robin Full Suite](doc/developer/robin-suite.md)** - Architecture and deployment guide

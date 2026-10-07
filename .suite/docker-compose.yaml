@@ -1,8 +1,9 @@
-# Docker Compose Suite for Robin MTA + Dovecot + PostgreSQL + ClamAV + Rspamd + Roundcube
+# Docker Compose Suite for Robin MTA + Dovecot + PostgreSQL + Redis + ClamAV + Rspamd + Roundcube
 # This file sets up a complete end-to-end email infrastructure:
 # - Robin MTA (SMTP server)
 # - Dovecot (IMAP/LMTP for mailbox hosting)
 # - PostgreSQL (user database)
+# - Redis (Rspamd statistics, history and module state)
 # - ClamAV (virus scanning)
 # - Rspamd (spam detection)
 # - Roundcube (webmail)
@@ -42,6 +43,31 @@ services:
       timeout: 5s
       retries: 5
 
+  # Redis for Rspamd. Its config file lives in the data volume so CONFIG REWRITE
+  # persists. No port is published: it has no authentication.
+  suite-redis:
+    image: redis:alpine
+    container_name: suite-redis
+    command:
+      - sh
+      - -c
+      - |
+        if [ ! -f /data/redis.conf ]; then
+          printf 'save 60 1\nloglevel warning\ndir /data\nprotected-mode no\n' > /data/redis.conf
+        fi
+        exec redis-server /data/redis.conf
+    volumes:
+      - suite_redis:/data
+    networks:
+      suite:
+        aliases:
+          - redis-backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # ClamAV virus scanner.
   suite-clamav:
     image: clamav/clamav:latest
@@ -72,6 +98,9 @@ services:
       # Named volume: rspamd creates a Unix socket here, which macOS bind mounts can't host.
       - rspamd-data:/var/lib/rspamd
       - ./etc/rspamd/local.d:/etc/rspamd/local.d
+    depends_on:
+      suite-redis:
+        condition: service_healthy
     ports:
       - "11333:11333"  # Rspamd normal worker.
       - "11334:11334"  # Rspamd web UI.
@@ -224,4 +253,5 @@ networks:
 
 volumes:
   rspamd-data:
+  suite_redis:
   suite-tests-m2:

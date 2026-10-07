@@ -1,6 +1,6 @@
 # Robin Full Suite
 
-Complete email infrastructure suite bundling Robin MTA with Dovecot, PostgreSQL, ClamAV, Rspamd, and Roundcube.
+Complete email infrastructure suite bundling Robin MTA with Dovecot, PostgreSQL, Redis, ClamAV, Rspamd, and Roundcube.
 
 ## Purpose
 
@@ -14,10 +14,10 @@ This suite provides a **production-ready email infrastructure** that can be used
 
 ```bash
 # Start the complete suite
-docker-compose -f docker-compose.suite.yaml up -d
+docker compose -f .suite/docker-compose.yaml up -d
 
 # Verify all services are healthy
-docker-compose -f docker-compose.suite.yaml ps
+docker compose -f .suite/docker-compose.yaml ps
 
 # Access webmail
 open http://localhost:8888
@@ -69,14 +69,19 @@ open http://localhost:8888
 
 ## Services
 
-| Service | Container | Ports | Purpose |
-|---------|-----------|-------|---------|
-| Robin MTA | `robin-suite-robin` | 2525, 2587, 2465, 28080, 28090 | SMTP server with APIs |
-| Dovecot | `robin-suite-dovecot` | 2143, 2993, 2110, 224 | IMAP/LMTP mail delivery |
-| PostgreSQL | `robin-suite-postgres` | 5433 | User auth & relay queue |
-| ClamAV | `robin-suite-clamav` | 3310 | Virus scanning |
-| Rspamd | `robin-suite-rspamd` | 11333, 11334 | Spam/phishing detection |
-| Roundcube | `robin-suite-roundcube` | 8888 | Webmail interface |
+Every service is named `suite-<component>` (container and Compose service) and
+is reached on the `suite` network by its role alias. Other applications that
+join the suite, such as Robin Admin, use the role aliases.
+
+| Service | Container | Role alias | Host ports | Purpose |
+|---------|-----------|------------|------------|---------|
+| Robin MTA | `suite-robin` | `mta-backend` | 2525, 2587, 2465, 28080, 28090 | SMTP server with APIs |
+| Dovecot | `suite-dovecot` | `imap-backend`, `lmtp-backend` | 2143, 2993, 2110, 224 | IMAP/LMTP mail delivery |
+| PostgreSQL | `suite-postgres` | `postgres-backend` | 5434 | User auth & relay queue |
+| Redis | `suite-redis` | `redis-backend` | none | Rspamd statistics, history and module state |
+| ClamAV | `suite-clamav` | `antivirus-backend` | 3310 | Virus scanning |
+| Rspamd | `suite-rspamd` | `spam-backend` | 11333, 11334 | Spam/phishing detection |
+| Roundcube | `suite-roundcube` | `webmail-backend` | 8888 | Webmail interface |
 
 ## Directory Structure
 
@@ -97,6 +102,7 @@ All suite-specific files are organized under `.suite/`:
 │   ├── client.json5      # Client defaults
 │   └── log4j2.xml        # Logging (suite.log)
 ├── etc/                  # Application configurations
+│   ├── rspamd/local.d/   # Rspamd overrides (Redis, DKIM signing, logging)
 │   └── dovecot/          # Dovecot configuration files
 │       ├── conf.d/       # Dovecot config includes
 │       ├── dovecot.conf  # Main Dovecot config
@@ -129,13 +135,13 @@ store/                    # All persistent data
 ### Start/Stop Suite
 ```bash
 # Start
-docker-compose -f docker-compose.suite.yaml up -d
+docker compose -f .suite/docker-compose.yaml up -d
 
 # Stop
-docker-compose -f docker-compose.suite.yaml down
+docker compose -f .suite/docker-compose.yaml down
 
 # Stop and remove all data
-docker-compose -f docker-compose.suite.yaml down -v
+docker compose -f .suite/docker-compose.yaml down -v
 ```
 
 ### Monitor Logs
@@ -152,16 +158,17 @@ tail -f log/suite-20251209.log
 curl "http://localhost:28090/logs?q=error"
 
 # Via docker
-docker logs -f robin-suite-robin
+docker logs -f suite-robin
 ```
 
 **Other service logs** (via docker):
 ```bash
-docker logs -f robin-suite-dovecot
-docker logs -f robin-suite-postgres
-docker logs -f robin-suite-clamav
-docker logs -f robin-suite-rspamd
-docker logs -f robin-suite-roundcube
+docker logs -f suite-dovecot
+docker logs -f suite-postgres
+docker logs -f suite-redis
+docker logs -f suite-clamav
+docker logs -f suite-rspamd
+docker logs -f suite-roundcube
 ```
 
 ### Queue Management
@@ -222,6 +229,7 @@ For comprehensive testing documentation, see:
 - **Dovecot** - Mailbox storage and IMAP/POP3
 - **PostgreSQL** - Shared state (auth + queue)
 - **ClamAV/Rspamd** - Independent security layers
+- **Redis** - Rspamd state
 
 ### Scalability
 - Each component scales independently
