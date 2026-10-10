@@ -95,7 +95,7 @@ docker compose --profile test run --rm suite-tests -Dtest='IntegrationTest#test0
 
 Surefire reports are copied to `log/suite-tests/`. The runner forwards the host ports the
 tests expect (`2525`, `28090`, `2143`, `5434`) to the suite services; see
-`.suite/run-tests.sh`. Dependencies are cached in the `suite_suite-tests-m2` volume.
+`.suite/run-tests.sh`. Dependencies are cached in the `suite-tests-m2` volume.
 
 ### Individual Test Cases
 

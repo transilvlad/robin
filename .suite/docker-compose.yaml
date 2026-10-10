@@ -57,7 +57,7 @@ services:
         fi
         exec redis-server /data/redis.conf
     volumes:
-      - suite_redis:/data
+      - redis-data:/data
     networks:
       suite:
         aliases:
@@ -249,9 +249,13 @@ services:
 
 networks:
   suite:
+    name: suite
     driver: bridge
 
 volumes:
   rspamd-data:
-  suite_redis:
+    name: suite-rspamd-data
+  redis-data:
+    name: suite-redis-data
   suite-tests-m2:
+    name: suite-tests-m2
