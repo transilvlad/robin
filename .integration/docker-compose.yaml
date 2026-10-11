@@ -1,0 +1,169 @@
+# Isolated full-stack test environment; no production volumes or host ports.
+name: robin-integration
+
+services:
+  integration-postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: robin
+      POSTGRES_USER: robin
+      POSTGRES_PASSWORD: robin
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./db-init:/docker-entrypoint-initdb.d:ro
+    networks:
+      integration:
+        aliases: [postgres-backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U robin -d robin"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  integration-redis:
+    image: redis:alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    networks:
+      integration:
+        aliases: [redis-backend]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  integration-tls:
+    image: alpine:3.23
+    command:
+      - sh
+      - -ec
+      - |
+        apk add --no-cache openssl
+        openssl req -x509 -newkey rsa:2048 -days 30 -nodes \
+          -subj "/CN=imap-backend" \
+          -addext "subjectAltName=DNS:imap-backend,DNS:localhost,IP:127.0.0.1" \
+          -keyout /certs/imap.key -out /certs/imap.crt
+        chmod 600 /certs/imap.key
+        chown 5000:5000 /mailboxes
+    volumes:
+      - test-certificates:/certs
+      - mailbox-data:/mailboxes
+    networks: [integration]
+
+  integration-clamav:
+    image: clamav/clamav:latest
+    platform: linux/amd64
+    volumes:
+      - clamav-data:/var/lib/clamav
+      - clamav-logs:/var/log/clamav
+    networks:
+      integration:
+        aliases: [antivirus-backend]
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/clamdcheck.sh"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 180s
+
+  integration-rspamd:
+    image: rspamd/rspamd:latest
+    volumes:
+      - rspamd-data:/var/lib/rspamd
+      - rspamd-logs:/var/log
+      - ./etc/rspamd/local.d:/etc/rspamd/local.d:ro
+    depends_on:
+      integration-redis:
+        condition: service_healthy
+    networks:
+      integration:
+        aliases: [spam-backend]
+    healthcheck:
+      test: ["CMD", "rspamadm", "configtest"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  integration-dovecot:
+    image: dovecot/dovecot:latest
+    user: "0:0"
+    cap_add: [CHOWN]
+    volumes:
+      - ./etc/dovecot:/etc/dovecot:ro
+      - test-certificates:/certs:ro
+      - mailbox-data:/var/mail/vhosts
+      - dovecot-logs:/var/log
+    depends_on:
+      integration-postgres:
+        condition: service_healthy
+      integration-tls:
+        condition: service_completed_successfully
+    networks:
+      integration:
+        aliases: [imap-backend, lmtp-backend]
+    healthcheck:
+      test: ["CMD", "doveadm", "who"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  integration-robin:
+    build:
+      context: ../
+      dockerfile: Dockerfile
+      args:
+        INCLUDE_CFG: "false"
+    volumes:
+      - ./cfg:/usr/local/robin/cfg:ro
+      - ../src/test/resources/keystore.jks:/usr/local/robin/keystore.jks:ro
+      - robin-logs:/var/log/robin
+      - robin-data:/usr/local/robin/store
+    depends_on:
+      integration-postgres:
+        condition: service_healthy
+      integration-clamav:
+        condition: service_healthy
+      integration-rspamd:
+        condition: service_healthy
+      integration-dovecot:
+        condition: service_healthy
+    networks:
+      integration:
+        aliases: [mta-backend]
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "25"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  integration-tests:
+    profiles: [test]
+    build:
+      context: ./
+      dockerfile: tests.Dockerfile
+    depends_on:
+      integration-robin:
+        condition: service_healthy
+    volumes:
+      - ../:/src:ro
+      - ./cfg:/integration-server-cfg:ro
+      - ./reports:/reports
+      - test-m2:/root/.m2
+    networks: [integration]
+
+networks:
+  integration: {}
+
+volumes:
+  postgres-data: {}
+  clamav-data: {}
+  clamav-logs: {}
+  rspamd-data: {}
+  rspamd-logs: {}
+  test-certificates: {}
+  mailbox-data: {}
+  dovecot-logs: {}
+  robin-logs: {}
+  robin-data: {}
+  test-m2: {}

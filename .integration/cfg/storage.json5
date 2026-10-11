@@ -1,0 +1,11 @@
+{
+  enabled: true,
+  autoDelete: true,
+  localMailbox: false,
+  disableRenameHeader: true,
+  path: "/usr/local/robin/store/",
+  inboundFolder: "new",
+  outboundFolder: ".Sent/new",
+  clean: false,
+  patterns: ["^([0-9]{8}\\.)"]
+}

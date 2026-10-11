@@ -1,0 +1,38 @@
+{
+  hostname: "docker",
+  bind: "::",
+  smtpPort: 25,
+  securePort: 465,
+  submissionPort: 587,
+
+  auth: true,
+  starttls: true,
+  chunking: true,
+  keystore: "/usr/local/robin/keystore.jks",
+  keystorepassword: "avengers",
+  truststore: "/opt/java/openjdk/lib/security/cacerts",
+  truststorepassword: "avengers",
+  allowSelfSigned: true,
+
+  service: {
+    port: 8080,
+    authType: "none",
+    authValue: "",
+    allowList: ["127.0.0.1", "::1"]
+  },
+  api: {
+    port: 8090,
+    authType: "none",
+    authValue: "",
+    allowList: ["127.0.0.1", "::1"]
+  },
+
+  chaosHeaders: true,
+  xclientEnabled: true,
+  // These cases reuse message sources; retain unique transaction filenames.
+  renameHeaderEnabled: false,
+
+  rbl: { enabled: false },
+  emailSizeLimit: 10242400,
+  envelopesLimit: 100
+}

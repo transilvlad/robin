@@ -1,0 +1,12 @@
+# Optional loopback ports for running tests directly from the host.
+services:
+  integration-robin:
+    ports:
+      - "127.0.0.1:2525:25"
+      - "127.0.0.1:28090:8090"
+  integration-dovecot:
+    ports:
+      - "127.0.0.1:2143:143"
+  integration-postgres:
+    ports:
+      - "127.0.0.1:15434:5432"

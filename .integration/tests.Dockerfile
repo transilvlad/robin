@@ -1,4 +1,4 @@
-# Integration test runner for the Robin suite.
+# Integration test runner for the isolated integration stack.
 # Pins Maven and JDK so tests run the same on any machine; sources are mounted at /src.
 FROM maven:3.9.9-amazoncorretto-21-debian
 

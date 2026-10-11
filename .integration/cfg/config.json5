@@ -1,0 +1,9 @@
+{
+  // Keep the tracked integration configuration authoritative at startup.
+  enabled: false,
+  serverId: "integration",
+  jdbcUrl: "jdbc:postgresql://postgres-backend:5432/robin",
+  username: "robin",
+  password: "robin",
+  tableName: "robin_config_store"
+}

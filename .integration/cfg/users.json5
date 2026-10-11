@@ -1,0 +1,8 @@
+{
+  listEnabled: true,
+  list: [
+    { name: "tony@example.com", pass: "stark" },
+    { name: "pepper@example.com", pass: "potts" },
+    { name: "happy@example.com", pass: "hogan" }
+  ]
+}

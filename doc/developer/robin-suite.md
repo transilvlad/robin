@@ -246,6 +246,14 @@ Before any shared or production deployment:
 
 ## Testing
 
+Integration tests run in a separate `.integration/` stack with their own
+configuration, sample accounts, certificates, networks, and project-scoped data.
+Do not run fault-injection tests against this suite:
+
+```bash
+docker compose --project-directory .integration --profile test run --build --rm integration-tests
+```
+
 For comprehensive testing documentation, see:
 - **[Full Suite Testing Guide](../testing/full-suite.md)** - Detailed test cases and validation
 - **[SMTP Test Cases](../testing/case-smtp.md)** - SMTP test case examples

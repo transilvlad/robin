@@ -22,8 +22,8 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Integration coverage for the PostgreSQL-backed configuration store.
  *
- * <p>This test expects the Robin suite PostgreSQL to be running and reachable at
- * {@code jdbc:postgresql://localhost:5434/robin}.
+ * <p>The isolated integration PostgreSQL URL must be explicitly supplied using
+ * {@code robin.integration.jdbcUrl}; there is no production endpoint default.
  */
 @Tag("integration")
 @Tag("suite")
@@ -32,6 +32,8 @@ public class ConfigStoreSyncIntegrationTest {
 
     @Test
     void testSync_rejectsEmptyCriticalPayload() throws Exception {
+        String jdbcUrl = System.getProperty("robin.integration.jdbcUrl");
+        assertNotNull(jdbcUrl, "Set robin.integration.jdbcUrl to the isolated integration PostgreSQL URL");
         Path dir = Files.createTempDirectory("robin-config-store-test-");
         String table = "config_store_test_" + UUID.randomUUID().toString().replace("-", "");
 
@@ -39,12 +41,12 @@ public class ConfigStoreSyncIntegrationTest {
                 {
                   enabled: true,
                   serverId: "robin1",
-                  jdbcUrl: "jdbc:postgresql://localhost:5434/robin",
+                  jdbcUrl: "%s",
                   username: "robin",
                   password: "robin",
                   tableName: "%s"
                 }
-                """.formatted(table), StandardCharsets.UTF_8);
+                """.formatted(jdbcUrl, table), StandardCharsets.UTF_8);
 
         Files.writeString(dir.resolve("server.json5"), "{\"smtpPort\":25,\"securePort\":465}", StandardCharsets.UTF_8);
         Files.writeString(dir.resolve("properties.json5"), "{\"intervalSeconds\":300}", StandardCharsets.UTF_8);
@@ -54,7 +56,7 @@ public class ConfigStoreSyncIntegrationTest {
         ConfigStoreSyncManager.syncIfEnabled();
         assertTrue(ConfigStoreSyncManager.getStatus().toMap().containsKey("lastSuccessEpochMillis"));
 
-        try (Connection c = DriverManager.getConnection("jdbc:postgresql://localhost:5434/robin", "robin", "robin")) {
+        try (Connection c = DriverManager.getConnection(jdbcUrl, "robin", "robin")) {
             try (Statement st = c.createStatement()) {
                 st.executeUpdate("UPDATE " + table + " SET payload_json='{}'::jsonb WHERE server_id='default' AND file_name='server.json5'");
             }
@@ -67,7 +69,7 @@ public class ConfigStoreSyncIntegrationTest {
         assertTrue(serverAfterRejected.isJsonObject());
         assertFalse(serverAfterRejected.getAsJsonObject().isEmpty());
 
-        try (Connection c = DriverManager.getConnection("jdbc:postgresql://localhost:5434/robin", "robin", "robin")) {
+        try (Connection c = DriverManager.getConnection(jdbcUrl, "robin", "robin")) {
             try (Statement st = c.createStatement()) {
                 st.executeUpdate("UPDATE " + table + " SET payload_json='{\"smtpPort\":25,\"securePort\":465}'::jsonb WHERE server_id='default' AND file_name='server.json5'");
 
@@ -88,7 +90,7 @@ public class ConfigStoreSyncIntegrationTest {
         assertEquals(465, serverAfterApplied.getAsJsonObject().get("securePort").getAsInt());
         assertFalse(serverAfterApplied.getAsJsonObject().has("newKey"));
 
-        try (Connection c = DriverManager.getConnection("jdbc:postgresql://localhost:5434/robin", "robin", "robin")) {
+        try (Connection c = DriverManager.getConnection(jdbcUrl, "robin", "robin")) {
             try (Statement st = c.createStatement()) {
                 st.execute("DROP TABLE IF EXISTS " + table);
             }
@@ -106,4 +108,3 @@ public class ConfigStoreSyncIntegrationTest {
         }
     }
 }
-

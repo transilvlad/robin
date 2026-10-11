@@ -8,22 +8,19 @@ import org.junit.jupiter.api.Tag;
 
 import javax.naming.ConfigurationException;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * Integration tests for Robin MTA email delivery and processing.
  *
- * <p>This test class supports two Docker Compose setups:
- * <ul>
- *   <li><b>Suite setup</b> (all 10 tests): {@code docker-compose -f docker-compose.suite.yaml up -d}<br>
- *       Multi-container with LMTP + SQL auth + ClamAV + Rspamd</li>
- *   <li><b>Dovecot setup</b> (8 tests, excluding 07-08): {@code docker-compose -f docker-compose.dovecot.yaml up -d}<br>
- *       Single-container with LDA + socket auth (no ClamAV/Rspamd)</li>
- * </ul>
+ * <p>Run all ten cases in the isolated LMTP, SQL-auth, ClamAV, and Rspamd stack:
+ * {@code docker compose --project-directory .integration --profile test run --build --rm integration-tests}.
  *
  * <p>Run specific tests:
  * <ul>
- *   <li>{@code mvn test -Dgroups="suite"} - Run all 10 tests (suite setup)</li>
- *   <li>{@code mvn test -Dgroups="dovecot"} - Run 8 tests: 01-06, 09-10 (dovecot setup)</li>
+ *   <li>{@code -Dtest=IntegrationTest#test01_basicSmtp} - Pass to the container runner for one test</li>
+ *   <li>{@code -Dgroups=dovecot} - Select eight cases, excluding scanner tests 07-08</li>
  * </ul>
  */
 @Tag("integration")
@@ -33,7 +30,15 @@ public class IntegrationTest {
 
     @BeforeAll
     static void before() throws ConfigurationException {
-        Foundation.init("cfg/");
+        String configDir = System.getProperty("robin.integration.clientConfig", ".integration/client-cfg");
+        Path path = Path.of(configDir);
+        for (String file : new String[]{"client.json5", "routes.json5", "server.json5", "properties.json5"}) {
+            if (!Files.isRegularFile(path.resolve(file))) {
+                throw new ConfigurationException("Missing integration client configuration: " + path.resolve(file));
+            }
+        }
+        System.out.println("Integration client configuration: " + path.toAbsolutePath().normalize());
+        Foundation.init(configDir);
     }
 
     @Test

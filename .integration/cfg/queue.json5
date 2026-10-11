@@ -1,0 +1,35 @@
+{
+  queueInitialDelay: 10,
+  queueInterval: 30,
+  maxDequeuePerTick: 10,
+  retry: {
+    totalRetries: 30,
+    firstWaitMinutes: 1,
+    growthFactor: 1.2
+  },
+  queueMapDB: {
+    enabled: false,
+    queueFile: "/usr/local/robin/relayQueue.db",
+    concurrencyScale: 32
+  },
+  queueRedis: {
+    enabled: false,
+    host: "localhost",
+    port: 6379,
+    queueKey: "robin:robin_queue"
+  },
+  queueMariaDB: {
+    enabled: false,
+    jdbcUrl: "jdbc:mariadb://localhost:3306/robin",
+    username: "robin",
+    password: "",
+    tableName: "robin_queue"
+  },
+  queuePgSQL: {
+    enabled: true,
+    jdbcUrl: "jdbc:postgresql://postgres-backend:5432/robin",
+    username: "robin",
+    password: "robin",
+    tableName: "robin_queue"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  smtpPort: 0,
+  securePort: 0,
+  submissionPort: 0,
+  allowSelfSigned: true
+}

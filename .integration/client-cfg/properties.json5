@@ -1,0 +1,9 @@
+{
+  uidPattern: "\\s\\[([a-z0-9\\-_]+)]",
+  rsetBetweenEnvelopes: false,
+  propertiesAutoReload: { enabled: false },
+  serverAutoReload: { enabled: false },
+  logging: { data: false, textPartBody: false },
+  request: { connectTimeout: 20, writeTimeout: 20, readTimeout: 90 },
+  imapClientDebug: "false"
+}

@@ -1,0 +1,13 @@
+{
+  mx: ["127.0.0.1"],
+  port: 2525,
+  tls: true,
+  protocols: ["TLSv1.2", "TLSv1.3"],
+  ehlo: "example.com",
+  mail: "tony@example.com",
+  rcpt: ["pepper@example.com"],
+  assertions: {
+    protocolFails: true,
+    verifyFails: true
+  }
+}

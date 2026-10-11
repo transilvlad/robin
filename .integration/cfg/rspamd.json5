@@ -1,0 +1,15 @@
+{
+  enabled: true,
+  host: "spam-backend",
+  port: 11333,
+  timeout: 30,
+  spfScanEnabled: true,
+  dkimScanEnabled: true,
+  dmarcScanEnabled: true,
+  rejectThreshold: 15.0,
+  // SpamStorageProcessor checks discard before reject. Keep this far above
+  // ordinary scanner scores so high-scoring GTUBE mail follows the test's
+  // expected SMTP rejection path instead of being accepted and discarded.
+  discardThreshold: 1000000.0,
+  dkimSigning: { enabled: false }
+}

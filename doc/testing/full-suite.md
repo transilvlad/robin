@@ -1,53 +1,58 @@
 # Full Suite Integration Testing
 
-Detailed testing procedures for validating Robin MTA with the complete production suite.
+Detailed testing procedures for validating Robin MTA against an isolated full-stack
+integration environment. These tests do not run against the production suite.
 
 > **See also:** [Robin Full Suite](../developer/robin-suite.md) for deployment and architecture overview.
 
 ## Suite Organization
 
-All suite files are organized under `.suite/`:
+Integration infrastructure is organized under `.integration/`. Unit/component
+fixtures remain in `src/test/resources/cfg/`; development uses `cfg/`, performance
+workloads use `.perf/`, and production-oriented deployment uses `.suite/`.
 
 ```
-.suite/
+.integration/
 ├── cfg/                  # Robin MTA configuration
 │   ├── server.json5      # Server settings
 │   ├── dovecot.json5     # Dovecot LMTP/SQL integration
 │   ├── clamav.json5      # ClamAV settings
 │   ├── rspamd.json5      # Rspamd settings
 │   └── log4j2.xml        # Logging config (suite.log)
-├── etc/                  # Application configurations
+├── client-cfg/           # JUnit/client configuration, not the remote server
+├── docker-compose.yaml   # Isolated services, no host ports
+├── docker-compose.host.yaml # Optional loopback ports for host/manual tests
+├── run-tests.sh          # Container test entrypoint
+├── tests.Dockerfile      # Maven 3.9.9 / Corretto 21
+├── etc/                  # Test-specific application configurations
 │   ├── dovecot/          # Dovecot config (mounted)
-│   ├── rspamd/           # Rspamd config (future)
-│   └── postgres/         # PostgreSQL config (future)
+│   └── rspamd/           # Rspamd test overrides
 └── db-init/              # Database init scripts
-    ├── 01-create-users.sql
-    └── 02-create-roundcube-db.sql
+    └── 01-create-users.sql
 
-# Shared directories:
-log/                      # Suite logs: suite.log, suite-YYYYMMDD.log
-store/                    # All persistent data (postgres, clamav, rspamd, etc.)
+# Generated output:
+.integration/reports/     # Surefire reports (ignored by Git)
 ```
+
+Databases, mailboxes, spool files, logs, certificates, and the Maven cache use
+Compose project-scoped named volumes. There are no fixed container or network
+names, no production `log/` or `store/` mounts, and no Admin/installer services.
+The default project is `robin-integration`; use `-p` consistently for independent
+test environments. Test users and certificates must never be used in production.
 
 ## Test Environment Setup
 
 ### 0. First-Time Setup
 
-**After cloning the repository, run the init script:**
-
-```bash
-# From repository root
-./.suite/init-suite.sh
-```
-
-This script creates required `log/` and `store/` directories for all suite services (postgres, clamav, rspamd, robin, dovecot, roundcube).
+Docker with Linux containers is required. No `.suite/.env` or production
+initialization script is needed. Dovecot's self-signed certificate is generated
+inside an integration-only volume; Robin uses its existing test keystore.
 
 ### 1. Start the Suite
 
 ```bash
-# From .suite directory
-cd .suite
-docker-compose up -d
+# From the repository root
+docker compose --project-directory .integration up -d --build --wait
 ```
 
 **Wait for services to be healthy:**
@@ -60,20 +65,17 @@ docker-compose up -d
 ### 2. Verify Health
 
 ```bash
-# All containers healthy (from .suite directory)
-docker-compose ps | grep healthy
+# All containers healthy
+docker compose --project-directory .integration ps
 
 # Test users created
-docker exec robin-suite-postgres psql -U robin -d robin -c "SELECT email FROM users;"
+docker compose --project-directory .integration exec integration-postgres psql -U robin -d robin -c "SELECT email FROM users;"
 
-# LMTP listening
-docker exec robin-suite-dovecot netstat -tlnp | grep :24
+# Dovecot worker status (not a delivery or IMAP readiness check)
+docker compose --project-directory .integration exec integration-dovecot doveadm who
 
-# Robin API responsive
-curl http://localhost:28090/health
-
-# Suite logs being written
-tail -5 log/suite.log
+# Service logs
+docker compose --project-directory .integration logs integration-robin
 ```
 
 ## Running Tests
@@ -81,21 +83,43 @@ tail -5 log/suite.log
 ### JUnit Integration Tests
 
 Integration tests (tagged `integration`) are excluded from normal builds and run in the
-`suite-tests` container, which pins Maven 3.9.9 and Corretto 21 so results are the same on
-any machine. It starts the suite if needed, waits for it to be healthy, and exits with
+`integration-tests` container, which pins Maven 3.9.9 and Corretto 21. It starts
+its isolated dependencies if needed, waits for them to be healthy, and exits with
 Maven's exit code.
 
 ```bash
-# From .suite directory: run all integration tests
-docker compose --profile test run --rm suite-tests
+# From the repository root: run all integration tests
+docker compose --project-directory .integration --profile test run --build --rm integration-tests
 
 # Extra arguments are passed to Maven, e.g. a single test
-docker compose --profile test run --rm suite-tests -Dtest='IntegrationTest#test01_basicSmtp'
+docker compose --project-directory .integration --profile test run --rm integration-tests -Dtest='IntegrationTest#test01_basicSmtp'
 ```
 
-Surefire reports are copied to `log/suite-tests/`. The runner forwards the host ports the
-tests expect (`2525`, `28090`, `2143`, `5434`) to the suite services; see
-`.suite/run-tests.sh`. Dependencies are cached in the `suite-tests-m2` volume.
+Surefire reports are copied to a fresh `.integration/reports/<run-id>/` directory
+per run, so older results cannot masquerade as current reports. The runner recreates
+`2525`, `28090`, and `2143` inside its container with forwards to the
+integration services; no host port publishing is needed. It explicitly loads
+`.integration/client-cfg`, while the remote MTA mounts `.integration/cfg`
+read-only with database configuration synchronization disabled.
+The default `suite` tag selects the ten delivery/scanning/chaos cases and the
+PostgreSQL config-store integration test, not unrelated future integration suites.
+That test requires an explicit `robin.integration.jdbcUrl`; the runner supplies
+the private integration PostgreSQL address, with no production endpoint default.
+
+To run from the host, explicitly opt into loopback ports (stop conflicting
+services first):
+
+```bash
+docker compose -f .integration/docker-compose.yaml -f .integration/docker-compose.host.yaml up -d --build --wait
+mvn -B test -Dgroups=suite -Dtest.excludedGroups= -Drobin.integration.clientConfig=.integration/client-cfg -Drobin.integration.jdbcUrl=jdbc:postgresql://localhost:15434/robin
+```
+
+For a clean fixture database and mailboxes, remove only this project's volumes.
+Never run these commands against the production suite:
+
+```bash
+docker compose --project-directory .integration --profile test down -v
+```
 
 ### Individual Test Cases
 
@@ -106,74 +130,29 @@ Any test case can be run directly:
 mvn clean package
 
 # Run individual test case
-java -jar target/robin.jar --client --case src/test/resources/cases/config/suite/06-spam-gtube.json5
+java -jar target/robin.jar --client --conf .integration/client-cfg/ --gson src/test/resources/cases/config/integration/07-spam-gtube.json5
 ```
 
 ## Test Case Details
 
-### 00. Basic SMTP (Baseline)
-**File:** `00-basic-smtp.json5`
-**Validates:** SMTP protocol compliance, delivery acceptance
-**Assertions:** Protocol only (MAIL, RCPT, DATA responses)
+The ten JSON5 cases live in `src/test/resources/cases/config/integration/`.
+The existing assertions remain the source of truth.
 
-### 01. Successful Delivery (Core Test)
-**File:** `01-delivery-success.json5`
-**Validates:** Complete delivery pipeline
-**Flow:** SMTP → ClamAV scan → Rspamd scan → LMTP delivery → IMAP verification
-**Assertions:**
-- Protocol: SMTP responses (220, 250, 221)
-- IMAP: Email exists in recipient's INBOX with correct headers
+| File | Coverage |
+|------|----------|
+| `01-basic-smtp.json5` | SMTP acceptance |
+| `02-delivery-success.json5` | Delivery through scanners and LMTP, verified by IMAP |
+| `03-delivery-multiple-recipients.json5` | Delivery to both valid recipients |
+| `04-user-not-found.json5` | SQL-backed recipient rejection |
+| `05-invalid-sender.json5` | Invalid MAIL FROM rejection |
+| `06-partial-delivery-mixed.json5` | Valid delivery alongside invalid recipient rejection |
+| `07-spam-gtube.json5` | GTUBE rejection with 541 and spam log evidence |
+| `08-virus-eicar.json5` | EICAR rejection by ClamAV |
+| `09-chaos-lda-failure.json5` | Injected delivery failure accepted with 250 and queued for retry |
+| `10-chaos-storage-failure.json5` | Injected storage failure rejected with 451 |
 
-### 02. Multiple Recipients
-**File:** `02-delivery-multiple-recipients.json5`
-**Validates:** Multiple RCPT TO handling, batch LMTP delivery
-**Recipients:** pepper@example.com, happy@example.com
-**Assertions:** Both recipients receive the email
-
-### 03. User Not Found
-**File:** `03-user-not-found.json5`
-**Validates:** PostgreSQL user lookup, proper rejection
-**Expected:** 550 or 554 rejection for nonexistent@example.com
-
-### 04. Invalid Sender
-**File:** `04-invalid-sender.json5`
-**Validates:** SMTP address validation
-**Expected:** 501 or 553 rejection at MAIL FROM stage
-
-### 05. Partial Delivery
-**File:** `05-partial-delivery-mixed.json5`
-**Validates:** Partial delivery with mixed recipients
-**Expected:** Valid recipient gets email, invalid rejected
-
-### 06. GTUBE Spam Pattern
-**File:** `06-spam-gtube.json5`
-**Validates:** Rspamd GTUBE detection
-**Expected:** High spam score, rejection or tagging
-**Pattern:** `XJS*C4JDBQADN1.NSBN3*2IDNEN*GTUBE-STANDARD-ANTI-UBE-TEST-EMAIL*C.34X`
-
-### 07. High-Score Spam
-**File:** `07-spam-high-score.json5`
-**Validates:** Rspamd multi-indicator scoring
-**Indicators:** ALL CAPS, urgency language, phishing patterns
-**Expected:** Spam score > 15, rejection or tagging
-
-### 08. EICAR Virus
-**File:** `08-virus-eicar.json5`
-**Validates:** ClamAV virus detection
-**Expected:** 554 rejection with "virus" message
-**Pattern:** EICAR test string (safe malware simulator)
-
-### 09. Chaos: LDA Failure
-**File:** `09-chaos-lda-failure.json5`
-**Validates:** Temporary failure handling, retry queueing
-**Header:** `X-Robin-Chaos: DovecotLdaClient; exitCode=75`
-**Expected:** 4xx response or queued for retry
-
-### 10. Chaos: Storage Failure
-**File:** `10-chaos-storage-failure.json5`
-**Validates:** Storage processor failure handling
-**Header:** `X-Robin-Chaos: LocalStorageClient; processor=AVStorageProcessor; return=false`
-**Expected:** 5xx rejection, email NOT delivered
+`ConfigStoreSyncIntegrationTest` additionally checks rejected empty payloads and
+per-server configuration merges using a temporary table in integration PostgreSQL.
 
 ## Assertion Patterns
 
@@ -253,34 +232,20 @@ See `doc/lib/imap.md` for detailed documentation on IMAP assertion options.
 
 ## Clean Testing Environment
 
-### Reset Mailboxes
+### Reset Integration Data
 
 ```bash
-# Delete all emails from all mailboxes
-docker exec robin-suite-dovecot rm -rf /var/mail/vhosts/example.com/*/new/*
-docker exec robin-suite-dovecot rm -rf /var/mail/vhosts/example.com/*/cur/*
+docker compose --project-directory .integration --profile test down -v
+docker compose --project-directory .integration up -d --build --wait
 ```
 
-### Clear Queue
-
-```bash
-curl -s http://localhost:28090/client/queue/list | \
-  grep -o 'data-uid="[^"]*"' | \
-  sed 's/data-uid="//;s/"$//' | \
-  while read uid; do
-    curl -s -X POST "http://localhost:28090/client/queue/delete?uid=$uid"
-  done
-```
-
-### Clear Storage
-
-```bash
-# Clear temporary storage
-docker exec robin-suite-robin rm -rf /usr/local/robin/store/robin/tmp/*
-docker exec robin-suite-robin rm -rf /usr/local/robin/store/robin/queue/*
-```
+This resets the integration database, mailboxes, spool, logs, certificates, and
+Maven cache together. It does not remove production data or local reports.
 
 ## Manual Testing
+
+Use the optional `docker-compose.host.yaml` overlay described above; the
+default integration stack does not publish host ports.
 
 ### Send Test Email via SMTP
 
@@ -312,42 +277,31 @@ docker exec robin-suite-robin rm -rf /usr/local/robin/store/robin/queue/*
  echo "a4 LOGOUT") | nc localhost 2143
 ```
 
-### Check via Roundcube
+Roundcube is not part of the integration stack; use the IMAP client assertions
+or the manual connection above.
 
-1. Open http://localhost:8888
-2. Login: pepper@example.com / potts
-3. View INBOX
+## Coverage Boundaries
 
-## Validation Checklist
-
-When all tests pass, the suite validates:
-
-- ✅ SMTP protocol compliance (RFC 5321)
-- ✅ TLS/STARTTLS support
-- ✅ SQL-backed authentication (PostgreSQL)
-- ✅ Virus scanning integration (ClamAV)
-- ✅ Spam detection integration (Rspamd)
-- ✅ LMTP mailbox delivery (Dovecot)
-- ✅ IMAP email retrieval
-- ✅ Queue persistence and retry logic
-- ✅ Error handling and rejection
-- ✅ Chaos engineering (failure injection)
-- ✅ Multi-recipient delivery
-- ✅ Partial delivery handling
+These tests exercise the delivery, scanner, failure-injection, and config-store
+paths listed above. They are not production acceptance tests: passing does not
+prove restart recovery, durable retry completion, security hardening, full RFC
+compliance, or high availability.
 
 ## Test-Specific Configuration
 
-The suite uses test-specific settings in `.suite/cfg/`:
+The integration MTA uses test-specific settings in `.integration/cfg/`.
+The production suite no longer contains or invokes the integration test runner.
 
 - **chaosHeaders: true** - Enables failure injection testing
 - **xclientEnabled: true** - Allows XCLIENT extension testing
 - **rbl.enabled: false** - Disables RBL checks for faster testing
 - **ClamAV/Rspamd enabled** - Full scanning in test environment
 
-## Known Limitations
+## Troubleshooting
 
-1. **IMAP Assertion Timing** - IMAP assertions may timeout in automated tests due to LMTP delivery delays. Manual IMAP verification works reliably.
-2. **Logs Assertions** - Log file assertions require container filesystem access. Use manual log queries via API instead.
+IMAP or SMTP timeouts are failures to investigate, not expected successful runs.
+Check `integration-robin` and `integration-dovecot` logs first. Case log assertions
+use the isolated Robin HTTP API, not production log files.
 
 ## Related Documentation
 
