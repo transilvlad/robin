@@ -1,27 +1,62 @@
 # Robin Full Suite
 
-Complete email infrastructure suite bundling Robin MTA with Dovecot, PostgreSQL, Redis, ClamAV, Rspamd, and Roundcube.
+Complete email infrastructure suite bundling Robin MTA with Dovecot, PostgreSQL, Redis, ClamAV, Rspamd, Roundcube, and Robin Admin.
 
 ## Purpose
 
-This suite provides a **production-ready email infrastructure** that can be used for:
-- Production deployments (with proper security hardening)
+This suite provides a **development and demonstration email infrastructure** that can be used for:
 - Integration testing and validation
 - Development and staging environments
 - Feature demonstrations
 
+The Compose configuration is not production-ready as-is. It includes sample
+mail accounts and other demonstration defaults. Robin Admin is bound to
+`127.0.0.1` by default; keep it there or put a trusted reverse proxy/firewall
+in front before exposing it. The co-located Robin Admin agent runs as root and
+mounts the Docker socket, which grants host-level control. Robin Admin's module
+installer also mounts the Docker socket; it is disabled by default and should
+only be enabled on a trusted host.
+
 ## Quick Start
 
 ```bash
+# First run: copy the settings; replace the demo secrets before use
+cp .suite/.env.example .suite/.env
+
 # Start the complete suite
-docker compose -f .suite/docker-compose.yaml up -d
+docker compose --project-directory .suite up -d
 
 # Verify all services are healthy
-docker compose -f .suite/docker-compose.yaml ps
+docker compose --project-directory .suite ps
 
 # Access webmail
 open http://localhost:8888
+
+# Access Robin Admin
+open https://localhost:3443
 ```
+
+The Robin Admin installer is optional. On a trusted host, enable it explicitly:
+
+```bash
+docker compose --project-directory .suite --profile installer up -d
+```
+
+Set `DB_PASSWORD` in `.suite/.env` to a unique password for shared deployments;
+the Compose configuration passes it to the suite PostgreSQL server, Robin,
+Dovecot, Roundcube, and Robin Admin. Do not use the example's `robin` value
+outside local demonstrations. PostgreSQL only applies `POSTGRES_PASSWORD` when
+initializing an empty data directory; for an existing `store/postgres`, change
+the database role password to match before restarting the suite.
+
+Use `--project-directory .suite` (or run `docker compose` from inside `.suite/`)
+rather than `-f .suite/docker-compose.yaml`: passing `-f` skips
+`docker-compose.override.yaml`, which points Robin Admin's mounts at this suite.
+The included Robin Admin Compose files and images share `ROBIN_ADMIN_VERSION`;
+update that value in `.suite/.env` when moving to another published version.
+The gateway's default host address and port are `127.0.0.1:3443`; if changing
+the bind address for a reverse proxy, set `ADMIN_HTTPS_BIND` (for example,
+`0.0.0.0`) only when network access is appropriately restricted.
 
 ## Architecture
 
@@ -82,6 +117,7 @@ join the suite, such as Robin Admin, use the role aliases.
 | ClamAV | `suite-clamav` | `antivirus-backend` | 3310 | Virus scanning |
 | Rspamd | `suite-rspamd` | `spam-backend` | 11333, 11334 | Spam/phishing detection |
 | Roundcube | `suite-roundcube` | `webmail-backend` | 8888 | Webmail interface |
+| Robin Admin | `suite-admin-gateway`, `suite-admin`, `suite-admin-ui`, `suite-admin-agent` | `admin-gateway`, `admin-backend`, `admin-frontend` | 3443 | Web UI for the suite |
 
 ## Directory Structure
 
@@ -135,13 +171,13 @@ store/                    # All persistent data
 ### Start/Stop Suite
 ```bash
 # Start
-docker compose -f .suite/docker-compose.yaml up -d
+docker compose --project-directory .suite up -d
 
 # Stop
-docker compose -f .suite/docker-compose.yaml down
+docker compose --project-directory .suite down
 
 # Stop and remove all data
-docker compose -f .suite/docker-compose.yaml down -v
+docker compose --project-directory .suite down -v
 ```
 
 ### Monitor Logs
@@ -194,16 +230,19 @@ Pass: potts
 
 ## Production Deployment
 
-For production use:
+Before any shared or production deployment:
 
 1. **Update passwords** - Change all default passwords in `.suite/db-init/01-create-users.sql`
-2. **Enable authentication** - Configure `authType` and `authValue` in `.suite/cfg/server.json5` for API endpoints
-3. **Configure TLS certificates** - Replace self-signed certificates with production ones
-4. **Harden Dovecot** - Set `ssl = required` in `.dovecot/etc/conf.d/10-ssl.conf`
-5. **Configure domains** - Update hostname and domains in configurations
-6. **Disable chaos headers** - Set `chaosHeaders: false` in `.suite/cfg/server.json5`
-7. **Disable XCLIENT** - Set `xclientEnabled: false` in `.suite/cfg/server.json5`
-8. **Review RBL settings** - Configure appropriate RBL providers
+2. **Replace demo secrets** - Use unique strong values for `DB_PASSWORD`, Admin secrets, agent credentials and module proxy secrets in `.suite/.env`
+3. **Protect Robin Admin** - Keep the gateway on loopback behind a trusted reverse proxy/firewall; the co-located agent runs as root with Docker socket access
+4. **Keep the installer disabled** unless required, and only enable it on a trusted host; it also has Docker socket access
+5. **Enable authentication** - Configure `authType` and `authValue` in `.suite/cfg/server.json5` for API endpoints
+6. **Configure TLS certificates** - Replace self-signed certificates with production ones
+7. **Harden Dovecot** - Set `ssl = required` in `.dovecot/etc/conf.d/10-ssl.conf`
+8. **Configure domains** - Update hostname and domains in configurations
+9. **Disable chaos headers** - Set `chaosHeaders: false` in `.suite/cfg/server.json5`
+10. **Disable XCLIENT** - Set `xclientEnabled: false` in `.suite/cfg/server.json5`
+11. **Review RBL settings** - Configure appropriate RBL providers
 
 ## Testing
 

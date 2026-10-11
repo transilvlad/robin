@@ -10,6 +10,15 @@
 # See .suite/init-suite.sh for initial directory setup on Windows WSL2.
 # There is a Docker bug that sometimes may prevent mounting/creating non-existent directories.
 
+# Robin Admin, the suite's web UI, pulled from its release on GitHub and run
+# from the published images. Settings and secrets come from .suite/.env (see
+# .env.example); docker-compose.override.yaml points its mounts at this suite.
+include:
+  - path:
+      - https://github.com/transilvlad/robin-admin.git#v${ROBIN_ADMIN_VERSION:-1.0.0}:docker-compose.yaml
+      - https://github.com/transilvlad/robin-admin.git#v${ROBIN_ADMIN_VERSION:-1.0.0}:docker-compose.suite.yaml
+    env_file: .env
+
 services:
   # PostgreSQL database for Robin, Dovecot and Roundcube storage.
   suite-postgres:
@@ -26,7 +35,7 @@ services:
     environment:
       POSTGRES_DB: robin
       POSTGRES_USER: robin
-      POSTGRES_PASSWORD: robin
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-robin}
     volumes:
       - ../log/postgres:/var/log
       - ../store/postgres:/var/lib/postgresql
@@ -147,7 +156,7 @@ services:
       - POSTGRES_HOST=postgres-backend
       - POSTGRES_DB=robin
       - POSTGRES_USER=robin
-      - POSTGRES_PASSWORD=robin
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-robin}
       - CLAMAV_HOST=antivirus-backend
       - CLAMAV_PORT=3310
       - RSPAMD_HOST=spam-backend
@@ -187,7 +196,7 @@ services:
       - POSTGRES_HOST=postgres-backend
       - POSTGRES_DB=robin
       - POSTGRES_USER=robin
-      - POSTGRES_PASSWORD=robin
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-robin}
     networks:
       suite:
         aliases:
@@ -215,7 +224,7 @@ services:
       - ROUNDCUBEMAIL_DB_HOST=postgres-backend
       - ROUNDCUBEMAIL_DB_PORT=5432
       - ROUNDCUBEMAIL_DB_USER=robin
-      - ROUNDCUBEMAIL_DB_PASSWORD=robin
+      - ROUNDCUBEMAIL_DB_PASSWORD=${DB_PASSWORD:-robin}
       - ROUNDCUBEMAIL_DB_NAME=roundcube
       - ROUNDCUBEMAIL_DEFAULT_HOST=imap-backend
       - ROUNDCUBEMAIL_DEFAULT_PORT=143

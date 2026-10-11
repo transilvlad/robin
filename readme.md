@@ -44,10 +44,11 @@ Read more [here](contributing.md).
 
 Full Suite
 ----------
-Complete email infrastructure with Dovecot, PostgreSQL, Redis, ClamAV, Rspamd, and Roundcube:
+Complete email infrastructure with Dovecot, PostgreSQL, Redis, ClamAV, Rspamd, Roundcube, and Robin Admin:
 
 ```bash
-docker compose -f .suite/docker-compose.yaml up -d
+cp .suite/.env.example .suite/.env   # replace demo secrets before use
+docker compose --project-directory .suite up -d
 ```
 
 - **[Robin Full Suite](doc/developer/robin-suite.md)** - Architecture and deployment guide

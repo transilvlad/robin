@@ -1,0 +1,18 @@
+# Loaded automatically with docker-compose.yaml. Robin Admin's suite overlay
+# mounts this suite's folders by paths relative to a robin-admin checkout; when
+# it is included from GitHub those resolve inside Compose's download cache, so
+# they are set again here, relative to this folder.
+services:
+  suite-admin-gateway:
+    ports: !override
+      - "${ADMIN_HTTPS_BIND:-127.0.0.1}:${ADMIN_HTTPS_PORT:-3443}:3443"
+
+  suite-admin:
+    volumes:
+      - ./etc/rspamd/local.d:/mnt/rspamd/local.d
+      - ../store/rspamd:/mnt/rspamd/store
+      - ../log/robin:/mnt/logs/robin:ro
+
+  suite-admin-agent:
+    volumes:
+      - ../log:/logs:ro

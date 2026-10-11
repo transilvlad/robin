@@ -1,0 +1,4 @@
+services:
+  suite-robin:
+    volumes:
+      - ./etc/demo-tls/robin-keystore.jks:/usr/local/robin/keystore.jks:ro
