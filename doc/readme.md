@@ -7,6 +7,8 @@ Welcome to the Robin MTA documentation. This guide will help you navigate the do
 Complete email infrastructure bundling Robin with Dovecot, PostgreSQL, ClamAV, Rspamd, and Roundcube:
 
 - **[Robin Full Suite](developer/robin-suite.md)** - Architecture, deployment, and configuration
+- **[Suite Operations](developer/suite-operations.md)** - Backup, restore, upgrades, migration and TLS renewal
+- **[Deployment Examples](../examples/docker-compose/README.md)** - Compose and Ansible using the production suite
 - **[Full Suite Testing](testing/full-suite.md)** - Integration testing and validation
 
 ## Quick Navigation

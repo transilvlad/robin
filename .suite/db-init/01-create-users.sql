@@ -89,3 +89,7 @@ INSERT INTO aliases (source, destination) VALUES ('tony-alias@example.com', 'ton
 
 -- Sample auto alias: map tony@ to tony@example.com (example of pattern-based mapping stored as explicit entries)
 INSERT INTO auto_aliases (source, destination) VALUES ('tony@', 'tony@example.com') ON CONFLICT DO NOTHING;
+
+GRANT SELECT ON users, aliases, auto_aliases TO robin_mailbox, robin_mta;
+GRANT SELECT, INSERT, UPDATE, DELETE ON users, aliases, auto_aliases TO robin_admin;
+GRANT USAGE, SELECT ON SEQUENCE users_id_seq, aliases_id_seq, auto_aliases_id_seq TO robin_admin;

@@ -112,7 +112,8 @@ public class ServerData extends ServerProcessor {
             return true;
         } finally {
             if (terminalMessage) {
-                String successfulOutcome = blackholed ? "blackholed" : proxying ? "proxied" : "accepted";
+                String successfulOutcome = envelope != null && envelope.isBlackholed()
+                        ? "blackholed" : proxying ? "proxied" : "accepted";
                 long durationMillis = (System.nanoTime() - startedAt) / 1_000_000;
                 connection.recordMessageOutcome(
                         envelope,
@@ -283,6 +284,10 @@ public class ServerData extends ServerProcessor {
         }
 
         // Stream the email to the proxy server via DATA command.
+        if (connection.getSession().getEnvelopes().getLast().isBlackholed()) {
+            connection.write(String.format(SmtpResponses.RECEIVED_OK_250, connection.getSession().getUID()));
+            return true;
+        }
         try {
             boolean proxySuccess = proxyDelivery.sendData();
 
@@ -541,6 +546,10 @@ public class ServerData extends ServerProcessor {
      * @throws IOException Unable to communicate.
      */
     private boolean callRawWebhook() throws IOException {
+        if (!connection.getSession().getEnvelopes().isEmpty()
+                && connection.getSession().getEnvelopes().getLast().isBlackholed()) {
+            return true;
+        }
         try {
             Map<String, WebhookConfig> webhooks = Config.getServer().getWebhooks();
 

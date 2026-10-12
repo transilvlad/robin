@@ -8,6 +8,19 @@ Configuration
 -------------
 Server core configuration lives in `server.json5`.
 
+TLS material is validated before listeners start. If STARTTLS or SMTPS is enabled,
+an unreadable/invalid keystore or PEM configuration causes startup to fail rather
+than continuing without working TLS. To use PEM, configure both `pemCert` (a chain
+with the leaf first) and `pemKey` (the matching, unencrypted PKCS8 RSA or EC key).
+PEM takes precedence over `keystore`; invalid PEM does not fall back to a keystore.
+Expired or not-yet-valid PEM certificates and mismatched keys are rejected.
+Restart the server after replacing TLS files.
+
+For outbound certificate validation, `truststore: ""` uses the JVM's configured
+or default CA roots. A nonempty `truststore` selects that file and must be readable
+with the configured `truststorepassword`. Keep `allowSelfSigned` disabled outside
+isolated testing.
+
 Configuration Reload
 --------------------
 Configuration can be reloaded without restarting the server via the service API.
@@ -777,4 +790,3 @@ Operational Requirements
 -----------------------
 - **LDA backend:** Robin and Dovecot must run in the same container or host, with access to the UNIX socket and LDA binary.
 - **LMTP backend:** Robin can deliver to any LMTP server in the configured list, does not require local Dovecot, and is recommended for SQL-backed and distributed setups.
-

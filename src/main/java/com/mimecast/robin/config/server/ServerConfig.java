@@ -5,6 +5,7 @@ import com.mimecast.robin.config.BasicConfig;
 import com.mimecast.robin.config.DovecotConfig;
 import com.mimecast.robin.config.StalwartConfig;
 import com.mimecast.robin.config.ConfigFoundation;
+import com.mimecast.robin.config.SecretReferences;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.util.Magic;
 import com.mimecast.robin.util.PathUtils;
@@ -693,7 +694,7 @@ public class ServerConfig extends ConfigFoundation {
             try {
                 if (PathUtils.isFile(path)) {
                     String content = Magic.streamMagicReplace(PathUtils.readFile(path, Charset.defaultCharset()));
-                    Object parsed = new Gson().fromJson(content, clazz);
+                    Object parsed = new Gson().fromJson(SecretReferences.resolve(content), clazz);
                     map.put(key, parsed);
                 }
             } catch (IOException e) {

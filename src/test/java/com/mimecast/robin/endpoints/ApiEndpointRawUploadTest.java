@@ -2,11 +2,14 @@ package com.mimecast.robin.endpoints;
 
 import com.google.gson.Gson;
 import com.mimecast.robin.config.server.EndpointConfig;
+import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Foundation;
+import com.mimecast.robin.queue.PersistentQueue;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 
@@ -17,6 +20,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
@@ -34,10 +38,16 @@ class ApiEndpointRawUploadTest {
     private Gson gson;
     private ApiEndpoint apiEndpoint;
     private String baseUrl;
+    private String previousStoragePath;
+
+    @TempDir
+    static Path tempDir;
 
     @BeforeAll
     void setUp() throws IOException, ConfigurationException {
         Foundation.init("src/test/resources/cfg/");
+        previousStoragePath = Config.getServer().getStorage().getStringProperty("path");
+        Config.getServer().getStorage().getMap().put("path", tempDir.resolve("store").toString());
 
         apiEndpoint = new ApiEndpoint();
         int testPort = findFreePort();
@@ -63,6 +73,13 @@ class ApiEndpointRawUploadTest {
     void tearDown() {
         if (apiEndpoint != null) {
             apiEndpoint.stop();
+        }
+        try {
+            PersistentQueue.getInstance().clear();
+        } catch (Exception ignored) {
+        }
+        if (previousStoragePath != null) {
+            Config.getServer().getStorage().getMap().put("path", previousStoragePath);
         }
     }
 

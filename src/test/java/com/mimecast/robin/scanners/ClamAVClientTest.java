@@ -9,6 +9,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Collection;
@@ -176,6 +177,87 @@ class ClamAVClientTest {
         Map<String, Collection<String>> viruses = client.getViruses();
         assertNotNull(viruses, "Viruses should be reported for virus file");
         assertFalse(viruses.isEmpty(), "Virus map should not be empty");
+    }
+
+    @Test
+    void cleanScanClearsPreviousViruses() throws IOException {
+        assertTrue(client.isInfected(virusFile));
+        assertFalse(client.isInfected(cleanFile));
+        assertNull(client.getViruses());
+    }
+
+    @Test
+    void unavailableScannerFailsRatherThanReportingClean() {
+        mockServer.stop();
+        assertThrows(UncheckedIOException.class, () -> client.isInfected(new byte[]{1}));
+    }
+
+    @Test
+    void failedScanClearsPreviousViruses() throws IOException {
+        assertTrue(client.isInfected(virusFile));
+        mockServer.setScanResponse("stream: scan failed ERROR\0");
+        assertThrows(UncheckedIOException.class, () -> client.isInfected(new byte[]{1}));
+        assertNull(client.getViruses());
+    }
+
+    @Test
+    void stalledResponseHasABoundedDeadline() throws Exception {
+        try (var server = new java.net.ServerSocket(0);
+             var worker = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            var waiting = new java.util.concurrent.CountDownLatch(1);
+            var accepted = worker.submit(() -> {
+                try (var socket = server.accept()) {
+                    var input = new java.io.DataInputStream(socket.getInputStream());
+                    while (input.readByte() != 0) { }
+                    int count;
+                    while ((count = input.readInt()) != 0) {
+                        input.readNBytes(count);
+                    }
+                    waiting.await();
+                }
+                return null;
+            });
+            try {
+                ClamAVClient bounded = new ClamAVClient("localhost", server.getLocalPort(), 1);
+                assertTimeoutPreemptively(java.time.Duration.ofSeconds(3), () ->
+                        assertThrows(UncheckedIOException.class, () -> bounded.scanBytes(new byte[]{1})));
+            } finally {
+                waiting.countDown();
+                accepted.get(3, java.util.concurrent.TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    @Test
+    void scannerErrorsAndTruncatedResponsesFailExplicitly() {
+        for (String response : new String[]{"stream: size limit exceeded ERROR\0",
+                "unknown\0", "stream: OK", "\0", "stream:  FOUND\0"}) {
+            mockServer.setScanResponse(response);
+            assertThrows(UncheckedIOException.class, () -> client.isInfected(new byte[]{1}));
+            assertNull(client.getViruses());
+        }
+    }
+
+    @Test
+    void stalledUploadCannotHoldSmtpThreadIndefinitely() throws Exception {
+        try (var server = new java.net.ServerSocket(0);
+             var worker = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            var waiting = new java.util.concurrent.CountDownLatch(1);
+            var accepted = worker.submit(() -> {
+                try (var socket = server.accept()) {
+                    waiting.await();
+                }
+                return null;
+            });
+            try {
+                ClamAVClient bounded = new ClamAVClient("localhost", server.getLocalPort(), 1);
+                assertTimeoutPreemptively(java.time.Duration.ofSeconds(3), () ->
+                        assertThrows(UncheckedIOException.class, () -> bounded.scanBytes(new byte[32 * 1024 * 1024])));
+            } finally {
+                waiting.countDown();
+                accepted.get(5, java.util.concurrent.TimeUnit.SECONDS);
+            }
+        }
     }
 
     @Test

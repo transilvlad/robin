@@ -1,5 +1,6 @@
 package com.mimecast.robin.trust;
 
+import com.mimecast.robin.config.server.ServerConfig;
 import com.mimecast.robin.main.Config;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -16,7 +17,8 @@ import java.security.cert.X509Certificate;
 
 /**
  * Custom X509TrustManager implementation for production use.
- * This trust manager validates server and client certificates against a configured trust store.
+ * This trust manager validates certificates against a configured store, or the JVM's
+ * CA roots when the configured path is empty.
  * It ensures that only certificates issued by trusted Certificate Authorities (CAs) are accepted.
  */
 public class TrustManager implements X509TrustManager {
@@ -30,26 +32,30 @@ public class TrustManager implements X509TrustManager {
      * @throws Exception If the trust store cannot be loaded or initialized.
      */
     public TrustManager() throws Exception {
-        // Try to read trust store password from file.
-        String trustStorePassword;
-        try {
-            trustStorePassword = new String(Files.readAllBytes(Paths.get(Config.getServer().getTrustStorePassword())));
-        } catch (IOException e) {
-            log.warn("Truststore password treated as text.");
-            trustStorePassword = Config.getServer().getTrustStorePassword();
-        }
-        System.setProperty("javax.net.ssl.trustStorePassword", trustStorePassword);
+        this(Config.getServer());
+    }
 
-        // Load the trust store from the specified file.
-        KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
-        try (BufferedInputStream fis = new BufferedInputStream(Files.newInputStream(Paths.get(Config.getServer().getTrustStore())), 8192)) {
-            trustStore.load(fis, trustStorePassword.toCharArray());
-        } catch (IOException e) {
-            log.error("Error reading trust store file: {}", e.getMessage());
-        }
-
-        // Initialize the TrustManagerFactory with the loaded trust store
+    TrustManager(ServerConfig config) throws Exception {
         TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        KeyStore trustStore = null;
+        if (!config.getTrustStore().isEmpty()) {
+            // Try to read trust store password from file.
+            String trustStorePassword;
+            try {
+                trustStorePassword = new String(Files.readAllBytes(Paths.get(config.getTrustStorePassword())));
+            } catch (IOException e) {
+                log.warn("Truststore password treated as text.");
+                trustStorePassword = config.getTrustStorePassword();
+            }
+
+            // Load the trust store from the specified file.
+            trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
+            try (BufferedInputStream fis = new BufferedInputStream(Files.newInputStream(Paths.get(config.getTrustStore())), 8192)) {
+                trustStore.load(fis, trustStorePassword.toCharArray());
+            }
+        }
+
+        // A null store selects the JVM's configured/default CA roots.
         tmf.init(trustStore);
 
         // Find the X509TrustManager from the factory

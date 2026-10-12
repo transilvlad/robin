@@ -47,7 +47,7 @@ public abstract class ConfigFoundation implements Serializable {
     public ConfigFoundation(String path) throws IOException {
         if (PathUtils.isFile(path)) {
             String props = Magic.streamMagicReplace(PathUtils.readFile(path, Charset.defaultCharset()));
-            map = new Gson().fromJson(props, Map.class);
+            map = new Gson().fromJson(SecretReferences.resolve(props), Map.class);
         } else {
             throw new IOException("File not found: " + path);
         }

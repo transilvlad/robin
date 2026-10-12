@@ -207,7 +207,9 @@ Response:
 
 `GET /logs`
 
-Searches current and previous log files for matching lines.
+Searches the active log file plus today's and yesterday's archives for matching
+lines. Date-only and indexed `%i` rolling patterns, including gzip archives, are
+supported. Missing files are skipped; unreadable/corrupt logs fail the search.
 
 Query params:
 - `query` or `q` (required, search term)
@@ -666,4 +668,3 @@ Notes:
 |-------|-------|----------------|
 | `ServiceEndpoint` | `/`, `/health`, `/metrics/*`, `/env`, `/sysprops`, `/threads`, `/heapdump` | Base monitoring endpoints |
 | `RobinMetricsEndpoint` | `/config/*`, `/system/*` | Robin-specific extensions with reorganized paths |
-

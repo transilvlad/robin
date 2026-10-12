@@ -9,10 +9,18 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.DataOutputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.UncheckedIOException;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * ClamAV antivirus scanner client.
@@ -24,7 +32,18 @@ public class ClamAVClient {
     private static final Logger log = LogManager.getLogger(ClamAVClient.class);
 
     private final ClamavClient client;
+    private final int timeoutMillis;
     private Map<String, Collection<String>> viruses;
+
+    private static final ScheduledThreadPoolExecutor SCAN_TIMEOUTS = new ScheduledThreadPoolExecutor(1, task -> {
+        Thread thread = new Thread(task, "clamav-scan-timeouts");
+        thread.setDaemon(true);
+        return thread;
+    });
+
+    static {
+        SCAN_TIMEOUTS.setRemoveOnCancelPolicy(true);
+    }
 
     /**
      * Constructor with default host and port.
@@ -42,6 +61,21 @@ public class ClamAVClient {
      * @param port The ClamAV server port.
      */
     public ClamAVClient(String host, int port) {
+        this(host, port, 30);
+    }
+
+    /**
+     * Creates a client with a bounded scan timeout, including blocked uploads.
+     *
+     * @param host ClamAV hostname.
+     * @param port ClamAV port.
+     * @param timeoutSeconds Positive scan timeout in seconds.
+     */
+    public ClamAVClient(String host, int port, int timeoutSeconds) {
+        if (timeoutSeconds <= 0) {
+            throw new IllegalArgumentException("ClamAV timeout must be positive");
+        }
+        timeoutMillis = Math.multiplyExact(timeoutSeconds, 1000);
         client = new ClamavClient(host, port);
         log.trace("ClamAV client initialized with {}:{}", host, port);
     }
@@ -86,6 +120,7 @@ public class ClamAVClient {
      * @throws IOException If the file cannot be read.
      */
     public ScanResult scanFile(File file) throws IOException {
+        viruses = null;
         log.trace("Scanning file: {}", file.getAbsolutePath());
         try (InputStream is = Files.newInputStream(file.toPath())) {
             return scanStream(is);
@@ -100,7 +135,7 @@ public class ClamAVClient {
      */
     public ScanResult scanBytes(byte[] bytes) {
         log.trace("Scanning byte array");
-        return client.scan(new ByteArrayInputStream(bytes));
+        return scanStream(new ByteArrayInputStream(bytes));
     }
 
     /**
@@ -111,7 +146,64 @@ public class ClamAVClient {
      */
     public ScanResult scanStream(InputStream inputStream) {
         log.trace("Scanning input stream");
-        return client.scan(inputStream);
+        viruses = null;
+        // The library's INSTREAM transport has no socket/scan timeout. Keep its
+        // result types, but bound both upload and response with a closable socket.
+        try (Socket socket = new Socket()) {
+            var deadline = SCAN_TIMEOUTS.schedule(() -> {
+                try {
+                    socket.close();
+                } catch (IOException e) {
+                    log.error("Unable to close timed-out ClamAV socket: {}", e.getMessage());
+                }
+            }, timeoutMillis, TimeUnit.MILLISECONDS);
+            try {
+                socket.connect(client.getServer(), timeoutMillis);
+                socket.setSoTimeout(timeoutMillis);
+                DataOutputStream output = new DataOutputStream(socket.getOutputStream());
+                output.write("zINSTREAM\0".getBytes(StandardCharsets.US_ASCII));
+                byte[] chunk = new byte[8192];
+                int count;
+                while ((count = inputStream.read(chunk)) != -1) {
+                    if (count == 0) {
+                        continue;
+                    }
+                    output.writeInt(count);
+                    output.write(chunk, 0, count);
+                }
+                output.writeInt(0);
+                output.flush();
+
+                ByteArrayOutputStream response = new ByteArrayOutputStream();
+                InputStream input = socket.getInputStream();
+                int value;
+                while ((value = input.read()) != 0) {
+                    if (value == -1) {
+                        throw new IOException("ClamAV closed the connection without a complete scan result");
+                    }
+                    if (response.size() >= 65536) {
+                        throw new IOException("ClamAV scan response exceeds 64 KiB");
+                    }
+                    response.write(value);
+                }
+                String result = response.toString(StandardCharsets.UTF_8);
+                if ("stream: OK".equals(result)) {
+                    return ScanResult.OK.INSTANCE;
+                }
+                if (result.startsWith("stream: ") && result.endsWith(" FOUND")) {
+                    String virus = result.substring("stream: ".length(), result.length() - " FOUND".length());
+                    if (!virus.isBlank()) {
+                        return new ScanResult.VirusFound(Map.of("stream", List.of(virus)));
+                    }
+                }
+                throw new IOException("ClamAV scan failed: " + result);
+            } finally {
+                deadline.cancel(false);
+            }
+        } catch (IOException e) {
+            log.error("ClamAV scan failed: {}", e.getMessage());
+            throw new UncheckedIOException("ClamAV scan failed", e);
+        }
     }
 
     /**
@@ -153,6 +245,10 @@ public class ClamAVClient {
      * @return True if the scan result indicates an infection, false otherwise.
      */
     private boolean processScanResult(ScanResult result) {
+        viruses = null;
+        if (!(result instanceof ScanResult.OK) && !(result instanceof ScanResult.VirusFound)) {
+            throw new IllegalStateException("ClamAV returned an invalid scan result");
+        }
         boolean isInfected = result instanceof ScanResult.VirusFound;
         log.debug("ClamAV scan result: {}", isInfected ? "Virus Found" : "Clean");
         if (isInfected) {

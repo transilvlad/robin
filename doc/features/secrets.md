@@ -1,83 +1,66 @@
-# Secrets, magic and Local Secrets File
+# External configuration secrets
 
-This document explains how to manage local secrets for Robin, shows an example secrets file you can copy and edit,
-and provides a CLI run example that loads the secrets file via a JVM system property.
+Use an explicit whole-string reference in a JSON5 value:
 
-<span style="color:red">Do NOT commit real secrets into the repository!!!</span>
-
-Robin magic will read secrets from system properties and populate them into the application configuration on runtime.
-Use this mechanism to keep secrets out of version control. Use {$secretName} placeholders in your main configuration files and let Robin do the rest.
-All configuration file secrets support magic variable substitution.
-
-## Overview
-
-- Keep secrets (API keys, passwords, keystore passwords, etc.) out of version control.
-- Use an untracked, filesystem-local secrets file and point Robin at it using a JVM system property.
-- The application supports reading properties from system properties; use `-D...` JVM options to provide the path to your secrets file.
-
-## Example secrets file
-
-Example contents (secrets.properties):
-
-```
-# Example secrets file for Robin.
-# Copy this to a safe location (outside the repository) and edit values.
-# Then start Robin with a system property pointing to the file, for example:
-#   -Dsecrets.file=/usr/local/robin/cfg/secrets.properties
-
-# Example entries (replace with your real secrets):
-# Prometheus remote write credentials
-bearerToken=avengers-assemble-token
-basicAuthUser=
-basicAuthPassword=
-
-# Webhook credentials (if applicable)
-authType=bearer
-authValue=avengers-assemble-token
-
-# TLS/SSL keystore password
-keystorePassword=avengers
-truststorePassword=assemble
-
-# Do NOT commit real secrets into the source repository!!!
+```json5
+{
+  password: "{$secret:MTA_DB_PASSWORD}"
+}
 ```
 
-Adapt the keys to match the properties your deployment or plugins expect.
-The above is a minimal illustrative example; remove or extend properties as required.
+Robin resolves this reference only while loading configuration into memory.
+The configuration store seeds, compares, and downloads the **reference**, not
+its value. It must not be replaced with a literal credential in Admin.
+Ordinary SMTP magic such as `{$transactionUid}` is unchanged.
 
-## CLI run example
+## Secret sources
 
-Unix/Linux/macOS example (foundation command adjusted):
+Resolution order for `{$secret:NAME}`:
+
+1. Key `NAME` in a UTF-8 Java properties file selected by `-Dsecrets.file=...`.
+2. File selected by environment variable `NAME_FILE`.
+3. Environment variable `NAME`.
+
+A configured but unreadable file, missing/empty secret, or reference embedded
+inside a larger string is an error. A `_FILE` secret has one trailing newline
+removed; other characters are preserved. Values are JSON-escaped, so quotes,
+backslashes, and Unicode do not corrupt configuration. Rotate files/environment
+and restart Robin to apply changes consistently across connection pools.
+
+Properties file example (keep outside version control, mode `0600`):
+
+```properties
+MTA_DB_PASSWORD=replace-with-a-unique-secret
+MAILBOX_DB_PASSWORD=replace-with-another-secret
+```
+
+Java properties escaping rules apply, including backslash escaping.
 
 ```sh
-java -server -Xms256m -Xmx1024m \
-  -Dlog4j.configurationFile=/usr/local/robin/cfg/log4j2.xml \
-  -Dsecrets.file=/usr/local/robin/cfg/secrets.properties \
-  -cp "/usr/local/robin/robin.jar:/usr/local/robin/lib/*" \
-  com.mimecast.robin.Main --server /usr/local/robin/cfg/
+java -Dsecrets.file=/secure/robin.properties \
+  -jar target/robin.jar --server --conf cfg/
 ```
 
-Notes about the command:
-- `-Dsecrets.file=...` is the JVM system property pointing to the secrets file on disk. Replace the path with your location.
-- Keep the secrets file outside the repo and restrict access permissions on the file.
+For containers, mount a secret file read-only and set
+`MTA_DB_PASSWORD_FILE=/run/secrets/mta_db_password`.
+Do not pass credential values as JVM arguments: arguments can be visible to
+other processes and Robin's session magic includes JVM property names.
 
-## Security best practices
+## Ownership and operational limits
 
-- Don't commit secrets into the repository. Keep the example file in the repo but not real secrets.
-- Use strict filesystem permissions on any local secrets file.
-- Consider using an OS-level secret store (Key Vault, AWS Secrets Manager, HashiCorp Vault, Windows Credential Manager)
-for production environments where possible.
-- Avoid passing sensitive values directly on the command line; pointing to a file is preferable because some OSes may expose
-the command line to other users.
-- Regularly rotate secrets and update the local secrets file accordingly.
-- Audit access to the secrets file and monitor for unauthorized access attempts.
-- Ensure backups of the secrets file are also secured and access-controlled.
-- Educate team members about the importance of secret management and best practices.
-- Review and update your secret management practices periodically to adapt to evolving security threats.
-- Consider encrypting the secrets file if it contains highly sensitive information, and implement decryption logic in your application startup process.
-- Use environment variables as an alternative to files for passing secrets, especially in containerized environments.
-- Document the secret management process clearly for your team to ensure consistent practices.
-- Implement logging and alerting for any access to the secrets file to detect potential security breaches.
-- Test your secret management implementation regularly to ensure it works as expected and that secrets are not exposed inadvertently.
-- Use version control ignore files (e.g., .gitignore) to ensure that secrets files are not accidentally committed to the repository.
-- Regularly review and update the secrets file to remove any unused or outdated secrets.
+`config.json5` is a local bootstrap file, excluded from database synchronization.
+For Admin-managed deployments, the PostgreSQL store owns the remaining JSON5
+configuration. Enable `required: true` alongside `enabled: true` in the bootstrap
+file to fail a synchronization pass rather than silently use stale configuration
+after a store error. The backward-compatible default is `required: false`.
+
+External secret resolution does not scrub previously stored literal passwords.
+Replace old literals in base and per-server override rows with references, and
+rotate those passwords. Protect database backups, secret-file backups, the Admin
+account, and filesystem access. Anyone authorized to change configuration can
+change where credentials are used; references are not a substitute for access
+control. Existing APIs may expose effective configuration; secure management
+endpoints before exposing the deployment.
+
+See [Robin Full Suite](../developer/robin-suite.md) for separate database roles
+and suite credential provisioning. TLS/network hardening remains required.

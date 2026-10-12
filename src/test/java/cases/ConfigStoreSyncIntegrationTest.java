@@ -31,6 +31,50 @@ import static org.junit.jupiter.api.Assertions.*;
 public class ConfigStoreSyncIntegrationTest {
 
     @Test
+    void testSync_keepsSecretReferencesOutOfStoredPayloads() throws Exception {
+        String jdbcUrl = System.getProperty("robin.integration.jdbcUrl");
+        assertNotNull(jdbcUrl, "Set robin.integration.jdbcUrl to the isolated integration PostgreSQL URL");
+        Path dir = Files.createTempDirectory("robin-secret-store-test-");
+        String table = "config_store_test_" + UUID.randomUUID().toString().replace("-", "");
+        Path secrets = dir.resolve("secrets.properties");
+        Files.writeString(secrets, "testSecret=only-in-memory\n");
+        Files.writeString(dir.resolve("config.json5"), """
+                {enabled: true, jdbcUrl: "%s", username: "robin", password: "robin", tableName: "%s"}
+                """.formatted(jdbcUrl, table));
+        Files.writeString(dir.resolve("server.json5"), "{smtpPort: 25, authValue: '{$secret:testSecret}'}");
+        String previous = System.getProperty("secrets.file");
+        System.setProperty("secrets.file", secrets.toString());
+        try {
+            ConfigStoreSyncManager.setConfigDir(dir.toString());
+            ConfigStoreSyncManager.syncIfEnabled();
+            try (Connection c = DriverManager.getConnection(jdbcUrl, "robin", "robin");
+                 Statement st = c.createStatement();
+                 var rs = st.executeQuery("SELECT payload_json::text FROM " + table + " WHERE file_name='server.json5'")) {
+                assertTrue(rs.next());
+                assertTrue(rs.getString(1).contains("{$secret:testSecret}"));
+                assertFalse(rs.getString(1).contains("only-in-memory"));
+            }
+            assertEquals("only-in-memory", new com.mimecast.robin.config.BasicConfig(
+                    dir.resolve("server.json5").toString()).getStringProperty("authValue"));
+            assertFalse(Files.readString(dir.resolve("server.json5")).contains("only-in-memory"));
+        } finally {
+            if (previous == null) {
+                System.clearProperty("secrets.file");
+            } else {
+                System.setProperty("secrets.file", previous);
+            }
+            try (Connection c = DriverManager.getConnection(jdbcUrl, "robin", "robin");
+                 Statement st = c.createStatement()) {
+                st.execute("DROP TABLE IF EXISTS " + table);
+            }
+            Files.deleteIfExists(dir.resolve("server.json5"));
+            Files.deleteIfExists(dir.resolve("config.json5"));
+            Files.deleteIfExists(secrets);
+            Files.deleteIfExists(dir);
+        }
+    }
+
+    @Test
     void testSync_rejectsEmptyCriticalPayload() throws Exception {
         String jdbcUrl = System.getProperty("robin.integration.jdbcUrl");
         assertNotNull(jdbcUrl, "Set robin.integration.jdbcUrl to the isolated integration PostgreSQL URL");

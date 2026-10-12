@@ -150,6 +150,9 @@ public final class ConfigStoreSyncManager {
         } catch (Exception e) {
             log.error("Config store sync failed: {}", e.getMessage(), e);
             status = new ConfigStoreSyncStatus(true, attemptMillis, 0L, e.getMessage(), applied, skipped);
+            if (cfg.required()) {
+                throw new IllegalStateException("Required configuration store synchronization failed");
+            }
         }
     }
 
@@ -533,4 +536,3 @@ public final class ConfigStoreSyncManager {
         }
     }
 }
-

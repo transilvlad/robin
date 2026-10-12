@@ -1,54 +1,14 @@
 {
-  // Enable/disable Rspamd scanning.
-  enabled: true,
-
-  // Rspamd server host.
   host: "spam-backend",
-
-  // Rspamd server port.
   port: 11333,
-
-  // Connection timeout in seconds.
+  enabled: true,
   timeout: 30,
-
-  // Enable SPF scanning.
   spfScanEnabled: true,
-
-  // Enable DKIM scanning.
   dkimScanEnabled: true,
-
-  // Enable DMARC scanning.
   dmarcScanEnabled: true,
-
-  // Spam score threshold for rejecting emails.
-  // Emails with score >= rejectThreshold will be rejected with a 5xx error.
   rejectThreshold: 15.0,
-
-  // Spam score threshold for discarding emails.
-  // Emails with score >= discardThreshold will be silently discarded.
-  discardThreshold: 20.0,
-
-  // DKIM signing lookup configuration.
-  // When enabled, Robin queries this database for outbound emails to determine which
-  // domain and selector pairs to use for signing. Multiple rows may be returned per sender
-  // domain, allowing a message to carry more than one DKIM signature.
-  dkimSigning: {
-    enabled: false,
-
-    // Signing backend: "rspamd" (default) or "native" (Apache jDKIM, no external service).
-    backend: "rspamd",
-
-    jdbcUrl: "jdbc:postgresql://postgres-backend:5432/robin",
-    user: "robin",
-    password: "robin",
-
-    // Filesystem path template for DKIM private key files (PKCS8 PEM, produced by rspamd dkim_keygen).
-    // $domain and $selector are replaced at runtime. Must be readable by the Robin process.
-    keyPath: "/var/lib/rspamd/dkim/$domain.$selector.key",
-
-    // Query returning signing domain and selector pairs for the given sender domain.
-    // Parameters: sender domain (?)
-    // Expected columns: domain, selector (multiple rows supported)
-    signingQuery: "SELECT COALESCE(d.sign_domain, d.domain) AS domain, s.selector FROM rspamd_dkim_domains d JOIN rspamd_dkim_selectors s ON s.domain_id = d.id WHERE d.enabled = TRUE AND d.domain = ? AND s.state = 'active' ORDER BY s.activated_at DESC, s.created_at DESC, s.id DESC LIMIT 1"
-  }
+  // Reject rather than silently lose mail; discard is an explicit operator opt-in.
+  discardEnabled: false,
+  discardThreshold: 25.0,
+  dkimSigning: { enabled: false }
 }

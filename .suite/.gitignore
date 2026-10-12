@@ -1,0 +1,5 @@
+.env
+secrets/*
+!secrets/.gitignore
+recovery.lock
+__pycache__/

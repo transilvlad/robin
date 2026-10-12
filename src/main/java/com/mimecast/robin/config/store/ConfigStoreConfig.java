@@ -24,7 +24,8 @@ record ConfigStoreConfig(
         String username,
         String password,
         String tableName,
-        int maxPoolSize
+        int maxPoolSize,
+        boolean required
 ) {
 
     private static final String DEFAULT_JDBC_URL = "jdbc:postgresql://localhost:5432/robin";
@@ -32,8 +33,8 @@ record ConfigStoreConfig(
     /**
      * Loads {@code config.json5} from the given directory.
      *
-     * <p>If the file is missing or cannot be read, this returns {@link Optional#empty()}.
-     * The caller can treat this as "feature disabled".
+     * <p>A missing file disables the feature. An unreadable bootstrap is an error,
+     * not an implicit opt-out of required synchronization.
      *
      * @param configDir Configuration directory.
      * @return Optional config-store config.
@@ -62,10 +63,10 @@ record ConfigStoreConfig(
                 serverId = "robin1";
             }
 
-            return Optional.of(new ConfigStoreConfig(enabled, serverId, jdbcUrl, username, password, tableName, maxPoolSize));
+            return Optional.of(new ConfigStoreConfig(enabled, serverId, jdbcUrl, username, password, tableName, maxPoolSize,
+                    cfg.getBooleanProperty("required", false)));
         } catch (IOException e) {
-            return Optional.empty();
+            throw new IllegalStateException("Cannot read configuration store bootstrap");
         }
     }
 }
-

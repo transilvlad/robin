@@ -2,6 +2,7 @@ package com.mimecast.robin.config.client;
 
 import com.google.gson.Gson;
 import com.mimecast.robin.config.ConfigFoundation;
+import com.mimecast.robin.config.SecretReferences;
 import com.mimecast.robin.config.assertion.AssertConfig;
 import com.mimecast.robin.util.Magic;
 import com.mimecast.robin.util.PathUtils;
@@ -120,7 +121,7 @@ public class ClientConfig extends ConfigFoundation {
             if (PathUtils.isFile(path)) {
                 try {
                     String content = Magic.streamMagicReplace(PathUtils.readFile(path, Charset.defaultCharset()));
-                    Object parsed = new Gson().fromJson(content, clazz);
+                    Object parsed = new Gson().fromJson(SecretReferences.resolve(content), clazz);
                     map.put(key, parsed);
                 } catch (IOException e) {
                     // Log at debug level to avoid noisy client init in environments without routes.json5.

@@ -4,13 +4,18 @@ Complete email infrastructure suite bundling Robin MTA with Dovecot, PostgreSQL,
 
 ## Purpose
 
-This suite provides a **development and demonstration email infrastructure** that can be used for:
-- Integration testing and validation
-- Development and staging environments
-- Feature demonstrations
+This suite has a **demo-friendly default** and an explicit production overlay.
+Development uses `cfg/`, performance workloads use `.perf/`, and fault-injection
+tests use the isolated `.integration/` stack.
 
-The Compose configuration is not production-ready as-is. It includes sample
-mail accounts and other demonstration defaults. Robin Admin is bound to
+Production hardening is still in progress: deployment-specific production
+acceptance remains to be completed. Recovery tooling, operator procedures and
+[Compose/Ansible examples](../../examples/docker-compose/README.md) are provided;
+see [Suite operations](suite-operations.md) before upgrades or restores. The
+default compose path includes demo TLS material and sample mail accounts so a
+local suite can start; production deployments must include
+`docker-compose.production.yaml`, provide operator-issued TLS material, and
+provision their own users. Robin Admin is bound to
 `127.0.0.1` by default; keep it there or put a trusted reverse proxy/firewall
 in front before exposing it. The co-located Robin Admin agent runs as root and
 mounts the Docker socket, which grants host-level control. Robin Admin's module
@@ -20,11 +25,15 @@ only be enabled on a trusted host.
 ## Quick Start
 
 ```bash
-# First run: copy the settings; replace the demo secrets before use
+# Local/demo deployment: configure independent Admin/module secrets
 cp .suite/.env.example .suite/.env
+# Edit every required .env value; use openssl rand -hex 32 for each secret
+bash .suite/init-secrets.sh
+# Prepare log/data directories and mailbox ownership (requires chown privileges)
+sudo bash .suite/init-suite.sh
 
 # Start the complete suite
-docker compose --project-directory .suite up -d
+docker compose --project-directory .suite up -d --build
 
 # Verify all services are healthy
 docker compose --project-directory .suite ps
@@ -36,18 +45,94 @@ open http://localhost:8888
 open https://localhost:3443
 ```
 
+For production, set `MAIL_HOSTNAME` and absolute `MAIL_TLS_DIR` in
+`.suite/.env`, place `fullchain.pem` and `privkey.pem` in that directory, and
+include the production overlay:
+
+```bash
+docker compose --project-directory .suite \
+  -f docker-compose.yaml \
+  -f docker-compose.override.yaml \
+  -f docker-compose.production.yaml \
+  up -d --build
+```
+
 The Robin Admin installer is optional. On a trusted host, enable it explicitly:
 
 ```bash
 docker compose --project-directory .suite --profile installer up -d
 ```
 
-Set `DB_PASSWORD` in `.suite/.env` to a unique password for shared deployments;
-the Compose configuration passes it to the suite PostgreSQL server, Robin,
-Dovecot, Roundcube, and Robin Admin. Do not use the example's `robin` value
-outside local demonstrations. PostgreSQL only applies `POSTGRES_PASSWORD` when
-initializing an empty data directory; for an existing `store/postgres`, change
-the database role password to match before restarting the suite.
+### Credentials and database roles
+
+`DB_PASSWORD` in `.suite/.env` belongs only to `robin_admin`.
+`MONITOR_DB_PASSWORD` belongs to `robin_monitor` (a `pg_monitor` member, not a
+database administrator). These values must be independent high-entropy hex
+secrets. The four other passwords are ignored files created by
+`init-secrets.sh`, mounted only into services that need them:
+
+| Role | Credential source | Access |
+|------|-------------------|--------|
+| `postgres` | `secrets/postgres_password` | Bootstrap/maintenance superuser; not supplied to applications |
+| `robin_mta` | `secrets/mta_db_password` | Owns queue/config tables; reads mailbox directory |
+| `robin_mailbox` | `secrets/mailbox_db_password` | SELECT on users and alias tables only |
+| `robin_roundcube` | `secrets/roundcube_db_password` | Owns only the separate Roundcube database |
+| `robin_admin` | `.env` `DB_PASSWORD` | Owns Admin tables; manages mailboxes, queue and configuration |
+| `robin_monitor` | `.env` `MONITOR_DB_PASSWORD` | PostgreSQL monitoring; administrative operations may be denied |
+
+Robin and Admin still create/migrate their own tables, so they have CREATE on
+the `public` schema; neither has superuser, role-creation, or database-creation
+rights. Separating migrations from runtime credentials is future hardening.
+The Admin role cannot read the PostgreSQL owner password. Docker socket access
+remains an independent privileged path and must be controlled.
+
+Robin resolves `{$secret:MTA_DB_PASSWORD}` and `{$secret:MAILBOX_DB_PASSWORD}`
+from its file-backed secret environment settings. Dovecot's startup wrapper reads
+the same mailbox credential file and explicitly imports it into its auth workers;
+Roundcube's image reads its named Docker secret. `secrets/roundcube_des_key` is
+a separate 24-character session encryption key, also generated by the script;
+retain it across restarts and include it in protected backups.
+See [External secrets](../features/secrets.md).
+
+### Configuration ownership
+
+The PostgreSQL configuration store, edited by Robin Admin, is authoritative.
+`suite-config-init` copies `.suite/cfg` templates into a writable named-volume
+cache only when those files do not exist. Robin synchronizes that cache, not the
+checked-in configuration directory. `config.json5` is mounted read-only and
+excluded from synchronization; it supplies external bootstrap credentials and
+requires successful synchronization (`required: true`).
+
+After bootstrap, edit non-secret settings through Admin. Store references, never
+credential values, in both base and per-server overrides. Changing a template
+does not overwrite an existing cache or database row.
+
+### TLS modes
+
+The base suite mounts `.suite/etc/demo-tls/robin-keystore.jks` for Robin and
+generates a local Dovecot certificate in `.suite/etc/dovecot/certs`. This is
+only for local/demo use. The production overlay requires `MAIL_TLS_DIR` and
+swaps in `cfg-production/server.json5`, which points Robin at
+`/run/robin-tls/fullchain.pem` and `/run/robin-tls/privkey.pem`; it also mounts
+the same certificate and key into Dovecot. Do not use the bundled demo keystore
+for a shared or Internet-facing deployment.
+
+### Existing deployments: migration required
+
+**Do not restart an existing demo deployment with this configuration without
+migrating it first.** PostgreSQL init scripts only run for an empty data directory.
+New roles, grants, secret mounts, and the named configuration cache do not convert
+the existing `robin` superuser installation automatically.
+
+Back up database, mailboxes, queue files, and current configuration. Provision the
+new roles and scoped grants with a maintenance account, transfer existing queue
+and config table ownership to `robin_mta`, transfer Admin tables to `robin_admin`,
+and separate Roundcube ownership. Replace stored literal credentials in all
+configuration layers with references and rotate them; provision secret files and
+`.env` before switching application credentials in a maintenance window.
+Existing sample users are not deleted automatically: explicitly remove or rotate
+them after checking for data that must be retained. Never delete the existing
+database directory or use `down -v` as a migration procedure.
 
 Use `--project-directory .suite` (or run `docker compose` from inside `.suite/`)
 rather than `-f .suite/docker-compose.yaml`: passing `-f` skips
@@ -73,7 +158,7 @@ the bind address for a reverse proxy, set `ADMIN_HTTPS_BIND` (for example,
 │ SMTP Client  │─▶│   Robin MTA     │  │    Dovecot      │
 │              │  │  SMTP Server    │  │  IMAP / LMTP    │
 └──────────────┘  └────────┬────────┘  └────────▲────────┘
-   SMTP:2525               │                    │
+   SMTP:25/465/587          │                    │
                            │                    │ LMTP:24
                 ┌──────────┼────────┐           │
                 │          │        │           │
@@ -91,7 +176,7 @@ the bind address for a reverse proxy, set `ADMIN_HTTPS_BIND` (for example,
            │   or Rejected   │
            └─────────────────┘
 
-┌──────────────┐  IMAP:2143   ┌─────────────────┐
+┌──────────────┐  IMAPS:993   ┌─────────────────┐
 │ Email Client │◀─────────────│    Dovecot      │
 │              │              │                 │
 └──────────────┘              └────────▲────────┘
@@ -110,14 +195,71 @@ join the suite, such as Robin Admin, use the role aliases.
 
 | Service | Container | Role alias | Host ports | Purpose |
 |---------|-----------|------------|------------|---------|
-| Robin MTA | `suite-robin` | `mta-backend` | 2525, 2587, 2465, 28080, 28090 | SMTP server with APIs |
-| Dovecot | `suite-dovecot` | `imap-backend`, `lmtp-backend` | 2143, 2993, 2110, 224 | IMAP/LMTP mail delivery |
-| PostgreSQL | `suite-postgres` | `postgres-backend` | 5434 | User auth & relay queue |
+| Robin MTA | `suite-robin` | `mta-backend` | 25, 465, 587 | SMTP reception and authenticated submission |
+| Dovecot | `suite-dovecot` | `imap-backend`, `lmtp-backend` | 993 | IMAPS; LMTP stays private |
+| PostgreSQL | `suite-postgres` | `postgres-backend` | none | User auth & relay queue |
 | Redis | `suite-redis` | `redis-backend` | none | Rspamd statistics, history and module state |
-| ClamAV | `suite-clamav` | `antivirus-backend` | 3310 | Virus scanning |
-| Rspamd | `suite-rspamd` | `spam-backend` | 11333, 11334 | Spam/phishing detection |
-| Roundcube | `suite-roundcube` | `webmail-backend` | 8888 | Webmail interface |
-| Robin Admin | `suite-admin-gateway`, `suite-admin`, `suite-admin-ui`, `suite-admin-agent` | `admin-gateway`, `admin-backend`, `admin-frontend` | 3443 | Web UI for the suite |
+| ClamAV | `suite-clamav` | `antivirus-backend` | none | Virus scanning |
+| Rspamd | `suite-rspamd` | `spam-backend` | none | Spam/phishing detection |
+| Roundcube | `suite-roundcube` | `webmail-backend` | 127.0.0.1:8888 | Webmail; HTTPS proxy required for remote access |
+| Robin Admin | `suite-admin-gateway`, `suite-admin`, `suite-admin-ui`, `suite-admin-agent` | `admin-gateway`, `admin-backend`, `admin-frontend` | 127.0.0.1:3443 | Web UI for the suite |
+
+`MAIL_BIND` defaults to `0.0.0.0` for public mail traffic. Firewall the host
+appropriately; PostgreSQL, scanners, LMTP and Robin APIs are not published.
+For temporary local diagnostics, explicitly include all three Compose files:
+
+```bash
+docker compose --project-directory .suite \
+  -f .suite/docker-compose.yaml -f .suite/docker-compose.override.yaml \
+  -f .suite/docker-compose.host.yaml up -d
+```
+
+This adds loopback-only PostgreSQL `5434`, Robin APIs `28080`/`28090`, and the
+Rspamd controller `11334`. The API examples below require this overlay.
+Robin's APIs currently have no application authentication because the included
+Admin reload client does not send credentials. They can expose resolved secrets
+and perform administrative actions. Treat membership of the shared `suite`
+network as privileged; do not attach untrusted containers or proxy these APIs
+publicly. Application-authenticated Admin reload is a remaining hardening item.
+
+### Certificates and mail policy
+
+Supply a CA-issued chain with the leaf first in `MAIL_TLS_DIR/fullchain.pem`
+and its matching, unencrypted PKCS8 RSA or EC key in `privkey.pem`. Both services
+mount the directory read-only. Protect the key with host permissions while
+allowing the container processes to read it. The certificate must cover
+`MAIL_HOSTNAME`; Roundcube verifies both the chain and that hostname even though
+it connects using private backend aliases. No demo certificate is generated or
+mounted by the suite. Robin refuses startup for unreadable or invalid TLS
+material, expired PEM certificates, and mismatched PEM keys.
+
+Issuance and renewal are operator responsibilities for now. Replace both files
+in the mounted directory and restart Robin and Dovecot during planned renewal;
+Robin loads its certificate at startup. Do not leave an expired chain in place.
+Outbound TLS uses the JVM's CA trust roots (`truststore: ""`); permissive
+self-signed trust is disabled.
+
+Port 25 receives mail for provisioned domains. Ports 465 and 587 require SMTP
+authentication for outbound mail; STARTTLS is required before AUTH on 587.
+Roundcube uses verified IMAPS and authenticated STARTTLS submission with the
+logged-in mailbox credentials. Dovecot requires TLS for IMAP logins; private
+LMTP delivery remains on port 24. Put webmail behind an HTTPS reverse proxy
+before remote use, and keep Admin's secure-cookie production defaults.
+
+Chaos headers, XCLIENT, filename-renaming headers, default test users, and
+optional report/analysis bots are disabled. Mailbox delivery uses Dovecot;
+durable queued outbound delivery and MX routing are enabled. ClamAV and Rspamd
+are enabled with bounded scan requests: scanner outages and invalid results
+return temporary `451` responses. Spam at or above score 15 is rejected;
+`discardEnabled: false` prevents silent spam loss at higher scores. Virus
+detection also rejects rather than discards. Optional discard policies stop
+delivery, bots, relay, RAW webhooks and proxy DATA forwarding.
+SQL authentication/directory outages return temporary failures, and unavailable
+required SQL queries stop startup before mail listeners. Incompatible SQL queue
+tables stop startup without replacing pending mail; see
+[Queue persistence](../features/queue.md) before upgrading.
+DKIM signing and report destinations must
+be provisioned for your domains before production acceptance.
 
 ## Directory Structure
 
@@ -126,7 +268,7 @@ All suite-specific files are organized under `.suite/`:
 ```
 .suite/
 ├── cfg/                  # Robin MTA configuration
-│   ├── config.json5      # Optional PostgreSQL config store sync
+│   ├── config.json5      # Read-only bootstrap for required config-store sync
 │   ├── server.json5      # Server settings
 │   ├── dovecot.json5     # Dovecot LMTP/SQL integration
 │   ├── clamav.json5      # ClamAV virus scanning
@@ -139,11 +281,14 @@ All suite-specific files are organized under `.suite/`:
 │   └── log4j2.xml        # Logging (suite.log)
 ├── etc/                  # Application configurations
 │   ├── rspamd/local.d/   # Rspamd overrides (Redis, DKIM signing, logging)
+│   ├── roundcube/        # Verified TLS/submission and session-key configuration
 │   └── dovecot/          # Dovecot configuration files
 │       ├── conf.d/       # Dovecot config includes
 │       ├── dovecot.conf  # Main Dovecot config
 │       └── dovecot-sql.conf.ext  # SQL auth config
-└── db-init/              # Database initialization scripts
+├── secrets/              # Ignored database credentials and webmail encryption key
+└── db-init/              # New-database initialization scripts
+    ├── 00-create-roles.sh
     ├── 01-create-users.sql
     └── 02-create-roundcube-db.sql
 
@@ -158,13 +303,11 @@ store/                    # All persistent data
 └── queue/                # Robin relay queue storage
 ```
 
-## Default Users
+## Mailbox Provisioning
 
-| Email | Password | Purpose |
-|-------|----------|---------|
-| tony@example.com | stark | Test sender/recipient |
-| pepper@example.com | potts | Test recipient |
-| happy@example.com | hogan | Test recipient |
+There are no default mailbox users, aliases, or local test-authentication accounts.
+Provision real domains and mailbox users through Admin before routing mail to this
+deployment. The integration-only accounts remain in `.integration/`.
 
 ## Common Operations
 
@@ -176,8 +319,7 @@ docker compose --project-directory .suite up -d
 # Stop
 docker compose --project-directory .suite down
 
-# Stop and remove all data
-docker compose --project-directory .suite down -v
+# Named volumes and host data are retained by default; back them up before maintenance.
 ```
 
 ### Monitor Logs
@@ -185,10 +327,10 @@ docker compose --project-directory .suite down -v
 **Robin MTA logs** (mounted to host):
 ```bash
 # Current suite log
-tail -f log/suite.log
+tail -f log/robin/robin.log
 
 # Previous days
-tail -f log/suite-20251209.log
+zcat log/robin/robin-20261011-1.log.gz
 
 # Via API
 curl "http://localhost:28090/logs?q=error"
@@ -224,25 +366,32 @@ curl -s http://localhost:28090/client/queue/list | \
 ### Access Webmail
 ```
 URL: http://localhost:8888
-User: pepper@example.com
-Pass: potts
+User: your provisioned mailbox address
+Pass: your mailbox password
 ```
 
 ## Production Deployment
 
 Before any shared or production deployment:
 
-1. **Update passwords** - Change all default passwords in `.suite/db-init/01-create-users.sql`
-2. **Replace demo secrets** - Use unique strong values for `DB_PASSWORD`, Admin secrets, agent credentials and module proxy secrets in `.suite/.env`
+1. **Provision mailboxes** - Create real users and aliases; no sample users are installed
+2. **Provision independent secrets** - Generate database secret files and configure Admin, monitoring, agent and module secrets in `.suite/.env`
 3. **Protect Robin Admin** - Keep the gateway on loopback behind a trusted reverse proxy/firewall; the co-located agent runs as root with Docker socket access
 4. **Keep the installer disabled** unless required, and only enable it on a trusted host; it also has Docker socket access
-5. **Enable authentication** - Configure `authType` and `authValue` in `.suite/cfg/server.json5` for API endpoints
-6. **Configure TLS certificates** - Replace self-signed certificates with production ones
-7. **Harden Dovecot** - Set `ssl = required` in `.dovecot/etc/conf.d/10-ssl.conf`
-8. **Configure domains** - Update hostname and domains in configurations
-9. **Disable chaos headers** - Set `chaosHeaders: false` in `.suite/cfg/server.json5`
-10. **Disable XCLIENT** - Set `xclientEnabled: false` in `.suite/cfg/server.json5`
-11. **Review RBL settings** - Configure appropriate RBL providers
+5. **Protect private APIs** - Keep management endpoints unpublished and the shared suite network trusted; authenticated Admin reload remains pending
+6. **Supply and renew TLS certificates** - Set `MAIL_HOSTNAME` and `MAIL_TLS_DIR`, validate the public chain, and monitor expiry
+7. **Configure public DNS** - Publish MX, matching forward/reverse DNS, SPF and domain-specific DKIM/DMARC records
+8. **Provision signing and reporting** - Configure DKIM keys and any intentionally enabled report bots
+9. **Protect webmail** - Use an HTTPS reverse proxy; the default HTTP listener is loopback-only
+10. **Review mail policy** - Tune message/rate limits and any RBL providers for the deployment
+11. **Complete production acceptance** - Verify durable delivery/recovery, fresh-host restore, renewal and upgrades before live traffic
+
+Processing safeguards are implemented. The
+[operations guide](suite-operations.md) covers backup/recovery/upgrades and
+existing-install migration. Public [Compose](../../examples/docker-compose/README.md)
+and [Ansible](../../examples/ansible/README.md) examples reuse this baseline rather
+than duplicate mail configuration. Deployment-specific production acceptance
+remains before admitting live traffic.
 
 ## Testing
 
@@ -268,12 +417,13 @@ For comprehensive testing documentation, see:
 - **[ClamAV](../features/clamav.md)** - Virus scanning
 - **[Rspamd](../features/rspamd.md)** - Spam detection
 - **[Endpoints](../features/endpoints.md)** - HTTP APIs
+- **[Suite operations](suite-operations.md)** - Backups, restore, upgrades and TLS renewal
 
 ## Architecture Benefits
 
 ### Separation of Concerns
 - **Robin MTA** - SMTP protocol and routing
-- **Dovecot** - Mailbox storage and IMAP/POP3
+- **Dovecot** - Mailbox storage and IMAPS/LMTP
 - **PostgreSQL** - Shared state (auth + queue)
 - **ClamAV/Rspamd** - Independent security layers
 - **Redis** - Rspamd state

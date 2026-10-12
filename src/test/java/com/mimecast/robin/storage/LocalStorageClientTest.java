@@ -12,8 +12,10 @@ import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.connection.ConnectionMock;
 import com.mimecast.robin.smtp.session.Session;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.parallel.ResourceAccessMode;
@@ -45,10 +47,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Execution(ExecutionMode.SAME_THREAD)
 @ResourceLock(value = "storage-config", mode = ResourceAccessMode.READ_WRITE)
 class LocalStorageClientTest {
+    @TempDir
+    static Path tempDir;
+
+    private static String previousStoragePath;
 
     @BeforeAll
     static void before() throws ConfigurationException {
         Foundation.init("src/test/resources/cfg/");
+        previousStoragePath = Config.getServer().getStorage().getStringProperty("path");
+        Config.getServer().getStorage().getMap().put("path", tempDir.resolve("store").toString());
+    }
+
+    @AfterAll
+    static void after() {
+        if (previousStoragePath != null) {
+            Config.getServer().getStorage().getMap().put("path", previousStoragePath);
+        }
     }
 
     @Test

@@ -67,8 +67,18 @@ The queue table will be automatically created on initialization with the followi
 ```sql
 CREATE TABLE IF NOT EXISTS queue (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  data LONGBLOB NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  queue_uid VARCHAR(191) NOT NULL UNIQUE,
+  state VARCHAR(16) NOT NULL,
+  next_attempt_at BIGINT NOT NULL,
+  claimed_until BIGINT NOT NULL DEFAULT 0,
+  claim_owner VARCHAR(255) NULL,
+  created_epoch BIGINT NOT NULL,
+  updated_epoch BIGINT NOT NULL,
+  retry_count INT NOT NULL DEFAULT 0,
+  protocol VARCHAR(64) NULL,
+  session_uid VARCHAR(255) NULL,
+  last_error TEXT NULL,
+  data LONGBLOB NOT NULL
 ) ENGINE=InnoDB;
 ```
 
@@ -93,10 +103,36 @@ The queue table will be automatically created on initialization with the followi
 ```sql
 CREATE TABLE IF NOT EXISTS queue (
   id BIGSERIAL PRIMARY KEY,
-  data BYTEA NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  queue_uid VARCHAR(191) NOT NULL UNIQUE,
+  state VARCHAR(16) NOT NULL,
+  next_attempt_at BIGINT NOT NULL,
+  claimed_until BIGINT NOT NULL DEFAULT 0,
+  claim_owner VARCHAR(255) NULL,
+  created_epoch BIGINT NOT NULL,
+  updated_epoch BIGINT NOT NULL,
+  retry_count INTEGER NOT NULL DEFAULT 0,
+  protocol VARCHAR(64) NULL,
+  session_uid VARCHAR(255) NULL,
+  last_error TEXT NULL,
+  data BYTEA NOT NULL
 );
 ```
+
+### SQL startup and upgrades
+
+Robin creates a queue table only when it is absent, then checks that all
+runtime columns can be queried before starting workers or mail listeners.
+An incompatible legacy table stops startup with an explicit migration error.
+Robin does not rename, replace or drop it, even when it appears empty.
+Connectivity and inspection-permission errors also stop startup.
+
+Before an upgrade, stop queue writers and back up the database and referenced
+message files together. If startup reports a legacy schema, preserve that
+backup and explicitly migrate or drain pending messages using a compatible
+Robin version before retrying. Adding empty scheduling columns or pointing at
+a new table is not a migration of pending mail. Serialized payload
+compatibility must also be verified for the specific versions involved.
+Do not delete the old table or data directory to get the server started.
 
 ### InMemory (Default for Tests)
 An in-memory queue database is used when all persistence backends are disabled. This is the default for test environments and provides no persistence across restarts.

@@ -443,7 +443,7 @@ Endpoints
   - Query parameters:
     - `query` or `q` - Search term to find in log files (required)
   - Response: `text/plain; charset=utf-8`
-  - Searches the current and previous log4j2 log files
+  - Searches the active log and today's/yesterday's archives, including indexed gzip archives
   - The log file location is automatically determined from the log4j2 configuration
   - Returns matching lines as plain text
   - If no query parameter is provided, returns usage information
@@ -638,4 +638,3 @@ public interface ApiHandler {
 ```
 
 This enables consistent registration and potential future plugin-based endpoint extensions.
-

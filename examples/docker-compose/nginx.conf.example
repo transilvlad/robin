@@ -1,0 +1,38 @@
+# Replace hostnames and certificate paths; include from nginx's http context.
+# Require an operator-controlled public TLS certificate for each web hostname.
+server {
+    listen 443 ssl;
+    server_name webmail.example.com;
+    ssl_certificate /etc/robin/webmail/fullchain.pem;
+    ssl_certificate_key /etc/robin/webmail/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    client_max_body_size 10m;
+    location / {
+        proxy_pass http://127.0.0.1:8888;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $remote_addr;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name admin.example.com;
+    ssl_certificate /etc/robin/admin/fullchain.pem;
+    ssl_certificate_key /etc/robin/admin/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    # Prefer a VPN or add operator CIDR allow/deny rules here.
+    location / {
+        proxy_pass https://127.0.0.1:3443;
+        proxy_set_header Host localhost:3443;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_ssl_verify on;
+        # Trust the suite gateway's internal CA, obtained through a trusted
+        # local channel. Never replace this with proxy_ssl_verify off.
+        proxy_ssl_trusted_certificate /etc/robin/admin/gateway-ca.pem;
+        proxy_ssl_server_name on;
+        proxy_ssl_name localhost;
+    }
+}

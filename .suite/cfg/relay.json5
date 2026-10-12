@@ -1,6 +1,8 @@
 {
-  // Enable inbound relay (LMTP relay to Dovecot is configured separately).
-  enabled: false,
+  // Enable queued delivery workers, including LMTP retries.
+  enabled: true,
+  // Do not forward inbound mail to a fixed SMTP host.
+  inboundEnabled: false,
 
   // Enable outbound relay.
   outboundEnabled: true,

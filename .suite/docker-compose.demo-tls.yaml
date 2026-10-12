@@ -1,4 +1,3 @@
-services:
-  suite-robin:
-    volumes:
-      - ./etc/demo-tls/robin-keystore.jks:/usr/local/robin/keystore.jks:ro
+# Kept for older local commands that included this file explicitly.
+# The demo keystore is mounted by docker-compose.yaml by default.
+services: {}

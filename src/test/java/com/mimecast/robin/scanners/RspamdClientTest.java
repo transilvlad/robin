@@ -12,6 +12,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Map;
@@ -280,8 +281,48 @@ class RspamdClientTest {
         mockWebServer.enqueue(new MockResponse()
                 .setStatus("HTTP/1.1 500 Internal Server Error"));
 
-        Map<String, Object> result = client.scanBytes(HAM_CONTENT.getBytes(StandardCharsets.UTF_8));
-        assertTrue(result.isEmpty(), "Failed scan should return empty result");
+        assertThrows(UncheckedIOException.class,
+                () -> client.scanBytes(HAM_CONTENT.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void invalidResponsesDoNotBecomeCleanScans() {
+        for (String body : new String[]{"", "null", "[]", "{}", "not-json",
+                "{\"score\":\"clean\"}", "{\"score\":1e999}", "{\"score\":0,\"error\":\"unavailable\"}"}) {
+            mockWebServer.enqueue(new MockResponse().setBody(body));
+            assertThrows(UncheckedIOException.class, () -> client.scanBytes(HAM_CONTENT.getBytes(StandardCharsets.UTF_8)));
+            assertTrue(client.getLastScanResult().isEmpty());
+        }
+    }
+
+    @Test
+    void failedScanClearsPreviousResult() {
+        mockWebServer.enqueue(new MockResponse().setBody(createScanResponse(true, 15.5, "SPAM_SIGNAL")));
+        client.scanBytes(SPAM_CONTENT.getBytes(StandardCharsets.UTF_8));
+        mockWebServer.enqueue(new MockResponse().setResponseCode(503));
+        assertThrows(UncheckedIOException.class, () -> client.scanBytes(HAM_CONTENT.getBytes(StandardCharsets.UTF_8)));
+        assertTrue(client.getLastScanResult().isEmpty());
+        assertEquals(0.0, client.getScore());
+    }
+
+    @Test
+    void scanTimeoutIsBounded() {
+        RspamdClient bounded = new RspamdClient(CUSTOM_HOST, mockWebServer.getPort(), 1);
+        mockWebServer.enqueue(new MockResponse().setBody(createScanResponse(false, 1.5))
+                .setBodyDelay(3, java.util.concurrent.TimeUnit.SECONDS));
+        assertTimeoutPreemptively(java.time.Duration.ofSeconds(3), () ->
+                assertThrows(UncheckedIOException.class, () -> bounded.scanBytes(HAM_CONTENT.getBytes(StandardCharsets.UTF_8))));
+    }
+
+    @Test
+    void unreadableStreamFailsExplicitly() {
+        InputStream broken = new InputStream() {
+            @Override
+            public int read() throws IOException {
+                throw new IOException("test read failure");
+            }
+        };
+        assertThrows(UncheckedIOException.class, () -> client.scanStream(broken));
     }
 
     @Test

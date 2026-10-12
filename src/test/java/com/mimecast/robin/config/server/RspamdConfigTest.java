@@ -25,6 +25,7 @@ class RspamdConfigTest {
         assertTrue(config.isDmarcScanEnabled(), "Default DMARC scan should be enabled");
         assertEquals(7.0, config.getRejectThreshold(), "Default reject threshold should be 7.0");
         assertEquals(15.0, config.getDiscardThreshold(), "Default discard threshold should be 15.0");
+        assertTrue(config.isDiscardEnabled());
     }
 
     @Test
@@ -39,6 +40,7 @@ class RspamdConfigTest {
         map.put("dmarcScanEnabled", false);
         map.put("rejectThreshold", 10.0);
         map.put("discardThreshold", 20.0);
+        map.put("discardEnabled", false);
 
         RspamdConfig config = new RspamdConfig(map);
 
@@ -51,6 +53,7 @@ class RspamdConfigTest {
         assertFalse(config.isDmarcScanEnabled(), "DMARC scan should be disabled");
         assertEquals(10.0, config.getRejectThreshold(), "Reject threshold should be 10.0");
         assertEquals(20.0, config.getDiscardThreshold(), "Discard threshold should be 20.0");
+        assertFalse(config.isDiscardEnabled());
     }
 
     @Test

@@ -9,13 +9,18 @@ import org.apache.logging.log4j.core.config.Configuration;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.regex.Pattern;
+import java.util.zip.GZIPInputStream;
 
 /**
  * Handler for searching log files.
@@ -25,12 +30,21 @@ import java.util.Map;
  */
 public class LogsHandler {
     private static final Logger log = LogManager.getLogger(LogsHandler.class);
+    private final LoggerContext context;
+
+    public LogsHandler() {
+        this((LoggerContext) LogManager.getContext(false));
+    }
+
+    LogsHandler(LoggerContext context) {
+        this.context = context;
+    }
 
     /**
      * Searches current and previous log files for lines matching the query string.
      *
      * @param query The search query string.
-     * @return Search results containing matching log lines, or null if an error occurred.
+     * @return Search results containing matching log lines.
      * @throws LogsSearchException if unable to determine log file configuration or search fails.
      */
     public String searchLogs(String query) throws LogsSearchException {
@@ -39,11 +53,16 @@ public class LogsHandler {
         }
 
         log.info("Searching logs for query: '{}'", query);
-        StringBuilder results = new StringBuilder();
-        int matchCount = 0;
+        RollingFileAppender appender = getRollingFileAppender();
+        if (appender == null) {
+            throw new LogsSearchException("Could not determine log file location from log4j2 configuration");
+        }
+        return searchLogs(query, appender.getFilePattern(), appender.getFileName());
+    }
 
-        // Get log file pattern from log4j2 configuration
-        String logFilePattern = getLogFilePatternFromLog4j2();
+    String searchLogs(String query, String logFilePattern, String currentFile) throws LogsSearchException {
+        StringBuilder results = new StringBuilder();
+
         if (logFilePattern == null) {
             log.error("Could not determine log file pattern from log4j2 configuration");
             throw new LogsSearchException("Could not determine log file location from log4j2 configuration");
@@ -61,19 +80,35 @@ public class LogsHandler {
         LocalDate yesterday = today.minusDays(1);
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern(dateFormat);
 
-        // Build log file paths using the pattern from log4j2
+        LinkedHashSet<Path> files = new LinkedHashSet<>();
+        if (currentFile != null) {
+            files.add(Paths.get(currentFile).toAbsolutePath().normalize());
+        }
         String datePatternPlaceholder = "%d{" + dateFormat + "}";
-        String todayLogFile = logFilePattern.replace(datePatternPlaceholder, today.format(formatter));
-        String yesterdayLogFile = logFilePattern.replace(datePatternPlaceholder, yesterday.format(formatter));
-
-        log.debug("Searching log files: today={}, yesterday={}", todayLogFile, yesterdayLogFile);
-
-        // Search today's log file
-        matchCount += searchLogFile(todayLogFile, query, results);
-
-        // Search yesterday's log file if it exists
-        matchCount += searchLogFile(yesterdayLogFile, query, results);
-
+        for (LocalDate date : new LocalDate[]{today, yesterday}) {
+            Path datedPattern = Paths.get(logFilePattern.replace(datePatternPlaceholder, date.format(formatter)));
+            if (!datedPattern.getFileName().toString().contains("%i")) {
+                files.add(datedPattern.toAbsolutePath().normalize());
+                continue;
+            }
+            Path directory = datedPattern.toAbsolutePath().getParent();
+            if (!Files.exists(directory)) {
+                continue;
+            }
+            Pattern name = Pattern.compile(Pattern.quote(datedPattern.getFileName().toString())
+                    .replace("%i", "\\E[0-9]+\\Q"));
+            try (var entries = Files.list(directory)) {
+                entries.filter(Files::isRegularFile)
+                        .filter(path -> name.matcher(path.getFileName().toString()).matches())
+                        .sorted().forEach(files::add);
+            } catch (IOException e) {
+                throw new LogsSearchException("Could not inspect rolled log files", e);
+            }
+        }
+        int matchCount = 0;
+        for (Path file : files) {
+            matchCount += searchLogFile(file.toString(), query, results);
+        }
         log.debug("Logs search completed: query='{}', matches={}", query, matchCount);
         return results.toString();
     }
@@ -84,8 +119,12 @@ public class LogsHandler {
      * @return The log file pattern (e.g., "/var/log/robin-%d{yyyyMMdd}.log") or null if not found.
      */
     private String getLogFilePatternFromLog4j2() {
+        RollingFileAppender appender = getRollingFileAppender();
+        return appender != null ? appender.getFilePattern() : null;
+    }
+
+    private RollingFileAppender getRollingFileAppender() {
         try {
-            LoggerContext context = (LoggerContext) LogManager.getContext(false);
             Configuration config = context.getConfiguration();
             
             // Iterate through all appenders to find a RollingFileAppender
@@ -96,7 +135,7 @@ public class LogsHandler {
                     String filePattern = rollingFileAppender.getFilePattern();
                     if (filePattern != null && !filePattern.isBlank()) {
                         log.debug("Found log file pattern from appender '{}': {}", entry.getKey(), filePattern);
-                        return filePattern;
+                        return rollingFileAppender;
                     }
                 }
             }
@@ -145,7 +184,7 @@ public class LogsHandler {
      * @param results StringBuilder to append matching lines to.
      * @return Number of matches found.
      */
-    private int searchLogFile(String logFilePath, String query, StringBuilder results) {
+    private int searchLogFile(String logFilePath, String query, StringBuilder results) throws LogsSearchException {
         Path path = Paths.get(logFilePath);
         if (!Files.exists(path)) {
             log.debug("Log file does not exist: {}", logFilePath);
@@ -153,7 +192,9 @@ public class LogsHandler {
         }
 
         int matches = 0;
-        try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+        try (InputStream file = Files.newInputStream(path);
+             InputStream decoded = path.toString().endsWith(".gz") ? new GZIPInputStream(file) : file;
+             BufferedReader reader = new BufferedReader(new InputStreamReader(decoded, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 if (line.contains(query)) {
@@ -164,6 +205,7 @@ public class LogsHandler {
             log.debug("Searched log file: {}, found {} matches", logFilePath, matches);
         } catch (IOException e) {
             log.error("Error reading log file {}: {}", logFilePath, e.getMessage());
+            throw new LogsSearchException("Could not read log file: " + logFilePath, e);
         }
         return matches;
     }

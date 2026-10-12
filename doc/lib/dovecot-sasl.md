@@ -140,6 +140,21 @@ Robin supports using an SQL backend as an alternative to Dovecot UNIX domain soc
 both user existence lookups (RCPT) and authentication (AUTH). This is controlled via
 `cfg/dovecot.json5` using the `authSql.enabled` flag.
 
+When SQL authentication is enabled, Robin validates the password query and,
+when user lookup is enabled, the user/domain/alias queries before starting queue
+workers or mail listeners. A blank password query selects the existing default
+pgcrypto query; enabled user lookup requires a non-empty `userQuery`.
+Unavailable tables, queries or database access stop startup rather than leaving
+the authentication providers uninitialized. Empty optional domain/alias queries
+retain their documented skip behavior.
+
+At runtime, SQL authentication and directory failures produce temporary SMTP
+`451` responses so clients can retry. A reachable database returning invalid
+credentials still produces `535`; a genuinely unknown recipient/domain still
+produces `550`. Programmatic `SqlAuthProvider` and `SqlUserLookup` calls throw
+`IllegalStateException` with the SQL failure as their cause instead of returning
+false or an empty result for an outage.
+
 ### Domain, Alias, and Mailbox Lookups
 
 The SQL backend supports three query types that replicate Postfix virtual domain behavior:

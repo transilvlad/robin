@@ -84,8 +84,8 @@ public class SqlAuthProvider implements AutoCloseable {
             }
         } catch (SQLException e) {
             log.error("SQL auth failed for {}: {}", email, e.getMessage());
+            throw new IllegalStateException("SQL authentication unavailable", e);
         }
-        return false;
     }
 
     /**

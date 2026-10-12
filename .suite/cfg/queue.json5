@@ -57,8 +57,8 @@
   queuePgSQL: {
     enabled: true,
     jdbcUrl: "jdbc:postgresql://postgres-backend:5432/robin",
-    username: "robin",
-    password: "robin",
+    username: "robin_mta",
+    password: "{$secret:MTA_DB_PASSWORD}",
     tableName: "robin_queue"
   }
 }

@@ -2,6 +2,8 @@ package com.mimecast.robin.scanners;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.reflect.TypeToken;
 import com.mimecast.robin.smtp.session.EmailDirection;
 import okhttp3.*;
 import org.apache.logging.log4j.LogManager;
@@ -10,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -78,8 +81,27 @@ public class RspamdClient {
      * @param port The Rspamd server port.
      */
     public RspamdClient(String host, int port) {
+        this(host, port, DEFAULT_TIMEOUT_SECONDS);
+    }
+
+    /**
+     * Creates a client with a bounded total scan timeout.
+     *
+     * @param host Rspamd hostname.
+     * @param port Rspamd port.
+     * @param timeoutSeconds Positive scan timeout in seconds.
+     */
+    public RspamdClient(String host, int port, int timeoutSeconds) {
+        if (timeoutSeconds <= 0) {
+            throw new IllegalArgumentException("Rspamd timeout must be positive");
+        }
         this.baseUrl = String.format("%s://%s:%d", SCHEME, host, port);
-        this.httpClient = SHARED_HTTP_CLIENT;
+        this.httpClient = SHARED_HTTP_CLIENT.newBuilder()
+                .connectTimeout(timeoutSeconds, TimeUnit.SECONDS)
+                .readTimeout(timeoutSeconds, TimeUnit.SECONDS)
+                .writeTimeout(timeoutSeconds, TimeUnit.SECONDS)
+                .callTimeout(timeoutSeconds, TimeUnit.SECONDS)
+                .build();
         this.gson = SHARED_GSON;
         // Initialize default values for email scanning options
         this.emailDirection = EmailDirection.INBOUND;
@@ -151,6 +173,7 @@ public class RspamdClient {
      * @throws IOException If the file cannot be read.
      */
     public Map<String, Object> scanFile(File file) throws IOException {
+        lastScanResult = null;
         log.debug("Scanning file: {}", file.getAbsolutePath());
         requireReadable(file);
         // Streams the file to Rspamd without buffering it in memory.
@@ -175,13 +198,13 @@ public class RspamdClient {
      * @return The scan result as a Map with detected issues.
      */
     public Map<String, Object> scanStream(InputStream inputStream) {
+        lastScanResult = null;
         try {
             byte[] content = inputStream.readAllBytes();
             log.debug("Scanning input stream with {} bytes", content.length);
             return scan(RequestBody.create(content, APPLICATION_OCTET_STREAM));
-        } catch (Exception e) {
-            log.error("Failed to scan stream: {}", e.getMessage());
-            return Collections.emptyMap();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Unable to read message for Rspamd scan", e);
         }
     }
 
@@ -192,6 +215,7 @@ public class RspamdClient {
      * @return The scan result as a Map with detected issues.
      */
     private Map<String, Object> scan(RequestBody body) {
+        lastScanResult = null;
         try {
             Request.Builder requestBuilder = new Request.Builder()
                     .url(baseUrl + SCAN_ENDPOINT)
@@ -209,20 +233,24 @@ public class RspamdClient {
 
             try (Response response = httpClient.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
-                    log.error("Rspamd scan failed with status: {}", response.code());
-                    return Collections.emptyMap();
+                    throw new IOException("Rspamd scan failed: HTTP " + response.code());
                 }
 
-                String responseBody = response.body() != null ? response.body().string() : "{}";
-                @SuppressWarnings("unchecked")
-                Map<String, Object> result = gson.fromJson(responseBody, Map.class);
+                String responseBody = response.body() != null ? response.body().string() : "";
+                Map<String, Object> result = gson.fromJson(responseBody,
+                        new TypeToken<Map<String, Object>>() {}.getType());
+                if (result == null || !(result.get("score") instanceof Number score)
+                        || !Double.isFinite(score.doubleValue()) || result.containsKey("error")) {
+                    throw new IOException("Rspamd returned an invalid scan result");
+                }
                 this.lastScanResult = result;
                 log.debug("Scan result: {}", result);
                 return result;
             }
-        } catch (Exception e) {
-            log.error("Failed to scan stream: {}", e.getMessage());
-            return Collections.emptyMap();
+        } catch (IOException | JsonParseException e) {
+            log.error("Rspamd scan failed: {}", e.getMessage());
+            IOException failure = e instanceof IOException io ? io : new IOException("Invalid Rspamd JSON response", e);
+            throw new UncheckedIOException("Rspamd scan failed", failure);
         }
     }
 

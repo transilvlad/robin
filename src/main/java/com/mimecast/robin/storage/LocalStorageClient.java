@@ -225,6 +225,11 @@ public class LocalStorageClient implements StorageClient {
                     return false;
                 }
 
+                if (envelope != null && envelope.isBlackholed()) {
+                    discard(envelope);
+                    return true;
+                }
+
                 log.info("Storage file saved to: {}", getFile());
 
                 // Process bot addresses if any.
@@ -250,12 +255,26 @@ public class LocalStorageClient implements StorageClient {
                 if (!processor.process(connection, parser)) {
                     return false;
                 }
+                MessageEnvelope envelope = getCurrentEnvelope();
+                if (envelope != null && envelope.isBlackholed()) {
+                    return true;
+                }
             } catch (Exception e) {
                 log.error("Storage processor error: {}", e.getMessage());
                 return false;
             }
         }
         return true;
+    }
+
+    private void discard(MessageEnvelope envelope) throws IOException {
+        MessageSource source = envelope.getMessageSource();
+        if (source != null) {
+            source.release();
+        }
+        Files.deleteIfExists(Path.of(getFile()));
+        envelope.setFile(null).setMessageSource(null);
+        log.info("Discarded message after scanning: {}", connection.getSession().getUID());
     }
 
     private MessageEnvelope getCurrentEnvelope() {

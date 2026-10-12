@@ -1,0 +1,18 @@
+---
+# Copy to robin_suite.yml. Review a release and pin every external image digest.
+robin_suite_revision: ""
+robin_suite_install_dir: /opt/robin
+robin_suite_mail_hostname: mail.example.com
+robin_suite_tls_dir: /etc/robin/mail-tls
+robin_suite_admin_url: https://admin.example.com
+robin_suite_admin_version: "1.0.0"
+robin_suite_images:
+  postgres: ""
+  redis: ""
+  clamav: ""
+  rspamd: ""
+  dovecot: ""
+  roundcube: ""
+# The playbook neither configures the firewall nor requests certificates.
+# Confirm these are managed before allowing public mail listeners.
+robin_suite_network_ready: false

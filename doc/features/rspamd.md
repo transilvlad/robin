@@ -16,7 +16,7 @@ Here is an example `rspamd.json5` file:
   host: "localhost",
   port: 11333,
 
-  // Connection timeout in seconds
+  // Scan request timeout in seconds, including upload and response
   timeout: 30,
 
   // Enable SPF scanning.
@@ -32,6 +32,9 @@ Here is an example `rspamd.json5` file:
   // Emails with score >= rejectThreshold will be rejected with a 5xx error
   rejectThreshold: 7.0,
 
+  // Preserve legacy discard behavior; set false for reject-only handling
+  discardEnabled: true,
+
   // Spam score threshold for discarding emails
   // Emails with score >= discardThreshold will be silently discarded
   discardThreshold: 15.0
@@ -43,17 +46,28 @@ Here is an example `rspamd.json5` file:
 - **enabled**: A boolean to enable or disable Rspamd scanning. Defaults to `false`.
 - **host**: The hostname or IP address of the Rspamd daemon. Defaults to `localhost`.
 - **port**: The port number of the Rspamd daemon. Defaults to `11333`.
-- **timeout**: The connection timeout in seconds. Defaults to `30`.
+- **timeout**: Positive scan request timeout in seconds, including connection, upload and response. Defaults to `30`.
 - **spfScanEnabled**: Enable SPF scanning. Defaults to `true`.
 - **dkimScanEnabled**: Enable DKIM scanning. Defaults to `true`.
 - **dmarcScanEnabled**: Enable DMARC scanning. Defaults to `true`.
-- **rejectThreshold**: The spam score threshold at or above which an email is rejected with a `554 5.7.1 Spam detected` error. Defaults to `7.0`.
+- **rejectThreshold**: The spam score threshold at or above which an email is rejected with a `541 5.7.1 Spam detected` error. Defaults to `7.0`.
+- **discardEnabled**: Enable threshold-based silent discard. Defaults to `true` for backward compatibility. The production suite explicitly sets `false`, so even very high scores receive a rejection.
 - **discardThreshold**: The spam score threshold at or above which an email is silently discarded. Defaults to `15.0`.
 
 The threshold-based spam handling works as follows:
-- If spam score >= `discardThreshold`: Email is accepted but silently discarded (no error to sender)
-- If spam score >= `rejectThreshold` (but < `discardThreshold`): Email is rejected with SMTP error
+- If `discardEnabled` and spam score >= `discardThreshold`: Email is accepted but silently discarded (no error to sender)
+- Otherwise, if spam score >= `rejectThreshold`: Email is rejected with SMTP error
 - If spam score < `rejectThreshold`: Email is accepted and processed normally
+
+Discard stops further storage processing, mailbox delivery, bots, relay, RAW
+webhooks and proxy DATA forwarding, and removes the buffered message. Enable it
+only when intentional loss of matching mail is acceptable.
+
+Scanner connection errors, timeouts, HTTP failures and malformed or missing
+scores return a temporary SMTP `451`; they are never treated as clean mail.
+Programmatic scan methods throw `UncheckedIOException` for those failures
+(file-read failures can also throw `IOException`). A failed scan clears the
+previous result.
 
 How It Works
 ------------
@@ -123,7 +137,8 @@ RspamdConfig rspamdConfig = Config.getServer().getRspamd();
 // Create client using configuration
 RspamdClient rspamdClient = new RspamdClient(
     rspamdConfig.getHost(),
-    rspamdConfig.getPort()
+    rspamdConfig.getPort(),
+    rspamdConfig.getTimeout()
 );
 
 // Configure scanning options from config

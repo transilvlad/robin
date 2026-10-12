@@ -1,0 +1,10 @@
+# Explicit diagnostic access only, never public management listeners.
+services:
+  suite-postgres:
+    ports: ["127.0.0.1:5434:5432"]
+  suite-robin:
+    ports:
+      - "127.0.0.1:28080:8080"
+      - "127.0.0.1:28090:8090"
+  suite-rspamd:
+    ports: ["127.0.0.1:11334:11334"]

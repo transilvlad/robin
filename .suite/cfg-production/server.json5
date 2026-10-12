@@ -1,0 +1,50 @@
+{
+  hostname: "{$secret:MAIL_HOSTNAME}",
+  bind: "::",
+  smtpPort: 25,
+  securePort: 465,
+  submissionPort: 587,
+  auth: true,
+  starttls: true,
+  chunking: true,
+  pemCert: "/run/robin-tls/fullchain.pem",
+  pemKey: "/run/robin-tls/privkey.pem",
+  allowSelfSigned: false,
+  truststore: "",
+  chaosHeaders: false,
+  xclientEnabled: false,
+  renameHeaderEnabled: false,
+  emailSizeLimit: 20971520,
+  envelopesLimit: 100,
+  dnsNegativeTtl: 300,
+  service: { port: 8080, authType: "none", allowList: [], authValue: "" },
+  api: { port: 8090, authType: "none", allowList: [], authValue: "" },
+  rbl: { enabled: false },
+  smtpConfig: {
+    backlog: 50, errorLimit: 3, envelopeLimit: 100,
+    maximumPoolSize: 20, minimumPoolSize: 2, recipientsLimit: 100,
+    messageSizeLimit: 20971520, tarpitDelayMillis: 1000, transactionsLimit: 305,
+    maxConnectionsPerIp: 10, maxTotalConnections: 100, threadKeepAliveTime: 120,
+    dosProtectionEnabled: true, maxCommandsPerMinute: 100,
+    maxDataTimeoutSeconds: 300, rateLimitWindowSeconds: 60,
+    maxConnectionsPerWindow: 30, minDataRateBytesPerSecond: 10240
+  },
+  secureConfig: {
+    backlog: 50, errorLimit: 3, envelopeLimit: 100,
+    maximumPoolSize: 20, minimumPoolSize: 2, recipientsLimit: 100,
+    messageSizeLimit: 20971520, tarpitDelayMillis: 1000, transactionsLimit: 500,
+    maxConnectionsPerIp: 10, maxTotalConnections: 100, threadKeepAliveTime: 120,
+    dosProtectionEnabled: true, maxCommandsPerMinute: 100,
+    maxDataTimeoutSeconds: 300, rateLimitWindowSeconds: 60,
+    maxConnectionsPerWindow: 30, minDataRateBytesPerSecond: 10240
+  },
+  submissionConfig: {
+    backlog: 50, errorLimit: 3, envelopeLimit: 100,
+    maximumPoolSize: 20, minimumPoolSize: 2, recipientsLimit: 100,
+    messageSizeLimit: 20971520, tarpitDelayMillis: 1000, transactionsLimit: 500,
+    maxConnectionsPerIp: 10, maxTotalConnections: 100, threadKeepAliveTime: 120,
+    dosProtectionEnabled: true, maxCommandsPerMinute: 100,
+    maxDataTimeoutSeconds: 300, rateLimitWindowSeconds: 60,
+    maxConnectionsPerWindow: 30, minDataRateBytesPerSecond: 10240
+  }
+}

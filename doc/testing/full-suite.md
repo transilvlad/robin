@@ -102,7 +102,7 @@ integration services; no host port publishing is needed. It explicitly loads
 `.integration/client-cfg`, while the remote MTA mounts `.integration/cfg`
 read-only with database configuration synchronization disabled.
 The default `suite` tag selects the ten delivery/scanning/chaos cases and the
-PostgreSQL config-store integration test, not unrelated future integration suites.
+PostgreSQL config-store integration tests, not unrelated future integration suites.
 That test requires an explicit `robin.integration.jdbcUrl`; the runner supplies
 the private integration PostgreSQL address, with no production endpoint default.
 
@@ -151,8 +151,9 @@ The existing assertions remain the source of truth.
 | `09-chaos-lda-failure.json5` | Injected delivery failure accepted with 250 and queued for retry |
 | `10-chaos-storage-failure.json5` | Injected storage failure rejected with 451 |
 
-`ConfigStoreSyncIntegrationTest` additionally checks rejected empty payloads and
-per-server configuration merges using a temporary table in integration PostgreSQL.
+`ConfigStoreSyncIntegrationTest` additionally checks rejected empty payloads,
+per-server configuration merges, and persistence of secret references rather
+than resolved credentials using temporary tables in integration PostgreSQL.
 
 ## Assertion Patterns
 

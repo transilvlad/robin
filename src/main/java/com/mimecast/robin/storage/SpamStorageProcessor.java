@@ -37,7 +37,8 @@ public class SpamStorageProcessor extends AbstractStorageProcessor {
             var session = connection.getSession();
             RspamdClient rspamdClient = new RspamdClient(
                     rspamdConfig.getHost(),
-                    rspamdConfig.getPort())
+                    rspamdConfig.getPort(),
+                    rspamdConfig.getTimeout())
                     .setEmailDirection(session.getDirection())
                     .setSpfScanEnabled(rspamdConfig.isSpfScanEnabled())
                     .setDkimScanEnabled(rspamdConfig.isDkimScanEnabled())
@@ -78,10 +79,11 @@ public class SpamStorageProcessor extends AbstractStorageProcessor {
             }
 
             // Apply threshold-based logic
-            if (score >= discardThreshold) {
+            if (rspamdConfig.isDiscardEnabled() && score >= discardThreshold) {
                 log.warn("Spam/phishing detected in {} with score {} (>= discard threshold {}), discarding: {}",
                         envelope.getFile(), score, discardThreshold, rspamdClient.getSymbols());
                 SmtpMetrics.incrementEmailSpamRejection();
+                envelope.setBlackholed(true);
                 return true;  // Accept but discard
             } else if (score >= rejectThreshold) {
                 log.warn("Spam/phishing detected in {} with score {} (>= reject threshold {}): {}",

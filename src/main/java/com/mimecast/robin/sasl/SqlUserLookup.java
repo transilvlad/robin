@@ -92,6 +92,7 @@ public class SqlUserLookup implements AutoCloseable {
             }
         } catch (SQLException e) {
             log.error("SQL user lookup failed for {}: {}", email, e.getMessage());
+            throw new IllegalStateException("SQL user lookup unavailable", e);
         }
         return Optional.empty();
     }
@@ -119,7 +120,7 @@ public class SqlUserLookup implements AutoCloseable {
             }
         } catch (SQLException e) {
             log.error("SQL domain lookup failed for {}: {}", domain, e.getMessage());
-            return false;
+            throw new IllegalStateException("SQL domain lookup unavailable", e);
         }
     }
 
@@ -151,6 +152,7 @@ public class SqlUserLookup implements AutoCloseable {
             }
         } catch (SQLException e) {
             log.error("SQL alias lookup failed for {}: {}", email, e.getMessage());
+            throw new IllegalStateException("SQL alias lookup unavailable", e);
         }
         return Optional.empty();
     }

@@ -1,4 +1,6 @@
 # Docker Compose Suite for Robin MTA + Dovecot + PostgreSQL + Redis + ClamAV + Rspamd + Roundcube
+# Demo-friendly baseline. Add docker-compose.production.yaml for production
+# enforcement of real certificate material and reviewed image tags.
 # This file sets up a complete end-to-end email infrastructure:
 # - Robin MTA (SMTP server)
 # - Dovecot (IMAP/LMTP for mailbox hosting)
@@ -11,8 +13,9 @@
 # There is a Docker bug that sometimes may prevent mounting/creating non-existent directories.
 
 # Robin Admin, the suite's web UI, pulled from its release on GitHub and run
-# from the published images. Settings and secrets come from .suite/.env (see
-# .env.example); docker-compose.override.yaml points its mounts at this suite.
+# from the published images. Admin settings come from .suite/.env; database
+# file secrets live in .suite/secrets/. See .env.example and init-secrets.sh.
+# docker-compose.override.yaml points its mounts at this suite.
 include:
   - path:
       - https://github.com/transilvlad/robin-admin.git#v${ROBIN_ADMIN_VERSION:-1.0.0}:docker-compose.yaml
@@ -34,20 +37,25 @@ services:
       - "log_filename=postgresql-%Y-%m-%d.log"
     environment:
       POSTGRES_DB: robin
-      POSTGRES_USER: robin
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-robin}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      DB_PASSWORD: ${DB_PASSWORD:?Set a unique Robin Admin database password}
+      MONITOR_DB_PASSWORD: ${MONITOR_DB_PASSWORD:?Set a unique PostgreSQL monitoring password}
+    secrets:
+      - postgres_password
+      - mta_db_password
+      - mailbox_db_password
+      - roundcube_db_password
     volumes:
       - ../log/postgres:/var/log
       - ../store/postgres:/var/lib/postgresql
       - ./db-init:/docker-entrypoint-initdb.d:ro
-    ports:
-      - "5434:5432"
     networks:
       suite:
         aliases:
           - postgres-backend
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U robin"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d robin"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -85,8 +93,6 @@ services:
     volumes:
       - ../log/clamav:/var/log/clamav
       - ../store/clamav:/var/lib/clamav
-    ports:
-      - "3310:3310"
     networks:
       suite:
         aliases:
@@ -110,9 +116,6 @@ services:
     depends_on:
       suite-redis:
         condition: service_healthy
-    ports:
-      - "11333:11333"  # Rspamd normal worker.
-      - "11334:11334"  # Rspamd web UI.
     networks:
       suite:
         aliases:
@@ -124,6 +127,20 @@ services:
       retries: 10
       start_period: 30s
 
+  # Seed the writable configuration cache once; PostgreSQL owns subsequent updates.
+  suite-config-init:
+    image: alpine:3.23
+    command:
+      - sh
+      - -ec
+      - |
+        cp -n /templates/*.json5 /cfg/
+        cp -n /templates/log4j2.xml /cfg/
+    volumes:
+      - ./cfg:/templates:ro
+      - robin-config:/cfg
+    network_mode: none
+
   # Robin MTA server.
   suite-robin:
     container_name: suite-robin
@@ -133,10 +150,14 @@ services:
       args:
         INCLUDE_CFG: "false"
     volumes:
-      - ./cfg:/usr/local/robin/cfg
+      - robin-config:/usr/local/robin/cfg
+      - ./cfg/config.json5:/usr/local/robin/cfg/config.json5:ro
+      - ./etc/demo-tls/robin-keystore.jks:/usr/local/robin/keystore.jks:ro
       - ../log/robin:/var/log/robin
       - ../store/robin:/usr/local/robin/store
     depends_on:
+      suite-config-init:
+        condition: service_completed_successfully
       suite-postgres:
         condition: service_healthy
       suite-clamav:
@@ -146,23 +167,23 @@ services:
       suite-dovecot:
         condition: service_healthy
     ports:
-      - "2525:25"      # SMTP
-      - "2587:587"     # SUBMISSION
-      - "2465:465"     # SMTPS
-      - "28080:8080"   # Service API
-      - "28090:8090"   # Client API (logs, queue, store)
+      - "${MAIL_BIND:-0.0.0.0}:25:25"
+      - "${MAIL_BIND:-0.0.0.0}:587:587"
+      - "${MAIL_BIND:-0.0.0.0}:465:465"
     environment:
       - JAVA_TOOL_OPTIONS=-Dnetworkaddress.cache.negative.ttl=300 -Dsun.net.inetaddr.negative.ttl=300 ${JAVA_TOOL_OPTIONS:-}
-      - POSTGRES_HOST=postgres-backend
-      - POSTGRES_DB=robin
-      - POSTGRES_USER=robin
-      - POSTGRES_PASSWORD=${DB_PASSWORD:-robin}
+      - MTA_DB_PASSWORD_FILE=/run/secrets/mta_db_password
+      - MAILBOX_DB_PASSWORD_FILE=/run/secrets/mailbox_db_password
+      - MAIL_HOSTNAME=${MAIL_HOSTNAME:-localhost}
       - CLAMAV_HOST=antivirus-backend
       - CLAMAV_PORT=3310
       - RSPAMD_HOST=spam-backend
       - RSPAMD_PORT=11333
       - DOVECOT_HOST=lmtp-backend
       - DOVECOT_LMTP_PORT=24
+    secrets:
+      - mta_db_password
+      - mailbox_db_password
     networks:
       suite:
         aliases:
@@ -180,7 +201,9 @@ services:
     user: "0:0"
     cap_add:
       - CHOWN
+    command: ["sh", "/usr/local/bin/suite-dovecot-entrypoint.sh"]
     volumes:
+      - ./dovecot-entrypoint.sh:/usr/local/bin/suite-dovecot-entrypoint.sh:ro
       - ./etc/dovecot:/etc/dovecot:ro
       - ../store/dovecot:/var/mail/vhosts
       - ../log/dovecot:/var/log
@@ -188,15 +211,9 @@ services:
       suite-postgres:
         condition: service_healthy
     ports:
-      - "2143:143"     # IMAP
-      - "2993:993"     # IMAPS
-      - "2110:110"     # POP3
-      - "224:24"       # LMTP (for Robin to relay mail to Dovecot)
-    environment:
-      - POSTGRES_HOST=postgres-backend
-      - POSTGRES_DB=robin
-      - POSTGRES_USER=robin
-      - POSTGRES_PASSWORD=${DB_PASSWORD:-robin}
+      - "${MAIL_BIND:-0.0.0.0}:993:993"
+    secrets:
+      - mailbox_db_password
     networks:
       suite:
         aliases:
@@ -218,20 +235,23 @@ services:
       suite-dovecot:
         condition: service_healthy
     ports:
-      - "8888:80"
+      - "127.0.0.1:${WEBMAIL_HTTP_PORT:-8888}:80"
     environment:
       - ROUNDCUBEMAIL_DB_TYPE=pgsql
       - ROUNDCUBEMAIL_DB_HOST=postgres-backend
       - ROUNDCUBEMAIL_DB_PORT=5432
-      - ROUNDCUBEMAIL_DB_USER=robin
-      - ROUNDCUBEMAIL_DB_PASSWORD=${DB_PASSWORD:-robin}
+      - ROUNDCUBEMAIL_DB_USER=robin_roundcube
       - ROUNDCUBEMAIL_DB_NAME=roundcube
-      - ROUNDCUBEMAIL_DEFAULT_HOST=imap-backend
-      - ROUNDCUBEMAIL_DEFAULT_PORT=143
-      - ROUNDCUBEMAIL_SMTP_SERVER=mta-backend
-      - ROUNDCUBEMAIL_SMTP_PORT=25
+      - ROUNDCUBEMAIL_DEFAULT_HOST=ssl://imap-backend
+      - ROUNDCUBEMAIL_DEFAULT_PORT=993
+      - ROUNDCUBEMAIL_SMTP_SERVER=tls://mta-backend
+      - ROUNDCUBEMAIL_SMTP_PORT=587
       - ROUNDCUBEMAIL_IMAP_CONN_OPTIONS={"ssl":{"verify_peer":false,"verify_peer_name":false}}
+      - ROUNDCUBEMAIL_SMTP_CONN_OPTIONS={"ssl":{"verify_peer":false,"verify_peer_name":false}}
       - ROUNDCUBEMAIL_UPLOAD_MAX_FILESIZE=10M
+    secrets:
+      - roundcube_db_password
+      - roundcube_des_key
     networks:
       suite:
         aliases:
@@ -249,3 +269,16 @@ volumes:
     name: suite-rspamd-data
   redis-data:
     name: suite-redis-data
+  robin-config: {}
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password
+  mta_db_password:
+    file: ./secrets/mta_db_password
+  mailbox_db_password:
+    file: ./secrets/mailbox_db_password
+  roundcube_db_password:
+    file: ./secrets/roundcube_db_password
+  roundcube_des_key:
+    file: ./secrets/roundcube_des_key

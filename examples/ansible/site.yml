@@ -1,0 +1,156 @@
+---
+- name: Provision a new Robin suite host
+  hosts: robin_suite
+  become: true
+  gather_facts: true
+  vars_files:
+    - group_vars/robin_suite.vault.yml
+
+  pre_tasks:
+    - name: Validate Linux deployment settings
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family == "Debian"
+          - ansible_architecture == "x86_64"
+          - robin_suite_network_ready | bool
+          - robin_suite_revision is match('^[0-9a-f]{40}$')
+          - robin_suite_install_dir is match('^/opt/[A-Za-z0-9_-]+$')
+          - robin_suite_tls_dir is match('^/[A-Za-z0-9_./-]+$')
+          - robin_suite_mail_hostname is match('^[A-Za-z0-9.-]+$')
+          - robin_suite_mail_hostname not in ['localhost', 'mail.example.com', '']
+          - robin_suite_admin_url is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+          - robin_suite_admin_url != 'https://admin.example.com'
+          - robin_suite_admin_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+        fail_msg: "Use a reviewed full commit, real hostnames, and preconfigured network/TLS."
+
+    - name: Validate pinned external images
+      ansible.builtin.assert:
+        that:
+          - robin_suite_images[item] is match('^[a-z0-9./_-]+@sha256:[0-9a-f]{64}$')
+        fail_msg: "Pin every external image by digest; PostgreSQL must remain on major 18."
+      loop: [postgres, redis, clamav, rspamd, dovecot, roundcube]
+
+    - name: Validate independent Vault secrets
+      ansible.builtin.assert:
+        that:
+          - robin_suite_secrets | length == 8
+          - robin_suite_secrets.values() | unique | length == 8
+          - item is match('^[0-9a-f]{64}$')
+      loop: "{{ robin_suite_secrets.values() | list }}"
+      no_log: true
+
+    - name: Refuse an existing data directory
+      ansible.builtin.stat:
+        path: "{{ robin_suite_install_dir }}/store/postgres"
+      register: existing_database
+
+    - name: Require the documented migration or upgrade procedure for existing installs
+      ansible.builtin.assert:
+        that: not existing_database.stat.exists
+        fail_msg: "This playbook is for new installs only. Back up and use suite-operations.md."
+
+    - name: Require preinstalled Docker Compose
+      ansible.builtin.command:
+        argv: [docker, compose, version, --short]
+      register: compose_version
+      changed_when: false
+
+    - name: Validate Compose feature support
+      ansible.builtin.assert:
+        that: compose_version.stdout | regex_replace('^v', '') is version('2.24.6', '>=')
+
+    - name: Check operator-provided TLS files
+      ansible.builtin.stat:
+        path: "{{ robin_suite_tls_dir }}/{{ item }}"
+      loop: [fullchain.pem, privkey.pem]
+      register: tls_files
+
+    - name: Require both TLS inputs
+      ansible.builtin.assert:
+        that: item.stat.isreg | default(false)
+      loop: "{{ tls_files.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+  tasks:
+    - name: Install deployment prerequisites
+      ansible.builtin.apt:
+        name: [git, ca-certificates, openssl, python3, tar]
+        state: present
+        update_cache: true
+
+    - name: Require Python support for recovery tooling
+      ansible.builtin.command:
+        argv: [python3, -c, "import sys; assert sys.version_info >= (3, 11), 'Python 3.11+ required'"]
+      changed_when: false
+
+    - name: Check out the reviewed release without resetting local changes
+      ansible.builtin.git:
+        repo: https://github.com/transilvlad/robin.git
+        dest: "{{ robin_suite_install_dir }}"
+        version: "{{ robin_suite_revision }}"
+        force: false
+
+    - name: Refuse conflicting pre-existing suite containers
+      ansible.builtin.command:
+        argv: [docker, ps, --all, --filter, "name=^/suite-", --format, "{{ '{{.Names}}' }}"]
+      register: existing_containers
+      changed_when: false
+
+    - name: Require a dedicated empty suite host
+      ansible.builtin.assert:
+        that: existing_containers.stdout | length == 0
+
+    - name: Inspect an existing environment file
+      ansible.builtin.stat:
+        path: "{{ robin_suite_install_dir }}/.suite/.env"
+      register: suite_environment
+      no_log: true
+
+    - name: Read an existing environment file for comparison
+      ansible.builtin.slurp:
+        src: "{{ robin_suite_install_dir }}/.suite/.env"
+      register: existing_environment
+      when: suite_environment.stat.exists
+      no_log: true
+
+    - name: Refuse silently reusing conflicting environment settings
+      ansible.builtin.assert:
+        that: existing_environment.content | b64decode == lookup('ansible.builtin.template', 'templates/env.j2')
+        fail_msg: "Existing .env differs from the requested deployment. Review it manually."
+      when: suite_environment.stat.exists
+      no_log: true
+
+    - name: Write the initial protected environment
+      ansible.builtin.template:
+        src: templates/env.j2
+        dest: "{{ robin_suite_install_dir }}/.suite/.env"
+        owner: root
+        group: root
+        mode: "0600"
+        force: false
+      no_log: true
+
+    - name: Generate file secrets without rotating existing values
+      ansible.builtin.command:
+        argv: [bash, "{{ robin_suite_install_dir }}/.suite/init-secrets.sh"]
+      changed_when: true
+      no_log: true
+
+    - name: Prepare mailbox ownership and data directories
+      ansible.builtin.command:
+        argv: [bash, "{{ robin_suite_install_dir }}/.suite/init-suite.sh"]
+      changed_when: true
+
+    - name: Validate effective Compose configuration without displaying credentials
+      ansible.builtin.command:
+        argv: [docker, compose, --project-directory, "{{ robin_suite_install_dir }}/.suite", config, --quiet]
+      changed_when: false
+      no_log: true
+
+    - name: Build and start the suite
+      ansible.builtin.command:
+        argv: [docker, compose, --project-directory, "{{ robin_suite_install_dir }}/.suite",
+               up, --detach, --build, --wait, --wait-timeout, "600"]
+      changed_when: true
+      no_log: true

@@ -1,0 +1,14 @@
+---
+# Copy to robin_suite.vault.yml, replace each value with independent random hex,
+# then encrypt with ansible-vault. Never commit the filled-in file.
+robin_suite_secrets:
+  session: ""
+  encryption: ""
+  admin_db: ""
+  monitor_db: ""
+  agent: ""
+  tools_proxy: ""
+  qa_proxy: ""
+  sheriff_proxy: ""
+# File-backed DB credentials and Roundcube's encryption key are generated
+# idempotently on the host by init-secrets.sh and included in protected backups.

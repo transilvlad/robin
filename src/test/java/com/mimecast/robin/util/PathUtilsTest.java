@@ -3,6 +3,7 @@ package com.mimecast.robin.util;
 import com.mimecast.robin.main.Foundation;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
@@ -12,10 +13,13 @@ import javax.naming.ConfigurationException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class PathUtilsTest {
+    @TempDir
+    Path tempDir;
 
     @BeforeAll
     static void before() throws ConfigurationException {
@@ -40,7 +44,7 @@ class PathUtilsTest {
 
     @Test
     void makePath() {
-        String path = "/tmp/" + System.nanoTime();
+        String path = tempDir.resolve(Long.toString(System.nanoTime())).toString();
         assertTrue(PathUtils.makePath(path));
         assertTrue(new File(path).delete());
     }

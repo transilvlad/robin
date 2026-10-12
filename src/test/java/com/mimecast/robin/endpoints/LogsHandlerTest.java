@@ -1,5 +1,7 @@
 package com.mimecast.robin.endpoints;
 
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.ConfigurationFactory;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,13 +14,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.zip.GZIPOutputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for LogsHandler.
- * <p>These tests access Log4j2 configuration using reflection which may
- * not be thread-safe, so they run serially.
+ * <p>Each test uses an isolated Log4j2 context and temporary log files.
  */
 @Execution(ExecutionMode.SAME_THREAD)
 class LogsHandlerTest {
@@ -26,6 +28,7 @@ class LogsHandlerTest {
     private Path tempDir;
     private Path todayLogFile;
     private Path yesterdayLogFile;
+    private LoggerContext context;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -56,10 +59,27 @@ class LogsHandlerTest {
 
         Files.writeString(todayLogFile, todayContent, StandardCharsets.UTF_8);
         Files.writeString(yesterdayLogFile, yesterdayContent, StandardCharsets.UTF_8);
+        Path configuration = tempDir.resolve("log4j2.xml");
+        Files.writeString(configuration, """
+                <Configuration>
+                    <Appenders>
+                        <RollingFile name="logs" fileName="%s" filePattern="%s">
+                            <PatternLayout/>
+                            <Policies><TimeBasedTriggeringPolicy/></Policies>
+                        </RollingFile>
+                    </Appenders>
+                    <Loggers><Root level="error"><AppenderRef ref="logs"/></Root></Loggers>
+                </Configuration>
+                """.formatted(tempDir.resolve("active.log"), tempDir.resolve("robin-%d{yyyyMMdd}.log")));
+        context = new LoggerContext("logs-handler-test");
+        context.start(ConfigurationFactory.getInstance().getConfiguration(context, "logs", configuration.toUri()));
     }
 
     @AfterEach
     void tearDown() throws IOException {
+        context.stop();
+        Files.deleteIfExists(tempDir.resolve("active.log"));
+        Files.deleteIfExists(tempDir.resolve("log4j2.xml"));
         // Clean up test log files
         Files.deleteIfExists(todayLogFile);
         Files.deleteIfExists(yesterdayLogFile);
@@ -70,20 +90,9 @@ class LogsHandlerTest {
      * Tests that LogsHandler can search logs successfully.
      */
     @Test
-    void testSearchLogs() {
-        LogsHandler handler = new LogsHandler();
-        
-        try {
-            // This will search actual log files from log4j2 configuration
-            // We just verify it doesn't throw an exception
-            String results = handler.searchLogs("INFO");
-            assertNotNull(results);
-            // Results may be empty if no logs exist yet, which is fine
-        } catch (LogsHandler.LogsSearchException e) {
-            // This is acceptable - log files may not exist in test environment
-            assertTrue(e.getMessage().contains("Could not determine") || 
-                      e.getMessage().contains("Could not extract"));
-        }
+    void testSearchLogs() throws LogsHandler.LogsSearchException {
+        LogsHandler handler = new LogsHandler(context);
+        assertEquals(3, handler.searchLogs("INFO").lines().count());
     }
 
     /**
@@ -91,7 +100,7 @@ class LogsHandlerTest {
      */
     @Test
     void testSearchLogsNullQuery() {
-        LogsHandler handler = new LogsHandler();
+        LogsHandler handler = new LogsHandler(context);
         
         assertThrows(IllegalArgumentException.class, () -> {
             handler.searchLogs(null);
@@ -103,7 +112,7 @@ class LogsHandlerTest {
      */
     @Test
     void testSearchLogsBlankQuery() {
-        LogsHandler handler = new LogsHandler();
+        LogsHandler handler = new LogsHandler(context);
         
         assertThrows(IllegalArgumentException.class, () -> {
             handler.searchLogs("   ");
@@ -115,7 +124,7 @@ class LogsHandlerTest {
      */
     @Test
     void testGetLogFilePattern() {
-        LogsHandler handler = new LogsHandler();
+        LogsHandler handler = new LogsHandler(context);
         
         try {
             // Use reflection to test the private method
@@ -135,7 +144,7 @@ class LogsHandlerTest {
      */
     @Test
     void testExtractDateFormat() {
-        LogsHandler handler = new LogsHandler();
+        LogsHandler handler = new LogsHandler(context);
         
         try {
             java.lang.reflect.Method method = LogsHandler.class.getDeclaredMethod("extractDateFormatFromPattern", String.class);
@@ -152,6 +161,54 @@ class LogsHandlerTest {
             assertNull(method.invoke(handler, ""));
         } catch (Exception e) {
             fail("Should be able to extract date format: " + e.getMessage());
+        }
+    }
+
+    @Test
+    void searchesLiveAndIndexedCompressedLogsWithoutIncludingOlderArchives() throws Exception {
+        Path live = tempDir.resolve("robin.log");
+        String today = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE);
+        String yesterday = LocalDate.now().minusDays(1).format(DateTimeFormatter.BASIC_ISO_DATE);
+        String old = LocalDate.now().minusDays(2).format(DateTimeFormatter.BASIC_ISO_DATE);
+        Path first = tempDir.resolve("robin-" + today + "-1.log.gz");
+        Path second = tempDir.resolve("robin-" + yesterday + "-2.log.gz");
+        Path previous = tempDir.resolve("robin-" + old + "-1.log.gz");
+        Files.writeString(live, "needle live\n");
+        try {
+            for (Path path : new Path[]{first, second, previous}) {
+                try (var gzip = new GZIPOutputStream(Files.newOutputStream(path))) {
+                    gzip.write(("needle " + path.getFileName() + "\n").getBytes(StandardCharsets.UTF_8));
+                }
+            }
+            String result = new LogsHandler().searchLogs("needle",
+                    tempDir.resolve("robin-%d{yyyyMMdd}-%i.log.gz").toString(), live.toString());
+            assertEquals(3, result.lines().count());
+            assertTrue(result.contains("needle live"));
+            assertTrue(result.contains(first.getFileName().toString()));
+            assertTrue(result.contains(second.getFileName().toString()));
+            assertFalse(result.contains(previous.getFileName().toString()));
+        } finally {
+            for (Path path : new Path[]{live, first, second, previous}) Files.deleteIfExists(path);
+        }
+    }
+
+    @Test
+    void directDatePatternDoesNotDuplicateTheLiveFile() throws Exception {
+        String pattern = tempDir.resolve("robin-%d{yyyyMMdd}.log").toString();
+        String result = new LogsHandler().searchLogs("ERROR", pattern, todayLogFile.toString());
+        assertEquals(2, result.lines().count());
+    }
+
+    @Test
+    void corruptCompressedLogReportsSearchFailure() throws Exception {
+        Path corrupt = tempDir.resolve("robin-" + LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE)
+                + "-1.log.gz");
+        Files.writeString(corrupt, "not gzip");
+        try {
+            assertThrows(LogsHandler.LogsSearchException.class, () -> new LogsHandler().searchLogs("ERROR",
+                    tempDir.resolve("robin-%d{yyyyMMdd}-%i.log.gz").toString(), todayLogFile.toString()));
+        } finally {
+            Files.deleteIfExists(corrupt);
         }
     }
 }

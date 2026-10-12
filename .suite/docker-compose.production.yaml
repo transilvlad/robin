@@ -1,0 +1,50 @@
+# Explicit production overlay, also used by examples/docker-compose/compose.yaml.
+# Supply reviewed image tags/digests in .suite/.env. Do not pull mutable tags
+# during an upgrade without reviewing the resulting image-lock diff.
+x-runtime: &runtime
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  suite-postgres:
+    <<: *runtime
+    image: ${POSTGRES_IMAGE:?Set POSTGRES_IMAGE to a reviewed PostgreSQL 18 image}
+    volumes:
+      - ./db-init-production/01-create-users.sql:/docker-entrypoint-initdb.d/01-create-users.sql:ro
+  suite-redis:
+    <<: *runtime
+    image: ${REDIS_IMAGE:?Set REDIS_IMAGE to a reviewed Redis image}
+  suite-clamav:
+    <<: *runtime
+    image: ${CLAMAV_IMAGE:?Set CLAMAV_IMAGE to a reviewed ClamAV image}
+  suite-rspamd:
+    <<: *runtime
+    image: ${RSPAMD_IMAGE:?Set RSPAMD_IMAGE to a reviewed Rspamd image}
+  suite-dovecot:
+    <<: *runtime
+    image: ${DOVECOT_IMAGE:?Set DOVECOT_IMAGE to a reviewed Dovecot 2.4 image}
+    volumes:
+      - ${MAIL_TLS_DIR:?Set MAIL_TLS_DIR to the operator certificate directory}/fullchain.pem:/etc/dovecot/certs/imap.crt:ro
+      - ${MAIL_TLS_DIR:?Set MAIL_TLS_DIR to the operator certificate directory}/privkey.pem:/etc/dovecot/certs/imap.key:ro
+  suite-roundcube:
+    <<: *runtime
+    image: ${ROUNDCUBE_IMAGE:?Set ROUNDCUBE_IMAGE to a reviewed Roundcube image}
+    environment:
+      - MAIL_HOSTNAME=${MAIL_HOSTNAME:?Set MAIL_HOSTNAME to your public mail hostname}
+    volumes:
+      - ./etc/roundcube/production.php:/var/roundcube/config/production.php:ro
+  suite-config-init:
+    volumes:
+      - ./cfg-production/server.json5:/templates/server.json5:ro
+      - ./cfg-production/bots.json5:/templates/bots.json5:ro
+  suite-robin:
+    <<: *runtime
+    image: ${ROBIN_IMAGE:?Set ROBIN_IMAGE to a local release-specific build tag}
+    volumes:
+      - ${MAIL_TLS_DIR:?Set MAIL_TLS_DIR to the operator certificate directory}:/run/robin-tls:ro
+    environment:
+      - MAIL_HOSTNAME=${MAIL_HOSTNAME:?Set MAIL_HOSTNAME to your public mail hostname}

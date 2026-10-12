@@ -8,6 +8,11 @@ services:
       - "${ADMIN_HTTPS_BIND:-127.0.0.1}:${ADMIN_HTTPS_PORT:-3443}:3443"
 
   suite-admin:
+    environment:
+      - NODE_ENV=production
+      - COOKIE_SECURE=true
+      - DB_USER=robin_admin
+      - POSTGRES_ADMIN_DSN=postgresql://robin_monitor:${MONITOR_DB_PASSWORD:?Set a unique PostgreSQL monitoring password}@postgres-backend:5432/robin
     volumes:
       - ./etc/rspamd/local.d:/mnt/rspamd/local.d
       - ../store/rspamd:/mnt/rspamd/store

@@ -109,6 +109,15 @@ public class RspamdConfig extends ConfigFoundation {
     }
 
     /**
+     * Whether high-scoring spam is accepted and discarded instead of rejected.
+     *
+     * @return True by default for compatibility with threshold-based handling.
+     */
+    public boolean isDiscardEnabled() {
+        return getBooleanProperty("discardEnabled", true);
+    }
+
+    /**
      * Gets DKIM signing configuration.
      *
      * @return DkimSigningConfig instance.

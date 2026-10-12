@@ -1,11 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Configuration monitorInterval="30" shutdownHook="disable">
     <Appenders>
-        <RollingFile name="appender" filePattern="/var/log/robin/%d{yyyyMMdd}.log">
+        <RollingFile name="appender" fileName="/var/log/robin/robin.log"
+                     filePattern="/var/log/robin/robin-%d{yyyyMMdd}-%i.log.gz">
             <PatternLayout pattern="%-5p|%d{MMdd-HHmmssSSS}|%t|%c{2}|%X{aCode}|%X{bCode}|%X{cCode}|%m%n"/>
             <Policies>
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="50 MB"/>
             </Policies>
+            <DefaultRolloverStrategy max="20">
+                <Delete basePath="/var/log/robin" maxDepth="1">
+                    <IfFileName glob="robin-*.log.gz"/>
+                    <IfAny>
+                        <IfLastModified age="14d"/>
+                        <IfAccumulatedFileSize exceeds="1 GB"/>
+                    </IfAny>
+                </Delete>
+            </DefaultRolloverStrategy>
         </RollingFile>
         <Console name="console" target="SYSTEM_OUT">
             <PatternLayout pattern="%-5p|%d{MMdd-HHmmssSSS}|%t|%c{2}|%X{aCode}|%X{bCode}|%X{cCode}|%m%n"/>
@@ -13,7 +24,15 @@
     </Appenders>
 
     <Loggers>
-        <Logger name="com.mimecast.robin" level="debug" additivity="false">
+        <Logger name="com.mimecast.robin" level="warn" additivity="false">
+            <AppenderRef ref="appender"/>
+            <AppenderRef ref="console"/>
+        </Logger>
+        <Logger name="com.mimecast.robin.main" level="info" additivity="false">
+            <AppenderRef ref="appender"/>
+            <AppenderRef ref="console"/>
+        </Logger>
+        <Logger name="com.mimecast.robin.audit" level="info" additivity="false">
             <AppenderRef ref="appender"/>
             <AppenderRef ref="console"/>
         </Logger>

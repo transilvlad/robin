@@ -40,15 +40,22 @@ public class AVStorageProcessor extends AbstractStorageProcessor {
         if (clamAVConfig.getBooleanProperty("enabled")) {
             ClamAVClient clamAVClient = new ClamAVClient(
                     clamAVConfig.getStringProperty("host", "localhost"),
-                    clamAVConfig.getLongProperty("port", 3310L).intValue()
+                    Math.toIntExact(clamAVConfig.getLongProperty("port", 3310L)),
+                    Math.toIntExact(clamAVConfig.getLongProperty("timeout", 30L))
             );
 
             var envelope = connection.getSession().getEnvelopes().getLast();
             // Scan the entire email with ClamAV, streaming to avoid buffering it in memory.
             try (InputStream messageStream = envelope.openMessageStream()) {
-                if (messageStream != null && !isClean(clamAVClient, messageStream, "RAW", clamAVConfig, connection)) {
+                if (messageStream == null) {
+                    throw new IOException("No message source available for antivirus scanning");
+                }
+                if (!isClean(clamAVClient, messageStream, "RAW", clamAVConfig, connection)) {
                     return false;
                 }
+            }
+            if (envelope.isBlackholed()) {
+                return true;
             }
 
             // Scan each non-text part with ClamAV for improved results if enabled.
@@ -61,6 +68,9 @@ public class AVStorageProcessor extends AbstractStorageProcessor {
 
                         if (!isClean(clamAVClient, ((FileMimePart) part).getFile(), partInfo, clamAVConfig, connection)) {
                             return false;
+                        }
+                        if (envelope.isBlackholed()) {
+                            return true;
                         }
                     }
                 }
@@ -108,7 +118,10 @@ public class AVStorageProcessor extends AbstractStorageProcessor {
                 return false;
             } else if ("discard".equalsIgnoreCase(onVirus)) {
                 log.warn("Virus found, discarding.");
+                connection.getSession().getEnvelopes().getLast().setBlackholed(true);
                 return true;
+            } else {
+                throw new IOException("Unsupported ClamAV onVirus action: " + onVirus);
             }
 
         } else {
@@ -165,7 +178,10 @@ public class AVStorageProcessor extends AbstractStorageProcessor {
                 return false;
             } else if ("discard".equalsIgnoreCase(onVirus)) {
                 log.warn("Virus found, discarding.");
+                connection.getSession().getEnvelopes().getLast().setBlackholed(true);
                 return true;
+            } else {
+                throw new IOException("Unsupported ClamAV onVirus action: " + onVirus);
             }
         } else {
             log.info("AV scan clean for {}", partInfo);

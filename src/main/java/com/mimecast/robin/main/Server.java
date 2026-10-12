@@ -9,6 +9,7 @@ import com.mimecast.robin.endpoints.ApiEndpoint;
 import com.mimecast.robin.endpoints.RobinServiceEndpoint;
 import com.mimecast.robin.metrics.MetricsCron;
 import com.mimecast.robin.queue.RelayQueueService;
+import com.mimecast.robin.queue.PersistentQueue;
 import com.mimecast.robin.scanners.DkimSigningLookup;
 import com.mimecast.robin.smtp.SmtpListener;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
@@ -214,6 +215,12 @@ public class Server extends Foundation {
         // Initialize Vault integration for secrets management.
         initializeVault();
 
+        // Fail before queue workers or listeners start when required SQL auth is unavailable.
+        initializeSqlAuthentication(Config.getServer());
+
+        // Validate persisted work before storage cleanup can remove message files.
+        PersistentQueue.getInstance();
+
         // Clean storage directory on startup.
         StorageCleaner.clean(Config.getServer().getStorage());
 
@@ -269,17 +276,16 @@ public class Server extends Foundation {
             log.warn("Failed to initialize LMTP connection pool: {}", e.getMessage());
         }
 
-        // Initialize shared DataSource if SQL auth backend is configured.
-        try {
-            DovecotConfig dovecotConfig = serverConfig.getDovecot();
-            if (dovecotConfig.isAuthSqlEnabled()) {
-                // Initialize shared pool (lazy init in SharedDataSource.getDataSource())
-                var ds = SharedDataSource.getDataSource();
-                // Initialize shared Sql providers for auth and user lookup
-                SqlAuthManager.init(ds);
+    }
+
+    static void initializeSqlAuthentication(ServerConfig config) {
+        if (config.getDovecot().isAuthSqlEnabled()) {
+            try {
+                SqlAuthManager.init(SharedDataSource.getDataSource());
+            } catch (RuntimeException e) {
+                log.error("Required SQL authentication startup failed: {}", e.getMessage());
+                throw new IllegalStateException("Cannot start with unavailable SQL authentication", e);
             }
-        } catch (Exception e) {
-            log.warn("Failed to initialize shared SQL datasource: {}", e.getMessage());
         }
     }
 
@@ -390,20 +396,29 @@ public class Server extends Foundation {
      * The keystore path and password are read from the server configuration.
      */
     private static void loadKeystore() {
-        ServerConfig serverConfig = Config.getServer();
+        loadKeystore(Config.getServer());
+    }
+
+    static void loadKeystore(ServerConfig serverConfig) {
+        if (!serverConfig.isStartTls() && serverConfig.getSecurePort() == 0) {
+            return;
+        }
         String pemCert = serverConfig.getPemCertPath();
         String pemKey = serverConfig.getPemKeyPath();
+        if (pemCert.isEmpty() != pemKey.isEmpty()) {
+            throw new IllegalStateException("TLS requires both PEM certificate and private key");
+        }
 
         // PEM takes precedence over JKS if both cert and key are configured.
         if (!pemCert.isEmpty() && !pemKey.isEmpty()) {
-            String password = readKeystorePassword(serverConfig);
+            String password = java.util.UUID.randomUUID().toString();
             try {
                 loadPemKeystore(pemCert, pemKey, password);
                 log.info("Loaded PEM certificate from {} and key from {}", pemCert, pemKey);
                 return;
             } catch (Exception e) {
                 log.error("Failed to load PEM certificate/key: {}", e.getMessage());
-                return;
+                throw new IllegalStateException("Cannot initialize configured TLS certificate and key", e);
             }
         }
 
@@ -415,10 +430,29 @@ public class Server extends Foundation {
             Files.readAllBytes(Paths.get(keyStorePath));
         } catch (IOException e) {
             log.error("Error reading keystore file [{}]: {}", keyStorePath, e.getMessage());
-            return;
+            throw new IllegalStateException("Cannot initialize configured TLS keystore", e);
+        }
+        String password = readKeystorePassword(serverConfig);
+        try (var input = Files.newInputStream(Path.of(keyStorePath))) {
+            KeyStore store = KeyStore.getInstance(KeyStore.getDefaultType());
+            store.load(input, password.toCharArray());
+            boolean hasKey = false;
+            var aliases = store.aliases();
+            while (aliases.hasMoreElements()) {
+                String alias = aliases.nextElement();
+                if (store.isKeyEntry(alias) && store.getKey(alias, password.toCharArray()) instanceof PrivateKey) {
+                    hasKey = true;
+                }
+            }
+            if (!hasKey) {
+                throw new IllegalStateException("TLS keystore contains no private key");
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException("Cannot initialize configured TLS keystore", e);
         }
         System.setProperty("javax.net.ssl.keyStore", keyStorePath);
-        System.setProperty("javax.net.ssl.keyStorePassword", readKeystorePassword(serverConfig));
+        System.setProperty("javax.net.ssl.keyStorePassword", password);
+        System.clearProperty("javax.net.ssl.keyStoreType");
     }
 
     /**
@@ -450,6 +484,12 @@ public class Server extends Foundation {
         try (BufferedInputStream fis = new BufferedInputStream(Files.newInputStream(Path.of(certPath)), 8192)) {
             certs = cf.generateCertificates(fis);
         }
+        if (certs.isEmpty()) {
+            throw new IllegalStateException("TLS certificate chain is empty");
+        }
+        for (Certificate cert : certs) {
+            ((java.security.cert.X509Certificate) cert).checkValidity();
+        }
 
         // Load private key (PKCS8 PEM).
         String keyPem = Files.readString(Path.of(keyPath));
@@ -466,6 +506,18 @@ public class Server extends Foundation {
             key = KeyFactory.getInstance("RSA").generatePrivate(spec);
         } catch (Exception e) {
             key = KeyFactory.getInstance("EC").generatePrivate(spec);
+        }
+        String signatureAlgorithm = key.getAlgorithm().equals("RSA") ? "SHA256withRSA" : "SHA256withECDSA";
+        var signature = java.security.Signature.getInstance(signatureAlgorithm);
+        byte[] challenge = new byte[32];
+        new java.security.SecureRandom().nextBytes(challenge);
+        signature.initSign(key);
+        signature.update(challenge);
+        byte[] proof = signature.sign();
+        signature.initVerify(certs.iterator().next().getPublicKey());
+        signature.update(challenge);
+        if (!signature.verify(proof)) {
+            throw new IllegalStateException("TLS private key does not match the leaf certificate");
         }
 
         // Build PKCS12 keystore in memory.

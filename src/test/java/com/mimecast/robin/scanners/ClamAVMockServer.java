@@ -31,6 +31,7 @@ public class ClamAVMockServer {
     // Simplified mock version string; the library parser rejects slash-delimited extended metadata.
     private volatile String VERSION_RESPONSE = "ClamAV 0.103.9"; // Must end with null terminator when sent.
     private static final String SIMULATED_VIRUS_MARKER = "SIMULATED_VIRUS";
+    private volatile String scanResponse;
 
     // Command names used by the ClamAV protocol.
     private static final String CMD_PING = "PING";
@@ -77,6 +78,10 @@ public class ClamAVMockServer {
         if (version != null && !version.isEmpty()) {
             this.VERSION_RESPONSE = version;
         }
+    }
+
+    public void setScanResponse(String response) {
+        scanResponse = response;
     }
 
     /**
@@ -337,6 +342,7 @@ public class ClamAVMockServer {
         String contentStr = contentBuffer.toString(StandardCharsets.UTF_8);
         String response = (contentStr.contains(EICAR_TEST_SIGNATURE) || contentStr.contains(SIMULATED_VIRUS_MARKER)) ?
                 "stream: Eicar-Test-Signature FOUND\0" : "stream: OK\0";
+        if (scanResponse != null) response = scanResponse;
         os.write(response.getBytes(StandardCharsets.UTF_8));
         os.flush();
     }
@@ -372,6 +378,7 @@ public class ClamAVMockServer {
 
         String response = (contentStr.contains(EICAR_TEST_SIGNATURE) || contentStr.contains(SIMULATED_VIRUS_MARKER)) ?
                 "stream: Eicar-Test-Signature FOUND\0" : "stream: OK\0";
+        if (scanResponse != null) response = scanResponse;
         os.write(response.getBytes(StandardCharsets.UTF_8));
         os.flush();
     }

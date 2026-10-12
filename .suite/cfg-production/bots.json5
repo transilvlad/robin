@@ -1,0 +1,4 @@
+{
+  // Analysis and reporting endpoints must be explicitly provisioned by the operator.
+  bots: []
+}

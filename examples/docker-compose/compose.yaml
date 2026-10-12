@@ -1,0 +1,9 @@
+# Reuse the canonical production baseline; do not maintain a second mail config.
+name: suite
+include:
+  - path:
+      - ${ROBIN_REPO_DIR:?Set ROBIN_REPO_DIR to the absolute checkout path}/.suite/docker-compose.yaml
+      - ${ROBIN_REPO_DIR}/.suite/docker-compose.override.yaml
+      - ${ROBIN_REPO_DIR}/.suite/docker-compose.production.yaml
+    project_directory: ${ROBIN_REPO_DIR}/.suite
+    env_file: ${ROBIN_REPO_DIR}/.suite/.env
