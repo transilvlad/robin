@@ -4,7 +4,6 @@ import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
-import com.mimecast.robin.smtp.extension.client.ClientRset;
 import com.mimecast.robin.smtp.session.Session;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -26,8 +25,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>
  * Pool lifecycle:
  * <ul>
- *   <li>borrow() - get an idle connection or create a new one (up to maxSize)</li>
- *   <li>return() - reset the connection state (RSET) and return to idle queue</li>
+ *   <li>borrow() - get an idle connection (reset and checked with RSET) or create a new one (up to maxSize)</li>
+ *   <li>return() - return the connection to the idle queue</li>
  *   <li>invalidate() - close the connection without returning to pool</li>
  * </ul>
  */
@@ -130,7 +129,7 @@ public class LmtpConnectionPool {
                     maxSize, borrowedCount.get());
             pooled = idleConnections.poll(borrowTimeoutSeconds, TimeUnit.SECONDS);
             if (pooled != null) {
-                if (validateConnection(pooled)) {
+                if (validateConnection(pooled) && resetConnection(pooled)) {
                     prepareForReuse(pooled, envelope);
                     borrowedCount.incrementAndGet();
                     return pooled;
@@ -153,7 +152,7 @@ public class LmtpConnectionPool {
     /**
      * Returns a connection to the pool after successful use.
      * <p>
-     * Sends RSET to clear the session state and returns to idle queue.
+     * The connection is reset with RSET when it is next borrowed.
      *
      * @param pooled The connection to return.
      */
@@ -173,12 +172,6 @@ public class LmtpConnectionPool {
             messageLimitRetirementCount.incrementAndGet();
             log.debug("Retiring LMTP connection after {} envelopes (limit={})",
                     pooled.getDeliveredMessages(), maxMessagesPerConnection);
-            closeConnection(pooled);
-            return;
-        }
-
-        // Send RSET to clear state
-        if (!resetConnection(pooled)) {
             closeConnection(pooled);
             return;
         }
@@ -219,11 +212,15 @@ public class LmtpConnectionPool {
 
     /**
      * Tries to get a valid idle connection from the queue.
+     * <p>
+     * Each candidate is reset with RSET before reuse, which also confirms the
+     * server is still there; connections the server closed while they were idle
+     * (for example after a restart) are discarded.
      */
     private PooledLmtpConnection tryGetIdleConnection() {
         PooledLmtpConnection pooled;
         while ((pooled = idleConnections.poll()) != null) {
-            if (validateConnection(pooled)) {
+            if (validateConnection(pooled) && resetConnection(pooled)) {
                 return pooled;
             }
             closeConnection(pooled);
@@ -318,12 +315,21 @@ public class LmtpConnectionPool {
     }
 
     /**
-     * Sends RSET to reset the connection state.
+     * Sends RSET to reset the connection state and confirm the server still answers.
+     *
+     * @return True when the server replied 250.
      */
     protected boolean resetConnection(PooledLmtpConnection pooled) {
         try {
-            ClientRset rset = new ClientRset();
-            return rset.process(pooled.getConnection());
+            Connection connection = pooled.getConnection();
+            connection.write("RSET");
+            String reply = connection.read("250");
+            if (reply.startsWith("250")) {
+                return true;
+            }
+            resetFailureCount.incrementAndGet();
+            log.debug("RSET not accepted, discarding connection: {}", reply.isBlank() ? "connection closed" : reply.trim());
+            return false;
         } catch (IOException e) {
             resetFailureCount.incrementAndGet();
             log.debug("RSET failed: {}", e.getMessage());

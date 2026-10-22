@@ -7,6 +7,7 @@ import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.extension.client.ClientRset;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
+import com.mimecast.robin.smtp.transaction.Transaction;
 import com.mimecast.robin.util.Sleep;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -108,6 +109,10 @@ public class PooledLmtpDelivery {
             return DeliveryAttemptResult.connectionFailureResult("Missing LMTP transaction state after delivery attempt");
         }
 
+        if (hasUnansweredCommand(envelopes)) {
+            return DeliveryAttemptResult.connectionFailureResult("LMTP server closed the connection");
+        }
+
         String transactionFailure = summarizeTransactionFailures(envelopes);
         if (transactionFailure != null) {
             return DeliveryAttemptResult.transactionFailureResult(transactionFailure);
@@ -176,6 +181,25 @@ public class PooledLmtpDelivery {
 
         EnvelopeTransactionList latest = pooledSession.getSessionTransactionList().getEnvelopes().getLast();
         sourceSession.getSessionTransactionList().addEnvelope(latest.clone());
+    }
+
+    /**
+     * An empty reply means the server closed the connection, so it must not be reused.
+     */
+    private boolean hasUnansweredCommand(List<EnvelopeTransactionList> envelopes) {
+        for (EnvelopeTransactionList envelope : envelopes) {
+            List<Transaction> transactions = new ArrayList<>();
+            transactions.add(envelope.getMail());
+            transactions.addAll(envelope.getRcpt());
+            transactions.add(envelope.getData());
+            for (Transaction transaction : transactions) {
+                if (transaction != null && transaction.isError()
+                        && (transaction.getResponse() == null || transaction.getResponse().isBlank())) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private String summarizeTransactionFailures(List<EnvelopeTransactionList> envelopes) {

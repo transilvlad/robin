@@ -9,6 +9,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 
 class LmtpConnectionPoolTest {
 
@@ -32,6 +33,26 @@ class LmtpConnectionPoolTest {
         assertNotNull(reused);
         assertEquals(0, pool.getIdleCount());
         assertEquals(1, pool.getBorrowedCount());
+        assertEquals(1, pool.resetCount);
+    }
+
+    @Test
+    void borrowReplacesIdleConnectionsTheServerClosed() {
+        TestLmtpConnectionPool pool = new TestLmtpConnectionPool(10);
+        MessageEnvelope envelope = envelope();
+
+        LmtpConnectionPool.PooledLmtpConnection first = pool.borrow(envelope);
+        assertNotNull(first);
+        pool.returnConnection(first);
+        pool.resetSucceeds = false;
+
+        LmtpConnectionPool.PooledLmtpConnection replacement = pool.borrow(envelope);
+
+        assertNotNull(replacement);
+        assertNotSame(first, replacement);
+        assertEquals(1, pool.closeCount);
+        assertEquals(1, pool.getTotalConnections());
+        assertEquals(0, pool.getIdleCount());
     }
 
     @Test
@@ -59,6 +80,8 @@ class LmtpConnectionPoolTest {
 
     private static final class TestLmtpConnectionPool extends LmtpConnectionPool {
         private int closeCount;
+        private int resetCount;
+        private boolean resetSucceeds = true;
 
         private TestLmtpConnectionPool(int maxMessagesPerConnection) {
             super(4, 1, 60, 60, maxMessagesPerConnection, List.of("127.0.0.1"), 24, false);
@@ -78,7 +101,8 @@ class LmtpConnectionPoolTest {
         }
         @Override
         protected boolean resetConnection(PooledLmtpConnection pooled) {
-            return true;
+            resetCount++;
+            return resetSucceeds;
         }
 
         @Override

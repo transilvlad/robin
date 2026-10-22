@@ -66,6 +66,20 @@ class PooledLmtpDeliveryTest {
         assertEquals(1, delivery.returnCount);
     }
 
+    @Test
+    void deliverInvalidatesConnectionsClosedByTheServer() {
+        Session sourceSession = sessionWithEnvelope("closed-by-server");
+        TestPooledLmtpDelivery delivery = new TestPooledLmtpDelivery();
+        delivery.closedAttempts = 1;
+
+        boolean delivered = delivery.deliver(sourceSession, 2, 0);
+
+        assertTrue(delivered);
+        assertEquals(2, delivery.borrowCount);
+        assertEquals(1, delivery.invalidateCount);
+        assertEquals(1, delivery.returnCount);
+    }
+
     private static Session sessionWithEnvelope(String uid) {
         Session session = new Session().setUID(uid);
         session.addEnvelope(new MessageEnvelope()
@@ -82,6 +96,7 @@ class PooledLmtpDeliveryTest {
         private int invalidateCount;
         private int failAttempts;
         private int throwAttempts;
+        private int closedAttempts;
 
         private TestPooledLmtpDelivery withPool(LmtpConnectionPool pool) {
             this.pool = pool;
@@ -116,7 +131,10 @@ class PooledLmtpDeliveryTest {
                 throw new IOException("broken pipe");
             }
             EnvelopeTransactionList envelopeTransactionList = new EnvelopeTransactionList();
-            if (failAttempts > 0) {
+            if (closedAttempts > 0) {
+                closedAttempts--;
+                envelopeTransactionList.addTransaction("MAIL", "MAIL FROM:<tony@example.com>", "", true);
+            } else if (failAttempts > 0) {
                 failAttempts--;
                 envelopeTransactionList.addTransaction("DATA", "DATA", "451 temporary failure", true);
             } else {
