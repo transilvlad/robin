@@ -60,11 +60,12 @@ public class SqlAuthProvider implements AutoCloseable {
     /**
      * Authenticates a user by email and plain-text password.
      *
-     * @param email         User email address.
+     * @param address       User email address, in any case.
      * @param plainPassword Plain-text password attempt.
      * @return True if credentials match.
      */
-    public boolean authenticate(String email, String plainPassword) {
+    public boolean authenticate(String address, String plainPassword) {
+        String email = SqlUserLookup.normalize(address);
         try (Connection c = ds.getConnection(); PreparedStatement ps = c.prepareStatement(authQuery)) {
             if (paramCount >= 2) {
                 // DB-side verification (pgcrypto crypt comparison).

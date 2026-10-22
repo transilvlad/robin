@@ -9,6 +9,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -77,7 +78,19 @@ public class SqlUserLookup implements AutoCloseable {
         this.aliasQuery = null;
     }
 
-    public Optional<UserRecord> lookup(String email) {
+    /**
+     * Normalizes an email address or domain for lookups.
+     * <p>Addresses are matched case-insensitively, as mail servers treat them, and are stored in lower case.
+     *
+     * @param value Email address or domain.
+     * @return Trimmed lower-case value, or null when null.
+     */
+    public static String normalize(String value) {
+        return value == null ? null : value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    public Optional<UserRecord> lookup(String address) {
+        String email = normalize(address);
         try (Connection c = ds.getConnection();
              PreparedStatement ps = c.prepareStatement(userQuery)) {
             ps.setString(1, email);
@@ -101,13 +114,14 @@ public class SqlUserLookup implements AutoCloseable {
      * Checks if a domain is served by this mail system.
      * Returns true if domainQuery is not configured (backward compatible).
      *
-     * @param domain Domain to check (e.g. "example.com").
+     * @param requestedDomain Domain to check (e.g. "example.com"), in any case.
      * @return True if the domain is served or no domain query is configured.
      */
-    public boolean isDomainServed(String domain) {
+    public boolean isDomainServed(String requestedDomain) {
         if (domainQuery == null || domainQuery.isEmpty()) {
             return true;
         }
+        String domain = normalize(requestedDomain);
         try (Connection c = ds.getConnection();
              PreparedStatement ps = c.prepareStatement(domainQuery)) {
             // The domain query has '%@' || ? in SQL, so we pass just the domain.
@@ -128,13 +142,14 @@ public class SqlUserLookup implements AutoCloseable {
      * Resolves an email alias to its real destination address.
      * Returns empty if aliasQuery is not configured (backward compatible).
      *
-     * @param email Email address to resolve.
+     * @param address Email address to resolve, in any case.
      * @return Optional destination address, or empty if no alias exists.
      */
-    public Optional<String> resolveAlias(String email) {
+    public Optional<String> resolveAlias(String address) {
         if (aliasQuery == null || aliasQuery.isEmpty()) {
             return Optional.empty();
         }
+        String email = normalize(address);
         try (Connection c = ds.getConnection();
              PreparedStatement ps = c.prepareStatement(aliasQuery)) {
             // The alias query uses UNION across multiple tables, each needing the email.
