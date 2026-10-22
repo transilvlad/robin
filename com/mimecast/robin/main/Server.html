@@ -190,16 +190,22 @@ loadScripts(document, 'script');</script>
 <div class="col-last even-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4">
 <div class="block">Gets the LMTP connection pool.</div>
 </div>
-<div class="col-first odd-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4"><code>private static void</code></div>
-<div class="col-second odd-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4"><code><a href="#initializeVault()" class="member-name-link">initializeVault</a>()</code></div>
-<div class="col-last odd-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4">
+<div class="col-first odd-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4"><code>(package private) static void</code></div>
+<div class="col-second odd-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4"><code><a href="#initializeSqlAuthentication(com.mimecast.robin.config.server.ServerConfig)" class="member-name-link">initializeSqlAuthentication</a><wbr>(<a href="../config/server/ServerConfig.html" title="class in com.mimecast.robin.config.server">ServerConfig</a>&nbsp;config)</code></div>
+<div class="col-last odd-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4">&nbsp;</div>
+<div class="col-first even-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4"><code>private static void</code></div>
+<div class="col-second even-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4"><code><a href="#initializeVault()" class="member-name-link">initializeVault</a>()</code></div>
+<div class="col-last even-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4">
 <div class="block">Initializes HashiCorp Vault integration for secrets management.</div>
 </div>
-<div class="col-first even-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4"><code>private static void</code></div>
-<div class="col-second even-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4"><code><a href="#loadKeystore()" class="member-name-link">loadKeystore</a>()</code></div>
-<div class="col-last even-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4">
+<div class="col-first odd-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4"><code>private static void</code></div>
+<div class="col-second odd-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4"><code><a href="#loadKeystore()" class="member-name-link">loadKeystore</a>()</code></div>
+<div class="col-last odd-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4">
 <div class="block">Loads the SSL keystore for secure connections.</div>
 </div>
+<div class="col-first even-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4"><code>(package private) static void</code></div>
+<div class="col-second even-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4"><code><a href="#loadKeystore(com.mimecast.robin.config.server.ServerConfig)" class="member-name-link">loadKeystore</a><wbr>(<a href="../config/server/ServerConfig.html" title="class in com.mimecast.robin.config.server">ServerConfig</a>&nbsp;serverConfig)</code></div>
+<div class="col-last even-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4">&nbsp;</div>
 <div class="col-first odd-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4"><code>private static void</code></div>
 <div class="col-second odd-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4"><code><a href="#loadPemKeystore(java.lang.String,java.lang.String,java.lang.String)" class="member-name-link">loadPemKeystore</a><wbr>(<a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a>&nbsp;certPath,
  <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a>&nbsp;keyPath,
@@ -327,6 +333,12 @@ loadScripts(document, 'script');</script>
 </section>
 </li>
 <li>
+<section class="detail" id="initializeSqlAuthentication(com.mimecast.robin.config.server.ServerConfig)">
+<h3>initializeSqlAuthentication</h3>
+<div class="member-signature"><span class="modifiers">static</span>&nbsp;<span class="return-type">void</span>&nbsp;<span class="element-name">initializeSqlAuthentication</span><wbr><span class="parameters">(<a href="../config/server/ServerConfig.html" title="class in com.mimecast.robin.config.server">ServerConfig</a>&nbsp;config)</span></div>
+</section>
+</li>
+<li>
 <section class="detail" id="initializeVault()">
 <h3>initializeVault</h3>
 <div class="member-signature"><span class="modifiers">private static</span>&nbsp;<span class="return-type">void</span>&nbsp;<span class="element-name">initializeVault</span>()</div>
@@ -349,6 +361,12 @@ loadScripts(document, 'script');</script>
 <div class="member-signature"><span class="modifiers">private static</span>&nbsp;<span class="return-type">void</span>&nbsp;<span class="element-name">loadKeystore</span>()</div>
 <div class="block">Loads the SSL keystore for secure connections.
  The keystore path and password are read from the server configuration.</div>
+</section>
+</li>
+<li>
+<section class="detail" id="loadKeystore(com.mimecast.robin.config.server.ServerConfig)">
+<h3>loadKeystore</h3>
+<div class="member-signature"><span class="modifiers">static</span>&nbsp;<span class="return-type">void</span>&nbsp;<span class="element-name">loadKeystore</span><wbr><span class="parameters">(<a href="../config/server/ServerConfig.html" title="class in com.mimecast.robin.config.server">ServerConfig</a>&nbsp;serverConfig)</span></div>
 </section>
 </li>
 <li>

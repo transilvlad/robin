@@ -114,6 +114,12 @@ loadScripts(document, 'script');</script>
 <div class="col-first odd-row-color"><code>private static final org.apache.logging.log4j.Logger</code></div>
 <div class="col-second odd-row-color"><code><a href="#log" class="member-name-link">log</a></code></div>
 <div class="col-last odd-row-color">&nbsp;</div>
+<div class="col-first even-row-color"><code>private static final <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ScheduledThreadPoolExecutor.html" title="class or interface in java.util.concurrent" class="external-link">ScheduledThreadPoolExecutor</a></code></div>
+<div class="col-second even-row-color"><code><a href="#SCAN_TIMEOUTS" class="member-name-link">SCAN_TIMEOUTS</a></code></div>
+<div class="col-last even-row-color">&nbsp;</div>
+<div class="col-first odd-row-color"><code>private final int</code></div>
+<div class="col-second odd-row-color"><code><a href="#timeoutMillis" class="member-name-link">timeoutMillis</a></code></div>
+<div class="col-last odd-row-color">&nbsp;</div>
 <div class="col-first even-row-color"><code>private <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Map.html" title="class or interface in java.util" class="external-link">Map</a><wbr>&lt;<a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a>,<wbr><a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Collection.html" title="class or interface in java.util" class="external-link">Collection</a>&lt;<a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a>&gt;&gt;</code></div>
 <div class="col-second even-row-color"><code><a href="#viruses" class="member-name-link">viruses</a></code></div>
 <div class="col-last even-row-color">&nbsp;</div>
@@ -136,6 +142,12 @@ loadScripts(document, 'script');</script>
  int&nbsp;port)</code></div>
 <div class="col-last odd-row-color">
 <div class="block">Constructor with specific host and port.</div>
+</div>
+<div class="col-constructor-name even-row-color"><code><a href="#%3Cinit%3E(java.lang.String,int,int)" class="member-name-link">ClamAVClient</a><wbr>(<a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a>&nbsp;host,
+ int&nbsp;port,
+ int&nbsp;timeoutSeconds)</code></div>
+<div class="col-last even-row-color">
+<div class="block">Creates a client with a bounded scan timeout, including blocked uploads.</div>
 </div>
 </div>
 </section>
@@ -231,9 +243,21 @@ loadScripts(document, 'script');</script>
 </section>
 </li>
 <li>
+<section class="detail" id="timeoutMillis">
+<h3>timeoutMillis</h3>
+<div class="member-signature"><span class="modifiers">private final</span>&nbsp;<span class="return-type">int</span>&nbsp;<span class="element-name">timeoutMillis</span></div>
+</section>
+</li>
+<li>
 <section class="detail" id="viruses">
 <h3>viruses</h3>
 <div class="member-signature"><span class="modifiers">private</span>&nbsp;<span class="return-type"><a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Map.html" title="class or interface in java.util" class="external-link">Map</a>&lt;<a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a>,<wbr><a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Collection.html" title="class or interface in java.util" class="external-link">Collection</a>&lt;<a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a>&gt;&gt;</span>&nbsp;<span class="element-name">viruses</span></div>
+</section>
+</li>
+<li>
+<section class="detail" id="SCAN_TIMEOUTS">
+<h3>SCAN_TIMEOUTS</h3>
+<div class="member-signature"><span class="modifiers">private static final</span>&nbsp;<span class="return-type"><a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ScheduledThreadPoolExecutor.html" title="class or interface in java.util.concurrent" class="external-link">ScheduledThreadPoolExecutor</a></span>&nbsp;<span class="element-name">SCAN_TIMEOUTS</span></div>
 </section>
 </li>
 </ul>
@@ -263,6 +287,21 @@ loadScripts(document, 'script');</script>
 <dt>Parameters:</dt>
 <dd><code>host</code> - The ClamAV server host.</dd>
 <dd><code>port</code> - The ClamAV server port.</dd>
+</dl>
+</section>
+</li>
+<li>
+<section class="detail" id="&lt;init&gt;(java.lang.String,int,int)">
+<h3>ClamAVClient</h3>
+<div class="member-signature"><span class="modifiers">public</span>&nbsp;<span class="element-name">ClamAVClient</span><wbr><span class="parameters">(<a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a>&nbsp;host,
+ int&nbsp;port,
+ int&nbsp;timeoutSeconds)</span></div>
+<div class="block">Creates a client with a bounded scan timeout, including blocked uploads.</div>
+<dl class="notes">
+<dt>Parameters:</dt>
+<dd><code>host</code> - ClamAV hostname.</dd>
+<dd><code>port</code> - ClamAV port.</dd>
+<dd><code>timeoutSeconds</code> - Positive scan timeout in seconds.</dd>
 </dl>
 </section>
 </li>

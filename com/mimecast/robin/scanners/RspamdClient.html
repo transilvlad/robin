@@ -199,6 +199,12 @@ loadScripts(document, 'script');</script>
 <div class="col-last odd-row-color">
 <div class="block">Constructor with specific host and port.</div>
 </div>
+<div class="col-constructor-name even-row-color"><code><a href="#%3Cinit%3E(java.lang.String,int,int)" class="member-name-link">RspamdClient</a><wbr>(<a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a>&nbsp;host,
+ int&nbsp;port,
+ int&nbsp;timeoutSeconds)</code></div>
+<div class="col-last even-row-color">
+<div class="block">Creates a client with a bounded total scan timeout.</div>
+</div>
 </div>
 </section>
 </li>
@@ -566,6 +572,21 @@ loadScripts(document, 'script');</script>
 <dt>Parameters:</dt>
 <dd><code>host</code> - The Rspamd server host.</dd>
 <dd><code>port</code> - The Rspamd server port.</dd>
+</dl>
+</section>
+</li>
+<li>
+<section class="detail" id="&lt;init&gt;(java.lang.String,int,int)">
+<h3>RspamdClient</h3>
+<div class="member-signature"><span class="modifiers">public</span>&nbsp;<span class="element-name">RspamdClient</span><wbr><span class="parameters">(<a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a>&nbsp;host,
+ int&nbsp;port,
+ int&nbsp;timeoutSeconds)</span></div>
+<div class="block">Creates a client with a bounded total scan timeout.</div>
+<dl class="notes">
+<dt>Parameters:</dt>
+<dd><code>host</code> - Rspamd hostname.</dd>
+<dd><code>port</code> - Rspamd port.</dd>
+<dd><code>timeoutSeconds</code> - Positive scan timeout in seconds.</dd>
 </dl>
 </section>
 </li>

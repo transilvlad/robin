@@ -100,8 +100,8 @@ loadScripts(document, 'script');</script>
  <p>
  Pool lifecycle:
  <ul>
-   <li>borrow() - get an idle connection or create a new one (up to maxSize)</li>
-   <li>return() - reset the connection state (RSET) and return to idle queue</li>
+   <li>borrow() - get an idle connection (reset and checked with RSET) or create a new one (up to maxSize)</li>
+   <li>return() - return the connection to the idle queue</li>
    <li>invalidate() - close the connection without returning to pool</li>
  </ul></div>
 </section>
@@ -309,7 +309,7 @@ loadScripts(document, 'script');</script>
 <div class="col-first odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>protected boolean</code></div>
 <div class="col-second odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#resetConnection(com.mimecast.robin.storage.LmtpConnectionPool.PooledLmtpConnection)" class="member-name-link">resetConnection</a><wbr>(<a href="LmtpConnectionPool.PooledLmtpConnection.html" title="class in com.mimecast.robin.storage">LmtpConnectionPool.PooledLmtpConnection</a>&nbsp;pooled)</code></div>
 <div class="col-last odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">
-<div class="block">Sends RSET to reset the connection state.</div>
+<div class="block">Sends RSET to reset the connection state and confirm the server still answers.</div>
 </div>
 <div class="col-first even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>void</code></div>
 <div class="col-second even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#returnConnection(com.mimecast.robin.storage.LmtpConnectionPool.PooledLmtpConnection)" class="member-name-link">returnConnection</a><wbr>(<a href="LmtpConnectionPool.PooledLmtpConnection.html" title="class in com.mimecast.robin.storage">LmtpConnectionPool.PooledLmtpConnection</a>&nbsp;pooled)</code></div>
@@ -512,7 +512,7 @@ loadScripts(document, 'script');</script>
 <div class="member-signature"><span class="modifiers">public</span>&nbsp;<span class="return-type">void</span>&nbsp;<span class="element-name">returnConnection</span><wbr><span class="parameters">(<a href="LmtpConnectionPool.PooledLmtpConnection.html" title="class in com.mimecast.robin.storage">LmtpConnectionPool.PooledLmtpConnection</a>&nbsp;pooled)</span></div>
 <div class="block">Returns a connection to the pool after successful use.
  <p>
- Sends RSET to clear the session state and returns to idle queue.</div>
+ The connection is reset with RSET when it is next borrowed.</div>
 <dl class="notes">
 <dt>Parameters:</dt>
 <dd><code>pooled</code> - The connection to return.</dd>
@@ -536,7 +536,11 @@ loadScripts(document, 'script');</script>
 <section class="detail" id="tryGetIdleConnection()">
 <h3>tryGetIdleConnection</h3>
 <div class="member-signature"><span class="modifiers">private</span>&nbsp;<span class="return-type"><a href="LmtpConnectionPool.PooledLmtpConnection.html" title="class in com.mimecast.robin.storage">LmtpConnectionPool.PooledLmtpConnection</a></span>&nbsp;<span class="element-name">tryGetIdleConnection</span>()</div>
-<div class="block">Tries to get a valid idle connection from the queue.</div>
+<div class="block">Tries to get a valid idle connection from the queue.
+ <p>
+ Each candidate is reset with RSET before reuse, which also confirms the
+ server is still there; connections the server closed while they were idle
+ (for example after a restart) are discarded.</div>
 </section>
 </li>
 <li>
@@ -572,7 +576,11 @@ loadScripts(document, 'script');</script>
 <section class="detail" id="resetConnection(com.mimecast.robin.storage.LmtpConnectionPool.PooledLmtpConnection)">
 <h3>resetConnection</h3>
 <div class="member-signature"><span class="modifiers">protected</span>&nbsp;<span class="return-type">boolean</span>&nbsp;<span class="element-name">resetConnection</span><wbr><span class="parameters">(<a href="LmtpConnectionPool.PooledLmtpConnection.html" title="class in com.mimecast.robin.storage">LmtpConnectionPool.PooledLmtpConnection</a>&nbsp;pooled)</span></div>
-<div class="block">Sends RSET to reset the connection state.</div>
+<div class="block">Sends RSET to reset the connection state and confirm the server still answers.</div>
+<dl class="notes">
+<dt>Returns:</dt>
+<dd>True when the server replied 250.</dd>
+</dl>
 </section>
 </li>
 <li>

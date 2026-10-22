@@ -98,7 +98,8 @@ loadScripts(document, 'script');</script>
 <span class="extends-implements">extends <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Object.html" title="class or interface in java.lang" class="external-link">Object</a>
 implements <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/javax/net/ssl/X509TrustManager.html" title="class or interface in javax.net.ssl" class="external-link">X509TrustManager</a></span></div>
 <div class="block">Custom X509TrustManager implementation for production use.
- This trust manager validates server and client certificates against a configured trust store.
+ This trust manager validates certificates against a configured store, or the JVM's
+ CA roots when the configured path is empty.
  It ensures that only certificates issued by trusted Certificate Authorities (CAs) are accepted.</div>
 </section>
 <section class="summary">
@@ -133,6 +134,8 @@ implements <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base
 <div class="col-last even-row-color">
 <div class="block">Constructor that initializes the trust manager with a trust store.</div>
 </div>
+<div class="col-constructor-name odd-row-color"><code><a href="#%3Cinit%3E(com.mimecast.robin.config.server.ServerConfig)" class="member-name-link">TrustManager</a><wbr>(<a href="../config/server/ServerConfig.html" title="class in com.mimecast.robin.config.server">ServerConfig</a>&nbsp;config)</code></div>
+<div class="col-last odd-row-color">&nbsp;</div>
 </div>
 </section>
 </li>
@@ -210,6 +213,17 @@ implements <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base
 <dl class="notes">
 <dt>Throws:</dt>
 <dd><code><a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Exception.html" title="class or interface in java.lang" class="external-link">Exception</a></code> - If the trust store cannot be loaded or initialized.</dd>
+</dl>
+</section>
+</li>
+<li>
+<section class="detail" id="&lt;init&gt;(com.mimecast.robin.config.server.ServerConfig)">
+<h3>TrustManager</h3>
+<div class="member-signature"><span class="element-name">TrustManager</span><wbr><span class="parameters">(<a href="../config/server/ServerConfig.html" title="class in com.mimecast.robin.config.server">ServerConfig</a>&nbsp;config)</span>
+      throws <span class="exceptions"><a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Exception.html" title="class or interface in java.lang" class="external-link">Exception</a></span></div>
+<dl class="notes">
+<dt>Throws:</dt>
+<dd><code><a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Exception.html" title="class or interface in java.lang" class="external-link">Exception</a></code></dd>
 </dl>
 </section>
 </li>

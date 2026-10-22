@@ -132,13 +132,18 @@ loadScripts(document, 'script');</script>
 <div class="block">Dovecot authentication socket configuration.</div>
 </div>
 <div class="col-first odd-row-color"><code>static class&nbsp;</code></div>
-<div class="col-second odd-row-color"><code><a href="DovecotConfig.SaveLda.html" class="type-name-link" title="class in com.mimecast.robin.config">DovecotConfig.SaveLda</a></code></div>
+<div class="col-second odd-row-color"><code><a href="DovecotConfig.ProxyAuth.html" class="type-name-link" title="class in com.mimecast.robin.config">DovecotConfig.ProxyAuth</a></code></div>
 <div class="col-last odd-row-color">
-<div class="block">LDA backend configuration.</div>
+<div class="block">Mail proxy authentication configuration.</div>
 </div>
 <div class="col-first even-row-color"><code>static class&nbsp;</code></div>
-<div class="col-second even-row-color"><code><a href="DovecotConfig.SaveLmtp.html" class="type-name-link" title="class in com.mimecast.robin.config">DovecotConfig.SaveLmtp</a></code></div>
+<div class="col-second even-row-color"><code><a href="DovecotConfig.SaveLda.html" class="type-name-link" title="class in com.mimecast.robin.config">DovecotConfig.SaveLda</a></code></div>
 <div class="col-last even-row-color">
+<div class="block">LDA backend configuration.</div>
+</div>
+<div class="col-first odd-row-color"><code>static class&nbsp;</code></div>
+<div class="col-second odd-row-color"><code><a href="DovecotConfig.SaveLmtp.html" class="type-name-link" title="class in com.mimecast.robin.config">DovecotConfig.SaveLmtp</a></code></div>
+<div class="col-last odd-row-color">
 <div class="block">LMTP backend configuration.</div>
 </div>
 </div>
@@ -244,34 +249,39 @@ loadScripts(document, 'script');</script>
 <div class="col-last even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">
 <div class="block">Gets maximum retry count for outbound relay.</div>
 </div>
-<div class="col-first odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="DovecotConfig.SaveLda.html" title="class in com.mimecast.robin.config">DovecotConfig.SaveLda</a></code></div>
-<div class="col-second odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#getSaveLda()" class="member-name-link">getSaveLda</a>()</code></div>
+<div class="col-first odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="DovecotConfig.ProxyAuth.html" title="class in com.mimecast.robin.config">DovecotConfig.ProxyAuth</a></code></div>
+<div class="col-second odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#getProxyAuth()" class="member-name-link">getProxyAuth</a>()</code></div>
 <div class="col-last odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">
+<div class="block">Gets mail proxy authentication configuration.</div>
+</div>
+<div class="col-first even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="DovecotConfig.SaveLda.html" title="class in com.mimecast.robin.config">DovecotConfig.SaveLda</a></code></div>
+<div class="col-second even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#getSaveLda()" class="member-name-link">getSaveLda</a>()</code></div>
+<div class="col-last even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">
 <div class="block">Gets LDA backend configuration.</div>
 </div>
-<div class="col-first even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="DovecotConfig.SaveLmtp.html" title="class in com.mimecast.robin.config">DovecotConfig.SaveLmtp</a></code></div>
-<div class="col-second even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#getSaveLmtp()" class="member-name-link">getSaveLmtp</a>()</code></div>
-<div class="col-last even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">
+<div class="col-first odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="DovecotConfig.SaveLmtp.html" title="class in com.mimecast.robin.config">DovecotConfig.SaveLmtp</a></code></div>
+<div class="col-second odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#getSaveLmtp()" class="member-name-link">getSaveLmtp</a>()</code></div>
+<div class="col-last odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">
 <div class="block">Gets LMTP backend configuration.</div>
 </div>
-<div class="col-first odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>boolean</code></div>
-<div class="col-second odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#isAuth()" class="member-name-link">isAuth</a>()</code></div>
-<div class="col-last odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">
+<div class="col-first even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>boolean</code></div>
+<div class="col-second even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#isAuth()" class="member-name-link">isAuth</a>()</code></div>
+<div class="col-last even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">
 <div class="block">Checks if authentication is enabled.</div>
 </div>
-<div class="col-first even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>boolean</code></div>
-<div class="col-second even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#isAuthSocketEnabled()" class="member-name-link">isAuthSocketEnabled</a>()</code></div>
-<div class="col-last even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">
+<div class="col-first odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>boolean</code></div>
+<div class="col-second odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#isAuthSocketEnabled()" class="member-name-link">isAuthSocketEnabled</a>()</code></div>
+<div class="col-last odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">
 <div class="block">Checks if Dovecot socket authentication backend is enabled.</div>
 </div>
-<div class="col-first odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>boolean</code></div>
-<div class="col-second odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#isAuthSqlEnabled()" class="member-name-link">isAuthSqlEnabled</a>()</code></div>
-<div class="col-last odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">
+<div class="col-first even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>boolean</code></div>
+<div class="col-second even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#isAuthSqlEnabled()" class="member-name-link">isAuthSqlEnabled</a>()</code></div>
+<div class="col-last even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">
 <div class="block">Checks if Dovecot SQL authentication backend is enabled.</div>
 </div>
-<div class="col-first even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>boolean</code></div>
-<div class="col-second even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#isUserLookup()" class="member-name-link">isUserLookup</a>()</code></div>
-<div class="col-last even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">
+<div class="col-first odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>boolean</code></div>
+<div class="col-second odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#isUserLookup()" class="member-name-link">isUserLookup</a>()</code></div>
+<div class="col-last odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">
 <div class="block">Checks if inbound recipient user lookup is enabled.</div>
 </div>
 </div>
@@ -346,6 +356,17 @@ loadScripts(document, 'script');</script>
 <dl class="notes">
 <dt>Returns:</dt>
 <dd>AuthSocket instance with client and userdb socket paths.</dd>
+</dl>
+</section>
+</li>
+<li>
+<section class="detail" id="getProxyAuth()">
+<h3>getProxyAuth</h3>
+<div class="member-signature"><span class="modifiers">public</span>&nbsp;<span class="return-type"><a href="DovecotConfig.ProxyAuth.html" title="class in com.mimecast.robin.config">DovecotConfig.ProxyAuth</a></span>&nbsp;<span class="element-name">getProxyAuth</span>()</div>
+<div class="block">Gets mail proxy authentication configuration.</div>
+<dl class="notes">
+<dt>Returns:</dt>
+<dd>ProxyAuth instance (disabled when not configured).</dd>
 </dl>
 </section>
 </li>

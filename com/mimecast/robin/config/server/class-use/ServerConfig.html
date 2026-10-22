@@ -62,8 +62,12 @@ loadScripts(document, 'script');</script>
 <div class="col-last odd-row-color">
 <div class="block">Manages the storage of incoming emails for the server.</div>
 </div>
-<div class="col-first even-row-color"><a href="#com.mimecast.robin.util">com.mimecast.robin.util</a></div>
+<div class="col-first even-row-color"><a href="#com.mimecast.robin.trust">com.mimecast.robin.trust</a></div>
 <div class="col-last even-row-color">
+<div class="block">Everything related to digital trust, certificates, and their validation.</div>
+</div>
+<div class="col-first odd-row-color"><a href="#com.mimecast.robin.util">com.mimecast.robin.util</a></div>
+<div class="col-last odd-row-color">
 <div class="block">A collection of miscellaneous utility classes used throughout the Robin application.</div>
 </div>
 </div>
@@ -99,6 +103,12 @@ loadScripts(document, 'script');</script>
 <div class="table-header col-first">Modifier and Type</div>
 <div class="table-header col-second">Method</div>
 <div class="table-header col-last">Description</div>
+<div class="col-first even-row-color"><code>(package private) static void</code></div>
+<div class="col-second even-row-color"><span class="type-name-label">Server.</span><code><a href="../../../main/Server.html#initializeSqlAuthentication(com.mimecast.robin.config.server.ServerConfig)" class="member-name-link">initializeSqlAuthentication</a><wbr>(<a href="../ServerConfig.html" title="class in com.mimecast.robin.config.server">ServerConfig</a>&nbsp;config)</code></div>
+<div class="col-last even-row-color">&nbsp;</div>
+<div class="col-first odd-row-color"><code>(package private) static void</code></div>
+<div class="col-second odd-row-color"><span class="type-name-label">Server.</span><code><a href="../../../main/Server.html#loadKeystore(com.mimecast.robin.config.server.ServerConfig)" class="member-name-link">loadKeystore</a><wbr>(<a href="../ServerConfig.html" title="class in com.mimecast.robin.config.server">ServerConfig</a>&nbsp;serverConfig)</code></div>
+<div class="col-last odd-row-color">&nbsp;</div>
 <div class="col-first even-row-color"><code>private static <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a></code></div>
 <div class="col-second even-row-color"><span class="type-name-label">Server.</span><code><a href="../../../main/Server.html#readKeystorePassword(com.mimecast.robin.config.server.ServerConfig)" class="member-name-link">readKeystorePassword</a><wbr>(<a href="../ServerConfig.html" title="class in com.mimecast.robin.config.server">ServerConfig</a>&nbsp;serverConfig)</code></div>
 <div class="col-last even-row-color">
@@ -132,32 +142,52 @@ loadScripts(document, 'script');</script>
  <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/List.html" title="class or interface in java.util" class="external-link">List</a>&lt;<a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a>&gt;&nbsp;recipients,
  <a href="../ServerConfig.html" title="class in com.mimecast.robin.config.server">ServerConfig</a>&nbsp;config)</code></div>
 <div class="col-last even-row-color">&nbsp;</div>
-<div class="col-first odd-row-color"><code>protected void</code></div>
-<div class="col-second odd-row-color"><span class="type-name-label">DovecotStorageProcessor.</span><code><a href="../../../storage/DovecotStorageProcessor.html#processFailure(com.mimecast.robin.smtp.connection.Connection,com.mimecast.robin.config.server.ServerConfig,java.lang.String)" class="member-name-link">processFailure</a><wbr>(<a href="../../../smtp/connection/Connection.html" title="class in com.mimecast.robin.smtp.connection">Connection</a>&nbsp;connection,
- <a href="../ServerConfig.html" title="class in com.mimecast.robin.config.server">ServerConfig</a>&nbsp;config,
- <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a>&nbsp;mailbox)</code></div>
-<div class="col-last odd-row-color">
-<div class="block">Process delivery failure for a mailbox.</div>
-</div>
-<div class="col-first even-row-color"><code>protected void</code></div>
-<div class="col-second even-row-color"><span class="type-name-label">StalwartStorageProcessor.</span><code><a href="../../../storage/StalwartStorageProcessor.html#processFailure(com.mimecast.robin.smtp.connection.Connection,com.mimecast.robin.config.server.ServerConfig,java.lang.String)" class="member-name-link">processFailure</a><wbr>(<a href="../../../smtp/connection/Connection.html" title="class in com.mimecast.robin.smtp.connection">Connection</a>&nbsp;connection,
- <a href="../ServerConfig.html" title="class in com.mimecast.robin.config.server">ServerConfig</a>&nbsp;config,
- <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a>&nbsp;mailbox)</code></div>
-<div class="col-last even-row-color">&nbsp;</div>
-<div class="col-first odd-row-color"><code>protected void</code></div>
-<div class="col-second odd-row-color"><span class="type-name-label">DovecotStorageProcessor.</span><code><a href="../../../storage/DovecotStorageProcessor.html#saveToLda(com.mimecast.robin.smtp.connection.Connection,com.mimecast.robin.mime.EmailParser,com.mimecast.robin.config.server.ServerConfig)" class="member-name-link">saveToLda</a><wbr>(<a href="../../../smtp/connection/Connection.html" title="class in com.mimecast.robin.smtp.connection">Connection</a>&nbsp;connection,
- <a href="../../../mime/EmailParser.html" title="class in com.mimecast.robin.mime">EmailParser</a>&nbsp;emailParser,
+<div class="col-first odd-row-color"><code>private <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/List.html" title="class or interface in java.util" class="external-link">List</a><wbr>&lt;<a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a>&gt;</code></div>
+<div class="col-second odd-row-color"><span class="type-name-label">DovecotStorageProcessor.</span><code><a href="../../../storage/DovecotStorageProcessor.html#filterLocalRecipients(java.util.List,com.mimecast.robin.config.server.ServerConfig)" class="member-name-link">filterLocalRecipients</a><wbr>(<a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/List.html" title="class or interface in java.util" class="external-link">List</a>&lt;<a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a>&gt;&nbsp;recipients,
  <a href="../ServerConfig.html" title="class in com.mimecast.robin.config.server">ServerConfig</a>&nbsp;config)</code></div>
 <div class="col-last odd-row-color">
-<div class="block">Save email to LDA backend.</div>
+<div class="block">Filters recipients down to local mailbox users when SQL user lookup is available.</div>
 </div>
 <div class="col-first even-row-color"><code>protected void</code></div>
-<div class="col-second even-row-color"><span class="type-name-label">DovecotStorageProcessor.</span><code><a href="../../../storage/DovecotStorageProcessor.html#saveToLmtp(com.mimecast.robin.smtp.connection.Connection,com.mimecast.robin.mime.EmailParser,com.mimecast.robin.config.server.ServerConfig)" class="member-name-link">saveToLmtp</a><wbr>(<a href="../../../smtp/connection/Connection.html" title="class in com.mimecast.robin.smtp.connection">Connection</a>&nbsp;connection,
+<div class="col-second even-row-color"><span class="type-name-label">DovecotStorageProcessor.</span><code><a href="../../../storage/DovecotStorageProcessor.html#processFailure(com.mimecast.robin.smtp.connection.Connection,com.mimecast.robin.config.server.ServerConfig,java.lang.String)" class="member-name-link">processFailure</a><wbr>(<a href="../../../smtp/connection/Connection.html" title="class in com.mimecast.robin.smtp.connection">Connection</a>&nbsp;connection,
+ <a href="../ServerConfig.html" title="class in com.mimecast.robin.config.server">ServerConfig</a>&nbsp;config,
+ <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a>&nbsp;mailbox)</code></div>
+<div class="col-last even-row-color">
+<div class="block">Process delivery failure for a mailbox.</div>
+</div>
+<div class="col-first odd-row-color"><code>protected void</code></div>
+<div class="col-second odd-row-color"><span class="type-name-label">StalwartStorageProcessor.</span><code><a href="../../../storage/StalwartStorageProcessor.html#processFailure(com.mimecast.robin.smtp.connection.Connection,com.mimecast.robin.config.server.ServerConfig,java.lang.String)" class="member-name-link">processFailure</a><wbr>(<a href="../../../smtp/connection/Connection.html" title="class in com.mimecast.robin.smtp.connection">Connection</a>&nbsp;connection,
+ <a href="../ServerConfig.html" title="class in com.mimecast.robin.config.server">ServerConfig</a>&nbsp;config,
+ <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a>&nbsp;mailbox)</code></div>
+<div class="col-last odd-row-color">&nbsp;</div>
+<div class="col-first even-row-color"><code>protected void</code></div>
+<div class="col-second even-row-color"><span class="type-name-label">DovecotStorageProcessor.</span><code><a href="../../../storage/DovecotStorageProcessor.html#saveToLda(com.mimecast.robin.smtp.connection.Connection,com.mimecast.robin.mime.EmailParser,com.mimecast.robin.config.server.ServerConfig)" class="member-name-link">saveToLda</a><wbr>(<a href="../../../smtp/connection/Connection.html" title="class in com.mimecast.robin.smtp.connection">Connection</a>&nbsp;connection,
  <a href="../../../mime/EmailParser.html" title="class in com.mimecast.robin.mime">EmailParser</a>&nbsp;emailParser,
  <a href="../ServerConfig.html" title="class in com.mimecast.robin.config.server">ServerConfig</a>&nbsp;config)</code></div>
 <div class="col-last even-row-color">
+<div class="block">Save email to LDA backend.</div>
+</div>
+<div class="col-first odd-row-color"><code>protected void</code></div>
+<div class="col-second odd-row-color"><span class="type-name-label">DovecotStorageProcessor.</span><code><a href="../../../storage/DovecotStorageProcessor.html#saveToLmtp(com.mimecast.robin.smtp.connection.Connection,com.mimecast.robin.mime.EmailParser,com.mimecast.robin.config.server.ServerConfig)" class="member-name-link">saveToLmtp</a><wbr>(<a href="../../../smtp/connection/Connection.html" title="class in com.mimecast.robin.smtp.connection">Connection</a>&nbsp;connection,
+ <a href="../../../mime/EmailParser.html" title="class in com.mimecast.robin.mime">EmailParser</a>&nbsp;emailParser,
+ <a href="../ServerConfig.html" title="class in com.mimecast.robin.config.server">ServerConfig</a>&nbsp;config)</code></div>
+<div class="col-last odd-row-color">
 <div class="block">Save email to LMTP backend.</div>
 </div>
+</div>
+</section>
+</li>
+<li>
+<section class="detail" id="com.mimecast.robin.trust">
+<h2>Uses of <a href="../ServerConfig.html" title="class in com.mimecast.robin.config.server">ServerConfig</a> in <a href="../../../trust/package-summary.html">com.mimecast.robin.trust</a></h2>
+<div class="caption"><span>Constructors in <a href="../../../trust/package-summary.html">com.mimecast.robin.trust</a> with parameters of type <a href="../ServerConfig.html" title="class in com.mimecast.robin.config.server">ServerConfig</a></span></div>
+<div class="summary-table three-column-summary">
+<div class="table-header col-first">Modifier</div>
+<div class="table-header col-second">Constructor</div>
+<div class="table-header col-last">Description</div>
+<div class="col-first even-row-color"><code>(package private)</code></div>
+<div class="col-second even-row-color"><code><a href="../../../trust/TrustManager.html#%3Cinit%3E(com.mimecast.robin.config.server.ServerConfig)" class="member-name-link">TrustManager</a><wbr>(<a href="../ServerConfig.html" title="class in com.mimecast.robin.config.server">ServerConfig</a>&nbsp;config)</code></div>
+<div class="col-last even-row-color">&nbsp;</div>
 </div>
 </section>
 </li>

@@ -190,39 +190,44 @@ loadScripts(document, 'script');</script>
 <div class="col-first odd-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4"><code>static long</code></div>
 <div class="col-second odd-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4"><code><a href="#getTransactionFailureCount()" class="member-name-link">getTransactionFailureCount</a>()</code></div>
 <div class="col-last odd-row-color method-summary-table method-summary-table-tab1 method-summary-table-tab4">&nbsp;</div>
-<div class="col-first even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>protected void</code></div>
-<div class="col-second even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#invalidateConnection(com.mimecast.robin.storage.LmtpConnectionPool,com.mimecast.robin.storage.LmtpConnectionPool.PooledLmtpConnection)" class="member-name-link">invalidateConnection</a><wbr>(<a href="LmtpConnectionPool.html" title="class in com.mimecast.robin.storage">LmtpConnectionPool</a>&nbsp;pool,
+<div class="col-first even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>private boolean</code></div>
+<div class="col-second even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#hasUnansweredCommand(java.util.List)" class="member-name-link">hasUnansweredCommand</a><wbr>(<a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/List.html" title="class or interface in java.util" class="external-link">List</a>&lt;<a href="../smtp/transaction/EnvelopeTransactionList.html" title="class in com.mimecast.robin.smtp.transaction">EnvelopeTransactionList</a>&gt;&nbsp;envelopes)</code></div>
+<div class="col-last even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">
+<div class="block">An empty reply means the server closed the connection, so it must not be reused.</div>
+</div>
+<div class="col-first odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>protected void</code></div>
+<div class="col-second odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#invalidateConnection(com.mimecast.robin.storage.LmtpConnectionPool,com.mimecast.robin.storage.LmtpConnectionPool.PooledLmtpConnection)" class="member-name-link">invalidateConnection</a><wbr>(<a href="LmtpConnectionPool.html" title="class in com.mimecast.robin.storage">LmtpConnectionPool</a>&nbsp;pool,
  <a href="LmtpConnectionPool.PooledLmtpConnection.html" title="class in com.mimecast.robin.storage">LmtpConnectionPool.PooledLmtpConnection</a>&nbsp;pooled)</code></div>
-<div class="col-last even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">&nbsp;</div>
-<div class="col-first odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>private void</code></div>
-<div class="col-second odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#logAttemptFailure(long,long,com.mimecast.robin.storage.PooledLmtpDelivery.DeliveryAttemptResult)" class="member-name-link">logAttemptFailure</a><wbr>(long&nbsp;attempt,
+<div class="col-last odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">&nbsp;</div>
+<div class="col-first even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>private void</code></div>
+<div class="col-second even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#logAttemptFailure(long,long,com.mimecast.robin.storage.PooledLmtpDelivery.DeliveryAttemptResult)" class="member-name-link">logAttemptFailure</a><wbr>(long&nbsp;attempt,
  long&nbsp;maxAttempts,
  <a href="PooledLmtpDelivery.DeliveryAttemptResult.html" title="class in com.mimecast.robin.storage">PooledLmtpDelivery.DeliveryAttemptResult</a>&nbsp;result)</code></div>
-<div class="col-last odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">&nbsp;</div>
-<div class="col-first even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>private void</code></div>
-<div class="col-second even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#prepareEnvelope(com.mimecast.robin.smtp.session.Session,com.mimecast.robin.smtp.MessageEnvelope)" class="member-name-link">prepareEnvelope</a><wbr>(<a href="../smtp/session/Session.html" title="class in com.mimecast.robin.smtp.session">Session</a>&nbsp;pooledSession,
+<div class="col-last even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">&nbsp;</div>
+<div class="col-first odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>private void</code></div>
+<div class="col-second odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#prepareEnvelope(com.mimecast.robin.smtp.session.Session,com.mimecast.robin.smtp.MessageEnvelope)" class="member-name-link">prepareEnvelope</a><wbr>(<a href="../smtp/session/Session.html" title="class in com.mimecast.robin.smtp.session">Session</a>&nbsp;pooledSession,
  <a href="../smtp/MessageEnvelope.html" title="class in com.mimecast.robin.smtp">MessageEnvelope</a>&nbsp;envelope)</code></div>
-<div class="col-last even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">&nbsp;</div>
-<div class="col-first odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>protected void</code></div>
-<div class="col-second odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#processEnvelope(com.mimecast.robin.smtp.connection.Connection)" class="member-name-link">processEnvelope</a><wbr>(<a href="../smtp/connection/Connection.html" title="class in com.mimecast.robin.smtp.connection">Connection</a>&nbsp;connection)</code></div>
 <div class="col-last odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">&nbsp;</div>
 <div class="col-first even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>protected void</code></div>
-<div class="col-second even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#resetEnvelopeState(com.mimecast.robin.smtp.connection.Connection)" class="member-name-link">resetEnvelopeState</a><wbr>(<a href="../smtp/connection/Connection.html" title="class in com.mimecast.robin.smtp.connection">Connection</a>&nbsp;connection)</code></div>
+<div class="col-second even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#processEnvelope(com.mimecast.robin.smtp.connection.Connection)" class="member-name-link">processEnvelope</a><wbr>(<a href="../smtp/connection/Connection.html" title="class in com.mimecast.robin.smtp.connection">Connection</a>&nbsp;connection)</code></div>
 <div class="col-last even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">&nbsp;</div>
 <div class="col-first odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>protected void</code></div>
-<div class="col-second odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#returnConnection(com.mimecast.robin.storage.LmtpConnectionPool,com.mimecast.robin.storage.LmtpConnectionPool.PooledLmtpConnection)" class="member-name-link">returnConnection</a><wbr>(<a href="LmtpConnectionPool.html" title="class in com.mimecast.robin.storage">LmtpConnectionPool</a>&nbsp;pool,
+<div class="col-second odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#resetEnvelopeState(com.mimecast.robin.smtp.connection.Connection)" class="member-name-link">resetEnvelopeState</a><wbr>(<a href="../smtp/connection/Connection.html" title="class in com.mimecast.robin.smtp.connection">Connection</a>&nbsp;connection)</code></div>
+<div class="col-last odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">&nbsp;</div>
+<div class="col-first even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>protected void</code></div>
+<div class="col-second even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#returnConnection(com.mimecast.robin.storage.LmtpConnectionPool,com.mimecast.robin.storage.LmtpConnectionPool.PooledLmtpConnection)" class="member-name-link">returnConnection</a><wbr>(<a href="LmtpConnectionPool.html" title="class in com.mimecast.robin.storage">LmtpConnectionPool</a>&nbsp;pool,
  <a href="LmtpConnectionPool.PooledLmtpConnection.html" title="class in com.mimecast.robin.storage">LmtpConnectionPool.PooledLmtpConnection</a>&nbsp;pooled)</code></div>
-<div class="col-last odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">&nbsp;</div>
-<div class="col-first even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>protected void</code></div>
-<div class="col-second even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#sleepBeforeRetry(int)" class="member-name-link">sleepBeforeRetry</a><wbr>(int&nbsp;retryDelaySeconds)</code></div>
 <div class="col-last even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">&nbsp;</div>
-<div class="col-first odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>private <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a></code></div>
-<div class="col-second odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#summarizeTransactionFailures(java.util.List)" class="member-name-link">summarizeTransactionFailures</a><wbr>(<a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/List.html" title="class or interface in java.util" class="external-link">List</a>&lt;<a href="../smtp/transaction/EnvelopeTransactionList.html" title="class in com.mimecast.robin.smtp.transaction">EnvelopeTransactionList</a>&gt;&nbsp;envelopes)</code></div>
+<div class="col-first odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>protected void</code></div>
+<div class="col-second odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#sleepBeforeRetry(int)" class="member-name-link">sleepBeforeRetry</a><wbr>(int&nbsp;retryDelaySeconds)</code></div>
 <div class="col-last odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">&nbsp;</div>
-<div class="col-first even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>private void</code></div>
-<div class="col-second even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#syncSessionMetadata(com.mimecast.robin.smtp.session.Session,com.mimecast.robin.smtp.session.Session)" class="member-name-link">syncSessionMetadata</a><wbr>(<a href="../smtp/session/Session.html" title="class in com.mimecast.robin.smtp.session">Session</a>&nbsp;sourceSession,
+<div class="col-first even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>private <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a></code></div>
+<div class="col-second even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#summarizeTransactionFailures(java.util.List)" class="member-name-link">summarizeTransactionFailures</a><wbr>(<a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/List.html" title="class or interface in java.util" class="external-link">List</a>&lt;<a href="../smtp/transaction/EnvelopeTransactionList.html" title="class in com.mimecast.robin.smtp.transaction">EnvelopeTransactionList</a>&gt;&nbsp;envelopes)</code></div>
+<div class="col-last even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">&nbsp;</div>
+<div class="col-first odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code>private void</code></div>
+<div class="col-second odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#syncSessionMetadata(com.mimecast.robin.smtp.session.Session,com.mimecast.robin.smtp.session.Session)" class="member-name-link">syncSessionMetadata</a><wbr>(<a href="../smtp/session/Session.html" title="class in com.mimecast.robin.smtp.session">Session</a>&nbsp;sourceSession,
  <a href="../smtp/session/Session.html" title="class in com.mimecast.robin.smtp.session">Session</a>&nbsp;pooledSession)</code></div>
-<div class="col-last even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">&nbsp;</div>
+<div class="col-last odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">&nbsp;</div>
 </div>
 </div>
 </div>
@@ -407,6 +412,13 @@ loadScripts(document, 'script');</script>
 <h3>copyLatestEnvelopeTransactions</h3>
 <div class="member-signature"><span class="modifiers">private</span>&nbsp;<span class="return-type">void</span>&nbsp;<span class="element-name">copyLatestEnvelopeTransactions</span><wbr><span class="parameters">(<a href="../smtp/session/Session.html" title="class in com.mimecast.robin.smtp.session">Session</a>&nbsp;sourceSession,
  <a href="../smtp/session/Session.html" title="class in com.mimecast.robin.smtp.session">Session</a>&nbsp;pooledSession)</span></div>
+</section>
+</li>
+<li>
+<section class="detail" id="hasUnansweredCommand(java.util.List)">
+<h3>hasUnansweredCommand</h3>
+<div class="member-signature"><span class="modifiers">private</span>&nbsp;<span class="return-type">boolean</span>&nbsp;<span class="element-name">hasUnansweredCommand</span><wbr><span class="parameters">(<a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/List.html" title="class or interface in java.util" class="external-link">List</a>&lt;<a href="../smtp/transaction/EnvelopeTransactionList.html" title="class in com.mimecast.robin.smtp.transaction">EnvelopeTransactionList</a>&gt;&nbsp;envelopes)</span></div>
+<div class="block">An empty reply means the server closed the connection, so it must not be reused.</div>
 </section>
 </li>
 <li>

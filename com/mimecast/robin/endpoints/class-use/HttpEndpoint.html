@@ -97,17 +97,20 @@ loadScripts(document, 'script');</script>
 <div class="col-second odd-row-color"><span class="type-name-label">ClientSendHandler.</span><code><a href="../ClientSendHandler.html#endpoint" class="member-name-link">endpoint</a></code></div>
 <div class="col-last odd-row-color">&nbsp;</div>
 <div class="col-first even-row-color"><code>private final <a href="../HttpEndpoint.html" title="class in com.mimecast.robin.endpoints">HttpEndpoint</a></code></div>
-<div class="col-second even-row-color"><span class="type-name-label">QueueOperationsHandler.</span><code><a href="../QueueOperationsHandler.html#endpoint" class="member-name-link">endpoint</a></code></div>
+<div class="col-second even-row-color"><span class="type-name-label">MailProxyAuthHandler.</span><code><a href="../MailProxyAuthHandler.html#endpoint" class="member-name-link">endpoint</a></code></div>
 <div class="col-last even-row-color">&nbsp;</div>
 <div class="col-first odd-row-color"><code>private final <a href="../HttpEndpoint.html" title="class in com.mimecast.robin.endpoints">HttpEndpoint</a></code></div>
-<div class="col-second odd-row-color"><span class="type-name-label">StoreHandler.</span><code><a href="../StoreHandler.html#endpoint" class="member-name-link">endpoint</a></code></div>
+<div class="col-second odd-row-color"><span class="type-name-label">QueueOperationsHandler.</span><code><a href="../QueueOperationsHandler.html#endpoint" class="member-name-link">endpoint</a></code></div>
 <div class="col-last odd-row-color">&nbsp;</div>
 <div class="col-first even-row-color"><code>private final <a href="../HttpEndpoint.html" title="class in com.mimecast.robin.endpoints">HttpEndpoint</a></code></div>
-<div class="col-second even-row-color"><span class="type-name-label">StoreRocksDbHandler.</span><code><a href="../StoreRocksDbHandler.html#endpoint" class="member-name-link">endpoint</a></code></div>
+<div class="col-second even-row-color"><span class="type-name-label">StoreHandler.</span><code><a href="../StoreHandler.html#endpoint" class="member-name-link">endpoint</a></code></div>
 <div class="col-last even-row-color">&nbsp;</div>
 <div class="col-first odd-row-color"><code>private final <a href="../HttpEndpoint.html" title="class in com.mimecast.robin.endpoints">HttpEndpoint</a></code></div>
-<div class="col-second odd-row-color"><span class="type-name-label">UsersHandler.</span><code><a href="../UsersHandler.html#endpoint" class="member-name-link">endpoint</a></code></div>
+<div class="col-second odd-row-color"><span class="type-name-label">StoreRocksDbHandler.</span><code><a href="../StoreRocksDbHandler.html#endpoint" class="member-name-link">endpoint</a></code></div>
 <div class="col-last odd-row-color">&nbsp;</div>
+<div class="col-first even-row-color"><code>private final <a href="../HttpEndpoint.html" title="class in com.mimecast.robin.endpoints">HttpEndpoint</a></code></div>
+<div class="col-second even-row-color"><span class="type-name-label">UsersHandler.</span><code><a href="../UsersHandler.html#endpoint" class="member-name-link">endpoint</a></code></div>
+<div class="col-last even-row-color">&nbsp;</div>
 </div>
 <div class="caption"><span>Methods in <a href="../package-summary.html">com.mimecast.robin.endpoints</a> that return <a href="../HttpEndpoint.html" title="class in com.mimecast.robin.endpoints">HttpEndpoint</a></span></div>
 <div class="summary-table three-column-summary">
@@ -136,6 +139,20 @@ loadScripts(document, 'script');</script>
  <a href="../HttpAuth.html" title="class in com.mimecast.robin.endpoints">HttpAuth</a>&nbsp;auth)</code></div>
 <div class="col-last odd-row-color">
 <div class="block">Constructs a new ClientSendHandler.</div>
+</div>
+<div class="col-first even-row-color"><code>&nbsp;</code></div>
+<div class="col-second even-row-color"><code><a href="../MailProxyAuthHandler.html#%3Cinit%3E(com.mimecast.robin.endpoints.HttpEndpoint,com.mimecast.robin.endpoints.HttpAuth)" class="member-name-link">MailProxyAuthHandler</a><wbr>(<a href="../HttpEndpoint.html" title="class in com.mimecast.robin.endpoints">HttpEndpoint</a>&nbsp;endpoint,
+ <a href="../HttpAuth.html" title="class in com.mimecast.robin.endpoints">HttpAuth</a>&nbsp;auth)</code></div>
+<div class="col-last even-row-color">
+<div class="block">Constructs a new MailProxyAuthHandler backed by the shared SQL authentication manager.</div>
+</div>
+<div class="col-first odd-row-color"><code>&nbsp;</code></div>
+<div class="col-second odd-row-color"><code><a href="../MailProxyAuthHandler.html#%3Cinit%3E(com.mimecast.robin.endpoints.HttpEndpoint,com.mimecast.robin.endpoints.HttpAuth,java.util.function.Supplier,java.util.function.Supplier)" class="member-name-link">MailProxyAuthHandler</a><wbr>(<a href="../HttpEndpoint.html" title="class in com.mimecast.robin.endpoints">HttpEndpoint</a>&nbsp;endpoint,
+ <a href="../HttpAuth.html" title="class in com.mimecast.robin.endpoints">HttpAuth</a>&nbsp;auth,
+ <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/function/Supplier.html" title="class or interface in java.util.function" class="external-link">Supplier</a>&lt;<a href="../../config/DovecotConfig.ProxyAuth.html" title="class in com.mimecast.robin.config">DovecotConfig.ProxyAuth</a>&gt;&nbsp;configSupplier,
+ <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/function/Supplier.html" title="class or interface in java.util.function" class="external-link">Supplier</a>&lt;<a href="../MailProxyAuthHandler.Directory.html" title="interface in com.mimecast.robin.endpoints">MailProxyAuthHandler.Directory</a>&gt;&nbsp;directorySupplier)</code></div>
+<div class="col-last odd-row-color">
+<div class="block">Constructs a new MailProxyAuthHandler with explicit configuration and directory suppliers.</div>
 </div>
 <div class="col-first even-row-color"><code>&nbsp;</code></div>
 <div class="col-second even-row-color"><code><a href="../QueueOperationsHandler.html#%3Cinit%3E(com.mimecast.robin.endpoints.HttpEndpoint,com.mimecast.robin.endpoints.HttpAuth)" class="member-name-link">QueueOperationsHandler</a><wbr>(<a href="../HttpEndpoint.html" title="class in com.mimecast.robin.endpoints">HttpEndpoint</a>&nbsp;endpoint,
