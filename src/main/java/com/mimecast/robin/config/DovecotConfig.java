@@ -60,6 +60,20 @@ public class DovecotConfig extends BasicConfig {
     }
 
     /**
+     * Gets mail proxy authentication configuration.
+     *
+     * @return ProxyAuth instance (disabled when not configured).
+     */
+    public ProxyAuth getProxyAuth() {
+        if (map.containsKey("proxyAuth") && map.get("proxyAuth") instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> safeMap = (Map<String, Object>) map.get("proxyAuth");
+            return new ProxyAuth(safeMap);
+        }
+        return new ProxyAuth(Map.of());
+    }
+
+    /**
      * Gets SQL authentication configuration properties.
      */
     public String getAuthSqlJdbcUrl() { return getStringProperty("authSql.jdbcUrl", ""); }
@@ -453,5 +467,59 @@ public class DovecotConfig extends BasicConfig {
          * @return Timeout in seconds (default: 30).
          */
         public long getLdaTimeoutSeconds() { return ldaTimeoutSeconds; }
+    }
+
+    /**
+     * Mail proxy authentication configuration.
+     * <p>
+     * Backs the API endpoint used by an nginx mail proxy (auth_http) in front of an IMAP/POP3 server
+     * that does not resolve aliases itself. Each backend is a host:port pair. Hosts are resolved to an
+     * IP address per request because nginx only accepts IP addresses in its Auth-Server header.
+     */
+    public static class ProxyAuth {
+        private final boolean enabled;
+        private final String imap;
+        private final String pop3;
+        private final long failureWait;
+
+        /**
+         * Constructs ProxyAuth from configuration map.
+         *
+         * @param map Configuration map containing proxy authentication settings.
+         */
+        public ProxyAuth(Map<String, Object> map) {
+            this.enabled = Boolean.TRUE.equals(map.getOrDefault("enabled", false));
+            this.imap = String.valueOf(map.getOrDefault("imap", ""));
+            this.pop3 = String.valueOf(map.getOrDefault("pop3", ""));
+            this.failureWait = ((Number) map.getOrDefault("failureWait", 3L)).longValue();
+        }
+
+        /**
+         * Gets enablement status of the proxy authentication endpoint.
+         *
+         * @return True if enabled, false otherwise.
+         */
+        public boolean isEnabled() { return enabled; }
+
+        /**
+         * Gets the IMAP backend as host:port.
+         *
+         * @return IMAP backend (empty when not configured).
+         */
+        public String getImap() { return imap; }
+
+        /**
+         * Gets the POP3 backend as host:port.
+         *
+         * @return POP3 backend (empty when not configured).
+         */
+        public String getPop3() { return pop3; }
+
+        /**
+         * Gets seconds the proxy waits before answering a failed login.
+         *
+         * @return Wait in seconds (default: 3).
+         */
+        public long getFailureWait() { return failureWait; }
     }
 }

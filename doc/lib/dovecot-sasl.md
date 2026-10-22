@@ -196,6 +196,46 @@ Configuration example (`cfg/dovecot.json5`):
 Before delivery, aliases are resolved again so the email is delivered to the correct mailbox.
 This ensures that even if the RCPT TO accepted the alias address, delivery uses the real mailbox.
 
+When SQL user lookup is enabled, LMTP delivery is limited to recipients that resolve to a local
+mailbox user. External recipients of outbound messages are relayed and never offered to the
+mailbox server, so servers that create mailboxes on first delivery only create them for real users.
+If the lookup itself fails the recipient is kept and the mailbox server decides.
+
+### Mail Proxy Authentication
+
+Mailbox servers that cannot resolve aliases themselves (for example Cyrus IMAP) can be fronted by an
+nginx mail proxy that asks Robin to authenticate each IMAP/POP3 login over `auth_http`. Robin resolves the
+login the same way the bundled Dovecot passdb does: an exact user first, then an alias or auto alias whose
+destination is an existing user. The password is checked against that user and nginx is told to log in to
+the backend as the canonical address, so every address lands in the same mailbox.
+
+Enable it in cfg/dovecot.json5:
+```json5
+{
+  proxyAuth: {
+    enabled: true,
+    imap: "imap-store:143",
+    pop3: ""
+  }
+}
+```
+
+nginx side:
+```nginx
+mail {
+    auth_http http://robin:8090/mail/proxy-auth;
+    proxy_pass_error_message on;
+
+    server {
+        listen 993 ssl;
+        protocol imap;
+        # ssl_certificate / ssl_certificate_key ...
+    }
+}
+```
+
+See [Endpoints](../features/endpoints.md) for the request and response headers, and
+[Suite mailbox backends](../developer/suite-mailbox-backends.md) for the bundled Cyrus IMAP setup.
 Java usage examples
 -------------------
 

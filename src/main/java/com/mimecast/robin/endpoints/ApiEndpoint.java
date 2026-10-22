@@ -1,6 +1,7 @@
 package com.mimecast.robin.endpoints;
 
 import com.mimecast.robin.config.server.EndpointConfig;
+import com.mimecast.robin.main.Config;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.apache.logging.log4j.LogManager;
@@ -53,6 +54,7 @@ public class ApiEndpoint extends HttpEndpoint {
         ClientQueueHandler clientQueueHandler = new ClientQueueHandler(this, auth);
         QueueOperationsHandler queueHandler = new QueueOperationsHandler(this, auth);
         UsersHandler usersHandler = new UsersHandler(this, auth);
+        MailProxyAuthHandler mailProxyAuthHandler = new MailProxyAuthHandler(this, auth);
         StoreHandler storeHandler = new StoreHandler(this, auth, storagePathOverride);
         StoreRocksDbHandler storeRocksDbHandler = new StoreRocksDbHandler(this, auth);
 
@@ -88,6 +90,9 @@ public class ApiEndpoint extends HttpEndpoint {
         // User integration endpoints.
         this.server.createContext("/users", usersHandler::handle);
 
+        // Mail proxy authentication endpoint (nginx auth_http).
+        this.server.createContext("/mail/proxy-auth", mailProxyAuthHandler::handle);
+
         // Storage browser endpoint.
         this.server.createContext("/store", storeHandler::handle);
 
@@ -108,6 +113,9 @@ public class ApiEndpoint extends HttpEndpoint {
         log.info("Queue bounce available at http://localhost:{}/client/queue/bounce", apiPort);
         log.info("Logs available at http://localhost:{}/logs", apiPort);
         log.info("Users available at http://localhost:{}/users", apiPort);
+        if (Config.getServer().getDovecot().getProxyAuth().isEnabled()) {
+            log.info("Mail proxy auth available at http://localhost:{}/mail/proxy-auth", apiPort);
+        }
         log.info("Store available at http://localhost:{}/store/", apiPort);
         log.info("RocksDB store available at http://localhost:{}/store-rocksdb/", apiPort);
         log.info("Health available at http://localhost:{}/health", apiPort);

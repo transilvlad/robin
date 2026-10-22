@@ -168,4 +168,22 @@ class DovecotStorageProcessorTest {
         session.addEnvelope(envelope);
         return new Connection(session);
     }
+
+    @Test
+    void filterLocalRecipientsKeepsOnlyLocalUsers() {
+        List<String> filtered = DovecotStorageProcessor.filterLocalRecipients(
+                List.of("tony@example.com", "external@example.org", "pepper@example.com"),
+                recipient -> recipient.endsWith("@example.com"));
+        assertEquals(List.of("tony@example.com", "pepper@example.com"), filtered);
+    }
+
+    @Test
+    void filterLocalRecipientsKeepsRecipientsWhenLookupFails() {
+        List<String> filtered = DovecotStorageProcessor.filterLocalRecipients(
+                List.of("tony@example.com", "external@example.org"),
+                recipient -> {
+                    throw new IllegalStateException("SQL user lookup unavailable");
+                });
+        assertEquals(List.of("tony@example.com", "external@example.org"), filtered);
+    }
 }

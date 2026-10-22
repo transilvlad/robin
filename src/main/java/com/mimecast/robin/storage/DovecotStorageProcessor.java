@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 /**
  * DovecotStorageProcessor delivers emails to user mailboxes using either LDA or LMTP backends.
@@ -109,6 +110,13 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
 
         // Resolve aliases before delivery so emails go to the correct mailbox.
         nonBotRecipients = resolveAliases(nonBotRecipients);
+
+        // Only local mailbox users can be delivered over LMTP; external recipients are relayed instead.
+        nonBotRecipients = filterLocalRecipients(nonBotRecipients, config);
+        if (nonBotRecipients.isEmpty()) {
+            log.debug("No local mailbox recipients, skipping LMTP processing.");
+            return;
+        }
 
         log.info("Invoking LMTP delivery for sender={} recipients={} outbound={}",
                 envelope.getMail(),
@@ -349,6 +357,54 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
             }
         }
         return resolved;
+    }
+
+    /**
+     * Filters recipients down to local mailbox users when SQL user lookup is available.
+     * <p>
+     * Outbound messages may carry external recipients which the mailbox server does not host.
+     * Delivering those over LMTP only produces rejections and retries, and mailbox servers that
+     * create mailboxes on delivery would create them for external addresses. Recipients are kept
+     * when lookup is disabled or unavailable so delivery behaviour is unchanged in those setups.
+     *
+     * @param recipients Alias-resolved recipient addresses.
+     * @param config     Server configuration.
+     * @return Recipients that are local mailbox users.
+     */
+    private List<String> filterLocalRecipients(List<String> recipients, ServerConfig config) {
+        SqlUserLookup lookup = SqlAuthManager.getUserLookup();
+        if (lookup == null || !config.getDovecot().isUserLookup()) {
+            return recipients;
+        }
+        return filterLocalRecipients(recipients, recipient -> lookup.lookup(recipient).isPresent());
+    }
+
+    /**
+     * Filters recipients with the given local user predicate.
+     * <p>
+     * A recipient is kept if the predicate fails so lookup outages do not drop mail.
+     *
+     * @param recipients  Recipient addresses.
+     * @param isLocalUser Predicate returning true for local mailbox users.
+     * @return Recipients that are local mailbox users.
+     */
+    static List<String> filterLocalRecipients(List<String> recipients, Predicate<String> isLocalUser) {
+        List<String> local = new ArrayList<>();
+        for (String recipient : recipients) {
+            boolean keep;
+            try {
+                keep = isLocalUser.test(recipient);
+            } catch (RuntimeException e) {
+                log.warn("Local user lookup failed for {}, delivering anyway: {}", recipient, e.getMessage());
+                keep = true;
+            }
+            if (keep) {
+                local.add(recipient);
+            } else {
+                log.debug("Skipping LMTP storage for non-local recipient: {}", recipient);
+            }
+        }
+        return local;
     }
 
     /**

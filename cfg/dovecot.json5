@@ -124,5 +124,23 @@
   failureBehaviour: "retry",
 
   // Maximum retry count (default: 10).
-  maxRetryCount: 10
+  maxRetryCount: 10,
+
+  // Mail proxy authentication endpoint (GET /mail/proxy-auth on the API port).
+  // Lets an nginx mail proxy (auth_http) front an IMAP/POP3 server that does not resolve aliases,
+  // such as Cyrus IMAP. Logins resolve like the bundled Dovecot passdb (user, alias, auto alias)
+  // and the proxy logs in to the backend as the canonical user. Requires authSql.
+  proxyAuth: {
+    // Enable the endpoint (default: false).
+    enabled: false,
+
+    // IMAP backend as host:port. Hosts are resolved to an IP address on each request.
+    imap: "localhost:143",
+
+    // POP3 backend as host:port (leave empty to refuse POP3 logins).
+    pop3: "",
+
+    // Seconds the proxy waits before answering a failed login (default: 3).
+    failureWait: 3
+  }
 }

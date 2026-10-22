@@ -467,6 +467,13 @@ Endpoints
   - Response: `application/json; charset=utf-8`
   - Returns backend source, username, and boolean `authenticated`
 
+- **`GET /mail/proxy-auth`** — nginx mail proxy `auth_http` endpoint.
+  - Disabled unless `proxyAuth.enabled` is set in `dovecot.json5`; requires the SQL authentication backend.
+  - Request headers: `Auth-Method` (`plain` or `login`), `Auth-User`, `Auth-Pass`, `Auth-Protocol` (`imap` or `pop3`), `Client-IP`
+  - Logins resolve to a canonical user (exact user, then alias or auto alias pointing at an existing user)
+  - Success: `Auth-Status: OK`, `Auth-Server` (backend IP), `Auth-Port`, `Auth-User` (canonical user)
+  - Failure: `Auth-Status` with a reason and `Auth-Wait` (seconds); database outages report a temporary problem
+
 - **`GET /store[/path]`** — Browse local message storage directory.
   - Path parameter: relative path within the configured storage directory
   - Response content varies based on the requested path:
