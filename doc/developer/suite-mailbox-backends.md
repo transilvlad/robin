@@ -55,6 +55,9 @@ Robin MTA ─────────────LMTP 24────────
 - **Delivery.** Robin resolves aliases before delivery and sends only local
   recipients over LMTP. Cyrus creates the mailbox with its default folders and
   quota on first delivery.
+- **Monitoring.** `promstatsd` writes usage statistics in Prometheus format
+  to `/var/lib/cyrus/config/stats/report.txt`. Robin Admin's suite agent reads
+  them, together with active sessions and quotas, for the Cyrus fleet service.
 - **Administration.** Cyrus has a `cyrus` admin account whose password is the
   `secrets/cyrus_admin_password` file created by `init-secrets.sh`. It is only
   used inside the suite network, for example by Robin Admin and migrations.
