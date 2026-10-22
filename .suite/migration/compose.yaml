@@ -1,0 +1,59 @@
+# Mailbox migration from the Dovecot backend to Cyrus IMAP.
+# Runs a private Dovecot instance over the existing store/dovecot data with a
+# temporary master user, and imapsync to copy every mailbox into suite-cyrus.
+# Use migrate-mailboxes.sh rather than running this file directly; see the
+# mailbox backends guide for the full procedure.
+name: suite-migration
+
+services:
+  migration-dovecot:
+    image: ${DOVECOT_IMAGE:-dovecot/dovecot:latest}
+    container_name: suite-migration-dovecot
+    user: "0:0"
+    cap_add:
+      - CHOWN
+    command: ["sh", "/migration/dovecot-source.sh"]
+    volumes:
+      - ../dovecot-entrypoint.sh:/usr/local/bin/suite-dovecot-entrypoint.sh:ro
+      - ./dovecot-source.sh:/migration/dovecot-source.sh:ro
+      - ./dovecot-migration.conf:/etc/dovecot-migration/dovecot.conf:ro
+      - ../etc/dovecot:/etc/dovecot:ro
+      - ../../store/dovecot:/var/mail/vhosts
+    tmpfs:
+      - /run/migration
+      - /var/log
+    secrets:
+      - mailbox_db_password
+      - migration_master_password
+    networks:
+      - suite
+    healthcheck:
+      test: ["CMD", "doveadm", "-c", "/etc/dovecot-migration/dovecot.conf", "who"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  imapsync:
+    image: ${IMAPSYNC_IMAGE:-gilleslamiral/imapsync:latest}
+    entrypoint: ["imapsync"]
+    depends_on:
+      migration-dovecot:
+        condition: service_healthy
+    secrets:
+      - migration_master_password
+      - cyrus_admin_password
+    networks:
+      - suite
+
+networks:
+  suite:
+    name: suite
+    external: true
+
+secrets:
+  mailbox_db_password:
+    file: ../secrets/mailbox_db_password
+  cyrus_admin_password:
+    file: ../secrets/cyrus_admin_password
+  migration_master_password:
+    file: ../secrets/migration_master_password
