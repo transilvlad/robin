@@ -6,12 +6,16 @@ robin_suite_mail_hostname: mail.example.com
 robin_suite_tls_dir: /etc/robin/mail-tls
 robin_suite_admin_url: https://admin.example.com
 robin_suite_admin_version: "1.0.0"
+# Mailbox backend: dovecot or cyrus. Cyrus also needs the nginx image for its
+# IMAP proxy; the Cyrus image itself is built locally from the release.
+robin_suite_mailbox_backend: dovecot
 robin_suite_images:
   postgres: ""
   redis: ""
   clamav: ""
   rspamd: ""
   dovecot: ""
+  nginx: ""
   roundcube: ""
 # The playbook neither configures the firewall nor requests certificates.
 # Confirm these are managed before allowing public mail listeners.

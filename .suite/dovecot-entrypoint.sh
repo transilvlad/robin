@@ -8,4 +8,4 @@ if [ "${#MAILBOX_DB_PASSWORD}" -lt 32 ]; then
     exit 1
 fi
 export MAILBOX_DB_PASSWORD
-exec /dovecot/sbin/dovecot -F
+exec /dovecot/sbin/dovecot -F "$@"

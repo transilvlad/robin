@@ -29,7 +29,8 @@ ansible-playbook -i inventory.ini site.yml --ask-vault-pass --ask-become-pass
 ```
 
 `robin_suite_network_ready` is an explicit operator prerequisite acknowledgment,
-not a firewall check. Pin PostgreSQL 18 and Dovecot 2.4-compatible images. The
+not a firewall check. Pin PostgreSQL 18 and Dovecot 2.4-compatible images, or an
+nginx image when `robin_suite_mailbox_backend` is `cyrus`. The
 playbook validates digest syntax, not compatibility or supply-chain provenance.
 It generates file-backed credentials only if absent, writes `.env` mode 0600
 without overwriting it, and never forces Git resets.

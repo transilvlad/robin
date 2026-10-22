@@ -4,7 +4,7 @@ umask 077
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mkdir -p "$SCRIPT_DIR/secrets"
-for name in postgres_password mta_db_password mailbox_db_password roundcube_db_password roundcube_des_key; do
+for name in postgres_password mta_db_password mailbox_db_password cyrus_admin_password roundcube_db_password roundcube_des_key; do
     file="$SCRIPT_DIR/secrets/$name"
     if [ ! -e "$file" ]; then
         if [ "$name" = roundcube_des_key ]; then
@@ -18,5 +18,5 @@ for name in postgres_password mta_db_password mailbox_db_password roundcube_db_p
     fi
     chmod 600 "$file"
 done
-echo "Database and webmail encryption secret files are ready; existing values were not rotated."
+echo "Suite secret files are ready; existing values were not rotated."
 echo "Set DB_PASSWORD and MONITOR_DB_PASSWORD independently in .suite/.env."

@@ -1,0 +1,42 @@
+# Dovecot mailbox backend (default): IMAP, POP3, ManageSieve and LMTP.
+# Users, aliases and auto aliases are read from Robin's database.
+services:
+  suite-dovecot:
+    image: dovecot/dovecot:latest
+    container_name: suite-dovecot
+    user: "0:0"
+    cap_add:
+      - CHOWN
+    command: ["sh", "/usr/local/bin/suite-dovecot-entrypoint.sh"]
+    volumes:
+      - ../dovecot-entrypoint.sh:/usr/local/bin/suite-dovecot-entrypoint.sh:ro
+      - ../etc/dovecot:/etc/dovecot:ro
+      - ../../store/dovecot:/var/mail/vhosts
+      - ../../log/dovecot:/var/log
+    depends_on:
+      suite-postgres:
+        condition: service_healthy
+    ports:
+      - "${MAIL_BIND:-0.0.0.0}:993:993"
+    secrets:
+      - mailbox_db_password
+    networks:
+      suite:
+        aliases:
+          - lmtp-backend
+          - imap-backend
+    healthcheck:
+      test: ["CMD", "doveadm", "who"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  suite-robin:
+    depends_on:
+      suite-dovecot:
+        condition: service_healthy
+
+  suite-roundcube:
+    depends_on:
+      suite-dovecot:
+        condition: service_healthy

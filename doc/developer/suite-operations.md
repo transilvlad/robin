@@ -11,7 +11,7 @@ Never run the fault-injection `.integration/` tests against this deployment.
 |-------|----------|
 | Users, aliases, queue records, authoritative config, Admin settings, Roundcube database | PostgreSQL under `store/postgres` |
 | Pending message bodies and Robin storage | `store/robin` and any explicitly configured queue files |
-| Mailboxes | `store/dovecot` |
+| Mailboxes | `store/dovecot` (Dovecot) or the `suite-cyrus-data` named volume (Cyrus IMAP) |
 | Rspamd statistics/state | Redis and Rspamd named volumes; `store/rspamd` and `.suite/etc/rspamd/local.d` |
 | Admin identity, gateway CA, agent/installer state, telemetry | Included Admin named volumes |
 | Bootstrap/config templates and service configuration | `.suite/cfg`, `.suite/etc`, Compose files |
@@ -217,7 +217,8 @@ openssl x509 -in /etc/robin/mail-tls/fullchain.pem -pubkey -noout |
   openssl pkey -pubin -outform DER | openssl dgst -sha256
 openssl pkey -in /etc/robin/mail-tls/privkey.pem -pubout -outform DER |
   openssl dgst -sha256
-# After verified replacement, reload startup-loaded mail certificates:
+# After verified replacement, reload startup-loaded mail certificates
+# (suite-imap-proxy instead of suite-dovecot with the Cyrus backend):
 docker compose --project-directory .suite restart suite-robin suite-dovecot
 ```
 

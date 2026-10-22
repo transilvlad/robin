@@ -1,0 +1,16 @@
+# Production settings for the Dovecot mailbox backend.
+x-runtime: &runtime
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  suite-dovecot:
+    <<: *runtime
+    image: ${DOVECOT_IMAGE:?Set DOVECOT_IMAGE to a reviewed Dovecot 2.4 image}
+    volumes:
+      - ${MAIL_TLS_DIR:?Set MAIL_TLS_DIR to the operator certificate directory}/fullchain.pem:/etc/dovecot/certs/imap.crt:ro
+      - ${MAIL_TLS_DIR:?Set MAIL_TLS_DIR to the operator certificate directory}/privkey.pem:/etc/dovecot/certs/imap.key:ro

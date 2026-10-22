@@ -21,6 +21,7 @@
           - robin_suite_admin_url is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
           - robin_suite_admin_url != 'https://admin.example.com'
           - robin_suite_admin_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+          - robin_suite_mailbox_backend in ['dovecot', 'cyrus']
         fail_msg: "Use a reviewed full commit, real hostnames, and preconfigured network/TLS."
 
     - name: Validate pinned external images
@@ -28,7 +29,8 @@
         that:
           - robin_suite_images[item] is match('^[a-z0-9./_-]+@sha256:[0-9a-f]{64}$')
         fail_msg: "Pin every external image by digest; PostgreSQL must remain on major 18."
-      loop: [postgres, redis, clamav, rspamd, dovecot, roundcube]
+      loop: "{{ ['postgres', 'redis', 'clamav', 'rspamd', 'roundcube']
+                + (['nginx'] if robin_suite_mailbox_backend == 'cyrus' else ['dovecot']) }}"
 
     - name: Validate independent Vault secrets
       ansible.builtin.assert:

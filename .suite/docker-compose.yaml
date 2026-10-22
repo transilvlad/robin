@@ -1,9 +1,11 @@
-# Docker Compose Suite for Robin MTA + Dovecot + PostgreSQL + Redis + ClamAV + Rspamd + Roundcube
+# Docker Compose Suite for Robin MTA + Dovecot or Cyrus IMAP + PostgreSQL + Redis + ClamAV + Rspamd + Roundcube
 # Demo-friendly baseline. Add docker-compose.production.yaml for production
 # enforcement of real certificate material and reviewed image tags.
 # This file sets up a complete end-to-end email infrastructure:
 # - Robin MTA (SMTP server)
-# - Dovecot (IMAP/LMTP for mailbox hosting)
+# - Mailbox backend (IMAP/LMTP), selected with MAILBOX_BACKEND in .env:
+#   dovecot (default) or cyrus; see mailbox/
+
 # - PostgreSQL (user database)
 # - Redis (Rspamd statistics, history and module state)
 # - ClamAV (virus scanning)
@@ -21,9 +23,12 @@ include:
       - https://github.com/transilvlad/robin-admin.git#v${ROBIN_ADMIN_VERSION:-1.0.0}:docker-compose.yaml
       - https://github.com/transilvlad/robin-admin.git#v${ROBIN_ADMIN_VERSION:-1.0.0}:docker-compose.suite.yaml
     env_file: .env
+  # Mailbox backend. Each file defines the IMAP/LMTP services and the
+  # dependencies Robin and Roundcube need on them.
+  - path: mailbox/${MAILBOX_BACKEND:-dovecot}.yaml
 
 services:
-  # PostgreSQL database for Robin, Dovecot and Roundcube storage.
+  # PostgreSQL database for Robin, mailbox and Roundcube storage.
   suite-postgres:
     image: postgres:latest
     container_name: suite-postgres
@@ -164,8 +169,6 @@ services:
         condition: service_healthy
       suite-rspamd:
         condition: service_healthy
-      suite-dovecot:
-        condition: service_healthy
     ports:
       - "${MAIL_BIND:-0.0.0.0}:25:25"
       - "${MAIL_BIND:-0.0.0.0}:587:587"
@@ -194,45 +197,12 @@ services:
       timeout: 5s
       retries: 5
 
-  # Dovecot IMAP/LMTP server.
-  suite-dovecot:
-    image: dovecot/dovecot:latest
-    container_name: suite-dovecot
-    user: "0:0"
-    cap_add:
-      - CHOWN
-    command: ["sh", "/usr/local/bin/suite-dovecot-entrypoint.sh"]
-    volumes:
-      - ./dovecot-entrypoint.sh:/usr/local/bin/suite-dovecot-entrypoint.sh:ro
-      - ./etc/dovecot:/etc/dovecot:ro
-      - ../store/dovecot:/var/mail/vhosts
-      - ../log/dovecot:/var/log
-    depends_on:
-      suite-postgres:
-        condition: service_healthy
-    ports:
-      - "${MAIL_BIND:-0.0.0.0}:993:993"
-    secrets:
-      - mailbox_db_password
-    networks:
-      suite:
-        aliases:
-          - lmtp-backend
-          - imap-backend
-    healthcheck:
-      test: ["CMD", "doveadm", "who"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # Roundcube webmail for user access.
   suite-roundcube:
     image: roundcube/roundcubemail:latest
     container_name: suite-roundcube
     depends_on:
       suite-postgres:
-        condition: service_healthy
-      suite-dovecot:
         condition: service_healthy
     ports:
       - "127.0.0.1:${WEBMAIL_HTTP_PORT:-8888}:80"

@@ -30,7 +30,7 @@ Additionally, you may want to update the email store path.
 Robin full suite
 ----------------
 
-For a complete email infrastructure with Dovecot, PostgreSQL, ClamAV, Rspamd, and Roundcube,
+For a complete email infrastructure with Dovecot or Cyrus IMAP, PostgreSQL, ClamAV, Rspamd, and Roundcube,
 see **[Robin Full Suite](../developer/robin-suite.md)**.
 
 

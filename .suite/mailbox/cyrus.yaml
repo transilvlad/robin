@@ -1,0 +1,80 @@
+# Cyrus IMAP mailbox backend: IMAP, ManageSieve and LMTP.
+# Robin delivers to canonical users over LMTP. IMAP clients connect to an nginx
+# mail proxy on port 993, which asks Robin to verify the login and resolve
+# aliases and auto aliases to the user's mailbox before logging in to Cyrus.
+# Robin's dovecot.json5 must enable proxyAuth (enabled in the suite defaults).
+services:
+  suite-cyrus:
+    build:
+      context: ../cyrus
+    image: robin-suite-cyrus:local
+    container_name: suite-cyrus
+    init: true
+    environment:
+      - ROBIN_AUTH_URL=http://mta-backend:8090/users/authenticate
+    volumes:
+      - ../etc/cyrus/imapd.conf:/etc/imapd.conf:ro
+      - ../etc/cyrus/cyrus.conf:/etc/cyrus.conf:ro
+      # Named volume: Cyrus databases rely on file locking and renames that
+      # Docker Desktop bind mounts on macOS and Windows do not reliably provide.
+      - cyrus-data:/var/lib/cyrus
+      - ../../log/cyrus:/var/log
+    secrets:
+      - cyrus_admin_password
+    networks:
+      suite:
+        aliases:
+          - lmtp-backend
+          - mailbox-backend
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/suite-cyrus-healthcheck"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  # IMAP over TLS for clients and Roundcube. nginx resolves the auth endpoint
+  # at startup, so it starts after Robin and restarts with it.
+  suite-imap-proxy:
+    image: nginx:alpine
+    container_name: suite-imap-proxy
+    volumes:
+      - ../etc/imap-proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../etc/dovecot/certs/imap.crt:/etc/nginx/certs/imap.crt:ro
+      - ../etc/dovecot/certs/imap.key:/etc/nginx/certs/imap.key:ro
+      - ../../log/imap-proxy:/var/log/nginx
+    depends_on:
+      suite-robin:
+        condition: service_healthy
+        restart: true
+      suite-cyrus:
+        condition: service_healthy
+    ports:
+      - "${MAIL_BIND:-0.0.0.0}:993:993"
+    networks:
+      suite:
+        aliases:
+          - imap-backend
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "993"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  suite-robin:
+    depends_on:
+      suite-cyrus:
+        condition: service_healthy
+
+  suite-roundcube:
+    depends_on:
+      suite-imap-proxy:
+        condition: service_healthy
+
+volumes:
+  cyrus-data:
+    name: suite-cyrus-data
+
+secrets:
+  cyrus_admin_password:
+    file: ../secrets/cyrus_admin_password

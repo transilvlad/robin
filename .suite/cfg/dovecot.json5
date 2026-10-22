@@ -46,6 +46,17 @@
     aliasQuery: "SELECT destination FROM (SELECT destination, 0 as priority FROM aliases WHERE source = ? AND destination <> '' UNION SELECT email as destination, 1 as priority FROM users WHERE email = ? UNION SELECT destination, 2 as priority FROM auto_aliases WHERE source = ? AND destination <> '') AS t ORDER BY priority LIMIT 1"
   },
 
+  // nginx mail proxy authentication (GET /mail/proxy-auth on the API port).
+  // Used by the Cyrus mailbox backend: verifies IMAP logins, resolves aliases
+  // and auto aliases to the user's mailbox and returns the backend address.
+  // Unused with Dovecot, which resolves aliases itself.
+  proxyAuth: {
+    enabled: true,
+    imap: "mailbox-backend:143",
+    pop3: "",
+    failureWait: 3
+  },
+
   // LMTP backend configuration (default: enabled, localhost:24).
   // This backend is recommended for distributed and SQL-backed setups.
   // Folder routing is handled automatically by Dovecot based on message direction.

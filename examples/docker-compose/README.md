@@ -42,6 +42,14 @@ DOVECOT_IMAGE=dovecot/dovecot:<reviewed-2.4-tag-or-digest>
 ROUNDCUBE_IMAGE=roundcube/roundcubemail:<reviewed-tag-or-digest>
 ```
 
+With `MAILBOX_BACKEND=cyrus`, replace `DOVECOT_IMAGE` with the locally built
+Cyrus image tag and a reviewed nginx image for the IMAP proxy:
+
+```dotenv
+CYRUS_IMAGE=robin-suite-cyrus:<reviewed-commit>
+NGINX_IMAGE=nginx:<reviewed-alpine-tag-or-digest>
+```
+
 These are placeholders, not pullable image names. Select images compatible with
 the checked-out release; digest pins (`image@sha256:...`) are preferred. Do not
 change PostgreSQL major versions through a Compose pull. Robin is built locally

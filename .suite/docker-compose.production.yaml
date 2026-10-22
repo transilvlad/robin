@@ -9,6 +9,9 @@ x-runtime: &runtime
       max-size: "10m"
       max-file: "3"
 
+include:
+  - path: mailbox/${MAILBOX_BACKEND:-dovecot}.production.yaml
+
 services:
   suite-postgres:
     <<: *runtime
@@ -24,12 +27,6 @@ services:
   suite-rspamd:
     <<: *runtime
     image: ${RSPAMD_IMAGE:?Set RSPAMD_IMAGE to a reviewed Rspamd image}
-  suite-dovecot:
-    <<: *runtime
-    image: ${DOVECOT_IMAGE:?Set DOVECOT_IMAGE to a reviewed Dovecot 2.4 image}
-    volumes:
-      - ${MAIL_TLS_DIR:?Set MAIL_TLS_DIR to the operator certificate directory}/fullchain.pem:/etc/dovecot/certs/imap.crt:ro
-      - ${MAIL_TLS_DIR:?Set MAIL_TLS_DIR to the operator certificate directory}/privkey.pem:/etc/dovecot/certs/imap.key:ro
   suite-roundcube:
     <<: *runtime
     image: ${ROUNDCUBE_IMAGE:?Set ROUNDCUBE_IMAGE to a reviewed Roundcube image}

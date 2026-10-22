@@ -1,0 +1,19 @@
+# Production settings for the Cyrus mailbox backend.
+x-runtime: &runtime
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  suite-cyrus:
+    <<: *runtime
+    image: ${CYRUS_IMAGE:?Set CYRUS_IMAGE to a local release-specific build tag}
+  suite-imap-proxy:
+    <<: *runtime
+    image: ${NGINX_IMAGE:?Set NGINX_IMAGE to a reviewed nginx image}
+    volumes:
+      - ${MAIL_TLS_DIR:?Set MAIL_TLS_DIR to the operator certificate directory}/fullchain.pem:/etc/nginx/certs/imap.crt:ro
+      - ${MAIL_TLS_DIR:?Set MAIL_TLS_DIR to the operator certificate directory}/privkey.pem:/etc/nginx/certs/imap.key:ro
