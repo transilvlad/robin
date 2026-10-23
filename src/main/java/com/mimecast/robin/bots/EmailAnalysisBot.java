@@ -1004,7 +1004,8 @@ public class EmailAnalysisBot implements BotProcessor {
                 .evidence("Hostname matches certificate", yesNo(result.isHostnameMatch()))
                 .evidence("Certificate subject", nvl(result.getCertSubject(), "N/A"))
                 .evidence("Certificate issuer", nvl(result.getCertIssuer(), "N/A"))
-                .evidence("Certificate key size", result.getCertKeyBits() > 0 ? result.getCertKeyBits() + " bits" : "N/A");
+                .evidence("Certificate key", result.getCertKeyBits() > 0
+                        ? nvl(result.getCertKeyAlgorithm(), "Unknown") + " " + result.getCertKeyBits() + " bits" : "N/A");
         if (result.getTlsStatus() != PortTlsResult.TlsStatus.ENABLED) {
             return b.status(Status.WARN)
                     .summary("MX did not complete STARTTLS during probing.")
@@ -1017,16 +1018,20 @@ public class EmailAnalysisBot implements BotProcessor {
                     .remediation("Disable SSLv3, TLS 1.0, and TLS 1.1; support TLS 1.2 or TLS 1.3.")
                     .build();
         }
-        if (result.getCertKeyBits() > 0 && result.getCertKeyBits() < 2048) {
-            return b.status(Status.WARN)
-                    .summary("MX TLS certificate uses a small public key.")
-                    .remediation("Use a certificate with at least a 2048-bit RSA key or modern equivalent.")
-                    .build();
+        List<String> summaries = new ArrayList<>();
+        List<String> remediations = new ArrayList<>();
+        if (result.isCertKeyWeak()) {
+            summaries.add("MX TLS certificate uses a small public key.");
+            remediations.add("Use a certificate with at least a 2048-bit RSA key or a 256-bit ECDSA key.");
         }
         if (!result.isHostnameMatch()) {
+            summaries.add("MX TLS certificate does not match the MX hostname.");
+            remediations.add("Use a certificate whose SAN covers the advertised MX hostname.");
+        }
+        if (!summaries.isEmpty()) {
             return b.status(Status.WARN)
-                    .summary("MX TLS certificate does not match the MX hostname.")
-                    .remediation("Use a certificate whose SAN covers the advertised MX hostname.")
+                    .summary(String.join(" ", summaries))
+                    .remediation(String.join(" ", remediations))
                     .build();
         }
         return b.status(Status.PASS).summary("MX TLS certificate negotiated with modern parameters.").build();

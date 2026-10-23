@@ -22,6 +22,7 @@ public class PortTlsResult {
     private final LocalDate certExpiry;
     private final int daysUntilExpiry;
     private final String negotiatedProtocol;
+    private final String certKeyAlgorithm;
     private final int certKeyBits;
     private final boolean hostnameMatch;
     private final String errorMessage;
@@ -38,6 +39,7 @@ public class PortTlsResult {
         this.certExpiry = b.certExpiry;
         this.daysUntilExpiry = b.daysUntilExpiry;
         this.negotiatedProtocol = b.negotiatedProtocol;
+        this.certKeyAlgorithm = b.certKeyAlgorithm;
         this.certKeyBits = b.certKeyBits;
         this.hostnameMatch = b.hostnameMatch;
         this.errorMessage = b.errorMessage;
@@ -54,6 +56,7 @@ public class PortTlsResult {
     public LocalDate getCertExpiry() { return certExpiry; }
     public int getDaysUntilExpiry() { return daysUntilExpiry; }
     public String getNegotiatedProtocol() { return negotiatedProtocol; }
+    public String getCertKeyAlgorithm() { return certKeyAlgorithm; }
     public int getCertKeyBits() { return certKeyBits; }
     public boolean isHostnameMatch() { return hostnameMatch; }
     public String getErrorMessage() { return errorMessage; }
@@ -61,6 +64,16 @@ public class PortTlsResult {
     /** True if cert expires within 30 days or is already expired. */
     public boolean isCertExpiringSoon() {
         return tlsStatus == TlsStatus.ENABLED && certExpiry != null && daysUntilExpiry <= 30;
+    }
+
+    /** True if the cert key is below the minimum for its algorithm: 2048 bits for RSA, 256 bits for EC. */
+    public boolean isCertKeyWeak() {
+        if (certKeyBits <= 0 || certKeyAlgorithm == null) return false;
+        return switch (certKeyAlgorithm) {
+            case "RSA", "DSA" -> certKeyBits < 2048;
+            case "EC" -> certKeyBits < 256;
+            default -> false;
+        };
     }
 
     public static Builder builder(String host, int port) {
@@ -79,6 +92,7 @@ public class PortTlsResult {
         private LocalDate certExpiry;
         private int daysUntilExpiry = Integer.MAX_VALUE;
         private String negotiatedProtocol;
+        private String certKeyAlgorithm;
         private int certKeyBits;
         private boolean hostnameMatch;
         private String errorMessage;
@@ -97,6 +111,7 @@ public class PortTlsResult {
         public Builder certExpiry(LocalDate v) { this.certExpiry = v; return this; }
         public Builder daysUntilExpiry(int v) { this.daysUntilExpiry = v; return this; }
         public Builder negotiatedProtocol(String v) { this.negotiatedProtocol = v; return this; }
+        public Builder certKeyAlgorithm(String v) { this.certKeyAlgorithm = v; return this; }
         public Builder certKeyBits(int v) { this.certKeyBits = v; return this; }
         public Builder hostnameMatch(boolean v) { this.hostnameMatch = v; return this; }
         public Builder error(String v) { this.errorMessage = v; return this; }

@@ -3,8 +3,10 @@ package com.mimecast.robin.scanners.port;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import javax.naming.InvalidNameException;
+import javax.naming.ldap.LdapName;
+import javax.naming.ldap.Rdn;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
@@ -16,6 +18,7 @@ import java.io.PrintWriter;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.security.PublicKey;
+import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.EdECPublicKey;
@@ -24,8 +27,10 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -132,8 +137,9 @@ public class PortTlsChecker {
                         .certIssuer(cert.getIssuerX500Principal().getName())
                         .certExpiry(expiry)
                         .daysUntilExpiry(days)
+                        .certKeyAlgorithm(publicKeyAlgorithm(cert.getPublicKey()))
                         .certKeyBits(publicKeyBits(cert.getPublicKey()))
-                        .hostnameMatch(hostnameMatches(host, details.session()));
+                        .hostnameMatch(hostnameMatches(host, certificateNames(cert)));
             } else {
                 result.tlsStatus(PortTlsResult.TlsStatus.DISABLED);
             }
@@ -216,11 +222,71 @@ public class PortTlsChecker {
         }
     }
 
-    private static boolean hostnameMatches(String host, SSLSession session) {
-        if (host == null || host.isBlank() || session == null) {
+    /**
+     * Names a certificate is issued for: its DNS SANs, or its subject CN when it has none (RFC 6125).
+     */
+    private static List<String> certificateNames(X509Certificate cert) {
+        List<String> names = new ArrayList<>();
+        try {
+            Collection<List<?>> sans = cert.getSubjectAlternativeNames();
+            if (sans != null) {
+                for (List<?> san : sans) {
+                    if (san.size() >= 2 && Integer.valueOf(2).equals(san.get(0)) && san.get(1) instanceof String name) {
+                        names.add(name);
+                    }
+                }
+            }
+        } catch (CertificateParsingException e) {
+            log.debug("Could not read SANs from {}: {}", cert.getSubjectX500Principal().getName(), e.getMessage());
+        }
+        if (names.isEmpty()) {
+            try {
+                for (Rdn rdn : new LdapName(cert.getSubjectX500Principal().getName()).getRdns()) {
+                    if ("CN".equalsIgnoreCase(rdn.getType())) {
+                        names.add(rdn.getValue().toString());
+                    }
+                }
+            } catch (InvalidNameException e) {
+                log.debug("Could not parse certificate subject: {}", e.getMessage());
+            }
+        }
+        return names;
+    }
+
+    /**
+     * Matches a hostname against certificate names. A wildcard covers exactly one leftmost label.
+     */
+    static boolean hostnameMatches(String host, List<String> certNames) {
+        if (host == null || host.isBlank() || certNames == null) {
             return false;
         }
-        return HttpsURLConnection.getDefaultHostnameVerifier().verify(host, session);
+        String target = normalizeHostname(host);
+        for (String certName : certNames) {
+            if (certName == null || certName.isBlank()) continue;
+            String name = normalizeHostname(certName);
+            if (name.startsWith("*.")) {
+                String suffix = name.substring(1);
+                int dot = target.indexOf('.');
+                if (dot > 0 && target.substring(dot).equals(suffix)) {
+                    return true;
+                }
+            } else if (name.equals(target)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String normalizeHostname(String name) {
+        String trimmed = name.trim().toLowerCase(Locale.ROOT);
+        return trimmed.endsWith(".") ? trimmed.substring(0, trimmed.length() - 1) : trimmed;
+    }
+
+    private static String publicKeyAlgorithm(PublicKey key) {
+        if (key instanceof RSAPublicKey) return "RSA";
+        if (key instanceof ECPublicKey) return "EC";
+        if (key instanceof EdECPublicKey ed) return ed.getParams().getName();
+        return key.getAlgorithm();
     }
 
     private static int publicKeyBits(PublicKey key) {
