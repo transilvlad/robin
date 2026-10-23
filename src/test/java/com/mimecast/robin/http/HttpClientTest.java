@@ -2,15 +2,13 @@ package com.mimecast.robin.http;
 
 import com.mimecast.robin.config.BasicConfig;
 import com.mimecast.robin.main.Factories;
+import com.mimecast.robin.main.Foundation;
 import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,7 +22,8 @@ class HttpClientTest {
     BasicConfig config = new BasicConfig(configMap);
 
     @BeforeAll
-    static void setup() {
+    static void setup() throws Exception {
+        Foundation.init("src/test/resources/cfg/");
         httpRequest = new HttpRequest("http://example.com");
         request = new Request.Builder()
                 .url(httpRequest.getUrl())
