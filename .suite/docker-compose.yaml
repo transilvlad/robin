@@ -20,8 +20,8 @@
 # docker-compose.override.yaml points its mounts at this suite.
 include:
   - path:
-      - https://github.com/transilvlad/robin-admin.git#v${ROBIN_ADMIN_VERSION:-1.1.0}:docker-compose.yaml
-      - https://github.com/transilvlad/robin-admin.git#v${ROBIN_ADMIN_VERSION:-1.1.0}:docker-compose.suite.yaml
+      - https://github.com/transilvlad/robin-admin.git#v${ROBIN_ADMIN_VERSION:-1.1.1}:docker-compose.yaml
+      - https://github.com/transilvlad/robin-admin.git#v${ROBIN_ADMIN_VERSION:-1.1.1}:docker-compose.suite.yaml
     env_file: .env
   # Mailbox backend. Each file defines the IMAP/LMTP services and the
   # dependencies Robin and Roundcube need on them.
