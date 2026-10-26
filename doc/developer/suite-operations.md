@@ -23,6 +23,19 @@ restoring a different Roundcube session key invalidates sessions. Treat this as
 one recovery unit. Database configuration remains authoritative: changing a
 checked-in template does not change an existing database row or config cache.
 
+## Restart after a host or Docker interruption
+
+Robin, PostgreSQL, Redis, scanning services and the selected mailbox backend use
+`restart: unless-stopped`. Explicitly stopped containers remain stopped. This
+policy does not restart a process merely because its health check fails or
+guarantee dependency health ordering when Docker restarts.
+
+Inspect service health and logs before resuming mail flow. Use the normal Compose
+configuration with the selected mailbox backend to bring services back up;
+do not enable both mailbox backends. Preserve existing volumes and configuration.
+Recreate affected containers when applying changed images or container
+configuration; do not rerun fresh-install initialization as a recovery shortcut.
+
 ## Cold backup
 
 `.suite/recovery.py` provides an explicit maintenance-window snapshot. It requires
@@ -135,6 +148,12 @@ queue to make restore look healthy.
 Do not run unattended `git pull && docker compose pull && up` on live mail.
 Review source changes, database schemas and every changed image digest. Pin
 the release and external images; save the old runtime image set.
+
+For local Maven builds after dependency upgrades, use `mvn -B clean package` to
+remove superseded JARs from `target/classes/lib`. JDK image updates require
+rebuilding and recreating the affected containers. Verify `java -version` in
+the build and runtime images for each deployed architecture, then check the
+running JVM and mail/TLS flows after deployment.
 
 1. Schedule a maintenance window, quiesce clients/automation and take a complete
    snapshot. Confirm the snapshot exists off-host before changing state.
