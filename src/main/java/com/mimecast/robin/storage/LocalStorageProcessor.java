@@ -3,7 +3,6 @@ package com.mimecast.robin.storage;
 import com.mimecast.robin.config.server.ServerConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.mime.EmailParser;
-import com.mimecast.robin.mime.headers.ReceivedHeader;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.util.PathUtils;
@@ -11,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -57,10 +55,10 @@ public class LocalStorageProcessor extends AbstractStorageProcessor {
         // Handle outbound vs inbound differently.
         if (connection.getSession().isOutbound()) {
             // For outbound, save once to sender's outbox.
-            saveToOutbox(connection, emailParser, envelope, envelope.getMail());
+            saveToOutbox(envelope, envelope.getMail());
         } else {
             // For inbound, save to each recipient's mailbox.
-            saveToRecipientMailboxes(connection, emailParser, envelope, envelope.getRcpts());
+            saveToRecipientMailboxes(envelope, envelope.getRcpts());
         }
 
         log.debug("Completed local storage processing for uid={}", connection.getSession().getUID());
@@ -70,13 +68,11 @@ public class LocalStorageProcessor extends AbstractStorageProcessor {
     /**
      * Save email to sender's outbox (for outbound emails).
      *
-     * @param connection  Connection instance.
-     * @param emailParser EmailParser instance.
-     * @param sourceFile  Source email file path.
-     * @param sender      Sender email address.
+     * @param envelope Source message envelope.
+     * @param sender   Sender email address.
      * @throws IOException If an I/O error occurs.
      */
-    private void saveToOutbox(Connection connection, EmailParser emailParser, MessageEnvelope envelope, String sender) throws IOException {
+    private void saveToOutbox(MessageEnvelope envelope, String sender) throws IOException {
         ServerConfig config = Config.getServer();
         String basePath = config.getStorage().getStringProperty("path", "/tmp/store");
         String outboundFolder = config.getStorage().getStringProperty("outboundFolder", ".Sent/new");
@@ -105,9 +101,7 @@ public class LocalStorageProcessor extends AbstractStorageProcessor {
         String fileName = new File(sourceFile).getName();
         String destFile = Paths.get(destPath, fileName).toString();
 
-        // Prepend received header (without "for recipient" field).
-        ReceivedHeader receivedHeader = new ReceivedHeader(connection);
-        saveEmailWithHeader(envelope, destFile, receivedHeader.toString(), emailParser);
+        saveEmail(envelope, destFile);
 
         log.info("Saved outbound email to sender outbox: {}", destFile);
     }
@@ -115,13 +109,11 @@ public class LocalStorageProcessor extends AbstractStorageProcessor {
     /**
      * Save email to each recipient's mailbox (for inbound emails).
      *
-     * @param connection  Connection instance.
-     * @param emailParser EmailParser instance.
-     * @param sourceFile  Source email file path.
-     * @param recipients  List of recipient email addresses.
+     * @param envelope   Source message envelope.
+     * @param recipients List of recipient email addresses.
      * @throws IOException If an I/O error occurs.
      */
-    private void saveToRecipientMailboxes(Connection connection, EmailParser emailParser, MessageEnvelope envelope, List<String> recipients) throws IOException {
+    private void saveToRecipientMailboxes(MessageEnvelope envelope, List<String> recipients) throws IOException {
         ServerConfig config = Config.getServer();
         String basePath = config.getStorage().getStringProperty("path", "/tmp/store");
         String inboundFolder = config.getStorage().getStringProperty("inboundFolder", "new");
@@ -157,38 +149,23 @@ public class LocalStorageProcessor extends AbstractStorageProcessor {
             String fileName = new File(sourceFile).getName();
             String destFile = Paths.get(destPath, fileName).toString();
 
-            // Prepend received header with recipient.
-            ReceivedHeader receivedHeader = new ReceivedHeader(connection);
-            receivedHeader.setRecipientAddress(recipient);
-            saveEmailWithHeader(envelope, destFile, receivedHeader.toString(), emailParser);
+            saveEmail(envelope, destFile);
 
             log.info("Saved inbound email to recipient mailbox: {} for recipient: {}", destFile, recipient);
         }
     }
 
     /**
-     * Save email with prepended Received header.
+     * Save the received message unchanged.
      *
-     * @param sourceFile     Source email file path.
-     * @param destFile       Destination email file path.
-     * @param receivedHeader Received header string.
-     * @param emailParser    EmailParser instance (unused but kept for consistency).
+     * @param envelope Source message envelope.
+     * @param destFile Destination email file path.
      * @throws IOException If an I/O error occurs.
      */
-    private void saveEmailWithHeader(MessageEnvelope envelope, String destFile, String receivedHeader, EmailParser emailParser) throws IOException {
-        // Write received header followed by source content to destination.
+    private void saveEmail(MessageEnvelope envelope, String destFile) throws IOException {
         try (InputStream fis = envelope.openMessageStream();
              FileOutputStream fos = new FileOutputStream(destFile)) {
-            
-            // Write the received header first.
-            fos.write(receivedHeader.getBytes());
-            
-            // Stream the source file content to destination.
-            byte[] buffer = new byte[8192];
-            int bytesRead;
-            while ((bytesRead = fis.read(buffer)) != -1) {
-                fos.write(buffer, 0, bytesRead);
-            }
+            fis.transferTo(fos);
         }
     }
 }

@@ -2,7 +2,6 @@ package com.mimecast.robin.storage;
 
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.headers.MimeHeader;
-import com.mimecast.robin.mime.headers.ReceivedHeader;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.storage.rocksdb.MailboxStore;
@@ -45,8 +44,7 @@ public class RocksDbStorageProcessor extends AbstractStorageProcessor {
                 log.warn("Skipping outbound RocksDB storage because MAIL FROM is empty");
                 return true;
             }
-            byte[] content = buildStoredMessage(connection, sourceBytes, null);
-            store.storeOutbound(envelope.getMail(), content, envelope.getFile(), headers);
+            store.storeOutbound(envelope.getMail(), sourceBytes, envelope.getFile(), headers);
             return true;
         }
 
@@ -54,8 +52,7 @@ public class RocksDbStorageProcessor extends AbstractStorageProcessor {
             if (envelope.isBotAddress(recipient)) {
                 continue;
             }
-            byte[] content = buildStoredMessage(connection, sourceBytes, recipient);
-            store.storeInbound(recipient, content, envelope.getFile(), headers);
+            store.storeInbound(recipient, sourceBytes, envelope.getFile(), headers);
         }
         return true;
     }
@@ -69,17 +66,5 @@ public class RocksDbStorageProcessor extends AbstractStorageProcessor {
             headers.put(header.getName(), header.getValue());
         }
         return headers;
-    }
-
-    private byte[] buildStoredMessage(Connection connection, byte[] sourceBytes, String recipient) {
-        ReceivedHeader receivedHeader = new ReceivedHeader(connection);
-        if (recipient != null && !recipient.isBlank()) {
-            receivedHeader.setRecipientAddress(recipient);
-        }
-        byte[] headerBytes = receivedHeader.toString().getBytes();
-        byte[] content = new byte[headerBytes.length + sourceBytes.length];
-        System.arraycopy(headerBytes, 0, content, 0, headerBytes.length);
-        System.arraycopy(sourceBytes, 0, content, headerBytes.length, sourceBytes.length);
-        return content;
     }
 }

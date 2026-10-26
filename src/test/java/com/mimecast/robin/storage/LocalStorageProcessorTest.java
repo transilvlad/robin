@@ -26,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -33,7 +34,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ResourceLock(value = "storage-config", mode = ResourceAccessMode.READ_WRITE)
 class LocalStorageProcessorTest {
 
-    private static final String TEST_EMAIL_CONTENT = "From: sender@example.com\r\n" +
+    private static final String TEST_EMAIL_CONTENT = "Received: from sender.example.com by robin.example.com; Mon, 26 Oct 2026 19:00:00 +0000\r\n" +
+            "From: sender@example.com\r\n" +
             "To: recipient@example.com\r\n" +
             "Subject: Test Email\r\n" +
             "\r\n" +
@@ -137,14 +139,12 @@ class LocalStorageProcessorTest {
             assertTrue(Files.exists(user1File), "File should exist for user1");
             assertTrue(Files.exists(user2File), "File should exist for user2");
 
-            // Verify content includes Received header
+            // Mailbox copies must preserve the ingress message without another trace header.
             String user1Content = Files.readString(user1File);
-            assertTrue(user1Content.contains("Received:"), "Should have Received header");
-            assertTrue(user1Content.contains("for <user1@example.com>"), "Should have recipient in Received header");
-            assertTrue(user1Content.contains(TEST_EMAIL_CONTENT), "Should have original email content");
+            assertEquals(TEST_EMAIL_CONTENT, user1Content);
 
             String user2Content = Files.readString(user2File);
-            assertTrue(user2Content.contains("for <user2@example.com>"), "Should have recipient in Received header");
+            assertEquals(TEST_EMAIL_CONTENT, user2Content);
 
             // Cleanup
             filesToCleanup.add(user1File.toFile());
@@ -182,8 +182,7 @@ class LocalStorageProcessorTest {
             Path user1File = Paths.get(basePath, "example.com", "user1", "new", "test-email.eml");
             assertTrue(Files.exists(user1File), "File should exist for in-memory source");
             String user1Content = Files.readString(user1File);
-            assertTrue(user1Content.contains("Received:"), "Should have Received header");
-            assertTrue(user1Content.contains(TEST_EMAIL_CONTENT), "Should have original email content");
+            assertEquals(TEST_EMAIL_CONTENT, user1Content);
 
             filesToCleanup.add(user1File.toFile());
             dirsToCleanup.add(user1File.getParent());
@@ -237,11 +236,8 @@ class LocalStorageProcessorTest {
             Path recipient1File = Paths.get(basePath, "remote.com", "recipient1", ".Sent", "new", "test-email.eml");
             assertFalse(Files.exists(recipient1File), "Should not create file for remote recipient");
 
-            // Verify content includes Received header without "for" clause
             String senderContent = Files.readString(senderFile);
-            assertTrue(senderContent.contains("Received:"), "Should have Received header");
-            assertFalse(senderContent.contains("for <"), "Should not have 'for' clause in outbound Received header");
-            assertTrue(senderContent.contains(TEST_EMAIL_CONTENT), "Should have original email content");
+            assertEquals(TEST_EMAIL_CONTENT, senderContent);
 
             // Cleanup
             filesToCleanup.add(senderFile.toFile());

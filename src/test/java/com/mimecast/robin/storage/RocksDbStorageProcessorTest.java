@@ -70,9 +70,9 @@ class RocksDbStorageProcessorTest {
         RocksDbStorageProcessor processor = new RocksDbStorageProcessor();
 
         sourceFile = Files.createTempFile("robin-rocksdb-message-", ".eml");
-        Files.writeString(sourceFile,
-                "From: sender@example.com\r\nTo: user@example.com\r\nSubject: Processor\r\n\r\nBody",
-                StandardCharsets.UTF_8);
+        String content = "Received: from sender.example.com by robin.example.com; Mon, 26 Oct 2026 19:00:00 +0000\r\n"
+                + "From: sender@example.com\r\nTo: user@example.com\r\nSubject: Processor\r\n\r\nBody";
+        Files.writeString(sourceFile, content, StandardCharsets.UTF_8);
 
         Connection inbound = new Connection(new Session());
         inbound.getSession().setDirection(EmailDirection.INBOUND);
@@ -88,8 +88,7 @@ class RocksDbStorageProcessorTest {
         var inbox = store.getFolder("example.com", "user", "Inbox", "unread");
         assertEquals(1, inbox.messages.size());
         var inboxMessage = store.getMessage("example.com", "user", inbox.messages.getFirst().id).orElseThrow();
-        assertTrue(inboxMessage.content.contains("Received:"));
-        assertTrue(inboxMessage.content.contains("for <user@example.com>"));
+        assertEquals(content, inboxMessage.content);
 
         Connection outbound = new Connection(new Session());
         outbound.getSession().setDirection(EmailDirection.OUTBOUND);
@@ -105,6 +104,7 @@ class RocksDbStorageProcessorTest {
 
         var sent = store.getFolder("example.com", "sender", "Sent", "read");
         assertEquals(1, sent.messages.size());
+        assertEquals(content, store.getMessage("example.com", "sender", sent.messages.getFirst().id).orElseThrow().content);
     }
 
     @Test
@@ -128,7 +128,6 @@ class RocksDbStorageProcessorTest {
         var inbox = store.getFolder("example.com", "user", "Inbox", "unread");
         assertEquals(1, inbox.messages.size());
         var inboxMessage = store.getMessage("example.com", "user", inbox.messages.getFirst().id).orElseThrow();
-        assertTrue(inboxMessage.content.contains("Received:"));
-        assertTrue(inboxMessage.content.contains("for <user@example.com>"));
+        assertEquals(content, inboxMessage.content);
     }
 }

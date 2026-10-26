@@ -55,6 +55,14 @@ class ReceivedHeaderTest {
     }
     
     @Test
+    void buildHeaderWithReceiptDate() {
+        String date = "Mon, 26 Oct 2026 19:00:00 +0000";
+        ReceivedHeader header = new ReceivedHeader(connection).setDate(date);
+
+        assertTrue(header.toString().endsWith("    " + date + "\r\n"));
+    }
+
+    @Test
     @DisplayName("Build received header with TLS")
     void buildHeaderWithTls() {
         session.setStartTls(true);

@@ -11,6 +11,19 @@ Received headers are essential components of email infrastructure, tracking the 
 various MTAs (Mail Transfer Agents). Each MTA adds its own Received header to document when and how the message
 was received.
 
+Server Ingress
+--------------
+Robin prepends its Received header to the message stream during SMTP DATA or BDAT receipt,
+before storage processing or delivery. Local and RocksDB mailbox copies, Dovecot LMTP/LDA,
+Stalwart direct ingest, SMTP proxies, and queued relays therefore use the same trace header.
+Queue retries retain that header rather than adding another one.
+
+The header records the original inbound connection, the configured server hostname, and
+the current receipt time. The optional `for` clause is included only for a single envelope
+recipient. Existing Received headers and the original message content are preserved.
+Locally generated header bytes do not count towards inbound message size or transfer-rate limits.
+Blackholed messages that are discarded without storage do not need a trace header.
+
 Features
 --------
 - **Automatic Information Extraction** - Pulls HELO/EHLO, IP addresses, hostnames, and protocol details from Connection.
@@ -167,6 +180,14 @@ Sets the envelope recipient address.
 
 ```java
 header.setRecipientAddress("user@example.com");
+```
+
+### setDate(String date)
+
+Overrides the session creation timestamp with an RFC 5322 formatted receipt timestamp.
+
+```java
+header.setDate("Mon, 26 Oct 2026 19:00:00 +0000");
 ```
 
 Complete Examples

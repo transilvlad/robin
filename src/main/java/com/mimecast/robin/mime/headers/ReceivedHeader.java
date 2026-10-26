@@ -35,6 +35,7 @@ public class ReceivedHeader extends MimeHeader {
     private String protocol;
     private String messageId;
     private String recipientAddress;
+    private String date;
     
     /**
      * Constructs a new ReceivedHeader instance with given Connection.
@@ -69,6 +70,7 @@ public class ReceivedHeader extends MimeHeader {
             
             // Extract message ID
             this.messageId = connection.getSession().getUID();
+            this.date = connection.getSession().getDate();
             
             // Determine protocol based on TLS status
             if (connection.getSession().isStartTls()) {
@@ -155,6 +157,17 @@ public class ReceivedHeader extends MimeHeader {
      */
     public ReceivedHeader setRecipientAddress(String recipientAddress) {
         this.recipientAddress = recipientAddress;
+        return this;
+    }
+
+    /**
+     * Sets the receipt date/time.
+     *
+     * @param date RFC 5322 formatted date/time.
+     * @return Self.
+     */
+    public ReceivedHeader setDate(String date) {
+        this.date = date;
         return this;
     }
     
@@ -283,12 +296,9 @@ public class ReceivedHeader extends MimeHeader {
         }
         
         // Add date/time
-        if (connection != null && connection.getSession() != null) {
-            String date = connection.getSession().getDate();
-            if (StringUtils.isNotBlank(date)) {
-                header.append("    ").append(date);
-                header.append("\r\n");
-            }
+        if (StringUtils.isNotBlank(date)) {
+            header.append("    ").append(date);
+            header.append("\r\n");
         }
         
         return header.toString();
