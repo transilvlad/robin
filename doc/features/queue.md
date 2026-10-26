@@ -49,6 +49,12 @@ Redis provides high-performance in-memory queue persistence with optional disk p
 ### MariaDB
 MariaDB provides a robust SQL-based queue with transaction support and LONGBLOB storage for serialized objects.
 
+MariaDB Connector/J 4 defaults to `sslMode=verify-full`. When upgrading from
+Connector/J 3, ensure the database supports TLS and its certificate is trusted
+and matches the hostname in `jdbcUrl`. For an isolated development database
+without TLS, explicitly append `?sslMode=disable` to the URL; do not use this
+setting for production connections.
+
 **Configuration:**
 ```json5
 {
