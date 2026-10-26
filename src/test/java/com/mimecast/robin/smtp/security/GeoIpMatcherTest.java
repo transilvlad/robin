@@ -1,11 +1,15 @@
 package com.mimecast.robin.smtp.security;
 
+import com.fasterxml.jackson.databind.InjectableValues;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.maxmind.geoip2.model.CountryResponse;
 import com.mimecast.robin.config.server.GeoIpConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -17,6 +21,22 @@ import static org.junit.jupiter.api.Assertions.*;
  * fall back to the default action when no reader is available.
  */
 class GeoIpMatcherTest {
+
+    @Test
+    void patchedJacksonReadsGeoIpCountryResponses() throws Exception {
+        var mapper = JsonMapper.builder()
+                .injectableValues(new InjectableValues.Std().addValue("locales", List.of("en")))
+                .build();
+        CountryResponse response = mapper.readValue("""
+                {"country":{"iso_code":"GB","names":{"en":"United Kingdom"}},
+                 "registered_country":{"iso_code":"US"},
+                 "traits":{"ip_address":"81.2.69.142"}}
+                """, CountryResponse.class);
+
+        assertEquals("GB", response.country().isoCode());
+        assertEquals("US", response.registeredCountry().isoCode());
+        assertEquals("81.2.69.142", response.traits().ipAddress().getHostAddress());
+    }
 
     @BeforeEach
     void setUp() {

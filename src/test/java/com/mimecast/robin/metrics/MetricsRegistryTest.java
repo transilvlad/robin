@@ -2,12 +2,15 @@ package com.mimecast.robin.metrics;
 
 import io.micrometer.graphite.GraphiteConfig;
 import io.micrometer.graphite.GraphiteMeterRegistry;
+import io.micrometer.graphite.GraphiteProtocol;
 import io.micrometer.prometheusmetrics.PrometheusConfig;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Isolated;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -47,6 +50,35 @@ class MetricsRegistryTest {
 
         assertNotNull(MetricsRegistry.getGraphiteRegistry());
         assertSame(graphiteRegistry, MetricsRegistry.getGraphiteRegistry());
+    }
+
+    @ParameterizedTest
+    @EnumSource(GraphiteProtocol.class)
+    void supportedGraphiteTransportsDoNotRequireAmqp(GraphiteProtocol protocol) {
+        GraphiteConfig config = new GraphiteConfig() {
+            @Override
+            public GraphiteProtocol protocol() {
+                return protocol;
+            }
+
+            @Override
+            public boolean enabled() {
+                return false;
+            }
+
+            @Override
+            public String get(String key) {
+                return null;
+            }
+        };
+        GraphiteMeterRegistry registry = new GraphiteMeterRegistry(
+                config, io.micrometer.core.instrument.Clock.SYSTEM);
+        try {
+            registry.counter("transport.compatibility").increment();
+            assertEquals(1, registry.get("transport.compatibility").counter().count());
+        } finally {
+            registry.close();
+        }
     }
 
     @Test
