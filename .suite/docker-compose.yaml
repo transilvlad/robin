@@ -30,6 +30,7 @@ include:
 services:
   # PostgreSQL database for Robin, mailbox and Roundcube storage.
   suite-postgres:
+    restart: unless-stopped
     image: postgres:latest
     container_name: suite-postgres
     command:
@@ -68,6 +69,7 @@ services:
   # Redis for Rspamd. Its config file lives in the data volume so CONFIG REWRITE
   # persists. No port is published: it has no authentication.
   suite-redis:
+    restart: unless-stopped
     image: redis:alpine
     container_name: suite-redis
     command:
@@ -92,6 +94,7 @@ services:
 
   # ClamAV virus scanner.
   suite-clamav:
+    restart: unless-stopped
     image: clamav/clamav:latest
     platform: linux/amd64
     container_name: suite-clamav
@@ -111,6 +114,7 @@ services:
 
   # Rspamd spam/phishing detection.
   suite-rspamd:
+    restart: unless-stopped
     image: rspamd/rspamd:latest
     container_name: suite-rspamd
     volumes:
@@ -149,6 +153,7 @@ services:
   # Robin MTA server.
   suite-robin:
     container_name: suite-robin
+    restart: unless-stopped
     build:
       context: ../
       dockerfile: ./Dockerfile

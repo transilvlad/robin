@@ -5,6 +5,7 @@
 # Robin's dovecot.json5 must enable proxyAuth (enabled in the suite defaults).
 services:
   suite-cyrus:
+    restart: unless-stopped
     build:
       context: ../cyrus
     image: robin-suite-cyrus:local
@@ -36,6 +37,7 @@ services:
   # IMAP over TLS for clients and Roundcube. nginx resolves the auth endpoint
   # at startup, so it starts after Robin and restarts with it.
   suite-imap-proxy:
+    restart: unless-stopped
     image: nginx:alpine
     container_name: suite-imap-proxy
     volumes:

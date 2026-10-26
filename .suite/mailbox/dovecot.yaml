@@ -2,6 +2,7 @@
 # Users, aliases and auto aliases are read from Robin's database.
 services:
   suite-dovecot:
+    restart: unless-stopped
     image: dovecot/dovecot:latest
     container_name: suite-dovecot
     user: "0:0"
