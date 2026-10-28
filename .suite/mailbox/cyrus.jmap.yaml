@@ -1,0 +1,63 @@
+# Explicit post-rehearsal overlay; not included by the default suite.
+# Paths are relative to the suite root when used as a top-level -f overlay.
+services:
+  suite-cyrus:
+    image: ${CYRUS_JMAP_IMAGE:?Set a reviewed release-specific Cyrus JMAP image}
+    build:
+      context: ./cyrus
+      dockerfile: Dockerfile.jmap
+    environment:
+      JMAP_SERVER_NAME: ${JMAP_SERVER_NAME:-jmap-backend}
+    mem_limit: 768m
+    cpus: 2
+    volumes: !override
+      - ./etc/cyrus/imapd.conf:/etc/imapd-base.conf:ro
+      - ./etc/cyrus/imapd-jmap.conf:/etc/imapd-jmap.conf:ro
+      - ./etc/cyrus/cyrus-jmap.conf:/etc/cyrus-jmap.conf:ro
+      - cyrus-data:/var/lib/cyrus
+      - ../log/cyrus:/var/log
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/suite-cyrus-jmap-healthcheck"]
+      interval: 15s
+      timeout: 25s
+      retries: 5
+      start_period: 60s
+
+  suite-jmap-proxy:
+    image: ${JMAP_NGINX_IMAGE:?Set a reviewed nginx image}
+    restart: unless-stopped
+    container_name: suite-jmap-proxy
+    mem_limit: 64m
+    cpus: 0.5
+    environment:
+      JMAP_SERVER_NAME: ${JMAP_SERVER_NAME:-jmap-backend}
+      JMAP_CYRUS_HOST: suite-cyrus
+      NGINX_ENVSUBST_FILTER: ^JMAP_(SERVER_NAME|CYRUS_HOST)
+    volumes:
+      - ./etc/jmap-proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./etc/jmap-proxy/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ${JMAP_TLS_DIR:?Set JMAP_TLS_DIR to reviewed certificate material}/fullchain.pem:/etc/nginx/certs/fullchain.pem:ro
+      - ${JMAP_TLS_DIR:?Set JMAP_TLS_DIR to reviewed certificate material}/privkey.pem:/etc/nginx/certs/privkey.pem:ro
+    networks:
+      suite:
+        aliases:
+          - jmap-backend
+    depends_on:
+      suite-cyrus:
+        condition: service_healthy
+    # No host ports. Publishing HTTPS is a separate operator decision.
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "8443"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  cyrus-data:
+    external: true
+    name: ${CYRUS_PROMOTED_VOLUME:?Set the reviewed upgraded clone volume, never the original store}

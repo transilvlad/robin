@@ -1,0 +1,5 @@
+# Append only after TLS/Host/rate-limit tests pass. No HTTP listener/redirect.
+services:
+  suite-jmap-proxy:
+    ports:
+      - "${JMAP_BIND:?Set the explicit public HTTPS bind address}:${JMAP_TLS_PORT:-443}:8443"

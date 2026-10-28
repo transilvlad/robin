@@ -9,7 +9,7 @@ password="$(tr -d '\000')"
 
 [ -n "${PAM_USER:-}" ] && [ -n "$password" ] || exit 1
 
-result="$(jq -cn --arg u "$PAM_USER" --arg p "$password" '{username: $u, password: $p}' \
+result="$(printf '%s' "$password" | jq -Rsc --arg u "$PAM_USER" '{username: $u, password: .}' \
     | curl -fsS --max-time 10 -H 'Content-Type: application/json' --data-binary @- "$url")" || exit 1
 
 [ "$(printf '%s' "$result" | jq -r '.authenticated')" = "true" ]

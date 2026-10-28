@@ -1,0 +1,59 @@
+# Disposable synthetic legacy baseline. Never mounts suite-cyrus-data.
+services:
+  legacy:
+    image: ${CYRUS_LEGACY_IMAGE:?Set the exact inspected old image ID}
+    init: true
+    restart: "no"
+    mem_limit: 768m
+    cpus: 2
+    labels:
+      org.robin.cyrus.rehearsal: synthetic-fixture
+    volumes:
+      - data:/var/lib/cyrus
+      - ../etc/cyrus/imapd.conf:/etc/imapd.conf:ro
+      - ../etc/cyrus/cyrus.conf:/etc/cyrus.conf:ro
+    secrets:
+      - cyrus_admin_password
+    networks:
+      - rehearsal
+    depends_on:
+      auth:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/suite-cyrus-healthcheck"]
+      interval: 10s
+      timeout: 15s
+      retries: 5
+      start_period: 30s
+  auth:
+    image: ${CYRUS_PROBE_IMAGE:-robin-suite-cyrus:3.12.4-jmap}
+    command: ["python3", "/fixture/rehearsal-auth.py"]
+    init: true
+    restart: "no"
+    mem_limit: 192m
+    cpus: 0.5
+    volumes:
+      - .:/fixture:ro
+      - ${CYRUS_EVIDENCE_DIR:?Set the new private evidence directory}:/evidence
+      - ${JMAP_TLS_DIR:?Set rehearsal certificate directory}:/tls:ro
+    secrets:
+      - cyrus_admin_password
+    networks:
+      rehearsal:
+        aliases:
+          - mta-backend
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8090/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+volumes:
+  data:
+    external: true
+    name: ${CYRUS_LEGACY_VOLUME:?Set a new synthetic legacy or rollback volume}
+networks:
+  rehearsal:
+    internal: true
+secrets:
+  cyrus_admin_password:
+    file: ${CYRUS_ADMIN_SECRET_FILE:?Set the synthetic fixture admin secret file}

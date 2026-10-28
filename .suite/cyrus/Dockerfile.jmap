@@ -1,0 +1,57 @@
+# Opt-in upgrade image. Never replace the legacy image before a clone rehearsal.
+FROM debian:bookworm-slim AS build
+ENV DEBIAN_FRONTEND=noninteractive
+ARG CYRUS_VERSION=3.12.4
+ARG CYRUS_SHA256=87a39e27208d9019f00608483d532eb05bd0d71394a6f3f8bb05a72833ad8d91
+RUN case "$CYRUS_VERSION:$CYRUS_SHA256" in \
+      3.8.8:13d10babf2e8bb753c5b8fe37328f6f9d43527539957561b840ebfa24a518b61|\
+      3.10.4:7ec307f26c7cf12cc59a2c9b59bef4186e51e0c31d933180558289f5ca837860|\
+      3.12.4:87a39e27208d9019f00608483d532eb05bd0d71394a6f3f8bb05a72833ad8d91) ;; \
+      *) echo 'Unreviewed Cyrus release/archive pair' >&2; exit 1 ;; esac \
+ && apt-get update && apt-get install -y --no-install-recommends \
+    build-essential pkg-config ca-certificates curl bison flex gperf xxd rsync \
+    libssl-dev libsasl2-dev libjansson-dev libsqlite3-dev libical-dev \
+    libxml2-dev libicu-dev libpcre2-dev uuid-dev libbsd-dev libcld2-dev \
+    libxapian-dev libchardet-dev zlib1g-dev \
+ && rm -rf /var/lib/apt/lists/*
+WORKDIR /build
+RUN curl --fail --location --proto '=https' --tlsv1.2 --max-time 180 \
+      "https://github.com/cyrusimap/cyrus-imapd/releases/download/cyrus-imapd-${CYRUS_VERSION}/cyrus-imapd-${CYRUS_VERSION}.tar.gz" -o cyrus.tar.gz \
+ && echo "${CYRUS_SHA256}  cyrus.tar.gz" | sha256sum -c - \
+ && tar -xzf cyrus.tar.gz --strip-components=1 \
+ && ./configure CFLAGS='-O2 -g0 -fstack-protector-strong -D_FORTIFY_SOURCE=2' \
+      CXXFLAGS='-O2 -g0 -fstack-protector-strong -D_FORTIFY_SOURCE=2' \
+      LDFLAGS='-Wl,-z,relro,-z,now' \
+      --prefix=/usr/local/cyrus --with-cyrus-user=cyrus \
+      --enable-http --enable-jmap --enable-xapian --enable-autocreate --enable-idled \
+      --without-perl --without-ldap --disable-gssapi \
+ && make -j2 && make install
+
+FROM debian:bookworm-slim
+ENV DEBIAN_FRONTEND=noninteractive
+ARG CYRUS_VERSION=3.12.4
+ARG CYRUS_SHA256=87a39e27208d9019f00608483d532eb05bd0d71394a6f3f8bb05a72833ad8d91
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl jq netcat-openbsd rsyslog sasl2-bin python3 libpam-modules \
+      libsasl2-modules libsasl2-modules-db libssl3 libsasl2-2 libjansson4 \
+      libsqlite3-0 libical3 libxml2 libicu72 libpcre2-8-0 libpcre2-posix3 \
+      libuuid1 libbsd0 libcld2-0 libxapian30 libchardet1 zlib1g \
+ && rm -rf /var/lib/apt/lists/* \
+ && useradd --system --uid 101 --home-dir /var/lib/cyrus --gid mail --groups sasl cyrus
+COPY --from=build /usr/local/cyrus /usr/local/cyrus
+RUN echo /usr/local/cyrus/lib > /etc/ld.so.conf.d/cyrus.conf && ldconfig \
+ && test -x /usr/local/cyrus/libexec/httpd \
+ && test -x /usr/local/cyrus/sbin/ctl_conversationsdb
+ENV PATH="/usr/local/cyrus/bin:/usr/local/cyrus/sbin:/usr/local/cyrus/libexec:${PATH}"
+ENV CYRUS_RELEASE="${CYRUS_VERSION}"
+LABEL org.opencontainers.image.version="${CYRUS_VERSION}" \
+      org.opencontainers.image.source="https://github.com/cyrusimap/cyrus-imapd" \
+      org.robin.cyrus.source-sha256="${CYRUS_SHA256}"
+COPY jmap-entrypoint.sh /usr/local/bin/suite-cyrus-jmap-entrypoint
+COPY robin-auth.sh /usr/local/bin/robin-auth
+COPY jmap-healthcheck.sh /usr/local/bin/suite-cyrus-jmap-healthcheck
+COPY offline-upgrade.sh /usr/local/bin/suite-cyrus-offline-upgrade
+COPY verify-stage.py /usr/local/bin/suite-cyrus-verify-stage
+RUN chmod 755 /usr/local/bin/suite-cyrus-jmap-entrypoint /usr/local/bin/robin-auth /usr/local/bin/suite-cyrus-jmap-healthcheck /usr/local/bin/suite-cyrus-offline-upgrade
+EXPOSE 24 143 4190 8008
+CMD ["/usr/local/bin/suite-cyrus-jmap-entrypoint"]
