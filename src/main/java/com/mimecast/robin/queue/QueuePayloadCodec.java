@@ -106,7 +106,14 @@ final class QueuePayloadCodec {
 
     private static Object deserializeJavaPayload(DataInputStream input) throws IOException, ClassNotFoundException {
         try (ObjectInputStream objectInput = new ObjectInputStream(input)) {
-            return objectInput.readObject();
+            Object payload = objectInput.readObject();
+            if (payload instanceof RelaySession relaySession && relaySession.getSession() != null) {
+                Session session = relaySession.getSession();
+                session.setAuth(false).setUsername("").setPassword("").setStartTls(false);
+                session.getMagic().clear();
+                session.getSavedResults().clear();
+            }
+            return payload;
         }
     }
 
@@ -147,18 +154,19 @@ final class QueuePayloadCodec {
         writeString(output, session.getEhloLog());
         writeStringList(output, session.getEhloAuth());
         output.writeBoolean(session.isTls());
-        output.writeBoolean(session.isStartTls());
+        output.writeBoolean(false);
         writeSecurityPolicy(output, session.getSecurityPolicy());
         output.writeBoolean(session.isSecurePort());
         output.writeBoolean(session.isAuthBeforeTls());
-        output.writeBoolean(session.isAuth());
+        output.writeBoolean(false);
         output.writeBoolean(session.isAuthLoginCombined());
         output.writeBoolean(session.isAuthLoginRetry());
-        writeString(output, session.getUsername());
-        writeString(output, session.getPassword());
+        writeString(output, "");
+        writeString(output, "");
         writeStringList(output, session.getBehaviour());
-        writeSerializedObject(output, session.getMagic());
-        writeSerializedObject(output, session.getSavedResults());
+        // Relay jobs must not persist submission credentials or arbitrary query/config secrets.
+        writeSerializedObject(output, Map.of());
+        writeSerializedObject(output, Map.of());
 
         List<MessageEnvelope> envelopes = session.getEnvelopes();
         output.writeInt(envelopes != null ? envelopes.size() : -1);
@@ -212,31 +220,25 @@ final class QueuePayloadCodec {
             session.setEhloAuth(ehloAuth);
         }
         session.setTls(input.readBoolean());
-        session.setStartTls(input.readBoolean());
+        input.readBoolean();
+        session.setStartTls(false);
         session.setSecurityPolicy(readSecurityPolicy(input));
         session.setSecurePort(input.readBoolean());
         session.setAuthBeforeTls(input.readBoolean());
-        session.setAuth(input.readBoolean());
+        input.readBoolean();
+        session.setAuth(false);
         session.setAuthLoginCombined(input.readBoolean());
         session.setAuthLoginRetry(input.readBoolean());
-        session.setUsername(readString(input));
-        session.setPassword(readString(input));
+        readString(input);
+        readString(input);
         List<String> behaviour = readStringList(input);
         if (behaviour != null) {
             session.setBehaviour(behaviour);
         }
-        @SuppressWarnings("unchecked")
-        Map<String, Object> magic = (Map<String, Object>) readSerializedObject(input);
-        if (magic != null) {
-            session.getMagic().clear();
-            session.getMagic().putAll(magic);
-        }
-        @SuppressWarnings("unchecked")
-        Map<String, List<?>> savedResults = (Map<String, List<?>>) readSerializedObject(input);
-        if (savedResults != null) {
-            session.getSavedResults().clear();
-            session.getSavedResults().putAll(savedResults);
-        }
+        readSerializedObject(input);
+        readSerializedObject(input);
+        session.getMagic().clear();
+        session.getSavedResults().clear();
 
         int envelopeCount = input.readInt();
         if (envelopeCount > 0) {

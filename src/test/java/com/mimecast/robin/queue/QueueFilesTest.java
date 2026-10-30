@@ -15,6 +15,8 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Isolated
 class QueueFilesTest {
@@ -49,6 +51,29 @@ class QueueFilesTest {
         } finally {
             restoreConfigValue(Config.getServer().getStorage().getMap(), "path", originalPath);
             restoreConfigValue(Config.getServer().getQueue().getMap(), "diskSafety", originalDiskSafety);
+        }
+    }
+
+    @Test
+    void eachQueueJobOwnsItsFileEvenWhenSourceAlreadyQueued() throws Exception {
+        Object originalPath = Config.getServer().getStorage().getMap().get("path");
+        Config.getServer().getStorage().getMap().put("path", tempDir.toString());
+        try {
+            Path original = Files.writeString(tempDir.resolve("source.eml"), "Subject: fanout\r\n\r\nbody\r\n");
+            RelaySession first = new RelaySession(new Session().addEnvelope(
+                    new MessageEnvelope().setFile(original.toString())));
+            assertTrue(QueueFiles.persistEnvelopeFiles(first));
+            RelaySession second = new RelaySession(new Session().addEnvelope(first.getSession().getEnvelopes().getFirst().clone()));
+            assertTrue(QueueFiles.persistEnvelopeFiles(second));
+            Path firstFile = Path.of(first.getSession().getEnvelopes().getFirst().getFile());
+            Path secondFile = Path.of(second.getSession().getEnvelopes().getFirst().getFile());
+            assertNotEquals(firstFile, secondFile);
+            assertTrue(QueueFiles.persistEnvelopeFiles(first));
+            assertEquals(firstFile.toString(), first.getSession().getEnvelopes().getFirst().getFile());
+            Files.delete(firstFile);
+            assertEquals(Files.readString(original), Files.readString(secondFile));
+        } finally {
+            restoreConfigValue(Config.getServer().getStorage().getMap(), "path", originalPath);
         }
     }
 

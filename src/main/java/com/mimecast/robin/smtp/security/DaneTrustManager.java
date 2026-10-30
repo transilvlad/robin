@@ -8,6 +8,13 @@ import javax.net.ssl.X509TrustManager;
 import java.security.MessageDigest;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.security.cert.CertificateFactory;
+import java.security.cert.CertPathValidator;
+import java.security.cert.PKIXParameters;
+import java.security.cert.TrustAnchor;
+import java.util.Arrays;
+import java.util.Locale;
+import java.util.Set;
 import java.util.HexFormat;
 import java.util.List;
 
@@ -88,30 +95,56 @@ public class DaneTrustManager implements X509TrustManager {
      */
     private boolean validateCertificateAgainstTLSA(X509Certificate[] chain, DaneRecord daneRecord) throws Exception {
         int usage = daneRecord.getUsage();
+        if (usage == 3) {
+            return matchesCertificate(chain[0], daneRecord);
+        }
+        if (usage != 2) {
+            return false;
+        }
+        for (int i = 1; i < chain.length; i++) {
+            X509Certificate anchor = chain[i];
+            if (anchor.getBasicConstraints() < 0 || !matchesCertificate(anchor, daneRecord)) {
+                continue;
+            }
+            PKIXParameters parameters = new PKIXParameters(Set.of(new TrustAnchor(anchor, null)));
+            parameters.setRevocationEnabled(false);
+            var path = CertificateFactory.getInstance("X.509").generateCertPath(Arrays.asList(chain).subList(0, i));
+            CertPathValidator.getInstance("PKIX").validate(path, parameters);
+            if (matchesHostname(chain[0], securityPolicy.getMxHostname())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean matchesHostname(X509Certificate certificate, String hostname) throws CertificateException {
+        String host = hostname.replaceFirst("\\.$", "").toLowerCase(Locale.ROOT);
+        var alternatives = certificate.getSubjectAlternativeNames();
+        if (alternatives == null) {
+            return false;
+        }
+        for (var alternative : alternatives) {
+            if (alternative.size() < 2 || !Integer.valueOf(2).equals(alternative.getFirst())
+                    || !(alternative.get(1) instanceof String name)) {
+                continue;
+            }
+            String pattern = name.toLowerCase(Locale.ROOT);
+            if (host.equals(pattern) || (pattern.startsWith("*.") && host.indexOf('.') > 0
+                    && host.substring(host.indexOf('.') + 1).equals(pattern.substring(2)))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean matchesCertificate(X509Certificate certToCheck, DaneRecord daneRecord) throws Exception {
+        int usage = daneRecord.getUsage();
         int selector = daneRecord.getSelector();
         int matchingType = daneRecord.getMatchingType();
         String expectedHash = daneRecord.getCertificateData().toLowerCase();
 
         log.debug("Validating against TLSA: usage={}, selector={}, matchingType={}",
                 usage, selector, matchingType);
-
-        // Determine which certificate to check based on usage.
-        X509Certificate certToCheck;
-        switch (usage) {
-            case 0: // PKIX-TA (CA constraint) - check trust anchor.
-            case 2: // DANE-TA (trust anchor assertion) - check trust anchor.
-                certToCheck = chain[chain.length - 1]; // Root/trust anchor.
-                break;
-
-            case 1: // PKIX-EE (service certificate constraint) - check end entity.
-            case 3: // DANE-EE (domain-issued certificate) - check end entity.
-                certToCheck = chain[0]; // End entity certificate.
-                break;
-
-            default:
-                log.warn("Unsupported TLSA usage: {}", usage);
-                return false;
-        }
 
         // Extract the data to hash based on selector.
         byte[] dataToHash;

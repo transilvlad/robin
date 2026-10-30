@@ -76,8 +76,11 @@ class RelayDequeueTest {
     @Test
     void testProcessClaimedItemAcknowledgesFullyDeliveredSession() {
         RelaySession relaySession = relaySessionWithEnvelope("success", List.of("tony@example.com"));
-        relayDequeue = new TestRelayDequeue(testQueue, session -> session.getSession().getSessionTransactionList()
-                .addEnvelope(new EnvelopeTransactionList()));
+        relayDequeue = new TestRelayDequeue(testQueue, session -> {
+            EnvelopeTransactionList delivered = new EnvelopeTransactionList();
+            delivered.addTransaction("DATA", "250 Delivered");
+            session.getSession().getSessionTransactionList().addEnvelope(delivered);
+        });
         testQueue.enqueue(relaySession);
         QueueItem<RelaySession> claimed = claimSingle(relaySession.getUID());
 
@@ -117,6 +120,7 @@ class RelayDequeueTest {
             EnvelopeTransactionList envTxList = new EnvelopeTransactionList();
             envTxList.addTransaction("RCPT", "RCPT TO:<tony@example.com>", "451 4.7.1 Try again later", true);
             envTxList.addTransaction("RCPT", "RCPT TO:<pepper@example.com>", "250 OK");
+            envTxList.addTransaction("DATA", "250 Delivered");
             session.getSession().getSessionTransactionList().addEnvelope(envTxList);
         });
         testQueue.enqueue(relaySession);
@@ -247,7 +251,9 @@ class RelayDequeueTest {
         session.addEnvelope(envelope);
 
         SessionTransactionList txList = session.getSessionTransactionList();
-        txList.getEnvelopes().add(new EnvelopeTransactionList());
+        EnvelopeTransactionList delivered = new EnvelopeTransactionList();
+        delivered.addTransaction("DATA", "250 Delivered");
+        txList.getEnvelopes().add(delivered);
 
         RelayDeliveryResult result = relayDequeue.processDeliveryResults(relaySession);
 
@@ -287,6 +293,7 @@ class RelayDequeueTest {
         EnvelopeTransactionList envTxList = new EnvelopeTransactionList();
         envTxList.addTransaction("RCPT", "RCPT TO:<tony@example.com>", "550 Mailbox unavailable", true);
         envTxList.addTransaction("RCPT", "RCPT TO:<pepper@example.com>", "250 OK");
+        envTxList.addTransaction("DATA", "250 Delivered");
         session.getSessionTransactionList().getEnvelopes().add(envTxList);
 
         RelayDeliveryResult result = relayDequeue.processDeliveryResults(relaySession);
@@ -308,6 +315,33 @@ class RelayDequeueTest {
         relayDequeue.cleanupSuccessfulEnvelopes(List.of(envelope));
 
         assertFalse(Files.exists(tempFile.toPath()));
+    }
+
+    @Test
+    void missingFinalDataConfirmationNeverAcknowledgesMailOrDropsAcceptedRecipients() {
+        RelaySession relay = relaySessionWithEnvelope("interrupted", List.of("one@example.test", "two@example.test"));
+        EnvelopeTransactionList transactions = new EnvelopeTransactionList();
+        transactions.addTransaction("MAIL", "250 OK");
+        transactions.addTransaction("RCPT", "RCPT TO:<one@example.test>", "250 OK");
+        transactions.addTransaction("RCPT", "RCPT TO:<two@example.test>", "451 Try later", true);
+        relay.getSession().getSessionTransactionList().addEnvelope(transactions);
+
+        assertEquals(0, relayDequeue.processDeliveryResults(relay).getRemovedCount());
+        assertEquals(List.of("one@example.test", "two@example.test"),
+                relay.getSession().getEnvelopes().getFirst().getRcpts());
+    }
+
+    @Test
+    void dataFailureRetainsRecipientsWhoseRcptWasAccepted() {
+        RelaySession relay = relaySessionWithEnvelope("data-failed", List.of("one@example.test", "two@example.test"));
+        EnvelopeTransactionList transactions = new EnvelopeTransactionList();
+        transactions.addTransaction("RCPT", "RCPT TO:<one@example.test>", "250 OK");
+        transactions.addTransaction("RCPT", "RCPT TO:<two@example.test>", "451 Try later", true);
+        transactions.addTransaction("DATA", "451 Storage unavailable", true);
+        relay.getSession().getSessionTransactionList().addEnvelope(transactions);
+
+        assertEquals(0, relayDequeue.processDeliveryResults(relay).getRemovedCount());
+        assertEquals(2, relay.getSession().getEnvelopes().getFirst().getRcpts().size());
     }
 
     @Test

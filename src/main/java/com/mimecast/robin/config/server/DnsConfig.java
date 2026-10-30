@@ -123,6 +123,14 @@ public class DnsConfig {
     }
 
     /**
+     * Trust AD assertions from an operator-controlled DNSSEC-validating resolver.
+     * Never enable for an unauthenticated public/system DNS transport.
+     */
+    public boolean isTrustAuthenticatedData() {
+        return Boolean.TRUE.equals(map.get("trustAuthenticatedData"));
+    }
+
+    /**
      * Preferred address family order when both A and AAAA records are available.
      * Accepted values:
      * <ul>

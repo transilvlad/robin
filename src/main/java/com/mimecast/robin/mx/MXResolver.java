@@ -115,12 +115,24 @@ public class MXResolver {
             return Collections.emptyList();
         }
 
-        List<DnsRecord> mxRecords = optionalDnsRecords.get();
+        return secureRecords(domain, optionalDnsRecords.get());
+    }
+
+    /**
+     * Resolves a durable delivery destination, preserving permanent/transient DNS
+     * failures and attaching the policy for each individual MX hostname.
+     */
+    public List<SecureMxRecord> resolveDeliveryMx(String domain) {
+        return secureRecords(domain, new XBillDnsRecordClient().getDeliveryMxRecords(domain));
+    }
+
+    private List<SecureMxRecord> secureRecords(String domain, List<DnsRecord> mxRecords) {
         log.debug("Found {} MX records for domain: {}", mxRecords.size(), domain);
 
         // Step 2: Check for DANE TLSA records on each MX host.
         Map<String, List<DaneRecord>> daneRecordsByMx = new HashMap<>();
         boolean daneAvailable = false;
+        boolean authenticatedMx = new XBillDnsRecordClient().isAuthenticatedMx(domain, mxRecords);
 
         for (DnsRecord mx : mxRecords) {
             String mxHostname = mx.getValue();
@@ -128,7 +140,8 @@ public class MXResolver {
                 log.warn("Skipping MX record with null/empty hostname for domain: {}", domain);
                 continue;
             }
-            List<DaneRecord> daneRecords = DaneChecker.checkDane(mxHostname);
+            List<DaneRecord> daneRecords = authenticatedMx
+                    ? DaneChecker.checkAuthenticatedDane(mxHostname) : List.of();
             if (!daneRecords.isEmpty()) {
                 log.info("DANE TLSA records found for MX host: {} (domain: {})", mxHostname, domain);
                 daneRecordsByMx.put(mxHostname, daneRecords);
@@ -178,7 +191,7 @@ public class MXResolver {
                 if (mxHostname == null || mxHostname.isEmpty()) {
                     continue;
                 }
-                if (stsPolicy.matchMx(mxHostname)) {
+                if (stsPolicy.matchMx(mxHostname) || stsPolicy.getMode() != com.mimecast.robin.mx.assets.StsMode.ENFORCE) {
                     SecurityPolicy policy = SecurityPolicy.mtaSts(mxHostname, stsPolicy.getMode().toString());
                     secureMxRecords.add(new SecureMxRecord(mx, policy));
                 } else {
@@ -190,7 +203,7 @@ public class MXResolver {
                 return secureMxRecords;
             } else {
                 log.warn("No MX records match MTA-STS policy for domain: {}", domain);
-                // Fall through to opportunistic.
+                throw new MailRoutingException("No MX matches enforced MTA-STS policy for " + domain, false);
             }
         }
 

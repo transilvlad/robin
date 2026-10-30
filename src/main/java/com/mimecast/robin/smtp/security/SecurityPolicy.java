@@ -152,7 +152,7 @@ public class SecurityPolicy {
      * @return true if TLS is required, false for opportunistic.
      */
     public boolean isTlsMandatory() {
-        return type == PolicyType.DANE || type == PolicyType.MTA_STS;
+        return type == PolicyType.DANE || (type == PolicyType.MTA_STS && "enforce".equalsIgnoreCase(mtaStsPolicy));
     }
 
     /**

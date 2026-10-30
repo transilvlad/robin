@@ -9,6 +9,20 @@ This is done by using a combination of DNS TXT record and well-known HTTPS text/
 
 The key security functionality to defeat MITM attacks is the secure nature of certificates aside from known breaches of authorities.
 
+Queued Internet delivery discovers policy separately for each MX hostname.
+Enforced MTA-STS requires both the MX policy match and PKIX certificate/hostname
+validation; an empty matching-MX set defers instead of downgrading. `testing` and
+`none` modes do not require TLS. Without an enforced policy, port 25 remains
+opportunistic and can deliver to a server that does not advertise STARTTLS.
+
+DANE trust is enabled only with `dns.trustAuthenticatedData: true` and an
+operator-controlled DNSSEC-validating resolver over a trusted transport. The
+default is false: ordinary unauthenticated TLSA answers are not trust anchors.
+Both the MX RRset and TLSA answers must carry authenticated data from that
+resolver. DANE-EE validates the leaf association; DANE-TA also validates the
+certificate path and the MX DNS subject alternative name. DNS validation errors
+defer rather than silently bypassing an authenticated policy.
+
 
 Terminology
 -----------

@@ -79,7 +79,7 @@ public class StrictMx {
                     policy = optional.get();
                 }
 
-                if (policy.getReport() != null && policy.getReport().isValid()) {
+                if (policy != null && policy.getReport() != null && policy.getReport().isValid()) {
                     log.info("Reporting: {}", policy.getReport().getRua());
                 }
             } catch (NoRecordException e) {

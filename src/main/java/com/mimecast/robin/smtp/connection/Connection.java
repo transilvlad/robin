@@ -114,11 +114,6 @@ public class Connection extends SmtpFoundation {
      * @throws IOException Unable to communicate.
      */
     public void connect() throws IOException {
-        if (StringUtils.isNotBlank(session.getBind())) {
-            log.info("Binding to: {}", session.getBind());
-            socket.bind(new InetSocketAddress(session.getBind(), 0));
-        }
-
         int retry = session.getRetry() > 0 ? session.getRetry() : 1;
 
         if (session.getMx() == null || session.getMx().isEmpty()) {
@@ -131,6 +126,10 @@ public class Connection extends SmtpFoundation {
                 log.info("Connecting to: {}:{}", server, session.getPort());
 
                 socket = new Socket();
+                if (StringUtils.isNotBlank(session.getBind())) {
+                    log.info("Binding to: {}", session.getBind());
+                    socket.bind(new InetSocketAddress(session.getBind(), 0));
+                }
                 socket.connect(new InetSocketAddress(server, session.getPort()), this.session.getConnectTimeout());
                 buildStreams();
 

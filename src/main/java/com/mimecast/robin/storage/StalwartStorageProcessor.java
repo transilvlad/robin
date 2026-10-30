@@ -172,9 +172,14 @@ public class StalwartStorageProcessor extends AbstractStorageProcessor {
             var bounceSource = connection.getSession().clone();
             try {
                 BounceMessageGenerator bounce = new BounceMessageGenerator(new RelaySession(bounceSource), mailbox);
-                envelope.setMail("mailer-daemon@" + config.getHostname())
-                        .setRcpt(sender)
-                        .setBytes(bounce.getStream().toByteArray());
+                relaySession = bounce.toRelaySession();
+                if (relaySession == null) {
+                    log.info("Suppressing delivery status notification for null reverse path");
+                    return;
+                }
+                if (!QueueFiles.persistEnvelopeFiles(relaySession)) {
+                    throw new IOException("Failed to persist Stalwart delivery status notification");
+                }
             } finally {
                 bounceSource.clearEnvelopes();
             }

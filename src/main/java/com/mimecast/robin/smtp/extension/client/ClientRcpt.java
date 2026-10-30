@@ -39,8 +39,9 @@ public class ClientRcpt extends ClientProcessor {
 
             read = connection.read("250");
 
-            if (read.startsWith("250")) accepting = true;
-            envelopeTransactions.addTransaction("RCPT", write, read, !accepting);
+            boolean accepted = read.startsWith("2");
+            if (accepted) accepting = true;
+            envelopeTransactions.addTransaction("RCPT", write, read, !accepted);
         }
 
         return accepting;

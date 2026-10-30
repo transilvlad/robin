@@ -55,17 +55,16 @@ public final class QueueFiles {
             String filePath = env.getFile();
 
             try {
-                if (StringUtils.isNotBlank(filePath) && filePath.contains("qeml-") && Files.exists(Path.of(filePath))) {
+                String fileName = "qeml-" + relaySession.getUID() + "-" + i + ".eml";
+                Path target = queueDir.resolve(fileName);
+                if (StringUtils.isNotBlank(filePath)
+                        && Path.of(filePath).toAbsolutePath().normalize().equals(target.toAbsolutePath().normalize())
+                        && Files.exists(target)) {
                     log.trace("Envelope file already in queue, skipping move: {}", filePath);
                     continue;
                 }
 
                 Path src = StringUtils.isNotBlank(filePath) ? Paths.get(filePath) : null;
-                String fileName = src != null && src.getFileName() != null
-                        ? "qeml-" + src.getFileName()
-                        : "qeml-" + relaySession.getSession().getUID() + "-" + i + ".eml";
-                Path target = queueDir.resolve(fileName);
-
                 // Ensure unique target if file exists.
                 if (Files.exists(target)) {
                     String unique = uniqueName(queueDir, fileName, relaySession.getSession().getUID(), i);

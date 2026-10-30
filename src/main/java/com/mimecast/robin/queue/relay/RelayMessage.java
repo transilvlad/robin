@@ -71,6 +71,7 @@ public class RelayMessage {
     public List<Session> relay() {
         // Sessions for relay.
         final List<Session> sessions = new ArrayList<>();
+        final List<Session> mxSessions = new ArrayList<>();
 
         // Check if parser given and relay header if not disabled.
         if (parser != null) {
@@ -94,8 +95,11 @@ public class RelayMessage {
         if (connection.getSession().isOutbound() && relayConfig.getBooleanProperty("outboundEnabled")) {
             // Outbound MX relay if enabled.
             if (relayConfig.getBooleanProperty("outboundMxEnabled")) {
-                // Resolve MX and create sessions.
-                sessions.addAll(new SessionRouting(connection.getSession()).getSessions());
+                // Persist all recipient domains before DNS can fail.
+                Session current = new Session().setDirection(connection.getSession().getDirection())
+                        .addEnvelope(connection.getSession().getEnvelopes().getLast());
+                mxSessions.addAll(new SessionRouting(current).getDeferredSessions());
+                sessions.addAll(mxSessions);
             }
         }
 
@@ -105,7 +109,7 @@ public class RelayMessage {
             for (Session session : sessions) {
                 // Wrap into a relay session. Folder selection is protocol-specific.
                 RelaySession relaySession = new RelaySession(session)
-                        .setProtocol("esmtp");
+                        .setProtocol(mxSessions.contains(session) ? "mx" : "esmtp");
 
                 // Set mailbox folder only for LDA protocol (LMTP handles folder routing based on direction).
                 if ("dovecot-lda".equalsIgnoreCase(relaySession.getProtocol())) {

@@ -136,6 +136,16 @@ public class DefaultTLSSocket implements TLSSocket {
             SSLContext daneContext = SSLContext.getInstance("TLS");
             daneContext.init(client ? null : getServerContext().keyManagers(), tm, null);
             sc = daneContext;
+        } else if (client && securityPolicy != null && securityPolicy.isMtaSts()
+                && securityPolicy.isTlsMandatory()) {
+            SSLContext strictContext = SSLContext.getInstance("TLS");
+            strictContext.init(null, new TrustManager[]{new com.mimecast.robin.trust.TrustManager()}, null);
+            sc = strictContext;
+        } else if (client && securityPolicy != null && !securityPolicy.isTlsMandatory()) {
+            SSLContext opportunisticContext = SSLContext.getInstance("TLS");
+            opportunisticContext.init(null,
+                    new TrustManager[]{new com.mimecast.robin.trust.PermissiveTrustManager()}, null);
+            sc = opportunisticContext;
         } else {
             sc = client ? getClientContext() : getServerContext().context();
         }
@@ -144,10 +154,18 @@ public class DefaultTLSSocket implements TLSSocket {
         // Wrap 'socket' from above in a TLS socket.
         InetSocketAddress remoteAddress = (InetSocketAddress) socket.getRemoteSocketAddress();
         @SuppressWarnings("squid:S2095")
-        SSLSocket sslSocket = (SSLSocket) sf.createSocket(socket, remoteAddress.getHostString(), socket.getPort(), true);
+        String peerHost = client && securityPolicy != null && securityPolicy.getMxHostname() != null
+                ? securityPolicy.getMxHostname().replaceFirst("\\.$", "") : remoteAddress.getHostString();
+        SSLSocket sslSocket = (SSLSocket) sf.createSocket(socket, peerHost, socket.getPort(), true);
 
         // We are a client.
         sslSocket.setUseClientMode(client);
+        if (client && securityPolicy != null && securityPolicy.isMtaSts()
+                && securityPolicy.isTlsMandatory()) {
+            SSLParameters parameters = sslSocket.getSSLParameters();
+            parameters.setEndpointIdentificationAlgorithm("HTTPS");
+            sslSocket.setSSLParameters(parameters);
+        }
 
         // Allowed TLS protocols and supported cipher suites.
         sslSocket.setEnabledProtocols(getEnabledProtocols(sslSocket));

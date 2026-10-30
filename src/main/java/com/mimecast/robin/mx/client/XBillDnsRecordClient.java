@@ -2,6 +2,7 @@ package com.mimecast.robin.mx.client;
 
 import com.mimecast.robin.config.server.DnsConfig;
 import com.mimecast.robin.main.Config;
+import com.mimecast.robin.mx.MailRoutingException;
 import com.mimecast.robin.mx.assets.DnsRecord;
 import com.mimecast.robin.mx.assets.SimpleDnsRecord;
 import com.mimecast.robin.mx.assets.StsRecord;
@@ -13,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.xbill.DNS.*;
 import org.xbill.DNS.Record;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -165,6 +167,92 @@ public class XBillDnsRecordClient implements DnsRecordClient {
             return Optional.of(List.of(new SimpleDnsRecord(domain, 0)));
         }
         return Optional.empty();
+    }
+
+    /**
+     * Resolves delivery MX records without treating DNS outages or Null MX as
+     * absence of MX data. Unlike the exploratory lookup API, failures are explicit.
+     */
+    public List<DnsRecord> getDeliveryMxRecords(String domain) {
+        Record[] mx = getDeliveryRecords(domain, Type.MX);
+        List<DnsRecord> records = new ArrayList<>();
+        for (Record record : mx) {
+            if (record instanceof MXRecord) {
+                records.add(new XBillDnsRecord(record));
+            }
+        }
+        if (isNullMx(records)) {
+            throw new MailRoutingException("Domain publishes Null MX: " + domain, true);
+        }
+        if (!records.isEmpty()) {
+            return records;
+        }
+        if (!dnsConfig().isMxImplicitFallbackEnabled()) {
+            throw new MailRoutingException("No MX records for " + domain, true);
+        }
+        MailRoutingException addressFailure = null;
+        for (int type : new int[]{Type.A, Type.AAAA}) {
+            try {
+                if (getDeliveryRecords(domain, type).length > 0) {
+                    return List.of(new SimpleDnsRecord(domain, 0));
+                }
+            } catch (MailRoutingException e) {
+                if (addressFailure == null || !e.isPermanent()) {
+                    addressFailure = e;
+                }
+            }
+        }
+        if (addressFailure != null) {
+            throw addressFailure;
+        }
+        throw new MailRoutingException("No MX or address records for " + domain, true);
+    }
+
+    private Record[] getDeliveryRecords(String domain, int type) {
+        try {
+            Lookup lookup = new Lookup(domain, type);
+            lookup.setResolver(Lookup.getDefaultResolver());
+            lookup.setCache(CACHE);
+            Record[] records = lookup.run();
+            if (lookup.getResult() == Lookup.HOST_NOT_FOUND) {
+                throw new MailRoutingException("NXDOMAIN: " + domain, true);
+            }
+            if (lookup.getResult() != Lookup.SUCCESSFUL && lookup.getResult() != Lookup.TYPE_NOT_FOUND) {
+                throw new MailRoutingException("DNS lookup failed for " + domain + ": "
+                        + lookup.getErrorString(), false);
+            }
+            return records != null ? records : new Record[0];
+        } catch (TextParseException e) {
+            throw new MailRoutingException("Invalid destination domain: " + domain, true);
+        }
+    }
+
+    public boolean isAuthenticatedMx(String domain, List<DnsRecord> mxRecords) {
+        if (!dnsConfig().isTrustAuthenticatedData()) {
+            return false;
+        }
+        try {
+            Message query = Message.newQuery(Record.newRecord(Name.fromString(domain, Name.root), Type.MX, DClass.IN));
+            query.addRecord(new OPTRecord(1232, 0, 0, ExtendedFlags.DO), Section.ADDITIONAL);
+            Message response = Lookup.getDefaultResolver().send(query);
+            if (response.getRcode() != Rcode.NOERROR && response.getRcode() != Rcode.NXDOMAIN) {
+                throw new MailRoutingException("MX validation lookup failed for " + domain, false);
+            }
+            if (!response.getHeader().getFlag(Flags.AD)) {
+                return false;
+            }
+            Set<String> authenticated = new HashSet<>();
+            for (Record record : response.getSection(Section.ANSWER)) {
+                if (record instanceof MXRecord mx && mx.getName().equals(query.getQuestion().getName())) {
+                    authenticated.add(mx.getPriority() + ":" + mx.getTarget().toString(true).toLowerCase(java.util.Locale.ROOT));
+                }
+            }
+            return !mxRecords.isEmpty() && mxRecords.stream().allMatch(mx ->
+                    authenticated.contains(mx.getPriority() + ":" + mx.getValue().replaceFirst("\\.$", "")
+                            .toLowerCase(java.util.Locale.ROOT)));
+        } catch (IOException e) {
+            throw new MailRoutingException("MX validation lookup failed for " + domain + ": " + e.getMessage(), false);
+        }
     }
 
     /**

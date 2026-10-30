@@ -249,7 +249,15 @@ public class RelaySession implements Serializable {
      * @return String.
      */
     public String getRejection() {
-        return session.getSessionTransactionList().getEnvelopes().getLast().getErrors().getLast().getResponse();
+        var transactions = session.getSessionTransactionList();
+        for (int i = transactions.getEnvelopes().size() - 1; i >= 0; i--) {
+            var errors = transactions.getEnvelopes().get(i).getErrors();
+            if (!errors.isEmpty()) {
+                return errors.getLast().getResponse();
+            }
+        }
+        return transactions.getErrors().isEmpty() ? "451 4.4.2 Delivery not confirmed"
+                : transactions.getErrors().getLast().getResponse();
     }
 
     /**

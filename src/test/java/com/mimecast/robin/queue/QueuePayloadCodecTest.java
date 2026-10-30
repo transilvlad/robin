@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -78,7 +79,8 @@ class QueuePayloadCodecTest {
                 .setPoolKey("primary");
         relaySession.bumpRetryCount();
 
-        RelaySession restored = QueuePayloadCodec.deserialize(QueuePayloadCodec.serialize(relaySession));
+        byte[] encoded = QueuePayloadCodec.serialize(relaySession);
+        RelaySession restored = QueuePayloadCodec.deserialize(encoded);
 
         assertEquals(relaySession.getUID(), restored.getUID());
         assertEquals("lmtp", restored.getProtocol());
@@ -97,11 +99,14 @@ class QueuePayloadCodecTest {
         assertEquals("LHLO", restored.getSession().getEhloLog());
         assertEquals(List.of("PLAIN", "LOGIN"), restored.getSession().getEhloAuth());
         assertTrue(restored.getSession().isTls());
-        assertTrue(restored.getSession().isAuth());
+        assertFalse(restored.getSession().isAuth());
+        assertFalse(restored.getSession().isStartTls());
+        assertEquals("", restored.getSession().getUsername());
+        assertEquals("", restored.getSession().getPassword());
         assertEquals(SecurityPolicy.PolicyType.OPPORTUNISTIC, restored.getSession().getSecurityPolicy().getType());
         assertEquals("mx1.example.com", restored.getSession().getSecurityPolicy().getMxHostname());
-        assertEquals("customValue", restored.getSession().getMagic("customKey"));
-        assertEquals("42", ((Map<?, ?>) restored.getSession().getSavedResults().get("query").getFirst()).get("answer"));
+        assertTrue(restored.getSession().getMagic().isEmpty());
+        assertTrue(restored.getSession().getSavedResults().isEmpty());
 
         MessageEnvelope restoredEnvelope = restored.getSession().getEnvelopes().getFirst();
         assertEquals("sender@example.com", restoredEnvelope.getMail());
@@ -110,5 +115,21 @@ class QueuePayloadCodecTest {
         assertEquals("1", restoredEnvelope.getHeaders().get("X-Test"));
         assertTrue(restoredEnvelope.isPrependHeaders());
         assertEquals(4096, restoredEnvelope.getChunkSize());
+    }
+
+    @Test
+    void relayPayloadDoesNotContainSubmissionOrQuerySecrets() {
+        Session session = new Session().setUsername("private-principal")
+                .setPassword("private-password").setAuth(true);
+        session.putMagic("password", "private-magic-secret");
+        session.saveResults("credentials", List.of(Map.of("password", "private-query-secret")));
+
+        String encoded = new String(QueuePayloadCodec.serialize(new RelaySession(session)),
+                StandardCharsets.ISO_8859_1);
+
+        assertFalse(encoded.contains("private-principal"));
+        assertFalse(encoded.contains("private-password"));
+        assertFalse(encoded.contains("private-magic-secret"));
+        assertFalse(encoded.contains("private-query-secret"));
     }
 }

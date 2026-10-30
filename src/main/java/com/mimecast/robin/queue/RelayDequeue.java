@@ -1,7 +1,7 @@
 package com.mimecast.robin.queue;
 
 import com.mimecast.robin.main.Config;
-import com.mimecast.robin.main.Factories;
+import com.mimecast.robin.mx.MXDelivery;
 import com.mimecast.robin.queue.bounce.BounceMessageGenerator;
 import com.mimecast.robin.queue.relay.DovecotLdaClient;
 import com.mimecast.robin.smtp.EmailDelivery;
@@ -123,6 +123,8 @@ public class RelayDequeue {
                 pooledLmtpDelivery.deliver(relaySession.getSession(), 1, 0);
             } else if ("stalwart-direct".equalsIgnoreCase(relaySession.getProtocol())) {
                 stalwartDirectDelivery.deliver(relaySession.getSession(), 1, 0);
+            } else if ("mx".equalsIgnoreCase(relaySession.getProtocol())) {
+                new MXDelivery().deliver(relaySession.getSession());
             } else {
                 new EmailDelivery(relaySession.getSession()).send();
             }
@@ -143,15 +145,18 @@ public class RelayDequeue {
                     transactions.size(), envelopes.size(), relaySession.getSession().getUID());
         }
 
-        for (int i = 0; i < transactions.size(); i++) {
+        for (int i = 0; i < Math.min(transactions.size(), envelopes.size()); i++) {
             EnvelopeTransactionList txList = transactions.get(i);
             MessageEnvelope envelope = envelopes.get(i);
 
-            if (txList.getErrors().isEmpty()) {
+            boolean smtp = "esmtp".equalsIgnoreCase(relaySession.getProtocol())
+                    || "mx".equalsIgnoreCase(relaySession.getProtocol());
+            boolean committed = !smtp || isMessageCommitted(txList);
+            if (committed && txList.getErrors().isEmpty()) {
                 successfulEnvelopes.add(envelope);
             } else {
                 List<String> failedRecipients = txList.getFailedRecipients();
-                if (failedRecipients != null && !failedRecipients.isEmpty()) {
+                if (committed && failedRecipients != null && !failedRecipients.isEmpty()) {
                     envelope.setRcpts(txList.getFailedRecipients());
                 }
             }
@@ -164,6 +169,18 @@ public class RelayDequeue {
                 relaySession.getSession().getEnvelopes().size(),
                 successfulEnvelopes
         );
+    }
+
+    private boolean isMessageCommitted(EnvelopeTransactionList transactions) {
+        Transaction data = transactions.getData();
+        if (data != null && !data.isError() && data.getResponseCode().startsWith("2")) {
+            return true;
+        }
+        List<Transaction> chunks = transactions.getBdat();
+        return !chunks.isEmpty() && chunks.stream().noneMatch(Transaction::isError)
+                && chunks.getLast().getPayload() != null
+                && chunks.getLast().getPayload().toUpperCase(java.util.Locale.ROOT).contains(" LAST")
+                && chunks.getLast().getResponseCode().startsWith("2");
     }
 
     List<Path> collectCleanupPaths(List<MessageEnvelope> successfulEnvelopes) {
@@ -222,14 +239,9 @@ public class RelayDequeue {
 
         List<RelaySession> bounces = new ArrayList<>();
         for (String recipient : recipients) {
-            try {
-                RelaySession bounceSession = createBounceSession(relaySession, recipient);
-                if (bounceSession != null) {
-                    bounces.add(bounceSession);
-                }
-            } catch (Exception e) {
-                log.error("Failed to generate bounce for recipient {}: {}",
-                        recipient, e.getMessage());
+            RelaySession bounceSession = createBounceSession(relaySession, recipient);
+            if (bounceSession != null) {
+                bounces.add(bounceSession);
             }
         }
 
@@ -240,15 +252,12 @@ public class RelayDequeue {
 
     RelaySession createBounceSession(RelaySession originalSession, String recipient) {
         BounceMessageGenerator bounce = new BounceMessageGenerator(originalSession, recipient);
-        RelaySession bounceSession = new RelaySession(Factories.getSession()).setProtocol("esmtp");
-        MessageEnvelope envelope = new MessageEnvelope()
-                .setMail("mailer-daemon@" + Config.getServer().getHostname())
-                .setRcpt(recipient)
-                .setBytes(bounce.getStream().toByteArray());
-        bounceSession.getSession().addEnvelope(envelope);
-        if (!QueueFiles.persistEnvelopeFiles(bounceSession)) {
-            log.error("Failed to persist bounce envelope files before enqueue: uid={}", bounceSession.getSession().getUID());
+        RelaySession bounceSession = bounce.toRelaySession();
+        if (bounceSession == null) {
             return null;
+        }
+        if (!QueueFiles.persistEnvelopeFiles(bounceSession)) {
+            throw new IllegalStateException("Failed to persist delivery status notification before enqueue");
         }
         return bounceSession;
     }
@@ -261,10 +270,17 @@ public class RelayDequeue {
      * @return True if all failures are permanent 5xx.
      */
     boolean hasPermanentFailuresOnly(RelaySession relaySession) {
-        if (!"esmtp".equalsIgnoreCase(relaySession.getProtocol())) {
+        if (!"esmtp".equalsIgnoreCase(relaySession.getProtocol())
+                && !"mx".equalsIgnoreCase(relaySession.getProtocol())) {
             return false;
         }
         boolean hasErrors = false;
+        for (Transaction error : relaySession.getSession().getSessionTransactionList().getErrors()) {
+            hasErrors = true;
+            if (!error.getResponseCode().startsWith("5")) {
+                return false;
+            }
+        }
         for (EnvelopeTransactionList txList :
                 relaySession.getSession().getSessionTransactionList().getEnvelopes()) {
             for (Transaction error : txList.getErrors()) {
@@ -288,13 +304,14 @@ public class RelayDequeue {
     }
 
     private String deriveLastError(RelaySession relaySession) {
-        try {
-            if (relaySession.getSession().getSessionTransactionList().getEnvelopes().isEmpty()) {
-                return null;
+        var transactions = relaySession.getSession().getSessionTransactionList();
+        for (int i = transactions.getEnvelopes().size() - 1; i >= 0; i--) {
+            var errors = transactions.getEnvelopes().get(i).getErrors();
+            if (!errors.isEmpty()) {
+                return errors.getLast().getResponse();
             }
-            return relaySession.getRejection();
-        } catch (Exception ignored) {
-            return null;
         }
+        return transactions.getErrors().isEmpty() ? "451 4.4.2 Delivery not confirmed"
+                : transactions.getErrors().getLast().getResponse();
     }
 }

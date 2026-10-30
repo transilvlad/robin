@@ -1,5 +1,6 @@
 package com.mimecast.robin.mx;
 
+import com.mimecast.robin.main.Config;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.session.Session;
 import org.apache.logging.log4j.LogManager;
@@ -7,6 +8,9 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * Session routing based on MX resolution.
@@ -49,6 +53,7 @@ public class SessionRouting {
      * @return List.
      */
     public List<Session> getSessions() {
+        sessions.clear();
         // Get unique recipient domains from envelopes.
         List<String> domains = new ArrayList<>();
         session.getEnvelopes().forEach(messageEnvelope -> messageEnvelope.getRcpts().forEach(rcpt -> {
@@ -65,13 +70,11 @@ public class SessionRouting {
         for (MXRoute route : routes) {
             // Get the primary MX server (lowest priority).
             if (route.getServers().isEmpty() || route.getIpAddresses().isEmpty()) {
-                log.warn("No MX servers found for route {}", route.getHash());
-                continue;
+                throw new MailRoutingException("No MX addresses for route " + route.getHash(), false);
             }
 
             // Create a new session for this route.
-            Session routeSession = session.clone()
-                    .clearEnvelopes()
+            Session routeSession = newOutboundSession()
                     .setMx(route.getIpAddresses())
                     .setPort(25);
 
@@ -102,7 +105,44 @@ public class SessionRouting {
             }
         }
 
+        for (String domain : domains) {
+            if (routes.stream().noneMatch(route -> route.getDomains().contains(domain))) {
+                throw new MailRoutingException("No MX route for " + domain, false);
+            }
+        }
         return sessions;
+    }
+
+    /**
+     * Splits envelopes by recipient domain without DNS I/O. Queue these using the
+     * {@code mx} protocol so DNS and policy discovery happen on every delivery attempt.
+     */
+    public List<Session> getDeferredSessions() {
+        Map<String, Session> byDomain = new LinkedHashMap<>();
+        for (MessageEnvelope envelope : session.getEnvelopes()) {
+            Map<String, List<String>> recipients = new LinkedHashMap<>();
+            for (String recipient : envelope.getRcpts()) {
+                int at = recipient.lastIndexOf('@');
+                if (at < 1 || at == recipient.length() - 1) {
+                    throw new MailRoutingException("Invalid queued recipient address", true);
+                }
+                String domain = recipient.substring(at + 1).toLowerCase(Locale.ROOT);
+                recipients.computeIfAbsent(domain, key -> new ArrayList<>()).add(recipient);
+            }
+            recipients.forEach((domain, addresses) -> {
+                Session target = byDomain.computeIfAbsent(domain,
+                        key -> newOutboundSession().setMx(List.of(key)));
+                target.addEnvelope(envelope.clone().setRcpts(new ArrayList<>(addresses)));
+            });
+        }
+        return new ArrayList<>(byDomain.values());
+    }
+
+    private Session newOutboundSession() {
+        return new Session()
+                .setDirection(session.getDirection())
+                .setEhlo(Config.getServer().getHostname())
+                .setTls(true);
     }
 
     /**

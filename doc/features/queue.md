@@ -3,6 +3,28 @@ Queue Persistence
 
 Robin supports multiple queue persistence backends for storing messages that could not be relayed. The queue backend is configured in `cfg/queue.json5`.
 
+Durable relay payloads do not store SMTP submission credentials, arbitrary magic
+variables, or saved query results. Older payloads discard that state when read.
+An outbound MX connection starts with fresh AUTH/TLS state and uses the server
+hostname for EHLO; inbound client credentials are never offered to recipient MXs.
+Scripted SMTP client sessions used directly by the testing framework are not
+affected. Do not configure durable relay authentication by copying a submitting
+client's username/password into a queue session.
+
+Outbound MX jobs use the `mx` queue protocol and retain one recipient domain per
+job before performing DNS. Each delivery attempt resolves current MX records and
+per-host TLS policy. NXDOMAIN and Null MX are permanent failures; resolver outages
+defer delivery without dropping recipients or falling back to the domain's A
+record. A/AAAA implicit MX fallback applies only to a successful no-MX lookup.
+Each queue job owns its spool-file name, so one completed fanout destination cannot
+delete another destination's pending message.
+
+SMTP delivery is confirmed only by a successful final DATA or BDAT LAST response.
+Recipients accepted at RCPT are retained when DATA fails or its result is unknown.
+Delivery status notifications go to the original reverse path with `MAIL FROM:<>`;
+null reverse paths never generate another notification. Failure to persist a
+notification leaves the original queue mutation uncommitted.
+
 ## Supported Backends
 
 ### MapDB (Default for Production)

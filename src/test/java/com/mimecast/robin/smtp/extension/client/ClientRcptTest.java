@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import javax.naming.ConfigurationException;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -68,5 +69,18 @@ class ClientRcptTest {
         connection.parseLines();
         assertEquals("MAIL FROM:<tony@example.com> SIZE=2744\r\n", connection.getLine(1));
         assertEquals("RCPT TO:<pepper@example.com>\r\n", connection.getLine(2));
+    }
+
+    @Test
+    void recipientRejectionAfterAcceptanceStillRecordsFailure() throws IOException {
+        ConnectionMock connection = new ConnectionMock(new StringBuilder(
+                "250 Sender OK\r\n250 First recipient OK\r\n451 Second recipient unavailable\r\n"));
+        connection.getSession().addEnvelope(new MessageEnvelope().setMail("sender@example.test")
+                .setRcpts(List.of("first@example.test", "second@example.test")));
+        new ClientMail().process(connection);
+
+        assertTrue(new ClientRcpt().process(connection));
+        assertEquals(List.of("second@example.test"), connection.getSession()
+                .getSessionTransactionList().getEnvelopes().getFirst().getFailedRecipients());
     }
 }
