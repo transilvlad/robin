@@ -1,0 +1,15 @@
+--- a/imap/search_xapian.c
++++ b/imap/search_xapian.c
+@@ -2625,7 +2625,11 @@ static int end_message_update(search_text_receiver_t *rx, uint8_t indexlevel)
+         /* we want to say that we indexed the entire gap from last time
+          * up until this first message as well, so our indexed range
+          * isn't gappy */
+-        seqset_add(tr->indexed, seqset_firstnonmember(tr->oldindexed), 1);
++        /* An attachment pass can resume behind the checkpoint after reopening
++         * the mailbox.  Never mark a newer, unprocessed UID as indexed. */
++        uint32_t firstuid = seqset_firstnonmember(tr->oldindexed);
++        if (firstuid < tr->super.uid)
++            seqset_add(tr->indexed, firstuid, 1);
+     }
+     seqset_add(tr->indexed, tr->super.uid, 1);
+ 

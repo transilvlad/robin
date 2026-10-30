@@ -163,6 +163,8 @@ def stage(snapshot_dir, name, image):
     version = labels.get("org.opencontainers.image.version")
     if version not in PINS or labels.get("org.robin.cyrus.source-sha256") != PINS[version]:
         raise ValueError("Image lacks a reviewed Cyrus release/source pin")
+    if version == "3.12.4" and labels.get("org.robin.cyrus.patchset.3.12.4") != "attachment-checkpoint-v1":
+        raise ValueError("Image lacks the reviewed attachment checkpoint patchset")
     command = ["docker", "run", "--rm", "--network", "none", "--memory", "768m", "--cpus", "2",
                "--mount", f"type=volume,src={name},dst=/var/lib/cyrus",
                "--mount", f"type=bind,src={snapshot_dir.resolve() / 'imapd.conf'},dst=/etc/imapd-base.conf,readonly",

@@ -182,7 +182,8 @@ class CyrusUpgradeTest(unittest.TestCase):
             volume = {"Labels": {upgrade.LABEL: upgrade.digest(path / "manifest.json")}}
             image = {"Id": "sha256:" + "b" * 64, "Config": {"Labels": {
                 "org.opencontainers.image.version": "3.12.4",
-                "org.robin.cyrus.source-sha256": upgrade.PINS["3.12.4"]}}}
+                "org.robin.cyrus.source-sha256": upgrade.PINS["3.12.4"],
+                "org.robin.cyrus.patchset.3.12.4": "attachment-checkpoint-v1"}}}
             with patch.object(upgrade, "inspect", side_effect=[volume, image]), \
                  patch.object(upgrade.recovery, "require_no_writers"), patch.object(upgrade, "run") as run:
                 upgrade.stage(path, "robin-cyrus-rehearsal-test", "mutable-tag")
@@ -191,6 +192,20 @@ class CyrusUpgradeTest(unittest.TestCase):
                 self.assertEqual("768m", args[args.index("--memory") + 1])
                 self.assertEqual(image["Id"], args[-1])
                 self.assertNotIn("suite-cyrus-data", " ".join(args))
+
+    def test_final_stage_refuses_old_unpatched_candidate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            self.make_snapshot(path)
+            volume = {"Labels": {upgrade.LABEL: upgrade.digest(path / "manifest.json")}}
+            image = {"Config": {"Labels": {
+                "org.opencontainers.image.version": "3.12.4",
+                "org.robin.cyrus.source-sha256": upgrade.PINS["3.12.4"]}}}
+            with patch.object(upgrade, "inspect", side_effect=[volume, image]), \
+                 patch.object(upgrade.recovery, "require_no_writers"), patch.object(upgrade, "run") as run:
+                with self.assertRaisesRegex(ValueError, "patchset"):
+                    upgrade.stage(path, "robin-cyrus-rehearsal-test", "old")
+                run.assert_not_called()
 
     def test_message_comparison_mismatch_fails_without_provider_or_content_log(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -207,6 +222,12 @@ class CyrusUpgradeTest(unittest.TestCase):
     def test_default_suite_does_not_enable_jmap(self):
         self.assertNotIn("jmap", (ROOT / "mailbox/cyrus.yaml").read_text().lower())
         self.assertNotIn("8008", (ROOT / "etc/cyrus/cyrus.conf").read_text())
+
+    def test_jmap_indexing_checks_actual_xapian_guid_entries(self):
+        rolling = (ROOT / "etc/cyrus/cyrus-jmap.conf").read_text()
+        offline = (ROOT / "cyrus/offline-upgrade.sh").read_text()
+        self.assertIn('cmd="squatter -R -Z -n squatter"', rolling)
+        self.assertIn("squatter -C /run/cyrus/imapd.conf -Z", offline)
 
     def test_proxy_never_retries_writes_or_logs_request_paths(self):
         proxy = (ROOT / "etc/jmap-proxy/default.conf.template").read_text()
@@ -282,7 +303,7 @@ class CyrusUpgradeTest(unittest.TestCase):
 
     def test_search_backfill_uses_all_mailbox_mode_not_recursive_without_source(self):
         script = (ROOT / "cyrus/offline-upgrade.sh").read_text()
-        self.assertIn("squatter -C /run/cyrus/imapd.conf\n", script)
+        self.assertIn("squatter -C /run/cyrus/imapd.conf -Z\n", script)
         self.assertNotIn("squatter -C /run/cyrus/imapd.conf -r", script)
 
     def test_tls_probe_rejects_cross_origin_or_downgraded_advertisements(self):

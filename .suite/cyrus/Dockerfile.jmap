@@ -1,5 +1,5 @@
 # Opt-in upgrade image. Never replace the legacy image before a clone rehearsal.
-FROM debian:bookworm-slim AS build
+FROM debian:bookworm-slim AS upstream-build
 ENV DEBIAN_FRONTEND=noninteractive
 ARG CYRUS_VERSION=3.12.4
 ARG CYRUS_SHA256=87a39e27208d9019f00608483d532eb05bd0d71394a6f3f8bb05a72833ad8d91
@@ -27,6 +27,12 @@ RUN curl --fail --location --proto '=https' --tlsv1.2 --max-time 180 \
       --without-perl --without-ldap --disable-gssapi \
  && make -j2 && make install
 
+FROM upstream-build AS build
+COPY cyrus-xapian-attachment-checkpoint.patch /build/checkpoint.patch
+RUN if [ "$CYRUS_VERSION" = 3.12.4 ]; then \
+      patch --batch --fuzz=0 -p1 < checkpoint.patch && make -j2 && make install; \
+    fi
+
 FROM debian:bookworm-slim
 ENV DEBIAN_FRONTEND=noninteractive
 ARG CYRUS_VERSION=3.12.4
@@ -46,7 +52,8 @@ ENV PATH="/usr/local/cyrus/bin:/usr/local/cyrus/sbin:/usr/local/cyrus/libexec:${
 ENV CYRUS_RELEASE="${CYRUS_VERSION}"
 LABEL org.opencontainers.image.version="${CYRUS_VERSION}" \
       org.opencontainers.image.source="https://github.com/cyrusimap/cyrus-imapd" \
-      org.robin.cyrus.source-sha256="${CYRUS_SHA256}"
+      org.robin.cyrus.source-sha256="${CYRUS_SHA256}" \
+      org.robin.cyrus.patchset.3.12.4="attachment-checkpoint-v1"
 COPY jmap-entrypoint.sh /usr/local/bin/suite-cyrus-jmap-entrypoint
 COPY robin-auth.sh /usr/local/bin/robin-auth
 COPY jmap-healthcheck.sh /usr/local/bin/suite-cyrus-jmap-healthcheck

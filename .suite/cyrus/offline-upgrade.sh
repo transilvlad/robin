@@ -26,7 +26,7 @@ runuser -u cyrus -- reconstruct -C /run/cyrus/imapd.conf -V max
 runuser -u cyrus -- quota -C /run/cyrus/imapd.conf -f
 if [ "$stage" = 3.12.4 ]; then
     runuser -u cyrus -- ctl_conversationsdb -C /run/cyrus/imapd.conf -b -r
-    runuser -u cyrus -- squatter -C /run/cyrus/imapd.conf
+    runuser -u cyrus -- squatter -C /run/cyrus/imapd.conf -Z
 fi
 runuser -u cyrus -- ctl_cyrusdb -C /run/cyrus/imapd.conf -c
 printf '%s\n' "$stage" > "$data/.robin-jmap-upgraded"

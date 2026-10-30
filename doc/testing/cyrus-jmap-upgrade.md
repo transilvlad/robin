@@ -140,6 +140,34 @@ database, update indexes and quota; final stage builds conversations and search.
 Do not proceed after a failed stage: retain its clone for diagnosis and restore
 a fresh clone under another name.
 
+The candidate's final-stage and rolling Xapian indexing use `squatter -Z` to
+check actual GUID index entries rather than relying only on conversation/UID
+checkpoint claims. A Webmail fixture failure contained an
+original whose UID was covered by the checkpoint but whose GUID was absent from
+Xapian. Fresh GUID-mode fixtures passed exact 1k/5k search-count checks; this does
+not establish the underlying race or repair an already skipped index range.
+Do not promote an old candidate image or declare an existing index repaired from
+this configuration change alone. Rebuild the candidates and repeat the staged
+clone, exact-count search and recovery checks. The default legacy Cyrus service
+is not changed or restarted by these candidate files.
+
+GUID checking alone proved insufficient: a later fresh 5k fixture again omitted
+one indexed subject while preserving the exact original. The pinned 3.12.4
+checkpoint code can mark the next new UID as indexed when an older attachment
+resumes after releasing/reacquiring the mailbox lock. The local
+`cyrus-xapian-attachment-checkpoint.patch` prevents advancing that gap marker
+beyond the UID actually processed. It is applied only to 3.12.4; intermediate
+versions retain their original source. Images record version-scoped metadata
+`org.robin.cyrus.patchset.3.12.4=attachment-checkpoint-v1`, which `upgrade.py stage`
+requires for the final stage; this does not claim that earlier versions are patched.
+Old final-stage images are refused even if their upstream version/hash match.
+
+The actual pinned checkpoint block plus Cyrus's compiled sequence-set library
+reproduced the phantom UID in three cases; the patch passes all five cases,
+including forward indexing. This is a local provider patch, not an upstream
+release or a completed live verification. Fresh aggregate and staged clone
+rehearsals remain mandatory before promotion.
+
 Use `.suite/cyrus/rehearsal.yaml` with a unique project name. It has no published
 ports, no restart policy and no `mailbox-backend`/`lmtp-backend` aliases. Only
 Robin authentication uses the existing suite network; mail stays on the clone.
