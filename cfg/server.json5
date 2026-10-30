@@ -40,7 +40,7 @@
     // Skip additional MAIL FROM address validation; command syntax and parsing remain enforced.
     skipFromValidation: false,
 
-    // Maximum size of a message in megabytes (default: 10242400).
+    // Maximum encoded message size in bytes (legacy emailSizeLimit remains supported).
     messageSizeLimit: 10242400, // 10 MB
 
     // Number of SMTP errors to allow before terminating connection (default: 3).
@@ -77,6 +77,8 @@
 
   // Secure SMTP port configuration
   secureConfig: {
+    // Enable in production to make implicit TLS a submission-only listener.
+    requireAuthentication: false,
     backlog: 25,
     minimumPoolSize: 1,
     maximumPoolSize: 10,
@@ -100,6 +102,7 @@
 
   // Submission port configuration
   submissionConfig: {
+    requireAuthentication: false,
     backlog: 25,
     minimumPoolSize: 1,
     maximumPoolSize: 10,
@@ -123,6 +126,12 @@
 
   // Advertise AUTH support (default: true).
   auth: true,
+
+  // Production submission: enable this with explicit mail_sender_grants in the SQL auth database.
+  // Both MAIL FROM and the parsed From/Sender headers must be explicitly granted.
+  senderAuthorization: {
+    enabled: false
+  },
 
   // Advertise STARTTLS support (default: true).
   starttls: true,

@@ -127,7 +127,7 @@ class ServerAuthTest {
         assertFalse(connection.getSession().isAuth());
 
         connection.parseLines();
-        assertTrue(connection.getLine(1).startsWith(SmtpResponses.UNKNOWN_MAILBOX_550.replace("[%s]", "")));
+        assertEquals(SmtpResponses.AUTH_FAILED_535 + "\r\n", connection.getLine(1));
     }
 
     @Test
@@ -148,7 +148,34 @@ class ServerAuthTest {
 
         connection.parseLines();
         assertEquals(SmtpResponses.AUTH_PAYLOAD_334 + "\r\n", connection.getLine(1));
-        assertTrue(connection.getLine(2).startsWith(SmtpResponses.UNKNOWN_MAILBOX_550.replace("[%s]", "")));
+        assertEquals(SmtpResponses.AUTH_FAILED_535 + "\r\n", connection.getLine(2));
+    }
+
+    @Test
+    void inlinePlainAuthenticatesAndCannotSwitchAnAuthenticatedPrincipal() throws IOException {
+        ConnectionMock connection = new ConnectionMock(new StringBuilder());
+        connection.getSession().setSecurePort(true).setStartTls(true);
+        String payload = java.util.Base64.getEncoder().encodeToString(
+                "\u0000tony@example.com\u0000stark".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        assertTrue(new ServerAuth().process(connection, new Verb("AUTH PLAIN " + payload)));
+        assertEquals("tony@example.com", connection.getSession().getUsername());
+        assertFalse(new ServerAuth().process(connection,
+                new Verb("AUTH PLAIN AHVsdHJvbkBleGFtcGxlLmNvbQBzYXZlVGhlSHVtYW5z")));
+        assertEquals("tony@example.com", connection.getSession().getUsername());
+        assertTrue(connection.getSession().isAuth());
+        assertTrue(connection.getOutput().contains("503 5.5.1 Already authenticated"));
+    }
+
+    @Test
+    void malformedPlainCannotReuseEarlierUnverifiedCredentials() throws IOException {
+        ConnectionMock connection = new ConnectionMock(new StringBuilder());
+        connection.getSession().setSecurePort(true).setStartTls(true)
+                .setUsername("tony@example.com").setPassword("stark");
+
+        assertFalse(new ServerAuth().process(connection, new Verb("AUTH PLAIN not-base64!")));
+        assertFalse(connection.getSession().isAuth());
+        assertEquals("", connection.getSession().getUsername());
     }
 
     @Test

@@ -92,6 +92,37 @@ try (DovecotUserLookupNative lookup = new DovecotUserLookupNative(userdb)) { ...
 
 Authentication Examples
 -----------------------
+
+### Production submission identity policy
+
+Set `requireAuthentication: true` in both `secureConfig` (465) and
+`submissionConfig` (587) in `server.json5`. This makes implicit-TLS submission
+require AUTH before MAIL as well as STARTTLS submission. The listener option
+defaults to false to preserve testing scenarios. AUTH PLAIN supports both the
+inline initial response and the challenge form; an authenticated connection
+cannot change principal by issuing another AUTH command.
+
+Enable the independent `senderAuthorization: {enabled: true}` root setting to
+require explicit sender grants in the shared SQL authentication database.
+`mail_sender_grants(account,address,grant_type)` contains exact lowercased
+authenticated principals and permitted sender addresses. Supported grant types
+are `primary`, `alias`, and `delegated`; routing aliases do not confer send
+permission. Even an account's primary address needs an explicit grant.
+
+The default query joins the grant to the current `users.email` account and an
+enabled `mail_domains.domain`, preventing orphan grants and disabled-domain
+submission. `senderAuthorization.query` may override that query and receives
+exact lowercased account and sender parameters, in that order. Query execution
+has a five-second timeout.
+
+The envelope sender must be granted before MAIL succeeds. Before accepting
+DATA or BDAT LAST, Robin requires one unambiguous From mailbox and authorizes
+it independently; an optional Sender mailbox must also be granted. A grant
+denial or malformed/ambiguous author returns `550 5.7.1`; an unavailable
+authorization store returns `451 4.7.0`, never permission. Authenticated
+submission with a null reverse path is not implicitly permitted. Unauthenticated
+Internet delivery and its null-sender DSNs are unaffected by this opt-in policy.
+
 PLAIN (single step):
 ```java
 import com.mimecast.robin.sasl.DovecotSaslAuthNative;

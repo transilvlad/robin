@@ -11,6 +11,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Unit tests for the JVM property override of the per-listener validation setting.
@@ -82,5 +83,20 @@ class ListenerConfigTest {
         System.setProperty("mta.skipfromvalidation", "   ");
 
         assertTrue(new ListenerConfig(Map.of("skipFromValidation", true)).isSkipFromValidation());
+    }
+
+    @Test
+    void messageSizeLimitUsesBytesAndTakesPrecedenceOverLegacyKey() {
+        assertEquals(20971520, new ListenerConfig(Map.of("messageSizeLimit", 20971520L)).getEmailSizeLimit());
+        assertEquals(1234, new ListenerConfig(Map.of("emailSizeLimit", 1234L)).getEmailSizeLimit());
+        assertEquals(20971520, new ListenerConfig(Map.of("messageSizeLimit", 20971520L,
+                "emailSizeLimit", 1234L)).getEmailSizeLimit());
+        assertEquals(10242400, new ListenerConfig().getEmailSizeLimit());
+    }
+
+    @Test
+    void productionAuthenticationRequirementIsExplicit() {
+        assertFalse(new ListenerConfig().isAuthenticationRequired());
+        assertTrue(new ListenerConfig(Map.of("requireAuthentication", true)).isAuthenticationRequired());
     }
 }

@@ -124,7 +124,12 @@ public class ListenerConfig extends ConfigFoundation {
      * @return Email size limit.
      */
     public int getEmailSizeLimit() {
-        return Math.toIntExact(getLongProperty("emailSizeLimit", 10242400L)); // 10 MB.
+        return Math.toIntExact(getLongProperty("messageSizeLimit",
+                getLongProperty("emailSizeLimit", 10242400L)));
+    }
+
+    public boolean isAuthenticationRequired() {
+        return getBooleanProperty("requireAuthentication", false);
     }
 
     /**

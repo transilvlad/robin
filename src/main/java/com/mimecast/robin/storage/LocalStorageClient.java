@@ -14,6 +14,7 @@ import com.mimecast.robin.smtp.MessageSource;
 import com.mimecast.robin.smtp.RefCountedFileMessageSource;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.session.Session;
+import com.mimecast.robin.smtp.security.SenderAuthorization;
 import com.mimecast.robin.util.PathUtils;
 import org.apache.commons.io.output.NullOutputStream;
 import org.apache.commons.lang3.StringUtils;
@@ -208,6 +209,9 @@ public class LocalStorageClient implements StorageClient {
                                  ? new EmailParser(input).parse(!parseFullEmail)
                                  : new EmailParser(getFile()).parse(!parseFullEmail)) {
                         parser = emailParser;
+                        if (!SenderAuthorization.checkHeaders(connection, parser)) {
+                            return false;
+                        }
 
                         if (isRenameHeaderActive()) {
                             rename(envelope);
@@ -286,6 +290,7 @@ public class LocalStorageClient implements StorageClient {
 
     private boolean shouldParseHeadersOnly(MessageEnvelope envelope) {
         return Config.getServer().isChaosHeaders()
+                || (connection.getSession().isAuth() && SenderAuthorization.isEnabled())
                 || isRenameHeaderActive()
                 || (envelope != null && envelope.hasBotAddresses());
     }

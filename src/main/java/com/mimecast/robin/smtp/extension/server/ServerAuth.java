@@ -15,6 +15,7 @@ import org.apache.commons.codec.binary.Base64;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 /**
@@ -56,13 +57,21 @@ public class ServerAuth extends ServerProcessor {
             connection.write(SmtpResponses.CONNECTION_NOT_SECURED_538);
             return false;
         }
+        if (connection.getSession().isAuth()) {
+            connection.write("503 5.5.1 Already authenticated");
+            return false;
+        }
+        connection.getSession().setUsername("").setPassword("");
 
         // Process authentication.
         AuthVerb authVerb = new AuthVerb(verb);
         if (verb.getCount() > 1) {
             switch (authVerb.getType()) {
                 case "PLAIN":
-                    processAuthPlain(verb);
+                    if (!processAuthPlain(verb)) {
+                        connection.write(SmtpResponses.AUTH_FAILED_535);
+                        return false;
+                    }
                     break;
 
                 case "LOGIN":
@@ -153,21 +162,29 @@ public class ServerAuth extends ServerProcessor {
      * @param verb Verb instance.
      * @throws IOException Unable to communicate.
      */
-    private void processAuthPlain(Verb verb) throws IOException {
+    private boolean processAuthPlain(Verb verb) throws IOException {
         String auth;
 
         if (verb.getCount() == 2) {
             connection.write(SmtpResponses.AUTH_PAYLOAD_334); // Payload:
 
             auth = connection.read();
-            if (Extensions.isExtension(auth)) return; // Failsafe to catch unexpected commands.
-
-            String decoded = new String(Base64.decodeBase64(auth));
-            String[] parts = decoded.split("\u0000");
-            if (parts.length == 3) {
-                connection.getSession().setUsername(parts[1]);
-                connection.getSession().setPassword(parts[2]);
+            if (Extensions.isExtension(auth)) return false;
+        } else if (verb.getCount() == 3) {
+            auth = verb.getPart(2);
+        } else {
+            return false;
+        }
+        try {
+            String decoded = new String(java.util.Base64.getDecoder().decode(auth.trim()), StandardCharsets.UTF_8);
+            String[] parts = decoded.split("\u0000", -1);
+            if (parts.length != 3 || (!parts[0].isEmpty() && !parts[0].equals(parts[1]))) {
+                return false;
             }
+            connection.getSession().setUsername(parts[1]).setPassword(parts[2]);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
         }
     }
 

@@ -111,8 +111,9 @@ public class EmailReceipt implements Runnable {
             connection = new Connection(socket);
             this.config = config;
             errorLimit = config.getErrorLimit();
-            connection.getSession().setDirection(submission ? EmailDirection.OUTBOUND : EmailDirection.INBOUND);
-            connection.enableSmtpAudit(listenerName(secure, submission));
+            boolean authenticatedSubmission = submission || config.isAuthenticationRequired();
+            connection.getSession().setDirection(authenticatedSubmission ? EmailDirection.OUTBOUND : EmailDirection.INBOUND);
+            connection.enableSmtpAudit(listenerName(secure, authenticatedSubmission));
 
             // Enable TLS handling if secure listener.
             if (secure) {
