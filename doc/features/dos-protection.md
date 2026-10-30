@@ -4,6 +4,13 @@
 
 This document describes the DoS (Denial of Service) protection features implemented in Robin MTA to defend against common SMTP server attacks including connection floods, slowloris attacks, command floods, and resource exhaustion.
 
+Listener worker capacity is bounded by `maximumPoolSize`. When all workers are
+busy, the newly accepted socket is closed and the overload is logged and counted
+as a connection-limit rejection. The acceptor never executes an SMTP session or
+TLS handshake itself, and connection-tracking counts are released on rejection.
+This capacity bound also applies to whitelisted clients and when optional DoS
+controls are disabled.
+
 ## Implementation Status
 
 1. **ListenerConfig Extensions** (`ListenerConfig.java`)

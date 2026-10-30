@@ -19,6 +19,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -80,7 +81,7 @@ public class SmtpListener {
                 config.getMaximumPoolSize(),
                 config.getThreadKeepAliveTime(), TimeUnit.SECONDS,
                 new SynchronousQueue<>(),
-                new ThreadPoolExecutor.CallerRunsPolicy()
+                new ThreadPoolExecutor.AbortPolicy()
         );
     }
 
@@ -172,21 +173,28 @@ public class SmtpListener {
                 }
 
                 final boolean isWhitelisted = whitelisted;
-                executor.submit(() -> {
-                    try {
-                        new EmailReceipt(sock, config, secure, submission, isWhitelisted).run();
-
-                    } catch (Exception e) {
-                        SmtpMetrics.incrementEmailReceiptException(e.getClass().getSimpleName());
-                        log.error("Email receipt unexpected exception: {}", e.getMessage());
-                    } finally {
-                        // Always record disconnection for proper tracking (skipped for whitelisted IPs).
-                        if (config.isDosProtectionEnabled() && !isWhitelisted) {
-                            ConnectionTracker.recordDisconnection(remoteIp);
+                try {
+                    executor.execute(() -> {
+                        try {
+                            new EmailReceipt(sock, config, secure, submission, isWhitelisted).run();
+                        } catch (Exception e) {
+                            SmtpMetrics.incrementEmailReceiptException(e.getClass().getSimpleName());
+                            log.error("Email receipt unexpected exception: {}", e.getMessage());
+                        } finally {
+                            closeSocket(sock);
+                            if (config.isDosProtectionEnabled() && !isWhitelisted) {
+                                ConnectionTracker.recordDisconnection(remoteIp);
+                            }
                         }
+                    });
+                } catch (RejectedExecutionException e) {
+                    log.warn("SMTP listener overloaded on port {}; closing unserved connection", port);
+                    SmtpMetrics.incrementDosConnectionLimitRejection();
+                    closeSocket(sock);
+                    if (config.isDosProtectionEnabled() && !isWhitelisted) {
+                        ConnectionTracker.recordDisconnection(remoteIp);
                     }
-                    return null;
-                });
+                }
             } while (!serverShutdown);
 
         } catch (SocketException e) {
