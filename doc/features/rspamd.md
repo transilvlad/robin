@@ -54,7 +54,14 @@ Here is an example `rspamd.json5` file:
 - **discardEnabled**: Enable threshold-based silent discard. Defaults to `true` for backward compatibility. The production suite explicitly sets `false`, so even very high scores receive a rejection.
 - **discardThreshold**: The spam score threshold at or above which an email is silently discarded. Defaults to `15.0`.
 
-The threshold-based spam handling works as follows:
+Rspamd's authoritative `action` takes precedence over local numeric thresholds:
+`reject` rejects, `soft reject` and `greylist` return a temporary `451`, `no action`
+accepts, and `add header`/`rewrite subject` apply the trusted header mutations.
+An explicit discard action is honored only when `discardEnabled` is true;
+otherwise it rejects. Unknown actions and unsupported envelope modifications
+defer instead of silently accepting a different result.
+
+For legacy responses without an action, threshold-based spam handling works as follows:
 - If `discardEnabled` and spam score >= `discardThreshold`: Email is accepted but silently discarded (no error to sender)
 - Otherwise, if spam score >= `rejectThreshold`: Email is rejected with SMTP error
 - If spam score < `rejectThreshold`: Email is accepted and processed normally
@@ -68,6 +75,30 @@ scores return a temporary SMTP `451`; they are never treated as clean mail.
 Programmatic scan methods throw `UncheckedIOException` for those failures
 (file-read failures can also throw `IOException`). A failed scan clears the
 previous result.
+
+### Authenticated scanning and required DKIM signing
+
+The scanner receives the actual peer IP, EHLO/HELO, reverse DNS, envelope sender,
+every recipient as a repeated `Rcpt` header, and the verified principal in `User`
+only after successful SMTP authentication. Direction is sent as `MTA-Tag`
+(`inbound` or `outbound`). Optional `inboundSettingsId` and `outboundSettingsId`
+select named Rspamd profiles; disabling SPF/DKIM/DMARC scanning sends the
+corresponding `groups_disabled` settings, rather than merely changing Java flags.
+
+For production, use Rspamd as the sole signer: leave Java `dkimSigning.enabled`
+false and set `requireDkimSigning: true`. Configure Rspamd to sign authenticated
+mail using its provisioned `local.d/dkim/<domain>.<selector>.key` files, not
+unauthenticated/local-IP trust. Missing signing output, a disabled scanner, or an
+unavailable key prevents authenticated outbound acceptance with a temporary
+failure. A sender-supplied DKIM header is not fresh signing proof.
+
+Returned DKIM, authentication-result, and spam headers are applied to the actual
+message source before mailbox/relay delivery. Header changes preserve existing
+raw header bytes and the complete binary body, avoiding MIME reserialization
+that would break signatures. Invalid header folding, From/Sender mutations,
+unsupported envelope rerouting, or headers exceeding the one-MiB rewrite budget
+defer explicitly. The scanner endpoint is a trusted internal service and must
+not be exposed to untrusted callers that could supply their own `User` context.
 
 How It Works
 ------------

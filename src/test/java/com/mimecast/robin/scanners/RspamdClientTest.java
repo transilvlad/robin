@@ -73,6 +73,16 @@ class RspamdClientTest {
     }
 
     @Test
+    void scanFlagsActuallyDisableConfiguredGroups() throws Exception {
+        mockWebServer.enqueue(new MockResponse().setBody(createScanResponse(false, 0)));
+        client.setSpfScanEnabled(false).setDkimScanEnabled(false).setDmarcScanEnabled(false)
+                .scanBytes(HAM_CONTENT.getBytes(StandardCharsets.UTF_8));
+        RecordedRequest request = mockWebServer.takeRequest();
+        assertEquals("{\"groups_disabled\":[\"spf\",\"dkim\",\"dmarc\"]}", request.getHeader("Settings"));
+        assertEquals("milter", request.getHeader("Flags"));
+    }
+
+    @Test
     void testConstructorWithCustomValues() {
         RspamdClient customClient = new RspamdClient(CUSTOM_HOST, 11333);
         assertNotNull(customClient);

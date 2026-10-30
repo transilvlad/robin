@@ -61,7 +61,9 @@ public class RspamdClient {
     private String senderHelo;
     private String senderHostname;
     private String envelopeFrom;
-    private String envelopeRcpt;
+    private List<String> envelopeRecipients = List.of();
+    private String authenticatedUser;
+    private String settingsId;
 
     private Map<String, Object> lastScanResult;
 
@@ -219,6 +221,8 @@ public class RspamdClient {
         try {
             Request.Builder requestBuilder = new Request.Builder()
                     .url(baseUrl + SCAN_ENDPOINT)
+                    .header("Flags", "milter")
+                    .header("MTA-Tag", emailDirection.name().toLowerCase(Locale.ROOT))
                     .post(body);
 
             // Standard Rspamd /checkv2 SMTP context headers.
@@ -227,7 +231,22 @@ public class RspamdClient {
             if (senderHelo != null && !senderHelo.isEmpty()) requestBuilder.addHeader("Helo", senderHelo);
             if (senderHostname != null && !senderHostname.isEmpty()) requestBuilder.addHeader("Hostname", senderHostname);
             if (envelopeFrom != null && !envelopeFrom.isEmpty()) requestBuilder.addHeader("From", envelopeFrom);
-            if (envelopeRcpt != null && !envelopeRcpt.isEmpty()) requestBuilder.addHeader("RCPT", envelopeRcpt);
+            for (String recipient : envelopeRecipients) {
+                requestBuilder.addHeader("RCPT", recipient);
+            }
+            if (authenticatedUser != null && !authenticatedUser.isBlank()) {
+                requestBuilder.header("User", authenticatedUser);
+            }
+            if (settingsId != null && !settingsId.isBlank()) {
+                requestBuilder.header("Settings-ID", settingsId);
+            }
+            List<String> disabledGroups = new ArrayList<>();
+            if (!spfScanEnabled) disabledGroups.add("spf");
+            if (!dkimScanEnabled) disabledGroups.add("dkim");
+            if (!dmarcScanEnabled) disabledGroups.add("dmarc");
+            if (!disabledGroups.isEmpty()) {
+                requestBuilder.header("Settings", gson.toJson(Map.of("groups_disabled", disabledGroups)));
+            }
 
             Request request = requestBuilder.build();
 
@@ -428,7 +447,25 @@ public class RspamdClient {
         this.senderHelo = senderHelo;
         this.senderHostname = senderHostname;
         this.envelopeFrom = envelopeFrom;
-        this.envelopeRcpt = envelopeRcpt;
+        this.envelopeRecipients = envelopeRcpt == null || envelopeRcpt.isBlank() ? List.of() : List.of(envelopeRcpt);
+        return this;
+    }
+
+    public RspamdClient setRecipients(List<String> recipients) {
+        this.envelopeRecipients = List.copyOf(recipients);
+        return this;
+    }
+
+    /**
+     * The caller must supply only a successfully authenticated SMTP principal.
+     */
+    public RspamdClient setAuthenticatedUser(String user) {
+        this.authenticatedUser = user;
+        return this;
+    }
+
+    public RspamdClient setSettingsId(String settingsId) {
+        this.settingsId = settingsId;
         return this;
     }
 

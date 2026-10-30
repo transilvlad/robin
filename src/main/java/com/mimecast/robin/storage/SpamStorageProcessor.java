@@ -4,6 +4,7 @@ import com.mimecast.robin.config.server.RspamdConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.scanners.RspamdClient;
+import com.mimecast.robin.scanners.RspamdMessageMutations;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
@@ -32,6 +33,11 @@ public class SpamStorageProcessor extends AbstractStorageProcessor {
     @Override
     protected boolean processInternal(Connection connection, EmailParser emailParser) throws IOException {
         RspamdConfig rspamdConfig = Config.getServer().getRspamd();
+        boolean signingRequired = rspamdConfig.isDkimSigningRequired()
+                && connection.getSession().isAuth() && connection.getSession().isOutbound();
+        if (signingRequired && !rspamdConfig.isEnabled()) {
+            throw new IOException("Required Rspamd DKIM signer is disabled");
+        }
         if (rspamdConfig.isEnabled()) {
             var envelope = connection.getSession().getEnvelopes().getLast();
             var session = connection.getSession();
@@ -45,10 +51,13 @@ public class SpamStorageProcessor extends AbstractStorageProcessor {
                     .setDmarcScanEnabled(rspamdConfig.isDmarcScanEnabled())
                     .setSmtpContext(
                             session.getFriendAddr(),
-                            session.getHelo(),
+                            session.getEhlo() != null && !session.getEhlo().isBlank() ? session.getEhlo() : session.getHelo(),
                             session.getFriendRdns(),
                             envelope.getMail(),
-                            envelope.getRcpt());
+                            envelope.getRcpt())
+                    .setRecipients(envelope.getRcpts())
+                    .setAuthenticatedUser(session.isAuth() ? session.getUsername() : null)
+                    .setSettingsId(session.isOutbound() ? rspamdConfig.getOutboundSettingsId() : rspamdConfig.getInboundSettingsId());
 
             // Scan the email and retrieve the score.
             // Stream file-backed messages from disk; in-memory messages are posted directly.
@@ -65,6 +74,38 @@ public class SpamStorageProcessor extends AbstractStorageProcessor {
                 if (!envelopes.isEmpty()) {
                     envelopes.getLast().addScanResult(rspamdResult);
                 }
+            }
+
+            String action = scanResult.get("action") instanceof String value
+                    ? value.toLowerCase(java.util.Locale.ROOT) : "";
+            if (scanResult.get("milter") instanceof Map<?, ?> milter && milter.get("reject") instanceof String value) {
+                action = value.toLowerCase(java.util.Locale.ROOT);
+            }
+            if ("soft reject".equals(action) || "greylist".equals(action)) {
+                connection.write("451 4.7.1 Message temporarily rejected by spam policy");
+                connection.markSmtpResponseSent();
+                return false;
+            }
+            if ("reject".equals(action) || ("discard".equals(action) && !rspamdConfig.isDiscardEnabled())) {
+                connection.write(String.format(SmtpResponses.SPAM_FOUND_550, session.getUID()));
+                connection.markSmtpResponseSent();
+                SmtpMetrics.incrementEmailSpamRejection();
+                return false;
+            }
+            if ("discard".equals(action)) {
+                log.warn("Rspamd discard explicitly enabled; accepting and discarding message");
+                envelope.setBlackholed(true);
+                return true;
+            }
+            if (!action.isEmpty() && !java.util.Set.of("no action", "add header", "rewrite subject").contains(action)) {
+                throw new IOException("Unsupported Rspamd action");
+            }
+            boolean signed = RspamdMessageMutations.apply(envelope, scanResult);
+            if (signingRequired && !signed) {
+                throw new IOException("Required Rspamd DKIM signature is missing");
+            }
+            if (!action.isEmpty()) {
+                return true;
             }
 
             // Get thresholds with defaults

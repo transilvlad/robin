@@ -11,6 +11,14 @@
   // Connection timeout in seconds.
   timeout: 30,
 
+  // Production single-signer policy: Rspamd must return a fresh DKIM signature
+  // for every authenticated outbound message. Missing output defers acceptance.
+  requireDkimSigning: false,
+
+  // Optional named Rspamd profiles; direction is always sent as MTA-Tag.
+  inboundSettingsId: "",
+  outboundSettingsId: "",
+
   // Enable SPF scanning.
   spfScanEnabled: true,
 
@@ -23,6 +31,9 @@
   // Spam score threshold for rejecting emails.
   // Emails with score >= rejectThreshold will be rejected with a 5xx error.
   rejectThreshold: 7.0,
+
+  // Set false in production: an authoritative discard action becomes rejection.
+  discardEnabled: true,
 
   // Spam score threshold for discarding emails.
   // Emails with score >= discardThreshold will be silently discarded.

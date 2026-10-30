@@ -117,6 +117,18 @@ public class RspamdConfig extends ConfigFoundation {
         return getBooleanProperty("discardEnabled", true);
     }
 
+    public boolean isDkimSigningRequired() {
+        return getBooleanProperty("requireDkimSigning", false);
+    }
+
+    public String getInboundSettingsId() {
+        return getStringProperty("inboundSettingsId", "");
+    }
+
+    public String getOutboundSettingsId() {
+        return getStringProperty("outboundSettingsId", "");
+    }
+
     /**
      * Gets DKIM signing configuration.
      *
