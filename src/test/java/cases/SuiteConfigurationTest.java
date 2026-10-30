@@ -20,7 +20,7 @@ class SuiteConfigurationTest {
     @Test
     void demoBaselineUsesBundledTlsButNoTestProtocolFeatures() throws Exception {
         Path secrets = dir.resolve("properties");
-        Files.writeString(secrets, "MAIL_HOSTNAME=mail.example.test\nMTA_DB_PASSWORD=test-only\nMAILBOX_DB_PASSWORD=test-only\n");
+        Files.writeString(secrets, "MAIL_HOSTNAME=mail.example.test\nMTA_DB_PASSWORD=test-only\nMAILBOX_DB_PASSWORD=test-only\nROBIN_API_AUTH=fixture:synthetic\n");
         String previous = System.getProperty("secrets.file");
         System.setProperty("secrets.file", secrets.toString());
         try {
@@ -48,7 +48,7 @@ class SuiteConfigurationTest {
     @Test
     void productionTemplateUsesOperatorPemAndRealDelivery() throws Exception {
         Path secrets = dir.resolve("properties");
-        Files.writeString(secrets, "MAIL_HOSTNAME=mail.example.test\nMTA_DB_PASSWORD=test-only\nMAILBOX_DB_PASSWORD=test-only\n");
+        Files.writeString(secrets, "MAIL_HOSTNAME=mail.example.test\nMTA_DB_PASSWORD=test-only\nMAILBOX_DB_PASSWORD=test-only\nROBIN_API_AUTH=fixture:synthetic\n");
         String previous = System.getProperty("secrets.file");
         System.setProperty("secrets.file", secrets.toString());
         try {
