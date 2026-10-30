@@ -21,6 +21,25 @@ or default CA roots. A nonempty `truststore` selects that file and must be reada
 with the configured `truststorepassword`. Keep `allowSelfSigned` disabled outside
 isolated testing.
 
+MAIL FROM Validation
+--------------------
+Each listener (`smtpConfig`, `secureConfig`, and `submissionConfig`) supports
+`skipFromValidation`, defaulting to `false`. Enable it only on listeners that need
+to accept sender addresses rejected by JavaMail's additional
+`InternetAddress.validate()` check, such as a sender without a domain.
+It does not disable MAIL command syntax checks or `InternetAddress` parsing:
+missing senders and unparseable addresses still receive `501 5.1.3`.
+An explicit null reverse-path (`MAIL FROM:<>`) is accepted with either setting
+and preserved as an empty sender when forwarding.
+
+A nonblank JVM system property, `-Dmta.skipfromvalidation=true` or
+`-Dmta.skipfromvalidation=false`, takes precedence over every listener's setting.
+An absent or whitespace-only property leaves the listener settings unchanged.
+Use listener configuration when different ports need different policies.
+External applications may set this JVM property from their own settings, but
+Robin does not itself synchronize an `MTA.SkipFromValidation` ApplicationSettings
+key.
+
 Configuration Reload
 --------------------
 Configuration can be reloaded without restarting the server via the service API.
@@ -146,6 +165,9 @@ Example `server.json5` (core listeners & feature flags):
         // Maximum number of envelopes (emails) allowed per connection (default: 100).
         envelopeLimit: 100,
 
+        // Skip additional MAIL FROM validation (default: false); parsing is still enforced.
+        skipFromValidation: false,
+
         // Maximum size of a message in megabytes (default: 10242400).
         messageSizeLimit: 10242400, // 10 MB
 
@@ -162,6 +184,7 @@ Example `server.json5` (core listeners & feature flags):
         transactionsLimit: 305,
         recipientsLimit: 100,
         envelopeLimit: 100,
+        skipFromValidation: false,
         messageSizeLimit: 10242400, // 10 MB
         errorLimit: 3
       },
@@ -175,6 +198,7 @@ Example `server.json5` (core listeners & feature flags):
         transactionsLimit: 305,
         recipientsLimit: 100,
         envelopeLimit: 100,
+        skipFromValidation: false,
         messageSizeLimit: 10242400, // 10 MB
         errorLimit: 3
       },

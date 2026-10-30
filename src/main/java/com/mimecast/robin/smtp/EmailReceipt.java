@@ -352,6 +352,7 @@ public class EmailReceipt implements Runnable {
             // Set limit if applicable.
             if (server instanceof ServerMail) {
                 ((ServerMail) server).setEnvelopeLimit(config.getEnvelopeLimit());
+                ((ServerMail) server).setSkipFromValidation(config.isSkipFromValidation());
             }
             if (server instanceof ServerRcpt) {
                 ((ServerRcpt) server).setRecipientsLimit(config.getRecipientsLimit());

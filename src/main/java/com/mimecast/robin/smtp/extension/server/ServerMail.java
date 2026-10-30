@@ -14,6 +14,8 @@ import javax.mail.internet.AddressException;
 import javax.mail.internet.InternetAddress;
 import java.io.IOException;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * MAIL extension processor.
@@ -24,6 +26,8 @@ import java.util.Optional;
  * @see <a href="https://tools.ietf.org/html/rfc6152">RFC 6152</a>
  */
 public class ServerMail extends ServerProcessor {
+    private static final Pattern MAIL_FROM = Pattern.compile(
+            "^MAIL\\s+FROM:\\s*(\\S+)(?:\\s+.*)?$", Pattern.CASE_INSENSITIVE);
 
     /**
      * MAIL FROM address.
@@ -66,6 +70,11 @@ public class ServerMail extends ServerProcessor {
     private int envelopeLimit = 100;
 
     /**
+     * Skip MAIL FROM validation flag.
+     */
+    private boolean skipFromValidation = false;
+
+    /**
      * Advert getter.
      *
      * @return Advert string.
@@ -100,6 +109,15 @@ public class ServerMail extends ServerProcessor {
                 return false;
             }
 
+            InternetAddress internetAddress;
+            try {
+                internetAddress = parseAddress();
+            } catch (AddressException e) {
+                connection.write(String.format(SmtpResponses.INVALID_ADDRESS_501 + " [%s]", connection.getSession().getUID()));
+                return false;
+            }
+            String addressStr = internetAddress.getAddress();
+
             // Make envelope.
             MessageEnvelope envelope = new MessageEnvelope();
             connection.getSession().addEnvelope(envelope);
@@ -109,7 +127,7 @@ public class ServerMail extends ServerProcessor {
                 BlackholeMatcher.shouldBlackhole(
                     connection.getSession().getFriendAddr(),
                     connection.getSession().getEhlo(),
-                    getAddress().getAddress(),
+                    addressStr,
                     null,
                     Config.getServer().getBlackholeConfig())) {
                 envelope.setBlackholed(true);
@@ -119,18 +137,19 @@ public class ServerMail extends ServerProcessor {
             Optional<ScenarioConfig> opt = connection.getScenario();
             if (opt.isPresent() && opt.get().getMail() != null) {
                 if (opt.get().getMail().startsWith("2")) {
-                    envelope.setMail(getAddress().getAddress());
+                    envelope.setMail(addressStr);
                 }
                 connection.write(opt.get().getMail());
             }
 
             // Accept all (with validation).
             else {
-                // Validate email address format.
                 try {
-                    InternetAddress addr = getAddress();
-                    addr.validate();
-                    envelope.setMail(addr.getAddress());
+                    // Only an explicit null reverse-path is represented by an empty address.
+                    if (!addressStr.isEmpty() && !skipFromValidation) {
+                        internetAddress.validate();
+                    }
+                    envelope.setMail(addressStr);
                     connection.write(String.format(SmtpResponses.SENDER_OK_250, connection.getSession().getUID()));
                 } catch (AddressException e) {
                     connection.write(String.format(SmtpResponses.INVALID_ADDRESS_501 + " [%s]", connection.getSession().getUID()));
@@ -157,21 +176,44 @@ public class ServerMail extends ServerProcessor {
     }
 
     /**
+     * Sets skip MAIL FROM validation flag.
+     *
+     * @param skipFromValidation Boolean.
+     * @return ServerMail instance.
+     */
+    public ServerMail setSkipFromValidation(boolean skipFromValidation) {
+        this.skipFromValidation = skipFromValidation;
+        return this;
+    }
+
+    /**
      * Gets MAIL FROM address.
      *
      * @return Address instance.
      * @throws IOException MAIL address parsing problem.
      */
     public InternetAddress getAddress() throws IOException {
+        try {
+            return parseAddress();
+        } catch (AddressException e) {
+            throw new IOException(e);
+        }
+    }
+
+    private InternetAddress parseAddress() throws AddressException {
         if (address == null) {
-            try {
-                String from = verb.getParam("from").replace("<>", "");
-                address = StringUtils.isNotBlank(from) ? new InternetAddress(from) : new InternetAddress();
-            } catch (AddressException e) {
-                throw new IOException(e);
+            Matcher matcher = MAIL_FROM.matcher(verb.getCommand());
+            if (!matcher.matches()) {
+                throw new AddressException("Expected MAIL FROM with a reverse-path");
+            }
+            String from = matcher.group(1);
+            if (from.equals("<>")) {
+                address = new InternetAddress();
+                address.setAddress("");
+            } else {
+                address = new InternetAddress(from);
             }
         }
-
         return address;
     }
 

@@ -37,6 +37,9 @@
     // Maximum number of envelopes (emails) allowed per connection (default: 100).
     envelopeLimit: 100,
 
+    // Skip additional MAIL FROM address validation; command syntax and parsing remain enforced.
+    skipFromValidation: false,
+
     // Maximum size of a message in megabytes (default: 10242400).
     messageSizeLimit: 10242400, // 10 MB
 
@@ -81,6 +84,7 @@
     transactionsLimit: 305,
     recipientsLimit: 100,
     envelopeLimit: 100,
+    skipFromValidation: false,
     messageSizeLimit: 10242400, // 10 MB
     errorLimit: 3,
     dosProtectionEnabled: true,
@@ -103,6 +107,7 @@
     transactionsLimit: 305,
     recipientsLimit: 100,
     envelopeLimit: 100,
+    skipFromValidation: false,
     messageSizeLimit: 10242400, // 10 MB
     errorLimit: 3,
     dosProtectionEnabled: true,

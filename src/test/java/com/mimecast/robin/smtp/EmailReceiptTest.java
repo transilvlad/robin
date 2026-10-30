@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.parallel.Isolated;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.naming.ConfigurationException;
 import java.io.IOException;
@@ -88,6 +90,50 @@ class EmailReceiptTest {
         assertEquals("354 Ready and willing\r\n", connection.getLine(11));
         assertTrue(connection.getLine(12).startsWith("250 2.0.0 Received OK"), "startsWith(\"250 2.0.0 Received OK\")");
         assertEquals("221 2.0.0 Closing connection\r\n", connection.getLine(13));
+    }
+
+    @Test
+    void receiveBounceAfterRejectingUnparseableSender() {
+        ConnectionMock connection = getConnection(new StringBuilder(
+                "EHLO example.com\r\n" +
+                "MAIL FROM:<bad@@example.com>\r\n" +
+                "MAIL FROM:<>\r\n" +
+                "RCPT TO:<jane@example.com>\r\n" +
+                "DATA\r\n" +
+                "From: <mailer-daemon@example.com>\r\n" +
+                "Subject: Delivery failure\r\n\r\n" +
+                "Delivery failed.\r\n.\r\n" +
+                "QUIT\r\n"));
+
+        new EmailReceipt(connection).run();
+
+        assertTrue(connection.getOutput().contains("501 5.1.3 Invalid address format"), connection.getOutput());
+        assertTrue(connection.getOutput().contains("250 2.0.0 Received OK"), connection.getOutput());
+        assertEquals(1, connection.getSmtpAuditContext().getAcceptedMessages());
+        assertEquals("quit", connection.getSmtpAuditContext().getTerminationReason());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void appliesValidationOverrideDuringReceipt(boolean skipValidation) {
+        String previousOverride = System.getProperty("mta.skipfromvalidation");
+        try {
+            System.setProperty("mta.skipfromvalidation", Boolean.toString(skipValidation));
+            ConnectionMock connection = getConnection(new StringBuilder(
+                    "EHLO example.com\r\nMAIL FROM:<not-an-address>\r\nQUIT\r\n"));
+
+            new EmailReceipt(connection).run();
+
+            String expected = skipValidation ? "250 2.1.0 Sender OK" : "501 5.1.3 Invalid address format";
+            assertTrue(connection.getOutput().contains(expected), connection.getOutput());
+            assertEquals("quit", connection.getSmtpAuditContext().getTerminationReason());
+        } finally {
+            if (previousOverride == null) {
+                System.clearProperty("mta.skipfromvalidation");
+            } else {
+                System.setProperty("mta.skipfromvalidation", previousOverride);
+            }
+        }
     }
 
     @Test

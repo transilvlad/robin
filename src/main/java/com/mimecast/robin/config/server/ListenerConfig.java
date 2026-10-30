@@ -1,6 +1,7 @@
 package com.mimecast.robin.config.server;
 
 import com.mimecast.robin.config.ConfigFoundation;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.Map;
 
@@ -93,6 +94,27 @@ public class ListenerConfig extends ConfigFoundation {
      */
     public int getEnvelopeLimit() {
         return Math.toIntExact(getLongProperty("envelopeLimit", 100L));
+    }
+
+    /**
+     * Gets skip MAIL FROM validation flag.
+     * <p>When true, skip {@code InternetAddress.validate()} for the MAIL FROM address.
+     * Command syntax and {@code InternetAddress} parsing are still enforced.
+     * An explicit null reverse-path ({@code MAIL FROM:<>}) is accepted in either mode.
+     *
+     * <p>A nonblank {@code mta.skipfromvalidation} JVM system property overrides all
+     * listeners' {@code skipFromValidation} JSON5 values. An absent or blank property
+     * leaves the listener value unchanged (default {@code false}). External applications
+     * may set this property; Robin does not synchronize ApplicationSettings itself.
+     *
+     * @return Boolean.
+     */
+    public boolean isSkipFromValidation() {
+        String override = System.getProperty("mta.skipfromvalidation");
+        if (StringUtils.isNotBlank(override)) {
+            return Boolean.parseBoolean(override);
+        }
+        return getBooleanProperty("skipFromValidation", false);
     }
 
     /**
