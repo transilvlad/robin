@@ -1,0 +1,3 @@
+# Mounted as conf.d/99-production-tls.conf by the production overlay.
+ssl_server_cert_file = /run/mail-tls/fullchain.pem
+ssl_server_key_file = /run/mail-tls/privkey.pem

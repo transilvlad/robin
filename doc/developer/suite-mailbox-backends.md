@@ -27,9 +27,9 @@ backend's containers are created.
 | Login with an alias or auto alias | Yes, via SQL passdb | Yes, the proxy asks Robin to resolve it |
 | Password checks | Dovecot reads the users table | Cyrus asks Robin over the private API |
 | Mailbox creation | On first delivery or login | On first delivery or login |
-| Default folders | Created by mail clients | Drafts, Sent, Trash, Junk |
-| Quota | 20 GiB | 20 GiB |
-| Sieve filters | Per-user `~/.dovecot.sieve` file | ManageSieve on port 4190 (private network) |
+| Default folders | Sent, Drafts, Trash, Junk, Archive with SPECIAL-USE | Drafts, Sent, Trash, Junk |
+| Quota | 20 GiB, including IMAP APPEND and LMTP | 20 GiB |
+| Sieve filters | ManageSieve 4190, scripts under `~/sieve` | ManageSieve on port 4190 (private network) |
 | Mail data | `store/dovecot` | Named volume `suite-cyrus-data` |
 | Robin Admin fleet service | Dovecot | Cyrus |
 
@@ -76,8 +76,59 @@ proxyAuth: {
 }
 ```
 
-Robin's API port is only reachable on the private `suite` network; keep it that
-way, because the authentication endpoints are not protected by API credentials.
+Production Robin APIs require the same independent Basic credential supplied to
+Admin. Mailbox authentication clients must send that service credential separately
+from the user's credentials. Do not expose either API through the public proxy.
+
+## Dovecot 2.4 mailbox controls
+
+The suite enables IMAP, LMTP and private ManageSieve, not POP3. The privileged
+master still starts as root; mailbox workers use SQL UID/GID 5000 and the image's
+`vmail` group for the group-readable userdb socket. Removing that socket access
+breaks shared-owner lookups. Authentication-master and LMTP Unix sockets remain
+root-only; there are no world-writable authentication sockets.
+
+The reviewed 2.4.2 image includes Flatcurve, not Lucene. Full-text indexing is
+opt-in: enable `fts` and `fts_flatcurve` together in `90-fts.conf`, then schedule
+bounded `doveadm index` work after measuring disk/CPU usage. Background indexing
+is off. Search remains available without FTS.
+
+Mailbox sharing uses real Dovecot vfile ACLs and a backed-up sharing map at
+`store/dovecot/shared-mailboxes.db`, not an unapplied SQL membership table:
+
+```bash
+# Example only: operate on a maintenance-approved deployment, not a live fixture.
+docker compose --project-directory .suite exec suite-dovecot \
+  doveadm acl set -u owner@example.com INBOX user=member@example.com lookup read write-seen
+docker compose --project-directory .suite exec suite-dovecot \
+  doveadm -f tab acl get -u owner@example.com INBOX
+docker compose --project-directory .suite exec suite-dovecot \
+  doveadm acl delete -u owner@example.com INBOX user=member@example.com
+```
+
+The member opens `Shared/owner@example.com/INBOX`. New users have no shared
+access. Grant only the required folder rights; `admin` would let a member change
+ACLs. Reconnect sessions after revocation to discard per-process ACL caches.
+Access to a mailbox **does not grant send-as**: that requires a separate explicit
+`mail_sender_grants` entry and enabled managed domain in Robin.
+
+Password authentication caching is disabled so the next login observes a changed
+hash. Existing authenticated sessions are not revoked by a password change:
+explicitly disconnect them with a reviewed `doveadm kick` operation when needed.
+
+ManageSieve stores scripts in `~/sieve` and uses `~/sieve/.active.sieve`. Existing
+deployments must explicitly move/re-upload old `~/.dovecot.sieve` scripts after
+backing them up. In the legacy schema home is also the Maildir root; dot-prefixed
+script files/symlinks there can be mistaken for Maildir++ folders during quota
+enumeration. Remove that collision only after preserving the original script.
+The SQL userdb now returns Dovecot 2.4 `mail_path`, preserving the existing
+`maildir:` path or falling back to home; it does not relocate mail.
+
+TLS and basic fileinto Sieve rules are covered by isolated acceptance. An outbound
+vacation/redirect transport is **not configured by enabling ManageSieve**. Provision
+an authenticated, sender-authorized submission route and test loop suppression
+before enabling automatic replies or external redirects. There is no trusted
+Docker-subnet relay bypass.
 
 ## Production
 

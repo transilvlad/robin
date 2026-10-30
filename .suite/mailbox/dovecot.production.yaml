@@ -12,5 +12,5 @@ services:
     <<: *runtime
     image: ${DOVECOT_IMAGE:?Set DOVECOT_IMAGE to a reviewed Dovecot 2.4 image}
     volumes:
-      - ${MAIL_TLS_DIR:?Set MAIL_TLS_DIR to the operator certificate directory}/fullchain.pem:/etc/dovecot/certs/imap.crt:ro
-      - ${MAIL_TLS_DIR:?Set MAIL_TLS_DIR to the operator certificate directory}/privkey.pem:/etc/dovecot/certs/imap.key:ro
+      - ${MAIL_TLS_DIR:?Set MAIL_TLS_DIR to the operator certificate directory}:/run/mail-tls:ro
+      - ../etc/dovecot/conf.d/99-production-tls.conf.example:/etc/dovecot/conf.d/99-production-tls.conf:ro

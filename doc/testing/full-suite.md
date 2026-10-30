@@ -5,6 +5,41 @@ integration environment. These tests do not run against the production suite.
 
 > **See also:** [Robin Full Suite](../developer/robin-suite.md) for deployment and architecture overview.
 
+## Production configuration acceptance without touching a deployment
+
+The Python checks under `.suite/tests` use a generated standalone Compose root,
+not the real suite's includes, `.env`, secrets, store or logs. Each run uses a
+random `robin-acceptance-*` project, project-scoped volumes/networks, synthetic
+credentials and dynamically allocated **loopback-only** host ports. Fixed suite
+names mean that merely adding `-p` to the real suite is not isolation.
+
+```powershell
+# Windows local Docker; Linux uses python3 and ROBIN_SUITE_DOCKER_TEST=1.
+$env:ROBIN_SUITE_DOCKER_TEST='1'
+py -m unittest discover -s .suite\tests -p test_mail_policy.py -v
+py -m unittest discover -s .suite\tests -p test_mailbox.py -v
+py -m unittest discover -s .suite\tests -p test_preflight.py -v
+```
+
+Pre-pull reviewed `postgres:18-alpine`, `dovecot/dovecot:latest` and `alpine:3.23`
+fixture images, or set `ROBIN_TEST_POSTGRES_IMAGE` / `ROBIN_TEST_DOVECOT_IMAGE`
+to compatible reviewed image references. The mailbox check was exercised with
+Dovecot 2.4.2. These defaults are test conveniences, **not production image pins**.
+The fixtures bound Postgres to 256 MiB/1 CPU/PID 128 and Dovecot to 512 MiB/1 CPU/
+PID 256, sequentially. Fixture-only `initdb --no-sync` avoids expensive initial
+filesystem synchronization; running PostgreSQL keeps its default fsync policy.
+This is not a power-loss durability proof.
+
+Identity acceptance covers additive migration, operator-policy preservation,
+normalized identity checks, explicit primary grants, multi-target aliases and
+revocation on account/address removal or rename. Mailbox acceptance covers
+LMTP-to-IMAP delivery, SPECIAL-USE folders, shared-folder read/insert denial/
+revocation, exact Admin `doveadm` set/get/delete readback, APPEND quota rejection,
+TLS ManageSieve script activation and actual Junk filing, next-login password
+revocation, and certificate-directory replacement followed by reload and a
+verified served certificate serial change. It does not modify or validate a
+running Cyrus/JMAP/webmail deployment.
+
 ## Suite Organization
 
 Integration infrastructure is organized under `.integration/`. Unit/component
