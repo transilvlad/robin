@@ -12,10 +12,12 @@ import java.io.IOException;
 import java.io.Serial;
 import java.io.Serializable;
 import java.nio.charset.Charset;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * JSON config file loader and primitive getters provider.
@@ -37,6 +39,7 @@ public abstract class ConfigFoundation implements Serializable {
      * Properties container.
      */
     protected Map<String, Object> map = new HashMap<>();
+    private final Map<String, Map<String, Object>> loadedSourceFiles = new ConcurrentHashMap<>();
 
     /**
      * Constructs a new ConfigFoundation instance with given file path.
@@ -46,8 +49,13 @@ public abstract class ConfigFoundation implements Serializable {
      */
     public ConfigFoundation(String path) throws IOException {
         if (PathUtils.isFile(path)) {
-            String props = Magic.streamMagicReplace(PathUtils.readFile(path, Charset.defaultCharset()));
+            String source = PathUtils.readFile(path, Charset.defaultCharset());
+            String props = Magic.streamMagicReplace(source);
             map = new Gson().fromJson(SecretReferences.resolve(props), Map.class);
+            if (map == null) {
+                throw new IOException("Configuration must contain a JSON object");
+            }
+            recordLoadedSource(path, source);
         } else {
             throw new IOException("File not found: " + path);
         }
@@ -76,6 +84,21 @@ public abstract class ConfigFoundation implements Serializable {
      */
     public Map<String, Object> getMap() {
         return map;
+    }
+
+    protected void recordLoadedSource(String path, String source) {
+        loadedSourceFiles.put(Path.of(path).getFileName().toString(), Map.of(
+                "sha256", ConfigSourceFingerprint.sha256(source),
+                "loadedAtEpochMillis", System.currentTimeMillis()));
+    }
+
+    public Map<String, Map<String, Object>> getLoadedSourceFiles() {
+        return Map.copyOf(loadedSourceFiles);
+    }
+
+    public void merge(ConfigFoundation override) {
+        map.putAll(override.getMap());
+        loadedSourceFiles.putAll(override.getLoadedSourceFiles());
     }
 
     /**

@@ -693,15 +693,30 @@ public class ServerConfig extends ConfigFoundation {
             String path = configDir + File.separator + filename;
             try {
                 if (PathUtils.isFile(path)) {
-                    String content = Magic.streamMagicReplace(PathUtils.readFile(path, Charset.defaultCharset()));
+                    String source = PathUtils.readFile(path, Charset.defaultCharset());
+                    if (source.isBlank()) {
+                        resolvedExternalConfigs.add(key);
+                        return;
+                    }
+                    String content = Magic.streamMagicReplace(source);
                     Object parsed = new Gson().fromJson(SecretReferences.resolve(content), clazz);
+                    if (parsed == null) {
+                        throw new IOException("External configuration must contain a JSON object");
+                    }
                     map.put(key, parsed);
+                    recordLoadedSource(path, source);
                 }
             } catch (IOException e) {
-                log.error("Failed to load " + key + " from " + path, e);
-            } finally {
-                resolvedExternalConfigs.add(key);
+                throw new IllegalStateException("Failed to load external configuration " + key, e);
             }
+            resolvedExternalConfigs.add(key);
         }
+    }
+
+    /**
+     * Validates present external files before publishing a manual reload snapshot.
+     */
+    public void loadExternalConfigurations() {
+        CONFIG_FILENAMES.keySet().forEach(key -> loadExternalIfAbsent(key, Map.class));
     }
 }

@@ -112,6 +112,32 @@ When authentication is enabled, all endpoints except `/health` require valid cre
 Endpoints
 ---------
 
+### Configuration reload and runtime-source proof
+
+`POST /config/reload` uses the service endpoint's configured authentication
+(for example Basic credentials from `service.authValue`), even when automatic
+reload scheduling is disabled. A successful response has `status: "success"`,
+`applied: true`, and `scope: "configuration-snapshot"`. Invalid files or a failed
+configuration-store sync return HTTP 500 with `applied: false`; the prior
+in-memory snapshot is retained.
+
+Reload parses the root configuration and present external configuration files
+before publishing. It does not reconstruct existing listeners, SQL authentication,
+queue dispatchers, or scanner/service pools. The response therefore reports
+`restartRequired: true` and `restartRequiredComponents`. Saving an authoritative
+database row, synchronizing disk, replacing the Java configuration snapshot, and
+restarting service objects are separate operations.
+
+Authenticated `GET /config/status` returns `manualReloadAvailable`, `autoReload`,
+`snapshotLoadedAtEpochMillis`, `restartRequired`, `restartRequiredComponents`,
+`sync` (the configuration-store sync status), and `sourceFiles`. Each actually
+loaded source file maps to `{sha256, loadedAtEpochMillis}`. The hash is SHA-256
+of UTF-8 compact JSON with recursively sorted object keys, before magic or secret
+reference expansion; array order is preserved and HTML characters are not escaped.
+No configuration values, resolved secrets, or local filesystem paths are returned.
+These hashes prove the loaded configuration source, not that an old listener or
+service pool has adopted it. A missing source entry is not proof of loading.
+
 The service endpoints are provided by two classes:
 
 1. **ServiceEndpoint** - Base class providing standard endpoints at root level

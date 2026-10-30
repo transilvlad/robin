@@ -65,7 +65,7 @@ public class ConfigLoader {
             propertiesPath = Paths.get(path, propertiesFile).toString();
             if (PathUtils.isFile(propertiesPath)) {
                 try {
-                    Config.getProperties().getMap().putAll(new Properties(propertiesPath).getMap());
+                    Config.getProperties().merge(new Properties(propertiesPath));
                     log.debug("Custom properties: {}", propertiesPath);
                 } catch (IOException e) {
                     log.fatal("Error reading {}.", propertiesFile);

@@ -59,6 +59,7 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
 
         server.createContext("/config/reload", this::handleConfigReload);
         log.info("Config reload available at http://localhost:{}/config/reload", port);
+        server.createContext("/config/status", this::handleConfigStatus);
 
         server.createContext("/config/sync/status", this::handleConfigSyncStatus);
         log.info("Config sync status available at http://localhost:{}/config/sync/status", port);
@@ -285,19 +286,33 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
         }
 
         try {
+            Map<String, Object> result;
             synchronized (CONFIG_RELOAD_LOCK) {
                 log.info("Configuration reload triggered via API");
-                Config.triggerReload();
-                log.info("Configuration reloaded successfully");
+                result = Config.triggerReload();
+                log.info("Configuration snapshot reloaded; existing services require restart");
             }
 
-            String response = "{\"status\":\"OK\", \"message\":\"Configuration reloaded successfully\"}";
+            String response = GSON.toJson(result);
             sendResponse(exchange, 200, "application/json; charset=utf-8", response);
         } catch (Exception e) {
             log.error("Failed to reload configuration: {}", e.getMessage());
-            String errorResponse = String.format("{\"status\":\"ERROR\", \"message\":\"Failed to reload configuration: %s\"}", e.getMessage());
+            String errorResponse = GSON.toJson(Map.of("status", "error", "applied", false,
+                    "message", "Configuration reload failed; prior snapshot retained"));
             sendResponse(exchange, 500, "application/json; charset=utf-8", errorResponse);
         }
+    }
+
+    private void handleConfigStatus(HttpExchange exchange) throws IOException {
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendResponse(exchange, 405, "text/plain; charset=utf-8", "Method Not Allowed");
+            return;
+        }
+        if (!auth.isAuthenticated(exchange)) {
+            auth.sendAuthRequired(exchange);
+            return;
+        }
+        sendResponse(exchange, 200, "application/json; charset=utf-8", GSON.toJson(Config.getReloadStatus()));
     }
 
     private void handleConfigSyncStatus(HttpExchange exchange) throws IOException {

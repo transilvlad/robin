@@ -9,6 +9,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 
@@ -39,12 +43,15 @@ public class Config {
     /**
      * SystemProperties or properties file configuration container.
      */
-    private static Properties properties = new Properties();
+    private static volatile Properties properties = new Properties();
 
     /**
      * Server configuration.
      */
-    private static ServerConfig server = new ServerConfig();
+    private static volatile ServerConfig server = new ServerConfig();
+    private static volatile long snapshotLoadedAtEpochMillis;
+    private static volatile boolean restartRequired;
+    private static final List<String> RESTART_COMPONENTS = List.of("listeners", "sqlAuth", "queue", "scanners");
 
     /**
      * Client default configuration.
@@ -91,20 +98,25 @@ public class Config {
             if (propertiesAutoReload.getBooleanProperty("enabled")) {
                 ScheduledFuture<?> future = scheduler.scheduleAtFixedRate(() -> {
                             try {
-                                properties = new Properties(path);
+                                Properties nextProperties = new Properties(path);
+                                synchronized (Config.class) {
+                                    properties = nextProperties;
+                                    snapshotLoadedAtEpochMillis = System.currentTimeMillis();
+                                    restartRequired = true;
+                                }
                                 log.debug("Reloaded properties file: {}", path);
-                            } catch (IOException e) {
-                                log.error("Failed to reload properties file: {}, error {}", path, e.getMessage());
+                            } catch (IOException | RuntimeException e) {
+                                log.error("Properties auto-reload failed; prior snapshot retained");
                             }
                         },
                         propertiesAutoReload.getLongProperty("delaySeconds", 300L),
-                        properties.getLongProperty("intervalSeconds", 300L),
+                        propertiesAutoReload.getLongProperty("intervalSeconds", 300L),
                         TimeUnit.SECONDS
                 );
                 scheduledFutures.put("properties", future);
                 log.info("Scheduled properties file reload: {}, delay: {} seconds, interval: {} seconds", path,
                         propertiesAutoReload.getLongProperty("delaySeconds", 300L),
-                        properties.getLongProperty("intervalSeconds", 300L));
+                        propertiesAutoReload.getLongProperty("intervalSeconds", 300L));
             }
         }
     }
@@ -127,25 +139,33 @@ public class Config {
     public static void initServer(String path) throws IOException {
         serverPath = path;
         server = new ServerConfig(path);
+        snapshotLoadedAtEpochMillis = System.currentTimeMillis();
+        restartRequired = false;
         if (!scheduledFutures.containsKey("server")) {
             BasicConfig serverAutoReload = properties.getServerAutoReload();
             if (serverAutoReload.getBooleanProperty("enabled")) {
                 ScheduledFuture<?> future = scheduler.scheduleAtFixedRate(() -> {
                             try {
-                                server = new ServerConfig(path);
+                                ServerConfig nextServer = new ServerConfig(path);
+                                nextServer.loadExternalConfigurations();
+                                synchronized (Config.class) {
+                                    server = nextServer;
+                                    snapshotLoadedAtEpochMillis = System.currentTimeMillis();
+                                    restartRequired = true;
+                                }
                                 log.debug("Reloaded server file: {}", path);
-                            } catch (IOException e) {
-                                log.error("Failed to reload server file: {}, error {}", path, e.getMessage());
+                            } catch (IOException | RuntimeException e) {
+                                log.error("Server auto-reload failed; prior snapshot retained");
                             }
                         },
                         serverAutoReload.getLongProperty("delaySeconds", 300L),
-                        properties.getLongProperty("intervalSeconds", 300L),
+                        serverAutoReload.getLongProperty("intervalSeconds", 300L),
                         TimeUnit.SECONDS
                 );
                 scheduledFutures.put("server", future);
                 log.info("Scheduled server file reload: {}, delay: {} seconds, interval: {} seconds", path,
                         serverAutoReload.getLongProperty("delaySeconds", 300L),
-                        properties.getLongProperty("intervalSeconds", 300L));
+                        serverAutoReload.getLongProperty("intervalSeconds", 300L));
             }
         }
     }
@@ -171,46 +191,57 @@ public class Config {
 
     /**
      * Triggers an immediate reload of configuration.
-     * This method executes the scheduled reload tasks immediately via the executor.
-     * Thread-safe and suitable for external trigger points like API endpoints.
+     * Scheduling controls automatic reload only; manual reload always parses the
+     * configured files. Existing listeners and service pools still require restart.
      */
-    public static void triggerReload() {
+    public static synchronized Map<String, Object> triggerReload() {
         try {
             ConfigStoreSyncManager.syncIfEnabled();
-        } catch (Exception e) {
-            log.warn("Config store sync before reload failed: {}", e.getMessage());
-        }
-
-        // Execute properties reload if scheduled.
-        if (scheduledFutures.containsKey("properties") && propertiesPath != null) {
-            try {
-                scheduler.submit(() -> {
-                    try {
-                        properties = new Properties(propertiesPath);
-                        log.debug("Reloaded properties via trigger");
-                    } catch (IOException e) {
-                        log.error("Failed to reload properties via trigger: {}", e.getMessage());
-                    }
-                }).get(10, TimeUnit.SECONDS);
-            } catch (TimeoutException | InterruptedException | ExecutionException e) {
-                log.warn("Properties reload trigger timed out or interrupted: {}", e.getMessage());
+            if (ConfigStoreSyncManager.getStatus().toMap().containsKey("lastError")) {
+                throw new IllegalStateException("Configuration store synchronization failed");
             }
-        }
-
-        // Execute server reload if scheduled.
-        if (scheduledFutures.containsKey("server") && serverPath != null) {
-            try {
-                scheduler.submit(() -> {
-                    try {
-                        server = new ServerConfig(serverPath);
-                        log.debug("Reloaded server config via trigger");
-                    } catch (IOException e) {
-                        log.error("Failed to reload server config via trigger: {}", e.getMessage());
-                    }
-                }).get(10, TimeUnit.SECONDS);
-            } catch (TimeoutException | InterruptedException | ExecutionException e) {
-                log.warn("Server reload trigger timed out or interrupted: {}", e.getMessage());
+            if (propertiesPath == null || serverPath == null) {
+                throw new IllegalStateException("Configuration paths are not initialized");
             }
+            Properties nextProperties = new Properties(propertiesPath);
+            if (nextProperties.hasProperty("properties")) {
+                Path custom = Path.of(propertiesPath).getParent().resolve(nextProperties.getStringProperty("properties"));
+                if (Files.isRegularFile(custom)) {
+                    nextProperties.merge(new Properties(custom.toString()));
+                }
+            }
+            ServerConfig nextServer = new ServerConfig(serverPath);
+            nextServer.loadExternalConfigurations();
+            properties = nextProperties;
+            server = nextServer;
+            snapshotLoadedAtEpochMillis = System.currentTimeMillis();
+            restartRequired = true;
+            Map<String, Object> result = new LinkedHashMap<>(getReloadStatus());
+            result.put("status", "success");
+            result.put("applied", true);
+            result.put("reloaded", List.of("properties", "server"));
+            result.put("failed", List.of());
+            return result;
+        } catch (IOException e) {
+            throw new IllegalStateException("Configuration could not be loaded; prior snapshot retained", e);
         }
+    }
+
+    public static synchronized Map<String, Object> getReloadStatus() {
+        Map<String, Object> sourceFiles = new LinkedHashMap<>();
+        sourceFiles.putAll(properties.getLoadedSourceFiles());
+        sourceFiles.putAll(server.getLoadedSourceFiles());
+        Map<String, Object> status = new LinkedHashMap<>();
+        status.put("scope", "configuration-snapshot");
+        status.put("snapshotLoadedAtEpochMillis", snapshotLoadedAtEpochMillis);
+        status.put("manualReloadAvailable", propertiesPath != null && serverPath != null);
+        status.put("autoReload", Map.of(
+                "properties", scheduledFutures.containsKey("properties"),
+                "server", scheduledFutures.containsKey("server")));
+        status.put("sourceFiles", sourceFiles);
+        status.put("restartRequired", restartRequired);
+        status.put("restartRequiredComponents", restartRequired ? RESTART_COMPONENTS : List.of());
+        status.put("sync", ConfigStoreSyncManager.getStatus().toMap());
+        return status;
     }
 }
