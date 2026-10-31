@@ -2,6 +2,7 @@ package com.mimecast.robin.queue;
 
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.smtp.session.Session;
+import com.mimecast.robin.smtp.MessageEnvelope;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -256,8 +257,48 @@ public class RelaySession implements Serializable {
                 return errors.getLast().getResponse();
             }
         }
-        return transactions.getErrors().isEmpty() ? "451 4.4.2 Delivery not confirmed"
-                : transactions.getErrors().getLast().getResponse();
+        var errors = transactions.getErrors();
+        String response = errors.isEmpty() ? null : errors.getLast().getResponse();
+        return response == null || response.isBlank() ? "451 4.4.2 Delivery not confirmed" : response;
+    }
+
+    /**
+     * Returns the failure for this envelope/recipient, without borrowing another
+     * message's diagnostic from the same SMTP session.
+     */
+    public String getRejection(MessageEnvelope envelope, String recipient) {
+        var transactions = session.getSessionTransactionList();
+        int index = session.getEnvelopes().indexOf(envelope);
+        if (index >= 0 && index < transactions.getEnvelopes().size()) {
+            var envelopeTransactions = transactions.getEnvelopes().get(index);
+            for (var finalReply : envelopeTransactions.getLmtp()) {
+                if (finalReply.isError() && recipient.equals(finalReply.getAddress())) {
+                    return finalReply.getResponse() == null || finalReply.getResponse().isBlank()
+                            ? "451 4.4.2 Delivery not confirmed" : finalReply.getResponse();
+                }
+            }
+            var recipientErrors = envelopeTransactions.getRcptErrors();
+            for (int i = recipientErrors.size() - 1; i >= 0; i--) {
+                var error = recipientErrors.get(i);
+                if (recipient.equals(error.getAddress())) {
+                    return error.getResponse() == null || error.getResponse().isBlank()
+                            ? "451 4.4.2 Delivery not confirmed" : error.getResponse();
+                }
+            }
+            var errors = envelopeTransactions.getErrors().stream()
+                    .filter(error -> envelopeTransactions.getLmtp().isEmpty()
+                            || !error.getCommand().equalsIgnoreCase("DATA") && !error.getCommand().equalsIgnoreCase("BDAT"))
+                    .filter(error -> !error.getCommand().equalsIgnoreCase("RCPT")
+                            && !error.getCommand().equalsIgnoreCase("LMTP")
+                            || error.getAddress() == null).toList();
+            if (!errors.isEmpty()) {
+                String response = errors.getLast().getResponse();
+                return response == null || response.isBlank() ? "451 4.4.2 Delivery not confirmed" : response;
+            }
+        }
+        var errors = transactions.getErrors();
+        String response = errors.isEmpty() ? null : errors.getLast().getResponse();
+        return response == null || response.isBlank() ? "451 4.4.2 Delivery not confirmed" : response;
     }
 
     /**

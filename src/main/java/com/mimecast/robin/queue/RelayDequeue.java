@@ -68,6 +68,33 @@ public class RelayDequeue {
         logSessionInfo(relaySession);
         attemptDelivery(relaySession);
 
+        List<RecipientFailure> permanent = permanentRecipients(relaySession);
+        if (!permanent.isEmpty() && allRecipientsPermanent(relaySession, permanent)) {
+            return deadSession(queueItem, relaySession, List.of(), deriveLastError(relaySession));
+        }
+        List<RelaySession> notifications = persistPermanentNotifications(relaySession, permanent);
+        try {
+            return finishDelivery(queueItem, relaySession, currentEpochSeconds, permanent, notifications);
+        } catch (RuntimeException e) {
+            for (RelaySession notification : notifications) {
+                deleteEnvelopeFiles(collectCleanupPaths(notification.getSession().getEnvelopes()));
+            }
+            throw e;
+        }
+    }
+
+    private RelayQueueWorkResult finishDelivery(QueueItem<RelaySession> queueItem, RelaySession relaySession,
+                                               long currentEpochSeconds, List<RecipientFailure> permanent,
+                                               List<RelaySession> notifications) {
+        if (!permanent.isEmpty()) {
+            Set<RecipientFailure> terminal = new LinkedHashSet<>(permanent);
+            for (MessageEnvelope envelope : relaySession.getSession().getEnvelopes()) {
+                if (envelope.getRcpts() != null) {
+                    envelope.setRcpts(new ArrayList<>(envelope.getRcpts().stream()
+                            .filter(recipient -> !terminal.contains(new RecipientFailure(envelope, recipient))).toList()));
+                }
+            }
+        }
         RelayDeliveryResult result = processDeliveryResults(relaySession);
         List<Path> cleanupPaths = collectCleanupPaths(result.getSuccessfulEnvelopes());
         log.info("Session processed: uid={}, removedEnvelopes={}, remainingEnvelopes={}",
@@ -76,22 +103,122 @@ public class RelayDequeue {
         queueItem.setPayload(relaySession).setRetryCount(relaySession.getRetryCount());
 
         if (relaySession.getSession().getEnvelopes().isEmpty()) {
-            return new RelayQueueWorkResult(QueueMutation.acknowledge(queueItem), List.of(), cleanupPaths);
-        }
-
-        if (hasPermanentFailuresOnly(relaySession)) {
-            String lastError = deriveLastError(relaySession);
-            log.warn("Permanent 5xx failure, marking dead: uid={}", relaySession.getSession().getUID());
-            return deadSession(queueItem, relaySession, cleanupPaths, lastError);
+            return new RelayQueueWorkResult(QueueMutation.acknowledge(queueItem), notifications, cleanupPaths);
         }
 
         if (relaySession.getRetryCount() < relaySession.getMaxRetryCount()
                 && relaySession.getRetryCount() < RetryScheduler.getTotalRetries()) {
-            return retrySession(queueItem, relaySession, currentEpochSeconds, cleanupPaths);
+            RelayQueueWorkResult retry = retrySession(queueItem, relaySession, currentEpochSeconds, cleanupPaths);
+            notifications.addAll(retry.newItems());
+            return new RelayQueueWorkResult(retry.mutation(), notifications, retry.cleanupPaths());
         }
 
         String lastError = deriveLastError(relaySession);
-        return deadSession(queueItem, relaySession, cleanupPaths, lastError);
+        RelayQueueWorkResult dead = deadSession(queueItem, relaySession, cleanupPaths, lastError);
+        notifications.addAll(dead.newItems());
+        return new RelayQueueWorkResult(dead.mutation(), notifications, dead.cleanupPaths());
+    }
+
+    private record RecipientFailure(MessageEnvelope envelope, String recipient) {}
+
+    private boolean smtp(RelaySession relay) {
+        return "esmtp".equalsIgnoreCase(relay.getProtocol()) || "smtp".equalsIgnoreCase(relay.getProtocol())
+                || "mx".equalsIgnoreCase(relay.getProtocol());
+    }
+
+    private Set<String> confirmedRecipients(MessageEnvelope envelope, EnvelopeTransactionList transactions, boolean smtp) {
+        Set<String> confirmed = new LinkedHashSet<>();
+        if (smtp && !transactions.isMessageCommitted()) return confirmed;
+        List<Transaction> replies = smtp ? transactions.getRcpt() : transactions.getLmtp();
+        if (smtp && replies.isEmpty()) confirmed.addAll(envelope.getRcpts());
+        for (Transaction reply : replies) {
+            if (!reply.isError() && reply.getResponseCode().startsWith("2") && reply.getAddress() != null) {
+                confirmed.add(reply.getAddress());
+            }
+        }
+        return confirmed;
+    }
+
+    private List<RecipientFailure> permanentRecipients(RelaySession relay) {
+        boolean smtp = smtp(relay);
+        boolean lmtp = "lmtp".equalsIgnoreCase(relay.getProtocol());
+        if (!smtp && !lmtp) return List.of();
+        List<RecipientFailure> failures = new ArrayList<>();
+        var session = relay.getSession();
+        var globalErrors = session.getSessionTransactionList().getErrors();
+        boolean globalPermanent = !globalErrors.isEmpty()
+                && globalErrors.stream().allMatch(error -> error.getResponseCode().startsWith("5"));
+        var transactions = session.getSessionTransactionList().getEnvelopes();
+        for (int i = 0; i < session.getEnvelopes().size(); i++) {
+            var envelope = session.getEnvelopes().get(i);
+            if (envelope.getRcpts() == null) continue;
+            Set<String> recipients = new LinkedHashSet<>(envelope.getRcpts());
+            var tx = i < transactions.size() ? transactions.get(i) : new EnvelopeTransactionList();
+            Set<String> terminal = new LinkedHashSet<>();
+            Set<String> confirmed = confirmedRecipients(envelope, tx, smtp);
+            List<Transaction> recipientReplies = new ArrayList<>(tx.getRcpt());
+            if (lmtp) recipientReplies.addAll(tx.getLmtp());
+            for (Transaction reply : recipientReplies) {
+                if (reply.isError() && reply.getResponseCode().startsWith("5") && reply.getAddress() != null) {
+                    terminal.add(reply.getAddress());
+                }
+            }
+            boolean mailPermanent = tx.getMail() != null && tx.getMail().isError()
+                    && tx.getMail().getResponseCode().startsWith("5");
+            boolean contentPermanent = (smtp || tx.getLmtp().isEmpty()) && tx.getTransactions().stream()
+                    .anyMatch(reply -> (reply.getCommand().equalsIgnoreCase("DATA")
+                            || reply.getCommand().equalsIgnoreCase("BDAT")) && reply.isError()
+                            && reply.getResponseCode().startsWith("5"));
+            if (contentPermanent) {
+                if (tx.getRcpt().isEmpty()) {
+                    terminal.addAll(envelope.getRcpts());
+                } else {
+                    for (Transaction admission : tx.getRcpt()) {
+                        if (!admission.isError() && admission.getResponseCode().startsWith("2")) {
+                            terminal.add(admission.getAddress());
+                        }
+                    }
+                }
+            }
+            boolean legacyPermanent = !tx.getErrors().isEmpty() && tx.getErrors().stream()
+                    .allMatch(reply -> reply.getResponseCode().startsWith("5"))
+                    && tx.getRcpt().stream().allMatch(reply -> reply.getAddress() == null)
+                    && tx.getLmtp().stream().allMatch(reply -> reply.getAddress() == null);
+            if (mailPermanent || globalPermanent || legacyPermanent) terminal.addAll(envelope.getRcpts());
+            terminal.removeAll(confirmed);
+            for (String recipient : terminal) {
+                if (recipients.contains(recipient)) failures.add(new RecipientFailure(envelope, recipient));
+            }
+        }
+        return failures;
+    }
+
+    private boolean allRecipientsPermanent(RelaySession relay, List<RecipientFailure> failures) {
+        Set<RecipientFailure> terminal = new LinkedHashSet<>(failures);
+        for (var envelope : relay.getSession().getEnvelopes()) {
+            if (envelope.getRcpts() == null || envelope.getRcpts().isEmpty()) return false;
+            for (String recipient : envelope.getRcpts()) {
+                if (!terminal.contains(new RecipientFailure(envelope, recipient))) return false;
+            }
+        }
+        return true;
+    }
+
+    private List<RelaySession> persistPermanentNotifications(RelaySession relay, List<RecipientFailure> failures) {
+        List<RelaySession> notifications = new ArrayList<>();
+        if (!Config.getServer().getRelay().getBooleanProperty("bounce", true)) return notifications;
+        try {
+            for (RecipientFailure failure : failures) {
+                RelaySession notification = createBounceSession(relay, failure.envelope(), failure.recipient());
+                if (notification != null) notifications.add(notification);
+            }
+            return notifications;
+        } catch (RuntimeException e) {
+            for (RelaySession notification : notifications) {
+                deleteEnvelopeFiles(collectCleanupPaths(notification.getSession().getEnvelopes()));
+            }
+            throw e;
+        }
     }
 
     RelayQueueWorkResult expireClaimedItem(QueueItem<RelaySession> item) {
@@ -158,6 +285,7 @@ public class RelayDequeue {
         List<EnvelopeTransactionList> transactions =
                 relaySession.getSession().getSessionTransactionList().getEnvelopes();
         List<MessageEnvelope> successfulEnvelopes = new ArrayList<>();
+        List<EnvelopeTransactionList> successfulTransactions = new ArrayList<>();
 
         List<MessageEnvelope> envelopes = relaySession.getSession().getEnvelopes();
         if (transactions.size() != envelopes.size()) {
@@ -169,38 +297,39 @@ public class RelayDequeue {
             EnvelopeTransactionList txList = transactions.get(i);
             MessageEnvelope envelope = envelopes.get(i);
 
-            boolean smtp = "esmtp".equalsIgnoreCase(relaySession.getProtocol())
-                    || "mx".equalsIgnoreCase(relaySession.getProtocol());
-            boolean committed = !smtp || isMessageCommitted(txList);
-            if (committed && txList.getErrors().isEmpty()) {
+            boolean smtp = smtp(relaySession);
+            boolean lmtp = "lmtp".equalsIgnoreCase(relaySession.getProtocol());
+            Set<String> confirmed = confirmedRecipients(envelope, txList, smtp);
+            if (envelope.getRcpts().isEmpty()) {
                 successfulEnvelopes.add(envelope);
-            } else {
-                List<String> failedRecipients = txList.getFailedRecipients();
-                if (committed && failedRecipients != null && !failedRecipients.isEmpty()) {
-                    envelope.setRcpts(txList.getFailedRecipients());
+                successfulTransactions.add(txList);
+            } else if (smtp && txList.isMessageCommitted()
+                    || lmtp && !txList.getLmtp().isEmpty()) {
+                envelope.setRcpts(new ArrayList<>(envelope.getRcpts().stream()
+                        .filter(recipient -> !confirmed.contains(recipient)).toList()));
+                if (envelope.getRcpts().isEmpty()) {
+                    successfulEnvelopes.add(envelope);
+                    successfulTransactions.add(txList);
+                }
+            } else if (!smtp && (!lmtp || txList.getRcpt().isEmpty())) {
+                if (txList.getErrors().isEmpty()) {
+                    successfulEnvelopes.add(envelope);
+                    successfulTransactions.add(txList);
+                } else {
+                    List<String> failed = txList.getFailedRecipients().stream().filter(envelope.getRcpts()::contains).toList();
+                    if (!failed.isEmpty()) envelope.setRcpts(new ArrayList<>(failed));
                 }
             }
         }
 
         relaySession.getSession().getEnvelopes().removeAll(successfulEnvelopes);
+        transactions.removeAll(successfulTransactions);
 
         return new RelayDeliveryResult(
                 successfulEnvelopes.size(),
                 relaySession.getSession().getEnvelopes().size(),
                 successfulEnvelopes
         );
-    }
-
-    private boolean isMessageCommitted(EnvelopeTransactionList transactions) {
-        Transaction data = transactions.getData();
-        if (data != null && !data.isError() && data.getResponseCode().startsWith("2")) {
-            return true;
-        }
-        List<Transaction> chunks = transactions.getBdat();
-        return !chunks.isEmpty() && chunks.stream().noneMatch(Transaction::isError)
-                && chunks.getLast().getPayload() != null
-                && chunks.getLast().getPayload().toUpperCase(java.util.Locale.ROOT).contains(" LAST")
-                && chunks.getLast().getResponseCode().startsWith("2");
     }
 
     List<Path> collectCleanupPaths(List<MessageEnvelope> successfulEnvelopes) {
@@ -261,21 +390,16 @@ public class RelayDequeue {
     }
 
     List<RelaySession> generateBounces(RelaySession relaySession) {
-        Set<String> recipients = new LinkedHashSet<>();
+        List<RecipientFailure> failures = new ArrayList<>();
         List<MessageEnvelope> remainingEnvelopes = relaySession.getSession().getEnvelopes();
         for (MessageEnvelope envelope : remainingEnvelopes) {
             if (envelope != null && envelope.getRcpts() != null) {
-                recipients.addAll(envelope.getRcpts());
+                for (String recipient : new LinkedHashSet<>(envelope.getRcpts())) {
+                    failures.add(new RecipientFailure(envelope, recipient));
+                }
             }
         }
-
-        List<RelaySession> bounces = new ArrayList<>();
-        for (String recipient : recipients) {
-            RelaySession bounceSession = createBounceSession(relaySession, recipient);
-            if (bounceSession != null) {
-                bounces.add(bounceSession);
-            }
-        }
+        List<RelaySession> bounces = persistPermanentNotifications(relaySession, failures);
 
         log.warn("Max retries reached: uid={}, generatedBounces={}",
                 relaySession.getSession().getUID(), bounces.size());
@@ -283,12 +407,20 @@ public class RelayDequeue {
     }
 
     RelaySession createBounceSession(RelaySession originalSession, String recipient) {
-        BounceMessageGenerator bounce = new BounceMessageGenerator(originalSession, recipient);
+        return persistBounce(new BounceMessageGenerator(originalSession, recipient));
+    }
+
+    RelaySession createBounceSession(RelaySession originalSession, MessageEnvelope envelope, String recipient) {
+        return persistBounce(new BounceMessageGenerator(originalSession, envelope, recipient));
+    }
+
+    private RelaySession persistBounce(BounceMessageGenerator bounce) {
         RelaySession bounceSession = bounce.toRelaySession();
         if (bounceSession == null) {
             return null;
         }
         if (!QueueFiles.persistEnvelopeFiles(bounceSession)) {
+            deleteEnvelopeFiles(collectCleanupPaths(bounceSession.getSession().getEnvelopes()));
             throw new IllegalStateException("Failed to persist delivery status notification before enqueue");
         }
         return bounceSession;
@@ -336,6 +468,13 @@ public class RelayDequeue {
     }
 
     private String deriveLastError(RelaySession relaySession) {
+        var envelopes = relaySession.getSession().getEnvelopes();
+        for (int i = envelopes.size() - 1; i >= 0; i--) {
+            var envelope = envelopes.get(i);
+            if (envelope.getRcpts() != null && !envelope.getRcpts().isEmpty()) {
+                return relaySession.getRejection(envelope, envelope.getRcpts().getLast());
+            }
+        }
         var transactions = relaySession.getSession().getSessionTransactionList();
         for (int i = transactions.getEnvelopes().size() - 1; i >= 0; i--) {
             var errors = transactions.getEnvelopes().get(i).getErrors();

@@ -11,6 +11,7 @@ public class BounceGenerator {
 
     // Relay session instance.
     private final RelaySession relaySession;
+    private final MessageEnvelope envelope;
 
     /**
      * Constructs a new instance of BounceGenerator with given RelaySession instance.
@@ -18,6 +19,12 @@ public class BounceGenerator {
      */
     public BounceGenerator(RelaySession relaySession) {
         this.relaySession = relaySession;
+        this.envelope = null;
+    }
+
+    public BounceGenerator(RelaySession relaySession, MessageEnvelope envelope) {
+        this.relaySession = relaySession;
+        this.envelope = java.util.Objects.requireNonNull(envelope);
     }
 
     /**
@@ -33,7 +40,7 @@ public class BounceGenerator {
                 "   ----- The following addresses had permanent fatal errors -----\r\n" +
                 "From: <" + originalEnvelope(recipient).getMail() + ">\r\n" +
                 "To: <" + recipient + ">\r\n" +
-                "    (reason: " + relaySession.getRejection() + ")\r\n";
+                "    (reason: " + rejection(recipient) + ")\r\n";
     }
 
     /**
@@ -49,20 +56,25 @@ public class BounceGenerator {
                 "\r\n" +
                 "Final-Recipient: RFC822; " + recipient + "\r\n" +
                 "Action: failed\r\n" +
-                "Status: " + deliveryStatus() + "\r\n" +
+                "Status: " + deliveryStatus(recipient) + "\r\n" +
                 "Remote-MTA: DNS; [" + relaySession.getSession().getFriendAddr() + "]\r\n" +
-                "Diagnostic-Code: SMTP; " + relaySession.getRejection() + "\r\n" +
+                "Diagnostic-Code: SMTP; " + rejection(recipient) + "\r\n" +
                 "Last-Attempt-Date: " + relaySession.getLastRetryDate() + "\r\n";
     }
 
     private MessageEnvelope originalEnvelope(String recipient) {
+        if (envelope != null) return envelope;
         return relaySession.getSession().getEnvelopes().stream()
                 .filter(envelope -> envelope.getRcpts() != null && envelope.getRcpts().contains(recipient))
                 .findFirst().orElseGet(() -> relaySession.getSession().getEnvelopes().getLast());
     }
 
-    private String deliveryStatus() {
-        String rejection = relaySession.getRejection();
+    private String rejection(String recipient) {
+        return relaySession.getRejection(originalEnvelope(recipient), recipient);
+    }
+
+    private String deliveryStatus(String recipient) {
+        String rejection = rejection(recipient);
         var enhanced = java.util.regex.Pattern.compile("\\b5\\.\\d{1,3}\\.\\d{1,3}\\b").matcher(rejection);
         if (enhanced.find()) {
             return enhanced.group();

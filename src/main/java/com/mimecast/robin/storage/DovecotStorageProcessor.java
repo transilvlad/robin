@@ -175,7 +175,9 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
 
         // Process failure if delivery did not succeed
         if (!deliverySucceeded || transactionList == null) {
-            for (String recipient : nonBotRecipients) {
+            List<String> failed = transactionList == null ? nonBotRecipients
+                    : transactionList.getUndeliveredLmtpRecipients(nonBotRecipients);
+            for (String recipient : failed) {
                 processFailure(connection, config, recipient);
             }
         }
@@ -198,12 +200,13 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
             }
             var transactions = local.getSessionTransactionList().getEnvelopes();
             var transaction = transactions.isEmpty() ? null : transactions.getLast();
-            List<String> failed = transaction == null ? recipients : transaction.getFailedRecipients();
-            if (!success && failed.isEmpty()) failed = recipients;
+            List<String> failed = transaction == null ? recipients : lmtp
+                    ? transaction.getUndeliveredLmtpRecipients(recipients) : transaction.getFailedRecipients();
+            if (!lmtp && !success && failed.isEmpty()) failed = recipients;
             for (String recipient : failed) {
                 if (transaction != null && !transaction.getErrors().isEmpty()) {
                     connection.getSession().getSessionTransactionList().addTransaction("LOCAL",
-                            transaction.getErrors().getLast().getResponse(), true);
+                            new RelaySession(local).getRejection(localEnvelope, recipient), true);
                 }
                 processFailure(connection, config, recipient);
             }

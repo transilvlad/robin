@@ -25,6 +25,7 @@ import java.util.Properties;
 public class BounceMessageGenerator {
     private final RelaySession relaySession;
     private final String recipient;
+    private final MessageEnvelope envelope;
 
     /**
      * Constructs a new instance of BounceMessageGenerator with given RelaySession instance and recipient.
@@ -33,8 +34,15 @@ public class BounceMessageGenerator {
      * @param recipient Recipient email address.
      */
     public BounceMessageGenerator(RelaySession relaySession, String recipient) {
+        this(relaySession, relaySession.getSession().getEnvelopes().stream()
+                .filter(envelope -> envelope.getRcpts() != null && envelope.getRcpts().contains(recipient))
+                .findFirst().orElseGet(() -> relaySession.getSession().getEnvelopes().getLast()), recipient);
+    }
+
+    public BounceMessageGenerator(RelaySession relaySession, MessageEnvelope envelope, String recipient) {
         this.relaySession = relaySession;
         this.recipient = recipient;
+        this.envelope = java.util.Objects.requireNonNull(envelope);
     }
 
     /**
@@ -43,7 +51,7 @@ public class BounceMessageGenerator {
      * @return ByteArrayOutputStream containing the bounce message.
      */
     public ByteArrayOutputStream getStream() {
-        BounceGenerator bounceGenerator = new BounceGenerator(relaySession);
+        BounceGenerator bounceGenerator = new BounceGenerator(relaySession, envelope);
         String text = bounceGenerator.generatePlainText(recipient);
         String status = bounceGenerator.generateDeliveryStatus(recipient);
 
@@ -95,8 +103,6 @@ public class BounceMessageGenerator {
     }
 
     private MessageEnvelope originalEnvelope() {
-        return relaySession.getSession().getEnvelopes().stream()
-                .filter(envelope -> envelope.getRcpts() != null && envelope.getRcpts().contains(recipient))
-                .findFirst().orElseGet(() -> relaySession.getSession().getEnvelopes().getLast());
+        return envelope;
     }
 }

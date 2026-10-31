@@ -62,17 +62,11 @@ public class ClientData extends ClientProcessor {
         // Get data stream.
         InputStream inputStream = getStream(connection, bdat);
 
-        boolean result;
-        if (bdat) {
-            result = processBdat(inputStream);
-
-        } else {
-            result = processData("DATA", inputStream);
+        try {
+            return bdat ? processBdat(inputStream) : processData("DATA", inputStream);
+        } finally {
+            StreamUtils.closeQuietly(inputStream);
         }
-
-        StreamUtils.closeQuietly(inputStream);
-
-        return result;
     }
 
     /**
@@ -188,31 +182,45 @@ public class ClientData extends ClientProcessor {
             return false;
         }
 
-        read = connection.read("250");
+        return readFinalResponses(write, write);
+    }
 
-        // In LMTP with multiple recipients, we receive one response line per recipient.
-        // Standard SMTP/ESMTP returns a single response for all recipients.
-        // Check if we're using LMTP (LHLO instead of EHLO) and have multiple recipients.
-        boolean isLmtp = connection.getSession().getLhlo() != null && !connection.getSession().getLhlo().isEmpty();
-        int recipientCount = envelope.getRcpts().size();
-
-        if (isLmtp && recipientCount > 1 && read.startsWith("250")) {
-            // Read additional responses for remaining recipients.
-            StringBuilder allResponses = new StringBuilder(read);
-            for (int i = 1; i < recipientCount; i++) {
-                String additionalResponse = connection.read("250");
-                allResponses.append(additionalResponse);
-                if (!additionalResponse.startsWith("250")) {
-                    // If any recipient failed, record failure.
-                    envelopeTransactions.addTransaction(write, write, allResponses.toString(), true);
-                    return false;
-                }
-            }
-            read = allResponses.toString();
+    private boolean readFinalResponses(String command, String payload) throws IOException {
+        boolean lmtp = connection.getSession().getLhlo() != null && !connection.getSession().getLhlo().isEmpty();
+        if (!lmtp) {
+            String response = connection.read("250");
+            envelopeTransactions.addTransaction(command, payload, response, !response.startsWith("250"));
+            return response.startsWith("250");
         }
-
-        envelopeTransactions.addTransaction(write, write, read, !read.startsWith("250"));
-        return read.startsWith("250");
+        var admissions = envelopeTransactions.getRcpt();
+        List<String> accepted = admissions.isEmpty() ? envelope.getRcpts() : admissions.stream()
+                .filter(transaction -> !transaction.isError() && transaction.getResponseCode().startsWith("2"))
+                .map(com.mimecast.robin.smtp.transaction.Transaction::getAddress).toList();
+        if (accepted.isEmpty()) {
+            envelopeTransactions.addTransaction(command, payload, "", true);
+            return false;
+        }
+        boolean success = true;
+        StringBuilder responses = new StringBuilder();
+        for (int i = 0; i < accepted.size(); i++) {
+            String recipient = accepted.get(i);
+            String response;
+            try {
+                response = connection.read("250");
+            } catch (IOException e) {
+                for (int remaining = i; remaining < accepted.size(); remaining++) {
+                    envelopeTransactions.addTransaction("LMTP", "RCPT TO:<" + accepted.get(remaining) + ">", "", true);
+                }
+                envelopeTransactions.addTransaction(command, payload, responses.toString(), true);
+                throw e;
+            }
+            boolean delivered = response.startsWith("2");
+            envelopeTransactions.addTransaction("LMTP", "RCPT TO:<" + recipient + ">", response, !delivered);
+            responses.append(response);
+            success &= delivered;
+        }
+        envelopeTransactions.addTransaction(command, payload, responses.toString(), !success);
+        return success;
     }
 
     /**
@@ -223,29 +231,28 @@ public class ClientData extends ClientProcessor {
      * @throws IOException Unable to communicate.
      */
     private boolean processBdat(InputStream inputStream) throws IOException {
-        String read = "";
+        boolean accepted = false;
 
         if (inputStream != null) {
             try (ChunkedInputStream chunks = new ChunkedInputStream(inputStream, envelope)) {
                 ByteArrayOutputStream chunk;
                 while (chunks.hasChunks()) {
                     chunk = chunks.getChunk();
-                    read = writeChunk(chunk.toByteArray(), !chunks.hasChunks());
-
-                    if (!read.startsWith("250")) return false;
+                    accepted = writeChunk(chunk.toByteArray(), !chunks.hasChunks());
+                    if (!accepted) return false;
                 }
             }
 
         } else if (envelope.getMessage() != null) {
             // Write headers
-            read = writeChunk((envelope.buildHeaders() + "\r\n").getBytes(), false);
-            if (!read.startsWith("250")) return false;
+            accepted = writeChunk((envelope.buildHeaders() + "\r\n").getBytes(), false);
+            if (!accepted) return false;
 
             // Write body
-            read = writeChunk((envelope.getMessage() + "\r\n").getBytes(), true);
+            accepted = writeChunk((envelope.getMessage() + "\r\n").getBytes(), true);
         }
 
-        return read.startsWith("250");
+        return accepted;
     }
 
     /**
@@ -253,10 +260,10 @@ public class ClientData extends ClientProcessor {
      *
      * @param chunk Chunk to write as byte array.
      * @param last  Is last chunk?
-     * @return SMTP response string.
+     * @return Whether all required replies confirmed acceptance.
      * @throws IOException Unable to communicate.
      */
-    private String writeChunk(byte[] chunk, boolean last) throws IOException {
+    private boolean writeChunk(byte[] chunk, boolean last) throws IOException {
         byte[] bdat = ("BDAT " + chunk.length + (last ? " LAST" : "") + "\r\n").getBytes();
         byte[] payload;
 
@@ -273,9 +280,10 @@ public class ClientData extends ClientProcessor {
 
         connection.write(payload, envelope.isChunkWrite(), envelope.getSlowBytes(), envelope.getSlowWait());
 
+        if (last) return readFinalResponses("BDAT", new String(bdat));
         String read = connection.read("250");
         envelopeTransactions.addTransaction("BDAT", new String(bdat), read, !read.startsWith("250"));
 
-        return read;
+        return read.startsWith("250");
     }
 }

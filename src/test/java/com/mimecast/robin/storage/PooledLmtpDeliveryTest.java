@@ -5,6 +5,8 @@ import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.IOException;
 import java.util.List;
@@ -80,6 +82,75 @@ class PooledLmtpDeliveryTest {
         assertEquals(1, delivery.returnCount);
     }
 
+    @Test
+    void partialFinalDeliveryDoesNotRetryAlreadyDeliveredRecipientsOrReuseTruncatedConnection() {
+        Session source = sessionWithEnvelope("partial-closed");
+        source.getEnvelopes().getFirst().setRcpts(List.of("pepper@example.com", "unknown@example.com"));
+        TestPooledLmtpDelivery delivery = new TestPooledLmtpDelivery();
+        delivery.partialClosedAttempts = 1;
+        assertFalse(delivery.deliver(source, 3, 0));
+        assertEquals(1, delivery.borrowCount);
+        assertEquals(1, delivery.invalidateCount);
+        assertEquals(List.of("unknown@example.com"),
+                source.getSessionTransactionList().getEnvelopes().getFirst().getFailedRecipients());
+    }
+
+    @Test
+    void partialIoExceptionRetainsFinalRecipientStateAndDoesNotRetryTheEnvelope() {
+        Session source = sessionWithEnvelope("partial-exception");
+        source.getEnvelopes().getFirst().setRcpts(List.of("pepper@example.com", "unknown@example.com"));
+        TestPooledLmtpDelivery delivery = new TestPooledLmtpDelivery();
+        delivery.partialThrowAttempts = 1;
+        assertFalse(delivery.deliver(source, 3, 0));
+        assertEquals(1, delivery.borrowCount);
+        assertEquals(1, delivery.invalidateCount);
+        assertEquals(0, delivery.returnCount);
+        assertEquals(2, source.getSessionTransactionList().getEnvelopes().getFirst().getLmtp().size());
+        assertEquals(List.of("unknown@example.com"),
+                source.getSessionTransactionList().getEnvelopes().getFirst().getUndeliveredLmtpRecipients(
+                        source.getEnvelopes().getFirst().getRcpts()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void missingFinalTransactionIsUnknownNotSuccessfulDelivery(boolean noTransactions) throws Exception {
+        Session source = sessionWithEnvelope("missing-final");
+        TestPooledLmtpDelivery delivery = new TestPooledLmtpDelivery();
+        delivery.noTransactionAttempts = noTransactions ? 1 : 0;
+        delivery.missingFinalAttempts = noTransactions ? 0 : 1;
+        var result = delivery.deliverAttempt(source, delivery.newPooledConnection());
+        assertFalse(result.success());
+        assertFalse(result.reusable());
+        assertTrue(source.getSessionTransactionList().getEnvelopes().getFirst().getData().isError());
+        assertEquals("", source.getSessionTransactionList().getEnvelopes().getFirst().getData().getResponse());
+    }
+
+    @Test
+    void mixedBdatFinalRepliesAreFailuresWithoutRetryingTheDeliveredRecipient() {
+        Session source = sessionWithEnvelope("partial-bdat");
+        source.getEnvelopes().getFirst().setRcpts(List.of("pepper@example.com", "unknown@example.com"));
+        TestPooledLmtpDelivery delivery = new TestPooledLmtpDelivery();
+        delivery.partialBdatAttempts = 1;
+        assertFalse(delivery.deliver(source, 3, 0));
+        assertEquals(1, delivery.borrowCount);
+        assertEquals(1, delivery.returnCount);
+        assertEquals(0, delivery.invalidateCount);
+        assertEquals(List.of("unknown@example.com"),
+                source.getSessionTransactionList().getEnvelopes().getFirst().getFailedRecipients());
+    }
+
+    @Test
+    void acknowledgedNonfinalBdatChunkDoesNotConfirmMailboxDelivery() throws Exception {
+        Session source = sessionWithEnvelope("missing-bdat-last");
+        TestPooledLmtpDelivery delivery = new TestPooledLmtpDelivery();
+        delivery.missingBdatLastAttempts = 1;
+        var result = delivery.deliverAttempt(source, delivery.newPooledConnection());
+        assertFalse(result.success());
+        assertFalse(result.reusable());
+        var tx = source.getSessionTransactionList().getEnvelopes().getFirst();
+        assertEquals(List.of("pepper@example.com"), tx.getUndeliveredLmtpRecipients(source.getEnvelopes().getFirst().getRcpts()));
+    }
+
     private static Session sessionWithEnvelope(String uid) {
         Session session = new Session().setUID(uid);
         session.addEnvelope(new MessageEnvelope()
@@ -97,6 +168,12 @@ class PooledLmtpDeliveryTest {
         private int failAttempts;
         private int throwAttempts;
         private int closedAttempts;
+        private int partialClosedAttempts;
+        private int partialThrowAttempts;
+        private int partialBdatAttempts;
+        private int missingFinalAttempts;
+        private int noTransactionAttempts;
+        private int missingBdatLastAttempts;
 
         private TestPooledLmtpDelivery withPool(LmtpConnectionPool pool) {
             this.pool = pool;
@@ -130,10 +207,38 @@ class PooledLmtpDeliveryTest {
                 throwAttempts--;
                 throw new IOException("broken pipe");
             }
+            if (noTransactionAttempts > 0) {
+                noTransactionAttempts--;
+                return;
+            }
             EnvelopeTransactionList envelopeTransactionList = new EnvelopeTransactionList();
-            if (closedAttempts > 0) {
+            if (partialThrowAttempts > 0) {
+                partialThrowAttempts--;
+                envelopeTransactionList.addTransaction("LMTP", "RCPT TO:<pepper@example.com>", "250 Delivered");
+                envelopeTransactionList.addTransaction("LMTP", "RCPT TO:<unknown@example.com>", "", true);
+                envelopeTransactionList.addTransaction("DATA", "DATA", "250 Delivered", true);
+                connection.getSession().getSessionTransactionList().addEnvelope(envelopeTransactionList);
+                throw new IOException("Synthetic final-reply interruption");
+            } else if (partialBdatAttempts > 0) {
+                partialBdatAttempts--;
+                envelopeTransactionList.addTransaction("LMTP", "RCPT TO:<pepper@example.com>", "250 Delivered");
+                envelopeTransactionList.addTransaction("LMTP", "RCPT TO:<unknown@example.com>", "550 Missing", true);
+                envelopeTransactionList.addTransaction("BDAT", "BDAT 1 LAST", "250 Delivered\r\n550 Missing", true);
+            } else if (missingBdatLastAttempts > 0) {
+                missingBdatLastAttempts--;
+                envelopeTransactionList.addTransaction("RCPT", "RCPT TO:<pepper@example.com>", "250 Admitted");
+                envelopeTransactionList.addTransaction("BDAT", "BDAT 1", "250 Chunk received");
+            } else if (missingFinalAttempts > 0) {
+                missingFinalAttempts--;
+                envelopeTransactionList.addTransaction("RCPT", "RCPT TO:<pepper@example.com>", "250 Admitted");
+            } else if (closedAttempts > 0) {
                 closedAttempts--;
                 envelopeTransactionList.addTransaction("MAIL", "MAIL FROM:<tony@example.com>", "", true);
+            } else if (partialClosedAttempts > 0) {
+                partialClosedAttempts--;
+                envelopeTransactionList.addTransaction("LMTP", "RCPT TO:<pepper@example.com>", "250 Delivered");
+                envelopeTransactionList.addTransaction("LMTP", "RCPT TO:<unknown@example.com>", "", true);
+                envelopeTransactionList.addTransaction("DATA", "DATA", "250 Delivered", true);
             } else if (failAttempts > 0) {
                 failAttempts--;
                 envelopeTransactionList.addTransaction("DATA", "DATA", "451 temporary failure", true);

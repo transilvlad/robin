@@ -79,6 +79,9 @@ public class PooledLmtpDelivery {
                 logAttemptFailure(attempt, attempts,
                         DeliveryAttemptResult.connectionFailureResult("LMTP delivery threw exception: " + e.getMessage()));
             }
+            boolean partiallyDelivered = sourceSession.getSessionTransactionList().getEnvelopes().stream()
+                    .anyMatch(this::hasConfirmedDelivery);
+            if (partiallyDelivered) return false;
         }
 
         return false;
@@ -99,9 +102,12 @@ public class PooledLmtpDelivery {
 
             MessageEnvelope envelope = sourceSession.getEnvelopes().get(i);
             prepareEnvelope(pooledSession, envelope);
-            processEnvelope(connection);
-            pooled.recordDeliveredMessage();
-            copyLatestEnvelopeTransactions(sourceSession, pooledSession);
+            try {
+                processEnvelope(connection);
+                pooled.recordDeliveredMessage();
+            } finally {
+                copyLatestEnvelopeTransactions(sourceSession, pooledSession);
+            }
         }
 
         List<EnvelopeTransactionList> envelopes = sourceSession.getSessionTransactionList().getEnvelopes();
@@ -175,12 +181,31 @@ public class PooledLmtpDelivery {
 
     private void copyLatestEnvelopeTransactions(Session sourceSession, Session pooledSession) {
         if (pooledSession.getSessionTransactionList().getEnvelopes().isEmpty()) {
-            sourceSession.getSessionTransactionList().addEnvelope(new EnvelopeTransactionList());
+            var unknown = new EnvelopeTransactionList();
+            unknown.addTransaction("DATA", "DATA", "", true);
+            sourceSession.getSessionTransactionList().addEnvelope(unknown);
             return;
         }
 
         EnvelopeTransactionList latest = pooledSession.getSessionTransactionList().getEnvelopes().getLast();
-        sourceSession.getSessionTransactionList().addEnvelope(latest.clone());
+        var copied = latest.clone();
+        boolean admitted = copied.getRcpt().stream()
+                .anyMatch(reply -> !reply.isError() && reply.getResponseCode().startsWith("2"));
+        boolean lastChunk = !copied.getBdat().isEmpty() && copied.getBdat().getLast().getPayload() != null
+                && copied.getBdat().getLast().getPayload().toUpperCase(java.util.Locale.ROOT).contains(" LAST");
+        if (copied.getTransactions().isEmpty() || admitted && copied.getData() == null && !lastChunk
+                && copied.getBdat().stream().noneMatch(Transaction::isError)) {
+            copied.addTransaction("DATA", "DATA", "", true);
+        }
+        sourceSession.getSessionTransactionList().addEnvelope(copied);
+    }
+
+    private boolean hasConfirmedDelivery(EnvelopeTransactionList envelope) {
+        if (!envelope.getLmtp().isEmpty()) {
+            return envelope.getLmtp().stream()
+                    .anyMatch(reply -> !reply.isError() && reply.getResponseCode().startsWith("2"));
+        }
+        return envelope.isMessageCommitted();
     }
 
     /**
@@ -188,11 +213,7 @@ public class PooledLmtpDelivery {
      */
     private boolean hasUnansweredCommand(List<EnvelopeTransactionList> envelopes) {
         for (EnvelopeTransactionList envelope : envelopes) {
-            List<Transaction> transactions = new ArrayList<>();
-            transactions.add(envelope.getMail());
-            transactions.addAll(envelope.getRcpt());
-            transactions.add(envelope.getData());
-            for (Transaction transaction : transactions) {
+            for (Transaction transaction : envelope.getTransactions()) {
                 if (transaction != null && transaction.isError()
                         && (transaction.getResponse() == null || transaction.getResponse().isBlank())) {
                     return true;
@@ -205,13 +226,7 @@ public class PooledLmtpDelivery {
     private String summarizeTransactionFailures(List<EnvelopeTransactionList> envelopes) {
         List<String> failures = new ArrayList<>();
         for (EnvelopeTransactionList envelope : envelopes) {
-            if (envelope.getMail() != null && envelope.getMail().isError()) {
-                failures.add("MAIL " + envelope.getMail().getResponse());
-            }
-            envelope.getRcptErrors().forEach(rcpt -> failures.add("RCPT " + rcpt.getResponse()));
-            if (envelope.getData() != null && envelope.getData().isError()) {
-                failures.add("DATA " + envelope.getData().getResponse());
-            }
+            envelope.getErrors().forEach(error -> failures.add(error.getCommand() + " " + error.getResponse()));
         }
 
         return failures.isEmpty() ? null : String.join(" | ", failures);

@@ -141,6 +141,50 @@ class ManagedRecipientRoutingTest {
     }
 
     @Test
+    void inlineManagedLmtpBouncesUseDistinctFinalDiagnosticsAndDoNotBounceConfirmedRecipient() throws Exception {
+        Config.getServer().getDovecot().getMap().put("failureBehaviour", "bounce");
+        var router = new RecipientDirectory(new RecipientDirectory.Lookup() {
+            @Override public Optional<RecipientDirectory.DomainPolicy> findDomain(String domain) {
+                return Optional.of(new RecipientDirectory.DomainPolicy(true, false, null));
+            }
+            @Override public List<String> findAliases(String address) {
+                return address.equals("team@example.com")
+                        ? List.of("alice@example.com", "bob@example.com", "carol@example.com", "unknown@example.com") : List.of();
+            }
+            @Override public boolean hasMailbox(String address) { return !address.equals("team@example.com"); }
+        }, false, 10, 100);
+        assertTrue(rcpt(router).process(connection, new Verb("RCPT TO:<team@example.com>")));
+        connection.getSession().getEnvelopes().getLast().setBytes(new byte[]{1});
+        var delivery = new PooledLmtpDelivery() {
+            @Override public boolean deliver(Session local, long attempts, int wait) {
+                var transaction = new EnvelopeTransactionList();
+                transaction.addTransaction("LMTP", "RCPT TO:<alice@example.com>", "250 Delivered");
+                transaction.addTransaction("LMTP", "RCPT TO:<bob@example.com>", "550 5.1.1 Bob missing", true);
+                transaction.addTransaction("LMTP", "RCPT TO:<carol@example.com>", "451 4.2.0 Carol deferred", true);
+                local.getSessionTransactionList().addEnvelope(transaction);
+                return false;
+            }
+        };
+        assertTrue(new DovecotStorageProcessor(delivery).process(connection, null));
+        var items = queue.list(0, 10, QueueListFilter.activeOnly()).items();
+        assertEquals(3, items.size());
+        var reports = new java.util.ArrayList<String>();
+        for (var item : items) {
+            var envelope = item.getPayload().getSession().getEnvelopes().getFirst();
+            assertEquals("", envelope.getMail());
+            assertEquals(List.of("author@example.net"), envelope.getRcpts());
+            reports.add(new String(envelope.readMessageBytes(), java.nio.charset.StandardCharsets.UTF_8));
+        }
+        assertTrue(reports.stream().anyMatch(report -> report.contains("Final-Recipient: RFC822; bob@example.com")
+                && report.contains("Diagnostic-Code: SMTP; 550 5.1.1 Bob missing")));
+        assertTrue(reports.stream().anyMatch(report -> report.contains("Final-Recipient: RFC822; carol@example.com")
+                && report.contains("Diagnostic-Code: SMTP; 451 4.2.0 Carol deferred")));
+        assertTrue(reports.stream().anyMatch(report -> report.contains("Final-Recipient: RFC822; unknown@example.com")
+                && report.contains("Diagnostic-Code: SMTP; 451 4.4.2 Delivery not confirmed")));
+        assertTrue(reports.stream().noneMatch(report -> report.contains("Final-Recipient: RFC822; alice@example.com")));
+    }
+
+    @Test
     void managedStalwartLocalIngestAlsoPreservesSubmittedForwardTargets() throws Exception {
         Config.getServer().getStalwart().getMap().put("enabled", true);
         Config.getServer().getStalwart().getMap().put("inline", true);

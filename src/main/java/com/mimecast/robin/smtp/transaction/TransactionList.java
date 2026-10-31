@@ -6,8 +6,9 @@ import org.apache.logging.log4j.Logger;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 /**
  * Transaction list.
@@ -26,9 +27,9 @@ public abstract class TransactionList implements Serializable {
     private final List<Transaction> transactions = new ArrayList<>();
 
     /**
-     * Repeatable transactions
+     * Protocol repeatability must not inherit stale rules from serialized history.
      */
-    private final List<String> repeatable = Arrays.asList("SMTP", "RCPT", "BDAT");
+    private static final Set<String> REPEATABLE = Set.of("SMTP", "RCPT", "BDAT", "LMTP", "LOCAL");
 
     /**
      * Adds new transaction with response only.
@@ -37,7 +38,7 @@ public abstract class TransactionList implements Serializable {
      * @param response Response string.
      */
     public void addTransaction(String command, String response) {
-        if (!repeatable.contains(command) && !getTransactions(command).isEmpty()) return;
+        if (!REPEATABLE.contains(command.toUpperCase(Locale.ROOT)) && !getTransactions(command).isEmpty()) return;
 
         transactions.add(new Transaction(command).setResponse(response));
 
@@ -54,7 +55,7 @@ public abstract class TransactionList implements Serializable {
      * @param error    Error boolean.
      */
     public void addTransaction(String command, String response, boolean error) {
-        if (!repeatable.contains(command) && !getTransactions(command).isEmpty()) return;
+        if (!REPEATABLE.contains(command.toUpperCase(Locale.ROOT)) && !getTransactions(command).isEmpty()) return;
 
         transactions.add(new Transaction(command).setResponse(response).setError(error));
 
@@ -71,7 +72,7 @@ public abstract class TransactionList implements Serializable {
      * @param response Response string.
      */
     public void addTransaction(String command, String payload, String response) {
-        if (!repeatable.contains(command) && !getTransactions(command).isEmpty()) return;
+        if (!REPEATABLE.contains(command.toUpperCase(Locale.ROOT)) && !getTransactions(command).isEmpty()) return;
 
         transactions.add(new Transaction(command).setPayload(payload).setResponse(response));
 
@@ -89,7 +90,7 @@ public abstract class TransactionList implements Serializable {
      * @param error    Is error boolean.
      */
     public void addTransaction(String command, String payload, String response, boolean error) {
-        if (!repeatable.contains(command) && !getTransactions(command).isEmpty()) return;
+        if (!REPEATABLE.contains(command.toUpperCase(Locale.ROOT)) && !getTransactions(command).isEmpty()) return;
 
         transactions.add(new Transaction(command).setPayload(payload).setResponse(response).setError(error));
 

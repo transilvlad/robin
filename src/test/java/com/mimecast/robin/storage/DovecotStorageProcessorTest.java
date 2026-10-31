@@ -12,6 +12,7 @@ import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.session.EmailDirection;
 import com.mimecast.robin.smtp.session.Session;
+import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -153,6 +154,41 @@ class DovecotStorageProcessorTest {
         processor.process(connection, null);
 
         assertEquals(0, queue.size());
+    }
+
+    @Test
+    void inlineLmtpRetriesFailedAndUnknownRecipientsButNotConfirmedDelivery() throws Exception {
+        Config.getServer().getDovecot().getMap().put("saveLmtp", java.util.Map.of("enabled", true, "inline", true));
+        var connection = createInboundConnection(List.of("first@example.com", "failed@example.com", "unknown@example.com"));
+        Path original = Path.of(connection.getSession().getEnvelopes().getFirst().getFile());
+        var delivery = new PooledLmtpDelivery() {
+            @Override public boolean deliver(Session session, long attempts, int delay) {
+                var tx = new EnvelopeTransactionList();
+                for (String recipient : session.getEnvelopes().getFirst().getRcpts()) {
+                    tx.addTransaction("RCPT", "RCPT TO:<" + recipient + ">", "250 Admitted");
+                }
+                tx.addTransaction("LMTP", "RCPT TO:<first@example.com>", "250 Delivered");
+                tx.addTransaction("LMTP", "RCPT TO:<failed@example.com>", "550 Missing", true);
+                session.getSessionTransactionList().addEnvelope(tx);
+                return false;
+            }
+        };
+        try {
+            new DovecotStorageProcessor(delivery).saveToLmtp(connection, null, Config.getServer());
+            var queued = queue.list(0, 10, QueueListFilter.activeOnly()).items();
+            var recipients = queued.stream().flatMap(item -> item.getPayload().getSession().getEnvelopes().getFirst()
+                    .getRcpts().stream()).sorted().toList();
+            assertEquals(List.of("failed@example.com", "unknown@example.com"), recipients);
+            for (var item : queued) {
+                assertTrue(new String(item.getPayload().getSession().getEnvelopes().getFirst().readMessageBytes(),
+                        java.nio.charset.StandardCharsets.UTF_8).contains("Subject: Test"));
+            }
+        } finally {
+            for (var item : queue.list(0, 10, QueueListFilter.activeOnly()).items()) {
+                Files.deleteIfExists(Path.of(item.getPayload().getSession().getEnvelopes().getFirst().getFile()));
+            }
+            Files.deleteIfExists(original);
+        }
     }
 
     private Connection createInboundConnection(List<String> recipients) throws IOException {

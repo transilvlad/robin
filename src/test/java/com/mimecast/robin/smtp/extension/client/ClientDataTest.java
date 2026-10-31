@@ -6,9 +6,12 @@ import com.mimecast.robin.smtp.connection.ConnectionMock;
 import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.naming.ConfigurationException;
 import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -16,6 +19,80 @@ import java.io.InputStream;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ClientDataTest {
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void interruptedLmtpFinalReadCopiesKnownDeliveryAndMarksEveryRemainingRecipientUnknown(boolean bdat) throws Exception {
+        var connection = new ConnectionMock(new StringBuilder((bdat ? "" : "354 Go\r\n") + "250 First delivered\r\n")) {
+            private int finalReads;
+            @Override public String read(String code) throws IOException {
+                if (code.equals("250") && ++finalReads == 2) throw new IOException("Synthetic final-reply interruption");
+                return super.read(code);
+            }
+        };
+        connection.getSession().setLhlo("robin.test").setEhloBdat(bdat);
+        var recipients = java.util.List.of("first@example.com", "second@example.com", "third@example.com");
+        connection.getSession().addEnvelope(new MessageEnvelope().setRcpts(recipients).setChunkSize(128));
+        var tx = new EnvelopeTransactionList();
+        for (String recipient : recipients) tx.addTransaction("RCPT", "RCPT TO:<" + recipient + ">", "250 Admitted");
+        connection.getSession().getSessionTransactionList().addEnvelope(tx);
+        boolean[] closed = {false};
+        var stream = new ByteArrayInputStream(new byte[]{1}) {
+            @Override public void close() throws IOException { closed[0] = true; super.close(); }
+        };
+        var client = new ClientData() {
+            @Override protected InputStream getStream(com.mimecast.robin.smtp.connection.Connection ignored, boolean binary) {
+                return stream;
+            }
+        };
+        assertThrows(IOException.class, () -> client.process(connection));
+        assertTrue(closed[0]);
+        assertEquals(3, tx.getLmtp().size());
+        assertFalse(tx.getLmtp().getFirst().isError());
+        assertEquals(java.util.List.of("second@example.com", "third@example.com"), tx.getFailedRecipients());
+        assertEquals("", tx.getLmtp().getLast().getResponse());
+        assertTrue((bdat ? tx.getBdat().getLast() : tx.getData()).isError());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void lmtpFinalResponsesCoverOnlyAdmittedRecipientsAndDrainFailuresBeforeNextCommand(boolean bdat) throws Exception {
+        var connection = new ConnectionMock(new StringBuilder((bdat ? "" : "354 Go\r\n")
+                + "550 5.1.1 First failed\r\n250 Second delivered\r\n221 Next command\r\n"));
+        connection.getSession().setLhlo("robin.test").setEhloBdat(bdat);
+        var envelope = new MessageEnvelope().setMail("sender@example.com")
+                .setRcpts(java.util.List.of("denied@example.com", "first@example.com", "second@example.com"))
+                .setBytes(new byte[]{1});
+        envelope.setChunkSize(128);
+        connection.getSession().addEnvelope(envelope);
+        var tx = new EnvelopeTransactionList();
+        tx.addTransaction("RCPT", "RCPT TO:<denied@example.com>", "550 Denied", true);
+        tx.addTransaction("RCPT", "RCPT TO:<first@example.com>", "250 Admitted");
+        tx.addTransaction("RCPT", "RCPT TO:<second@example.com>", "250 Admitted");
+        connection.getSession().getSessionTransactionList().addEnvelope(tx);
+        assertFalse(new ClientData().process(connection));
+        assertEquals(2, tx.getLmtp().size());
+        assertEquals("first@example.com", tx.getLmtp().getFirst().getAddress());
+        assertTrue(tx.getLmtp().getFirst().isError());
+        assertEquals("second@example.com", tx.getLmtp().getLast().getAddress());
+        assertFalse(tx.getLmtp().getLast().isError());
+        assertTrue(connection.read("221").startsWith("221"), "Failed final replies must not leave later recipients unread");
+        assertEquals(java.util.List.of("denied@example.com", "first@example.com"), tx.getFailedRecipients());
+    }
+
+    @Test
+    void lmtpUnansweredFinalResponseIsRetainedAsUnknownRecipientFailure() throws Exception {
+        var connection = new ConnectionMock(new StringBuilder("354 Go\r\n250 First delivered\r\n"));
+        connection.getSession().setLhlo("robin.test");
+        connection.getSession().addEnvelope(new MessageEnvelope().setRcpts(java.util.List.of("first@example.com", "second@example.com")));
+        var tx = new EnvelopeTransactionList();
+        connection.getSession().getSessionTransactionList().addEnvelope(tx);
+        assertFalse(new ClientData().process(connection));
+        assertEquals(2, tx.getLmtp().size());
+        assertTrue(tx.getLmtp().getLast().isError());
+        assertEquals("", tx.getLmtp().getLast().getResponse());
+        assertEquals(java.util.List.of("second@example.com"), tx.getFailedRecipients());
+    }
 
     @BeforeAll
     static void before() throws ConfigurationException {

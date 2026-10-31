@@ -25,6 +25,30 @@ Delivery status notifications go to the original reverse path with `MAIL FROM:<>
 null reverse paths never generate another notification. Failure to persist a
 notification leaves the original queue mutation uncommitted.
 
+Delivery failures are evaluated per original envelope and recipient. A repeated
+target in another envelope retains that envelope's reverse path and diagnostic;
+a null sender in one envelope does not suppress another sender's notification.
+Within SMTP/MX and LMTP queue attempts, permanent 5xx recipients leave retry state together with
+their persisted DSN enqueue in the same queue mutation batch. Confirmed deliveries
+are removed separately; temporary 4xx and unconfirmed DATA recipients retain the
+original retry content. Explicitly disabled notifications and null reverse paths
+still suppress DSNs. If preparing any notification fails, already-prepared
+notification files are cleaned and no queue mutation is returned.
+
+LMTP RCPT admission is not final mailbox delivery. DATA and BDAT LAST read one
+final reply for each admitted recipient, including replies after a rejection.
+Unanswered replies remain unknown failures; a truncated connection is not returned
+to the pool. Confirmed partial delivery stops whole-envelope inline retries, and
+both legacy and managed inline LMTP failure handling exclude confirmed recipients.
+Managed inline bounce diagnostics follow each recipient's own final response.
+Scripted clients without an LMTP final ledger retain explicit aggregate-confirmation
+compatibility; live LMTP clients record final statuses separately.
+
+These queue batch guarantees are not an atomic transaction with a remote SMTP/LMTP
+server or across different storage backends. A crash or persistence failure after
+remote acceptance can still lead to a duplicate retry. Alias-expanded queue targets
+also do not yet retain distinct original RCPT/ORCPT metadata for DSNs.
+
 ### Destination concurrency
 
 `queue.maxConcurrentPerDestination` defaults to `0` (off). Set it explicitly,
