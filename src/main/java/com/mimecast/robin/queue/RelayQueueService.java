@@ -72,6 +72,7 @@ public class RelayQueueService {
             return;
         }
 
+        RetryScheduler.validateConfiguration();
         queue = PersistentQueue.getInstance();
         workerExecutor = new ThreadPoolExecutor(
                 WORKER_THREADS,
@@ -151,8 +152,8 @@ public class RelayQueueService {
                     if (future == null) {
                         break;
                     }
-                    RelayQueueWorkResult result = future.get();
                     runningTasks--;
+                    RelayQueueWorkResult result = future.get();
                     progress |= collectResult(mutationBuilder, pendingCleanupPaths, result, nowMillis);
                     currentOutcomeQueueDepth = mutationBuilder.size();
                 }

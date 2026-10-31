@@ -35,6 +35,12 @@ public class RetryConfig extends BasicConfig {
      */
     public RetryConfig(java.util.Map map) {
         super(map);
+        if (getFirstWaitMinutes() <= 0 || !Double.isFinite(getGrowthFactor()) || getGrowthFactor() < 1
+                || getMaxWaitSeconds() <= 0 || !Double.isFinite(getJitterFraction())
+                || getJitterFraction() < 0 || getJitterFraction() >= 1
+                || getTotalRetries() < 0 || getMaxAgeSeconds() < 0) {
+            throw new IllegalArgumentException("Invalid queue retry configuration");
+        }
     }
 
     /**
@@ -59,11 +65,26 @@ public class RetryConfig extends BasicConfig {
      * Gets the growth factor for geometric progression backoff.
      *
      * <p>Each retry wait time is calculated as:
-     * {@code wait_time = firstWaitMinutes * (growthFactor ^ retryCount)}
+     * {@code wait_seconds = firstWaitMinutes * 60 * (growthFactor ^ (retryCount - 1))}
      *
      * @return Growth factor.
      */
     public double getGrowthFactor() {
         return getDoubleProperty("growthFactor", DEFAULT_GROWTH_FACTOR);
+    }
+
+    public int getMaxWaitSeconds() {
+        return Math.toIntExact(getLongProperty("maxWaitSeconds", 14400L));
+    }
+
+    public double getJitterFraction() {
+        return getDoubleProperty("jitterFraction", 0.0);
+    }
+
+    /**
+     * Zero preserves the legacy retry-count-only lifetime.
+     */
+    public long getMaxAgeSeconds() {
+        return getLongProperty("maxAgeSeconds", 0L);
     }
 }

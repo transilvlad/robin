@@ -2,6 +2,7 @@ package com.mimecast.robin.queue;
 
 import com.mimecast.robin.config.server.RetryConfig;
 import com.mimecast.robin.main.Config;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Retry scheduler utility class.
@@ -10,7 +11,7 @@ import com.mimecast.robin.main.Config;
  * This is particularly useful for email delivery where transient issues may resolve over time.
  * <p>The wait time before each retry is calculated using the formula:
  * <pre>
- *     wait_time = firstWaitMinutes * (growthFactor ^ retry_count)
+ *     wait_seconds = firstWaitMinutes * 60 * (growthFactor ^ (retry_count - 1))
  * </pre>
  * <p>Configuration is read from the queue configuration file (queue.json5) under the "retry" key.
  * Default values are:
@@ -23,8 +24,8 @@ import com.mimecast.robin.main.Config;
  * <ul>
  *     <li>Wait times increase geometrically</li>
  *     <li>Wait time for the first retry: 1 minute (default)</li>
- *     <li>Wait time for the last retry: 237 minutes (~4 hours with defaults)</li>
- *     <li>Total cumulative wait time if all retries are used: ~23.65 hours (with defaults)</li>
+ *     <li>Waits are bounded by maxWaitSeconds, including configured jitter.</li>
+ *     <li>Queue age is independently bounded when maxAgeSeconds is enabled.</li>
  *     <li>After reaching the maximum number of retries, the method returns -1 to indicate no further retries.</li>
  * </ul>
  * <p>Example wait times for the first few retries (with default configuration):
@@ -58,13 +59,30 @@ public class RetryScheduler {
      * @return Wait time in seconds or -1 if no more retries.
      */
     public static int getNextRetry(int retryCount) {
-        RetryConfig config = getRetryConfig();
-        if (retryCount > config.getTotalRetries()) {
-            return -1; // No more retries.
-        }
+        return calculateDelay(getRetryConfig(), retryCount, ThreadLocalRandom.current().nextDouble());
+    }
 
-        // Geometric progression backoff.
-        return (int) Math.round(config.getFirstWaitMinutes() * Math.pow(config.getGrowthFactor(), retryCount)) * 60; // Return wait time in seconds.
+    static int calculateDelay(RetryConfig config, int retryCount, double random) {
+        double growth = config.getGrowthFactor();
+        double jitter = config.getJitterFraction();
+        if (random < 0 || random > 1 || !Double.isFinite(random)) {
+            throw new IllegalArgumentException("Invalid retry jitter sample");
+        }
+        if (retryCount > config.getTotalRetries()) {
+            return -1;
+        }
+        double seconds = Math.min(config.getMaxWaitSeconds(),
+                config.getFirstWaitMinutes() * 60.0 * Math.pow(growth, Math.max(0L, (long) retryCount - 1)));
+        seconds *= 1.0 - jitter + 2.0 * jitter * random;
+        return (int) Math.max(1L, Math.round(Math.min(config.getMaxWaitSeconds(), seconds)));
+    }
+
+    public static long getMaxAgeSeconds() {
+        return getRetryConfig().getMaxAgeSeconds();
+    }
+
+    public static void validateConfiguration() {
+        getRetryConfig();
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.mimecast.robin.queue;
 
 import com.mimecast.robin.smtp.MessageEnvelope;
+import com.mimecast.robin.main.Config;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
 import com.mimecast.robin.smtp.transaction.SessionTransactionList;
@@ -194,6 +195,95 @@ class RelayDequeueTest {
         long currentTime = Instant.now().getEpochSecond() + 120;
 
         assertTrue(relayDequeue.isReadyForRetry(relaySession, currentTime));
+    }
+
+    @Test
+    void maximumQueueAgeExpiresExactlyAtBoundaryWithoutAnotherNetworkAttempt() {
+        var retry = Config.getServer().getMap();
+        Object previous = retry.put("queue", java.util.Map.of("retry", java.util.Map.of("maxAgeSeconds", 432000L)));
+        try {
+            RelaySession session = relaySessionWithEnvelope("expired", List.of("tony@example.com"));
+            session.getSession().getEnvelopes().getFirst().setMail("");
+            long now = Instant.now().getEpochSecond();
+            QueueItem<RelaySession> item = QueueItem.restore(session.getUID(), now - 432000, session);
+            var dequeue = new RelayDequeue(testQueue) {
+                @Override void attemptDelivery(RelaySession ignored) {
+                    throw new AssertionError("Expired mail must not make another network attempt");
+                }
+            };
+            RelayQueueWorkResult result = dequeue.processClaimedItem(item, now);
+            assertEquals(QueueMutationType.DEAD, result.mutation().type());
+            assertEquals("554 5.4.7 Delivery time expired", result.mutation().lastError());
+            assertTrue(result.newItems().isEmpty(), "A null-sender message must not generate a DSN");
+        } finally {
+            if (previous == null) retry.remove("queue"); else retry.put("queue", previous);
+        }
+    }
+
+    @Test
+    void expirationGeneratesActualNullSenderDsnToOriginalReversePathWithAgeStatus() throws Exception {
+        var config = Config.getServer().getMap();
+        Object previous = config.put("queue", java.util.Map.of("retry", java.util.Map.of("maxAgeSeconds", 60L)));
+        RelayQueueWorkResult result = null;
+        try {
+            RelaySession session = relaySessionWithEnvelope("age-dsn", List.of("target@example.net"));
+            session.getSession().getEnvelopes().getFirst().setMail("author@example.com");
+            long now = Instant.now().getEpochSecond();
+            var item = QueueItem.restore(session.getUID(), now - 60, session);
+            result = new RelayDequeue(testQueue).processClaimedItem(item, now);
+            assertEquals(QueueMutationType.DEAD, result.mutation().type());
+            assertEquals(1, result.newItems().size());
+            var bounce = result.newItems().getFirst().getSession().getEnvelopes().getFirst();
+            assertEquals("", bounce.getMail());
+            assertEquals(List.of("author@example.com"), bounce.getRcpts());
+            String report = new String(bounce.readMessageBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            assertTrue(report.contains("Status: 5.4.7"));
+            assertTrue(report.contains("Final-Recipient: RFC822; target@example.net"));
+        } finally {
+            if (previous == null) config.remove("queue"); else config.put("queue", previous);
+            if (result != null) {
+                for (RelaySession bounce : result.newItems()) {
+                    for (MessageEnvelope envelope : bounce.getSession().getEnvelopes()) {
+                        if (envelope.getFile() != null) Files.deleteIfExists(Path.of(envelope.getFile()));
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    void countExhaustionIsDeadInsteadOfAnImmediateRescheduleAndFutureCreationIsNotExpired() {
+        var config = Config.getServer().getMap();
+        Object previous = config.put("queue", java.util.Map.of("retry",
+                java.util.Map.of("totalRetries", 0L, "maxAgeSeconds", 60L)));
+        try {
+            RelaySession session = relaySessionWithEnvelope("count-exhausted", List.of("target@example.net"));
+            session.getSession().getEnvelopes().getFirst().setMail("");
+            long now = Instant.now().getEpochSecond();
+            var item = QueueItem.restore(session.getUID(), now + 10, session);
+            var dequeue = new TestRelayDequeue(testQueue, attempted ->
+                    attempted.getSession().getSessionTransactionList().addTransaction("CONNECT", "451 Try later", true));
+            assertEquals(QueueMutationType.DEAD, dequeue.processClaimedItem(item, now).mutation().type());
+            assertEquals(QueueMutationType.DEAD, dequeue.retrySession(item, session, now, List.of()).mutation().type());
+            assertEquals(0, session.getRetryCount());
+        } finally {
+            if (previous == null) config.remove("queue"); else config.put("queue", previous);
+        }
+    }
+
+    @Test
+    void nextRetryNeverOvershootsMaximumQueueAge() {
+        var retry = Config.getServer().getMap();
+        Object previous = retry.put("queue", java.util.Map.of("retry", java.util.Map.of("maxAgeSeconds", 432000L)));
+        try {
+            RelaySession session = relaySessionWithEnvelope("near-expiry", List.of("tony@example.com"));
+            long now = Instant.now().getEpochSecond();
+            QueueItem<RelaySession> item = QueueItem.restore(session.getUID(), now - 431990, session);
+            RelayQueueWorkResult result = relayDequeue.retrySession(item, session, now, List.of());
+            assertEquals(now + 10, result.mutation().nextAttemptAtEpochSeconds());
+        } finally {
+            if (previous == null) retry.remove("queue"); else retry.put("queue", previous);
+        }
     }
 
     @Test

@@ -61,6 +61,12 @@ public class RelayDequeue {
         }
 
         relaySession.getSession().getSessionTransactionList().clear();
+        long maximumAge = RetryScheduler.getMaxAgeSeconds();
+        if (maximumAge > 0 && currentEpochSeconds - queueItem.getCreatedAtEpochSeconds() >= maximumAge) {
+            String error = "554 5.4.7 Delivery time expired";
+            relaySession.getSession().getSessionTransactionList().addTransaction("QUEUE", error, true);
+            return deadSession(queueItem, relaySession, List.of(), error);
+        }
         logSessionInfo(relaySession);
         attemptDelivery(relaySession);
 
@@ -78,26 +84,31 @@ public class RelayDequeue {
         if (hasPermanentFailuresOnly(relaySession)) {
             String lastError = deriveLastError(relaySession);
             log.warn("Permanent 5xx failure, marking dead: uid={}", relaySession.getSession().getUID());
-            List<RelaySession> bounces = Config.getServer().getRelay().getBooleanProperty("bounce", true)
-                    ? generateBounces(relaySession) : List.of();
-            queueItem.setPayload(relaySession).dead(lastError);
-            return new RelayQueueWorkResult(
-                    QueueMutation.dead(queueItem, lastError), bounces, cleanupPaths);
+            return deadSession(queueItem, relaySession, cleanupPaths, lastError);
         }
 
-        if (relaySession.getRetryCount() < relaySession.getMaxRetryCount()) {
+        if (relaySession.getRetryCount() < relaySession.getMaxRetryCount()
+                && relaySession.getRetryCount() < RetryScheduler.getTotalRetries()) {
             return retrySession(queueItem, relaySession, currentEpochSeconds, cleanupPaths);
         }
 
         String lastError = deriveLastError(relaySession);
+        return deadSession(queueItem, relaySession, cleanupPaths, lastError);
+    }
+
+    private RelayQueueWorkResult deadSession(QueueItem<RelaySession> item, RelaySession session,
+                                            List<Path> cleanupPaths, String error) {
         List<RelaySession> bounces = Config.getServer().getRelay().getBooleanProperty("bounce", true)
-                ? generateBounces(relaySession) : List.of();
-        queueItem.setPayload(relaySession).dead(lastError);
-        return new RelayQueueWorkResult(QueueMutation.dead(queueItem, lastError), bounces, cleanupPaths);
+                ? generateBounces(session) : List.of();
+        item.setPayload(session).setRetryCount(session.getRetryCount()).dead(error);
+        return new RelayQueueWorkResult(QueueMutation.dead(item, error), bounces, cleanupPaths);
     }
 
     boolean isReadyForRetry(RelaySession relaySession, long currentEpochSeconds) {
         int nextRetrySeconds = RetryScheduler.getNextRetry(relaySession.getRetryCount());
+        if (nextRetrySeconds < 0) {
+            return false;
+        }
         long lastRetryTime = relaySession.getLastRetryTime();
         long nextAllowedTime = lastRetryTime + nextRetrySeconds;
         return currentEpochSeconds >= nextAllowedTime;
@@ -212,9 +223,21 @@ public class RelayDequeue {
 
     RelayQueueWorkResult retrySession(QueueItem<RelaySession> queueItem, RelaySession relaySession,
                                       long currentEpochSeconds, List<Path> cleanupPaths) {
+        if (relaySession.getRetryCount() >= relaySession.getMaxRetryCount()
+                || relaySession.getRetryCount() >= RetryScheduler.getTotalRetries()) {
+            return deadSession(queueItem, relaySession, cleanupPaths, deriveLastError(relaySession));
+        }
         relaySession.bumpRetryCount();
         int waitSeconds = RetryScheduler.getNextRetry(relaySession.getRetryCount());
-        long nextAttempt = currentEpochSeconds + Math.max(waitSeconds, 0);
+        if (waitSeconds < 0) {
+            return deadSession(queueItem, relaySession, cleanupPaths, deriveLastError(relaySession));
+        }
+        long nextAttempt = currentEpochSeconds + waitSeconds;
+        long maximumAge = RetryScheduler.getMaxAgeSeconds();
+        if (maximumAge > 0) {
+            long age = Math.max(0, currentEpochSeconds - queueItem.getCreatedAtEpochSeconds());
+            nextAttempt = currentEpochSeconds + Math.min(waitSeconds, Math.max(0, maximumAge - age));
+        }
         queueItem.setPayload(relaySession).setRetryCount(relaySession.getRetryCount());
         RESCHEDULE_COUNT.incrementAndGet();
         return new RelayQueueWorkResult(

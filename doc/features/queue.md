@@ -192,9 +192,14 @@ All backends share these common queue configuration options in `queue.json5`:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `queueInitialDelay` | Integer | 10 | Initial delay before queue processing starts (seconds) |
-| `queueInterval` | Integer | 30 | Interval between queue processing cycles (seconds) |
-| `maxDequeuePerTick` | Integer | 10 | Maximum messages to process per cycle |
+| `startDelaySeconds` | Integer | 10 | Initial delay before the continuous dispatcher starts |
+| `housekeepingIntervalSeconds` | Integer | 30 | Maintenance interval; not the delivery polling interval |
+| `maxClaimBatch` | Integer | 10 | Maximum messages claimed in one batch |
+| `workerThreads` | Integer | Derived from claim batch, bounded 2-8 | Delivery worker budget |
+| `maxInFlight` | Integer | Worker count | Maximum outstanding claimed jobs |
+
+The old `queueInitialDelay`, `queueInterval`, and `maxDequeuePerTick` names do not
+configure the continuous dispatcher. Use the canonical keys above.
 
 ### Disk Safety
 
@@ -214,8 +219,13 @@ Retry backoff configuration controls how the wait time between relay attempts gr
 | `retry.totalRetries` | Integer | 30 | Total number of retries before permanent failure |
 | `retry.firstWaitMinutes` | Integer | 1 | Initial wait time in minutes for the first retry |
 | `retry.growthFactor` | Double | 1.2 | Growth factor for exponential backoff (multiplier per retry) |
+| `retry.maxWaitSeconds` | Integer | 14400 | Positive upper bound on the final retry wait |
+| `retry.jitterFraction` | Double | 0 | Symmetric randomized fraction, at least zero and less than one |
+| `retry.maxAgeSeconds` | Integer | 0 | Maximum durable queue age; zero retains legacy count-only expiry |
 
-**Formula:** `wait_time = firstWaitMinutes * (growthFactor ^ retryCount)`
+**Formula:** `wait_seconds = firstWaitMinutes * 60 * (growthFactor ^ (retryCount - 1))`,
+calculated at second precision. The base is capped, jittered uniformly within
+`1 +/- jitterFraction`, then capped again and rounded to at least one second.
 
 **Example wait times** (with default configuration):
 - Retry 1: 1.00 minutes
@@ -223,7 +233,22 @@ Retry backoff configuration controls how the wait time between relay attempts gr
 - Retry 3: 1.44 minutes
 - Retry 4: 1.73 minutes
 - Retry 5: 2.07 minutes
-- Retry 30: 237 minutes (~4 hours)
+- Retry 30: 11,869 seconds (about 198 minutes)
+
+For a five-day production lifetime, explicitly set `retry.maxAgeSeconds: 432000`,
+`retry.maxWaitSeconds: 3600`, `retry.jitterFraction: 0.2`, `retry.growthFactor: 1.5`,
+and raise **both** `retry.totalRetries` and `relay.maxRetryCount` to `1000`.
+Protocol-specific mailbox retry caps remain independently applicable.
+Legacy defaults retain 30 retries and no age limit; merely setting the age does
+not override a smaller retry-count budget.
+
+Age is measured from the queue's persisted creation timestamp across retries
+and restarts. A job at or beyond its limit expires before another network attempt,
+with status `5.4.7`, and its final retry is clamped to that boundary.
+Count exhaustion never schedules a zero-delay retry. Expiry notifications use
+the original reverse path and are suppressed for null senders. Dead jobs remain
+available for operator inspection; manually retrying an expired job does not
+reset its original age.
 
 ## Backend-Specific Options
 

@@ -1,22 +1,28 @@
 {
-  // Queue cron initial run delay (in seconds).
-  queueInitialDelay: 10,
+  // Continuous dispatcher start delay (in seconds).
+  startDelaySeconds: 10,
 
-  // Queue cron processing interval (in seconds).
-  queueInterval: 30,
+  // Queue housekeeping interval (in seconds), not delivery polling frequency.
+  housekeepingIntervalSeconds: 30,
 
-  // Maximum number of messages to attempt to relay per cron tick.
-  maxDequeuePerTick: 10,
+  // Bounded continuous delivery workers and claims.
+  maxClaimBatch: 10,
+  workerThreads: 8,
+  maxInFlight: 8,
 
   // Retry backoff configuration for message relay attempts.
-  // Uses geometric progression: wait_time = firstWaitMinutes * (growthFactor ^ retryCount)
+  // Uses second-precision geometric progression, capped after jitter.
   retry: {
     // Total number of retries before permanent failure (default: 30).
     totalRetries: 30,
     // Initial wait time in minutes for the first retry (default: 1).
     firstWaitMinutes: 1,
     // Growth factor for exponential backoff (default: 1.2, meaning 20% increase per retry).
-    growthFactor: 1.2
+    growthFactor: 1.2,
+    maxWaitSeconds: 14400,
+    jitterFraction: 0.0,
+    // Legacy count-only lifetime. Production: 432000 (five days) plus high retry caps.
+    maxAgeSeconds: 0
   },
 
   // Disk-space guard for durable message and queue writes.
