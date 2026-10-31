@@ -120,6 +120,13 @@ admission limits `454`. Failed passwords are tracked only for the named account,
 never the whole domain/IP. Unverified failure tracking has its own bounded map
 so arbitrary login names cannot exhaust the verified-submission tracker.
 
+An attacker who knows a login name can deliberately exhaust that account's
+failed-password allowance and deny its legitimate login until the window
+expires. Choose `authFailures` and `windowSeconds` for that availability
+tradeoff, or set `authFailures: 0` to disable this account lockout. This is not
+proof of general brute-force immunity; retain and tune the separate listener/IP
+controls.
+
 Concurrent sessions are admitted only after password verification and released
 on disconnect, independent of message-spool auto-deletion. Window rollover does
 not forget still-active sessions. Quotas are process-local, not persistent or
