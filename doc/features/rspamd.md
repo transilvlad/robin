@@ -82,8 +82,11 @@ The scanner receives the actual peer IP, EHLO/HELO, reverse DNS, envelope sender
 every recipient as a repeated `Rcpt` header, and the verified principal in `User`
 only after successful SMTP authentication. Direction is sent as `MTA-Tag`
 (`inbound` or `outbound`). Optional `inboundSettingsId` and `outboundSettingsId`
-select named Rspamd profiles; disabling SPF/DKIM/DMARC scanning sends the
-corresponding `groups_disabled` settings, rather than merely changing Java flags.
+select named Rspamd profiles. Disabling SPF or DMARC scanning sends the
+corresponding `groups_disabled` settings. Disabling DKIM verification sends
+`symbols_disabled: ["DKIM_CHECK"]`, not the `dkim` group: that group also contains
+the signing callback `DKIM_SIGNED`. Verification controls must not disable signing,
+including when `requireDkimSigning` is enabled.
 
 For production, use Rspamd as the sole signer: leave Java `dkimSigning.enabled`
 false and set `requireDkimSigning: true`. Configure Rspamd to sign authenticated

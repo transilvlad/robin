@@ -242,10 +242,17 @@ public class RspamdClient {
             }
             List<String> disabledGroups = new ArrayList<>();
             if (!spfScanEnabled) disabledGroups.add("spf");
-            if (!dkimScanEnabled) disabledGroups.add("dkim");
             if (!dmarcScanEnabled) disabledGroups.add("dmarc");
+            Map<String, Object> settings = new LinkedHashMap<>();
             if (!disabledGroups.isEmpty()) {
-                requestBuilder.header("Settings", gson.toJson(Map.of("groups_disabled", disabledGroups)));
+                settings.put("groups_disabled", disabledGroups);
+            }
+            if (!dkimScanEnabled) {
+                // The dkim group also contains DKIM_SIGNED; disable verification only.
+                settings.put("symbols_disabled", List.of("DKIM_CHECK"));
+            }
+            if (!settings.isEmpty()) {
+                requestBuilder.header("Settings", gson.toJson(settings));
             }
 
             Request request = requestBuilder.build();

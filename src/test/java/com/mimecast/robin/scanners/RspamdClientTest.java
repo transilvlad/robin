@@ -73,13 +73,25 @@ class RspamdClientTest {
     }
 
     @Test
-    void scanFlagsActuallyDisableConfiguredGroups() throws Exception {
+    void scanFlagsDisableVerificationWithoutDisablingTheDkimSigner() throws Exception {
         mockWebServer.enqueue(new MockResponse().setBody(createScanResponse(false, 0)));
         client.setSpfScanEnabled(false).setDkimScanEnabled(false).setDmarcScanEnabled(false)
                 .scanBytes(HAM_CONTENT.getBytes(StandardCharsets.UTF_8));
         RecordedRequest request = mockWebServer.takeRequest();
-        assertEquals("{\"groups_disabled\":[\"spf\",\"dkim\",\"dmarc\"]}", request.getHeader("Settings"));
+        assertEquals("{\"groups_disabled\":[\"spf\",\"dmarc\"],\"symbols_disabled\":[\"DKIM_CHECK\"]}",
+                request.getHeader("Settings"));
         assertEquals("milter", request.getHeader("Flags"));
+    }
+
+    @Test
+    void dkimVerificationCanBeDisabledIndependentlyAndDefaultsSendNoOverrides() throws Exception {
+        mockWebServer.enqueue(new MockResponse().setBody(createScanResponse(false, 0)));
+        client.setDkimScanEnabled(false).scanBytes(HAM_CONTENT.getBytes(StandardCharsets.UTF_8));
+        assertEquals("{\"symbols_disabled\":[\"DKIM_CHECK\"]}",
+                mockWebServer.takeRequest().getHeader("Settings"));
+        mockWebServer.enqueue(new MockResponse().setBody(createScanResponse(false, 0)));
+        client.setDkimScanEnabled(true).scanBytes(HAM_CONTENT.getBytes(StandardCharsets.UTF_8));
+        assertNull(mockWebServer.takeRequest().getHeader("Settings"));
     }
 
     @Test
