@@ -25,6 +25,32 @@ Delivery status notifications go to the original reverse path with `MAIL FROM:<>
 null reverse paths never generate another notification. Failure to persist a
 notification leaves the original queue mutation uncommitted.
 
+### Destination concurrency
+
+`queue.maxConcurrentPerDestination` defaults to `0` (off). Set it explicitly,
+for example to `2`, to bound queued/running delivery work per process and
+destination without making workers wait for a semaphore. MX jobs use their
+canonical recipient domain as the key, not resolved IP addresses. Explicit
+SMTP/LMTP jobs reserve all configured fallback host/port endpoints atomically;
+shared fallback endpoints therefore share a budget. Local LDA and Stalwart-direct
+jobs are grouped by transport, and unresolved legacy jobs by protocol.
+
+Saturated claims return to durable READY scheduling after
+`queue.destinationDeferSeconds` (default `5`, positive integer). This is not a
+delivery failure: recipient state, retry counts, and original persisted queue
+creation time are unchanged. Deferral never extends an enabled maximum queue
+age; already-expired jobs bypass destination leases to produce terminal DSNs
+(or suppress bounce-on-bounce), without another network attempt. Worker
+exceptions and executor rejection release destination leases. The active map
+retains only destinations with admitted work.
+
+Limits are process-local, not fleet-wide or per-IP Internet-MX limits across
+unrelated domains. They do not add destination-aware database claiming: saturated
+rows are claimed then rescheduled. Large-backlog fairness and database throughput
+require measured production-scale acceptance, not just these bounded regressions.
+Queue-service settings require a service/process restart; no live production
+threshold is enabled by the source example.
+
 ## Supported Backends
 
 ### MapDB (Default for Production)

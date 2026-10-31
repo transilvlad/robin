@@ -9,12 +9,14 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -57,6 +59,7 @@ public class RelayQueueService {
     private static volatile PersistentQueue<RelaySession> queue;
     private static final String CONSUMER_ID = "robin-" + UUID.randomUUID();
     private static volatile boolean running;
+    private static DestinationConcurrency destinations;
 
     private static volatile long lastDispatchEpochSeconds = 0L;
     private static volatile long lastHousekeepingEpochSeconds = 0L;
@@ -73,6 +76,7 @@ public class RelayQueueService {
         }
 
         RetryScheduler.validateConfiguration();
+        destinations = DestinationConcurrency.fromConfig();
         queue = PersistentQueue.getInstance();
         workerExecutor = new ThreadPoolExecutor(
                 WORKER_THREADS,
@@ -90,6 +94,9 @@ public class RelayQueueService {
         log.info("RelayQueueService starting: startDelaySeconds={}, housekeepingIntervalSeconds={}, initialQueueSize={}, maxClaimBatch={}, workerThreads={}, maxInFlight={}, outcomeBatchSize={}, outcomeFlushMillis={}",
                 START_DELAY_SECONDS, HOUSEKEEPING_INTERVAL_SECONDS, queue.size(), MAX_CLAIM_BATCH, WORKER_THREADS, MAX_IN_FLIGHT,
                 OUTCOME_BATCH_SIZE, OUTCOME_FLUSH_MILLIS);
+        log.info("Destination concurrency: maxConcurrentPerDestination={}, destinationDeferSeconds={}",
+                Config.getServer().getQueue().getLongProperty("maxConcurrentPerDestination", 0L),
+                Config.getServer().getQueue().getLongProperty("destinationDeferSeconds", 5L));
 
         Runnable housekeepingTask = () -> {
             try {
@@ -177,9 +184,15 @@ public class RelayQueueService {
                     if (!claimedItems.isEmpty()) {
                         lastDispatchEpochSeconds = now;
                         for (QueueItem<RelaySession> item : claimedItems) {
-                            completionService.submit(() -> dequeue.processClaimedItem(item, Instant.now().getEpochSecond()));
-                            runningTasks++;
+                            var immediate = dispatchClaimedItem(completionService, destinations, dequeue,
+                                    item, now, RetryScheduler.getMaxAgeSeconds());
+                            if (immediate.isPresent()) {
+                                collectResult(mutationBuilder, pendingCleanupPaths, immediate.get(), nowMillis);
+                            } else {
+                                runningTasks++;
+                            }
                         }
+                        currentOutcomeQueueDepth = mutationBuilder.size();
                         currentInFlight = runningTasks + mutationBuilder.size();
                         progress = true;
                     }
@@ -204,6 +217,35 @@ public class RelayQueueService {
         }
 
         flushMutations(mutationBuilder, pendingCleanupPaths);
+    }
+
+    static Optional<RelayQueueWorkResult> dispatchClaimedItem(
+            ExecutorCompletionService<RelayQueueWorkResult> completion, DestinationConcurrency limits,
+            RelayDequeue dequeue, QueueItem<RelaySession> item, long now, long maximumAge) {
+        var lease = limits.tryAcquire(item, now, maximumAge);
+        boolean expired = DestinationConcurrency.isExpired(item, now, maximumAge);
+        if (lease.isEmpty()) {
+            log.debug("Deferring saturated queue destination: uid={}", item.getUid());
+            return Optional.of(new RelayQueueWorkResult(limits.defer(item, now, maximumAge,
+                    "Destination concurrency limit"), List.of(), List.of()));
+        }
+        try {
+            completion.submit(() -> {
+                try (var acquired = lease.orElseThrow()) {
+                    return expired ? dequeue.expireClaimedItem(item)
+                            : dequeue.processClaimedItem(item, Instant.now().getEpochSecond());
+                }
+            });
+            return Optional.empty();
+        } catch (RejectedExecutionException e) {
+            lease.orElseThrow().close();
+            log.error("Queue worker submission rejected: uid={}", item.getUid(), e);
+            if (expired) {
+                return Optional.of(dequeue.expireClaimedItem(item));
+            }
+            return Optional.of(new RelayQueueWorkResult(limits.defer(item, now, maximumAge,
+                    "Queue worker capacity unavailable"), List.of(), List.of()));
+        }
     }
 
     private static boolean collectResult(QueueMutationBatch.Builder<RelaySession> mutationBuilder,

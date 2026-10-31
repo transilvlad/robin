@@ -9,6 +9,10 @@
   maxClaimBatch: 10,
   workerThreads: 8,
   maxInFlight: 8,
+  // Compatibility off. Example production cap: 2 queued/running jobs per destination.
+  maxConcurrentPerDestination: 0,
+  // Saturation defers without a delivery attempt or resetting durable queue age.
+  destinationDeferSeconds: 5,
 
   // Retry backoff configuration for message relay attempts.
   // Uses second-precision geometric progression, capped after jitter.

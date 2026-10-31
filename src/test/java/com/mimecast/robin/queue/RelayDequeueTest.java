@@ -203,15 +203,22 @@ class RelayDequeueTest {
         Object previous = retry.put("queue", java.util.Map.of("retry", java.util.Map.of("maxAgeSeconds", 432000L)));
         try {
             RelaySession session = relaySessionWithEnvelope("expired", List.of("tony@example.com"));
+            session.setProtocol("mx").getSession().setMx(List.of("hot.example"));
             session.getSession().getEnvelopes().getFirst().setMail("");
             long now = Instant.now().getEpochSecond();
             QueueItem<RelaySession> item = QueueItem.restore(session.getUID(), now - 432000, session);
+            var destinationLimits = new DestinationConcurrency(1, 5);
+            var occupied = destinationLimits.tryAcquire(QueueItem.restore("occupied", now, session), now, 0).orElseThrow();
             var dequeue = new RelayDequeue(testQueue) {
                 @Override void attemptDelivery(RelaySession ignored) {
                     throw new AssertionError("Expired mail must not make another network attempt");
                 }
             };
-            RelayQueueWorkResult result = dequeue.processClaimedItem(item, now);
+            RelayQueueWorkResult result;
+            try (occupied; var terminal = destinationLimits.tryAcquire(item, now, 432000).orElseThrow()) {
+                result = dequeue.processClaimedItem(item, now);
+                assertEquals(1, destinationLimits.activeDestinations());
+            }
             assertEquals(QueueMutationType.DEAD, result.mutation().type());
             assertEquals("554 5.4.7 Delivery time expired", result.mutation().lastError());
             assertTrue(result.newItems().isEmpty(), "A null-sender message must not generate a DSN");
@@ -227,10 +234,20 @@ class RelayDequeueTest {
         RelayQueueWorkResult result = null;
         try {
             RelaySession session = relaySessionWithEnvelope("age-dsn", List.of("target@example.net"));
+            session.setProtocol("mx").getSession().setMx(List.of("hot.example"));
             session.getSession().getEnvelopes().getFirst().setMail("author@example.com");
             long now = Instant.now().getEpochSecond();
             var item = QueueItem.restore(session.getUID(), now - 60, session);
-            result = new RelayDequeue(testQueue).processClaimedItem(item, now);
+            var destinationLimits = new DestinationConcurrency(1, 5);
+            try (var occupied = destinationLimits.tryAcquire(QueueItem.restore("occupied", now, session), now, 0).orElseThrow();
+                 var terminal = destinationLimits.tryAcquire(item, now, 60).orElseThrow()) {
+                result = new RelayDequeue(testQueue) {
+                    @Override void attemptDelivery(RelaySession ignored) {
+                        throw new AssertionError("Expired saturated destination must not connect");
+                    }
+                }.processClaimedItem(item, now);
+                assertEquals(1, destinationLimits.activeDestinations());
+            }
             assertEquals(QueueMutationType.DEAD, result.mutation().type());
             assertEquals(1, result.newItems().size());
             var bounce = result.newItems().getFirst().getSession().getEnvelopes().getFirst();

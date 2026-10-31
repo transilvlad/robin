@@ -60,13 +60,11 @@ public class RelayDequeue {
             return new RelayQueueWorkResult(QueueMutation.acknowledge(queueItem), List.of(), List.of());
         }
 
-        relaySession.getSession().getSessionTransactionList().clear();
         long maximumAge = RetryScheduler.getMaxAgeSeconds();
         if (maximumAge > 0 && currentEpochSeconds - queueItem.getCreatedAtEpochSeconds() >= maximumAge) {
-            String error = "554 5.4.7 Delivery time expired";
-            relaySession.getSession().getSessionTransactionList().addTransaction("QUEUE", error, true);
-            return deadSession(queueItem, relaySession, List.of(), error);
+            return expireClaimedItem(queueItem);
         }
+        relaySession.getSession().getSessionTransactionList().clear();
         logSessionInfo(relaySession);
         attemptDelivery(relaySession);
 
@@ -94,6 +92,17 @@ public class RelayDequeue {
 
         String lastError = deriveLastError(relaySession);
         return deadSession(queueItem, relaySession, cleanupPaths, lastError);
+    }
+
+    RelayQueueWorkResult expireClaimedItem(QueueItem<RelaySession> item) {
+        RelaySession session = item.getPayload();
+        if (session == null || session.getSession() == null) {
+            return new RelayQueueWorkResult(QueueMutation.acknowledge(item), List.of(), List.of());
+        }
+        session.getSession().getSessionTransactionList().clear();
+        String error = "554 5.4.7 Delivery time expired";
+        session.getSession().getSessionTransactionList().addTransaction("QUEUE", error, true);
+        return deadSession(item, session, List.of(), error);
     }
 
     private RelayQueueWorkResult deadSession(QueueItem<RelaySession> item, RelaySession session,
