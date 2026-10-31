@@ -176,6 +176,10 @@ public class LocalStorageClient implements StorageClient {
             if (config.getStorage().getBooleanProperty("enabled")) {
                 // For bot addresses, force spill to file for thread-safe concurrent access.
                 MessageEnvelope envelope = getCurrentEnvelope();
+                if (com.mimecast.robin.sasl.RecipientDirectory.isEnabled() && envelope != null
+                        && !envelope.isBlackholed() && !envelope.hasCompleteRecipientRoutes()) {
+                    throw new IOException("Managed recipient routing metadata is incomplete");
+                }
                 if (envelope != null && envelope.hasBotAddresses() && stream instanceof MessageBufferOutputStream bufferStream) {
                     log.debug("Forcing spill to file for bot addresses");
                     bufferStream.forceSpillToFile();

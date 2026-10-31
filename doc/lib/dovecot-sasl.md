@@ -93,6 +93,53 @@ try (DovecotUserLookupNative lookup = new DovecotUserLookupNative(userdb)) { ...
 Authentication Examples
 -----------------------
 
+### Managed recipient routing
+
+Enable `recipientRouting.enabled` in `server.json5` only after installing the
+shared `users`, `aliases`, and `mail_domains` schema and enabling a local mailbox
+backend. It defaults to false, preserving legacy test/userdb routing.
+
+```json5
+recipientRouting: {
+  enabled: true,
+  allowExternalForwarding: false,
+  maxDepth: 10,
+  maxRecipients: 100
+}
+```
+
+The directory reads all `aliases.destination` rows for an exact lowercased source;
+legacy alias query overrides and `LIMIT 1` do not govern managed routing.
+`mail_domains(domain,enabled,plus_addressing,catch_all)` is authoritative:
+disabled domains are denied even as forwarding targets. Missing domains are
+external, never implicitly hosted. Direct external submission recipients require
+AUTH; inbound external roots are denied.
+
+Aliases override implicit mailbox delivery. To retain a local copy while
+forwarding, add an explicit self-edge plus other destination rows. The self-edge
+terminates only when that exact enabled local mailbox exists. Nested aliases and
+groups expand all branches with deduplication. Exact aliases and users precede
+plus stripping, which requires `plus_addressing=true`; catch-all applies only when
+explicitly declared. Unknown recipients, malformed targets and cycles reject the
+whole RCPT expansion without modifying earlier accepted recipients. Expansion
+limits return `452`, policy/unknown-recipient failures `550`, and SQL outages `451`.
+
+External alias or catch-all destinations require `allowExternalForwarding=true`
+and enabled MX relay/queue processing. The default false intentionally blocks
+external forwarding in managed mode even if existing Admin alias rows were saved
+successfully. Saved CRUD is not evidence of active delivery. `maxDepth` must be
+1-100 and `maxRecipients` 1-100000; the listener recipient limit also applies.
+
+Final local targets go only to mailbox delivery; external targets go only to
+durable MX jobs, including explicitly permitted inbound forwards. Managed inline
+mailbox delivery uses a separate transport session and preserves the original
+receipt envelopes, forward targets and message-source references. Local LDA
+targets use Inbox delivery regardless of whether the message originated on a
+submission listener; legacy testing/Sent-folder behavior is unchanged with
+managed routing disabled. Routing rows never imply sender grants or shared
+mailbox ACLs. Forwarding preserves the original reverse path; SRS/ARC rewriting
+and list subscription/moderation are not provided by this directory feature.
+
 ### Production submission identity policy
 
 Set `requireAuthentication: true` in both `secureConfig` (465) and

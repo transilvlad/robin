@@ -5,6 +5,8 @@ import com.mimecast.robin.config.server.ServerConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.sasl.SqlUserLookup;
+import com.mimecast.robin.sasl.RecipientDirectory;
+import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.headers.ChaosHeaders;
 import com.mimecast.robin.queue.PersistentQueue;
@@ -41,7 +43,15 @@ import java.util.function.Predicate;
  */
 public class DovecotStorageProcessor extends AbstractStorageProcessor {
     private static final Logger log = LogManager.getLogger(DovecotStorageProcessor.class);
-    private final PooledLmtpDelivery pooledLmtpDelivery = new PooledLmtpDelivery();
+    private final PooledLmtpDelivery pooledLmtpDelivery;
+
+    public DovecotStorageProcessor() {
+        this(new PooledLmtpDelivery());
+    }
+
+    DovecotStorageProcessor(PooledLmtpDelivery pooledLmtpDelivery) {
+        this.pooledLmtpDelivery = pooledLmtpDelivery;
+    }
 
     /**
      * Processes the email for mailbox storage using the configured backend.
@@ -109,10 +119,8 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
         }
 
         // Resolve aliases before delivery so emails go to the correct mailbox.
-        nonBotRecipients = resolveAliases(nonBotRecipients);
-
-        // Only local mailbox users can be delivered over LMTP; external recipients are relayed instead.
-        nonBotRecipients = filterLocalRecipients(nonBotRecipients, config);
+        nonBotRecipients = RecipientDirectory.isEnabled() ? envelope.getRoutedRecipients(true)
+                : filterLocalRecipients(resolveAliases(nonBotRecipients), config);
         if (nonBotRecipients.isEmpty()) {
             log.debug("No local mailbox recipients, skipping LMTP processing.");
             return;
@@ -125,6 +133,10 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
 
         if (!config.getDovecot().getSaveLmtp().isInline()) {
             enqueueLmtpDelivery(connection, envelope, nonBotRecipients, config);
+            return;
+        }
+        if (RecipientDirectory.isEnabled()) {
+            saveRoutedInline(connection, envelope, nonBotRecipients, config, true);
             return;
         }
 
@@ -169,6 +181,37 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
         }
     }
 
+    private void saveRoutedInline(Connection connection, MessageEnvelope envelope, List<String> recipients,
+                                  ServerConfig config, boolean lmtp) throws IOException {
+        MessageEnvelope localEnvelope = envelope.clone().setRcpts(recipients);
+        Session local = new Session().setUID(connection.getSession().getUID())
+                .setDirection(com.mimecast.robin.smtp.session.EmailDirection.INBOUND).addEnvelope(localEnvelope);
+        try {
+            boolean success;
+            if (lmtp) {
+                success = pooledLmtpDelivery.deliver(local, config.getDovecot().getInlineSaveMaxAttempts(),
+                        Math.toIntExact(config.getDovecot().getInlineSaveRetryDelay()));
+            } else {
+                new DovecotLdaClient(new RelaySession(local)
+                        .setMailbox(config.getDovecot().getSaveLda().getInboxFolder())).send();
+                success = !local.getSessionTransactionList().getEnvelopes().isEmpty();
+            }
+            var transactions = local.getSessionTransactionList().getEnvelopes();
+            var transaction = transactions.isEmpty() ? null : transactions.getLast();
+            List<String> failed = transaction == null ? recipients : transaction.getFailedRecipients();
+            if (!success && failed.isEmpty()) failed = recipients;
+            for (String recipient : failed) {
+                if (transaction != null && !transaction.getErrors().isEmpty()) {
+                    connection.getSession().getSessionTransactionList().addTransaction("LOCAL",
+                            transaction.getErrors().getLast().getResponse(), true);
+                }
+                processFailure(connection, config, recipient);
+            }
+        } finally {
+            if (localEnvelope.getMessageSource() instanceof RefCountedFileMessageSource source) source.release();
+        }
+    }
+
     private void enqueueLmtpDelivery(Connection connection, MessageEnvelope envelope,
                                      List<String> recipients, ServerConfig config) throws IOException {
         RelaySession relaySession = new RelaySession(Factories.getSession())
@@ -206,7 +249,8 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
                 .setProtocol("dovecot-lda")
                 .setMailbox(folder);
 
-        relaySession.getSession().setDirection(connection.getSession().getDirection());
+        relaySession.getSession().setDirection(RecipientDirectory.isEnabled()
+                ? com.mimecast.robin.smtp.session.EmailDirection.INBOUND : connection.getSession().getDirection());
 
         MessageEnvelope queuedEnvelope = new MessageEnvelope()
                 .setMail(envelope.getMail())
@@ -260,9 +304,11 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
         }
 
         // Resolve aliases before delivery so emails go to the correct mailbox.
-        nonBotRecipients = resolveAliases(nonBotRecipients);
+        nonBotRecipients = RecipientDirectory.isEnabled() ? envelope.getRoutedRecipients(true)
+                : resolveAliases(nonBotRecipients);
+        if (nonBotRecipients.isEmpty()) return;
 
-        String folder = connection.getSession().isInbound()
+        String folder = RecipientDirectory.isEnabled() || connection.getSession().isInbound()
                 ? config.getDovecot().getSaveLda().getInboxFolder()
                 : config.getDovecot().getSaveLda().getSentFolder();
         log.info("Invoking Dovecot LDA for sender={} recipients={} outbound={} folder={}",
@@ -273,6 +319,10 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
 
         if (!config.getDovecot().getSaveLda().isInline()) {
             enqueueLdaDelivery(connection, envelope, nonBotRecipients, folder);
+            return;
+        }
+        if (RecipientDirectory.isEnabled()) {
+            saveRoutedInline(connection, envelope, nonBotRecipients, config, false);
             return;
         }
 
@@ -457,9 +507,11 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
         // Queue retry delivery.
         else {
             envelope.setFile(connection.getSession().getEnvelopes().getLast().getFile());
+            envelope.setMessageSource(connection.getSession().getEnvelopes().getLast().getMessageSource());
             envelope.setMail(sender); // Set sender.
             envelope.setRcpts(new ArrayList<>(List.of(mailbox))); // Set recipient.
-            relaySession.getSession().setDirection(connection.getSession().getDirection());
+            relaySession.getSession().setDirection(RecipientDirectory.isEnabled()
+                    ? com.mimecast.robin.smtp.session.EmailDirection.INBOUND : connection.getSession().getDirection());
 
             // Determine protocol to queue based on enabled backend: LMTP takes precedence.
             if (dovecotConfig.getSaveLmtp().isEnabled()) {
@@ -473,7 +525,7 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
                         .setLhlo(Config.getServer().getHostname());
             } else if (dovecotConfig.getSaveLda().isEnabled()) {
                 relaySession.setProtocol("dovecot-lda");
-                relaySession.setMailbox(connection.getSession().isInbound()
+                relaySession.setMailbox(RecipientDirectory.isEnabled() || connection.getSession().isInbound()
                         ? dovecotConfig.getSaveLda().getInboxFolder()
                         : dovecotConfig.getSaveLda().getSentFolder());
             }

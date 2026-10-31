@@ -133,6 +133,14 @@
     enabled: false
   },
 
+  // Opt-in canonical SQL routing. Requires users, aliases, mail_domains and local delivery.
+  recipientRouting: {
+    enabled: false,
+    allowExternalForwarding: false,
+    maxDepth: 10,
+    maxRecipients: 100
+  },
+
   // Advertise STARTTLS support (default: true).
   starttls: true,
 

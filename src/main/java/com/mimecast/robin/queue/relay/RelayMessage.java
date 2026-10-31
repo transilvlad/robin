@@ -14,6 +14,7 @@ import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.RefCountedFileMessageSource;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.session.Session;
+import com.mimecast.robin.sasl.RecipientDirectory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -91,14 +92,26 @@ public class RelayMessage {
             sessions.add(getRelaySession(relayConfig, connection.getSession().getEnvelopes().getLast()));
         }
 
-        // Outbound relay if enabled.
-        if (connection.getSession().isOutbound() && relayConfig.getBooleanProperty("outboundEnabled")) {
+        boolean managedRouting = RecipientDirectory.isEnabled();
+        // Managed inbound aliases can forward only final, explicitly authorized external targets.
+        if ((connection.getSession().isOutbound() || managedRouting)
+                && relayConfig.getBooleanProperty("outboundEnabled")) {
             // Outbound MX relay if enabled.
             if (relayConfig.getBooleanProperty("outboundMxEnabled")) {
                 // Persist all recipient domains before DNS can fail.
+                MessageEnvelope currentEnvelope = connection.getSession().getEnvelopes().getLast().clone();
+                if (managedRouting) {
+                    currentEnvelope.setRcpts(currentEnvelope.getRoutedRecipients(false));
+                }
                 Session current = new Session().setDirection(connection.getSession().getDirection())
-                        .addEnvelope(connection.getSession().getEnvelopes().getLast());
-                mxSessions.addAll(new SessionRouting(current).getDeferredSessions());
+                        .addEnvelope(currentEnvelope);
+                try {
+                    if (!currentEnvelope.getRcpts().isEmpty()) {
+                        mxSessions.addAll(new SessionRouting(current).getDeferredSessions());
+                    }
+                } finally {
+                    current.clearEnvelopes();
+                }
                 sessions.addAll(mxSessions);
             }
         }

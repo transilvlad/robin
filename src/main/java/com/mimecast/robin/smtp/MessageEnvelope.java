@@ -36,6 +36,7 @@ public class MessageEnvelope implements Serializable, Cloneable {
     private String mail = null;
     private String rcpt = null;
     private List<String> rcpts = new ArrayList<>();
+    private Map<String, Boolean> recipientRoutes = new LinkedHashMap<>();
     private Map<String, List<String>> params = new HashMap<>();
     private Map<String, String> headers = new HashMap<>();
     private boolean prependHeaders = false;
@@ -234,6 +235,28 @@ public class MessageEnvelope implements Serializable, Cloneable {
     public MessageEnvelope addRcpt(String rcpt) {
         this.rcpts.add(rcpt);
         return this;
+    }
+
+    public MessageEnvelope addRoutedRecipients(Map<String, Boolean> routes) {
+        if (recipientRoutes == null) recipientRoutes = new LinkedHashMap<>();
+        routes.forEach((recipient, local) -> {
+            recipientRoutes.put(recipient, local);
+            if (!getRcpts().contains(recipient)) rcpts.add(recipient);
+        });
+        return this;
+    }
+
+    public boolean hasCompleteRecipientRoutes() {
+        return recipientRoutes != null && getRcpts().stream()
+                .allMatch(recipient -> isBotAddress(recipient) || recipientRoutes.containsKey(recipient));
+    }
+
+    public List<String> getRoutedRecipients(boolean local) {
+        if (!hasCompleteRecipientRoutes()) {
+            throw new IllegalStateException("Recipient routing metadata is incomplete");
+        }
+        return getRcpts().stream().filter(recipient -> !isBotAddress(recipient)
+                && Boolean.valueOf(local).equals(recipientRoutes.get(recipient))).toList();
     }
 
     /**
@@ -1030,6 +1053,8 @@ public class MessageEnvelope implements Serializable, Cloneable {
 
             // Deep copy mutable collections.
             cloned.rcpts = this.rcpts == null ? new ArrayList<>() : new ArrayList<>(this.rcpts);
+            cloned.recipientRoutes = this.recipientRoutes == null
+                    ? new LinkedHashMap<>() : new LinkedHashMap<>(this.recipientRoutes);
 
             cloned.params = new HashMap<>();
             for (Map.Entry<String, List<String>> entry : this.params.entrySet()) {

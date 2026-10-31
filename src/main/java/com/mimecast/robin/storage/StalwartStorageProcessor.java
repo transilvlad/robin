@@ -11,6 +11,8 @@ import com.mimecast.robin.queue.QueueFiles;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.queue.bounce.BounceMessageGenerator;
 import com.mimecast.robin.sasl.SqlUserLookup;
+import com.mimecast.robin.sasl.RecipientDirectory;
+import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.RefCountedFileMessageSource;
 import com.mimecast.robin.smtp.connection.Connection;
@@ -47,7 +49,7 @@ public class StalwartStorageProcessor extends AbstractStorageProcessor {
             return true;
         }
 
-        if (connection.getSession().isOutbound()) {
+        if (connection.getSession().isOutbound() && !RecipientDirectory.isEnabled()) {
             log.debug("Skipping Stalwart direct ingest for outbound message uid={}", connection.getSession().getUID());
             return true;
         }
@@ -66,6 +68,28 @@ public class StalwartStorageProcessor extends AbstractStorageProcessor {
 
         if (!stalwartConfig.isInline()) {
             enqueueDelivery(connection, envelope, recipients);
+            return true;
+        }
+        if (RecipientDirectory.isEnabled()) {
+            var localEnvelope = envelope.clone().setRcpts(recipients);
+            var local = new Session().setUID(connection.getSession().getUID())
+                    .setDirection(com.mimecast.robin.smtp.session.EmailDirection.INBOUND).addEnvelope(localEnvelope);
+            try {
+                boolean success = directDelivery.deliver(local, 1, 0);
+                var transactions = local.getSessionTransactionList().getEnvelopes();
+                var transaction = transactions.isEmpty() ? null : transactions.getLast();
+                List<String> failed = transaction == null ? recipients : transaction.getFailedRecipients();
+                if (!success && failed.isEmpty()) failed = recipients;
+                for (String recipient : failed) {
+                    if (transaction != null && !transaction.getErrors().isEmpty()) {
+                        connection.getSession().getSessionTransactionList().addTransaction("LOCAL",
+                                transaction.getErrors().getLast().getResponse(), true);
+                    }
+                    processFailure(connection, serverConfig, recipient);
+                }
+            } finally {
+                if (localEnvelope.getMessageSource() instanceof RefCountedFileMessageSource source) source.release();
+            }
             return true;
         }
 
@@ -128,6 +152,7 @@ public class StalwartStorageProcessor extends AbstractStorageProcessor {
     }
 
     private List<String> filterAndResolveRecipients(MessageEnvelope envelope) {
+        if (RecipientDirectory.isEnabled()) return envelope.getRoutedRecipients(true);
         List<String> nonBotRecipients = new ArrayList<>();
         for (String recipient : envelope.getRcpts()) {
             if (!envelope.isBotAddress(recipient)) {
@@ -186,6 +211,7 @@ public class StalwartStorageProcessor extends AbstractStorageProcessor {
             log.info("Bouncing rejected Stalwart mailbox='{}' sender='{}' uid={}", mailbox, sender, connection.getSession().getUID());
         } else {
             envelope.setFile(connection.getSession().getEnvelopes().getLast().getFile());
+            envelope.setMessageSource(connection.getSession().getEnvelopes().getLast().getMessageSource());
             envelope.setMail(sender);
             envelope.setRcpts(new ArrayList<>(List.of(mailbox)));
             relaySession.getSession().setDirection(connection.getSession().getDirection());

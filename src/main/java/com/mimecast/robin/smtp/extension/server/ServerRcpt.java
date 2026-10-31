@@ -6,6 +6,7 @@ import com.mimecast.robin.main.Config;
 import com.mimecast.robin.sasl.DovecotUserLookupNative;
 import com.mimecast.robin.auth.SqlAuthManager;
 import com.mimecast.robin.sasl.SqlUserLookup;
+import com.mimecast.robin.sasl.RecipientDirectory;
 import com.mimecast.robin.smtp.ProxyEmailDelivery;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
@@ -108,6 +109,45 @@ public class ServerRcpt extends ServerMail {
             return handleProxyRecipient(connection, proxyRule.get());
         }
 
+        if (RecipientDirectory.isEnabled() && !blackholedRecipient) {
+            try {
+                Map<String, Boolean> routes = getRecipientDirectory().resolve(recipientAddress,
+                        connection.getSession().isInbound());
+                var envelope = connection.getSession().getEnvelopes().getLast();
+                var expanded = new java.util.HashSet<>(envelope.getRcpts());
+                expanded.addAll(routes.keySet());
+                if (expanded.size() > Math.min(recipientsLimit, RecipientDirectory.configuredMaxRecipients())) {
+                    connection.write("452 4.5.3 Recipient expansion limit exceeded");
+                    return false;
+                }
+                var relay = Config.getServer().getRelay();
+                if (routes.containsValue(false) && (!relay.getBooleanProperty("enabled")
+                        || !relay.getBooleanProperty("outboundEnabled")
+                        || !relay.getBooleanProperty("outboundMxEnabled"))) {
+                    connection.write("451 4.3.0 External recipient transport is unavailable");
+                    return false;
+                }
+                if (routes.containsValue(true) && !Config.getServer().getDovecot().getSaveLmtp().isEnabled()
+                        && !Config.getServer().getDovecot().getSaveLda().isEnabled()
+                        && !Config.getServer().getStalwart().isEnabled()) {
+                    connection.write("451 4.3.0 Local recipient transport is unavailable");
+                    return false;
+                }
+                envelope.addRoutedRecipients(routes);
+                connection.write(String.format(SmtpResponses.RECIPIENT_OK_250, connection.getSession().getUID()));
+                return true;
+            } catch (RecipientDirectory.RoutingException e) {
+                log.warn("Recipient routing rejected: {}", e.getMessage());
+                connection.write(e.isLimit() ? "452 4.5.3 Recipient expansion limit exceeded"
+                        : "550 5.1.1 Recipient routing is not permitted");
+                return false;
+            } catch (IllegalStateException | IllegalArgumentException e) {
+                log.error("Recipient directory unavailable: {}", e.getMessage());
+                connection.write("451 4.3.0 Recipient directory is unavailable");
+                return false;
+            }
+        }
+
         // When receiving inbound email.
         if (connection.getSession().isInbound()) {
             // Validate recipient against user database if both auth and userLookup are enabled.
@@ -174,6 +214,10 @@ public class ServerRcpt extends ServerMail {
         connection.write(String.format(SmtpResponses.RECIPIENT_OK_250, connection.getSession().getUID()));
 
         return true;
+    }
+
+    protected RecipientDirectory getRecipientDirectory() {
+        return RecipientDirectory.configured();
     }
 
     /**

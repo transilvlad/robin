@@ -11,6 +11,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * SqlUserLookup provides user existence lookup against a configured SQL database.
@@ -18,7 +20,7 @@ import java.util.Optional;
  *
  * Usage: construct with a JDBC URL/user/password or provide a HikariDataSource.
  */
-public class SqlUserLookup implements AutoCloseable {
+public class SqlUserLookup implements AutoCloseable, RecipientDirectory.Lookup {
     private static final Logger log = LogManager.getLogger(SqlUserLookup.class);
 
     private final HikariDataSource ds;
@@ -170,6 +172,55 @@ public class SqlUserLookup implements AutoCloseable {
             throw new IllegalStateException("SQL alias lookup unavailable", e);
         }
         return Optional.empty();
+    }
+
+    @Override
+    public Optional<RecipientDirectory.DomainPolicy> findDomain(String domain) {
+        try (var connection = ds.getConnection();
+             var statement = connection.prepareStatement(RecipientDirectory.DOMAIN_QUERY)) {
+            statement.setQueryTimeout(5);
+            statement.setString(1, normalize(domain));
+            try (var result = statement.executeQuery()) {
+                if (!result.next()) return Optional.empty();
+                return Optional.of(new RecipientDirectory.DomainPolicy(result.getBoolean("enabled"),
+                        result.getBoolean("plus_addressing"), result.getString("catch_all")));
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("Managed recipient domain lookup unavailable", e);
+        }
+    }
+
+    @Override
+    public List<String> findAliases(String address) {
+        try (var connection = ds.getConnection();
+             var statement = connection.prepareStatement(RecipientDirectory.ALIAS_QUERY)) {
+            statement.setQueryTimeout(5);
+            statement.setMaxRows(Math.addExact(RecipientDirectory.configuredMaxRecipients(), 1));
+            statement.setString(1, normalize(address));
+            List<String> aliases = new ArrayList<>();
+            try (var result = statement.executeQuery()) {
+                while (result.next()) {
+                    aliases.add(result.getString(1));
+                }
+            }
+            return aliases;
+        } catch (SQLException e) {
+            throw new IllegalStateException("Managed recipient alias lookup unavailable", e);
+        }
+    }
+
+    @Override
+    public boolean hasMailbox(String address) {
+        try (var connection = ds.getConnection();
+             var statement = connection.prepareStatement(RecipientDirectory.MAILBOX_QUERY)) {
+            statement.setQueryTimeout(5);
+            statement.setString(1, normalize(address));
+            try (var result = statement.executeQuery()) {
+                return result.next();
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("Managed recipient mailbox lookup unavailable", e);
+        }
     }
 
     public void close() {

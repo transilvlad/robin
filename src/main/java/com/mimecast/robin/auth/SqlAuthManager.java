@@ -44,6 +44,11 @@ public final class SqlAuthManager {
                 validateQuery(ds, domainQuery);
                 validateQuery(ds, aliasQuery);
             }
+            if (com.mimecast.robin.sasl.RecipientDirectory.isEnabled()) {
+                validateQuery(ds, com.mimecast.robin.sasl.RecipientDirectory.DOMAIN_QUERY);
+                validateQuery(ds, com.mimecast.robin.sasl.RecipientDirectory.ALIAS_QUERY);
+                validateQuery(ds, com.mimecast.robin.sasl.RecipientDirectory.MAILBOX_QUERY);
+            }
             SqlAuthProvider provider = new SqlAuthProvider(ds, authQuery);
             SqlUserLookup lookup = new SqlUserLookup(ds, userQuery, domainQuery, aliasQuery);
             authProvider = provider;

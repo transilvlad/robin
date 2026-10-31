@@ -39,25 +39,40 @@ class SqlUserLookupTest {
         assertEquals(List.of("tony@example.com", "example.com", "tony-alias@example.com", "tony-alias@example.com"), ds.bound);
     }
 
+    @Test
+    void canonicalAliasQueryReadsEveryRowInsteadOfTheLegacyFirstDestination() {
+        RecordingDataSource ds = new RecordingDataSource();
+        ds.aliases = List.of("alice@example.com", "bob@example.com");
+        SqlUserLookup lookup = new SqlUserLookup(ds, "", "", "SELECT destination FROM aliases LIMIT 1");
+        assertEquals(ds.aliases, lookup.findAliases("TEAM@EXAMPLE.COM"));
+        assertEquals(List.of("team@example.com"), ds.bound);
+    }
+
     /**
      * Data source whose statements record bound parameters and return no rows.
      */
     private static final class RecordingDataSource extends HikariDataSource {
         private final List<String> bound = new ArrayList<>();
+        private List<String> aliases = List.of();
 
         @Override
         public Connection getConnection() {
             return proxy(Connection.class, (method, args) -> switch (method) {
-                case "prepareStatement" -> statement(countPlaceholders((String) args[0]));
+                case "prepareStatement" -> statement((String) args[0], countPlaceholders((String) args[0]));
                 default -> null;
             });
         }
 
-        private PreparedStatement statement(int parameters) {
+        private PreparedStatement statement(String sql, int parameters) {
+            int[] row = {-1};
             return proxy(PreparedStatement.class, (method, args) -> switch (method) {
                 case "setString" -> bound.add((String) args[1]);
                 case "getParameterMetaData" -> proxy(ParameterMetaData.class, (m, a) -> "getParameterCount".equals(m) ? parameters : null);
-                case "executeQuery" -> proxy(ResultSet.class, (m, a) -> "next".equals(m) ? false : null);
+                case "executeQuery" -> proxy(ResultSet.class, (m, a) -> switch (m) {
+                    case "next" -> sql.equals(RecipientDirectory.ALIAS_QUERY) && ++row[0] < aliases.size();
+                    case "getString" -> aliases.get(row[0]);
+                    default -> null;
+                });
                 default -> null;
             });
         }
