@@ -7,6 +7,7 @@ import com.mimecast.robin.sasl.DovecotUserLookupNative;
 import com.mimecast.robin.auth.SqlAuthManager;
 import com.mimecast.robin.sasl.SqlUserLookup;
 import com.mimecast.robin.sasl.RecipientDirectory;
+import com.mimecast.robin.smtp.security.SubmissionLimits;
 import com.mimecast.robin.smtp.ProxyEmailDelivery;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
@@ -45,6 +46,7 @@ public class ServerRcpt extends ServerMail {
     @Override
     public boolean process(Connection connection, Verb verb) throws IOException {
         super.process(connection, verb);
+        if (!SubmissionLimits.check(connection, SubmissionLimits.Resource.RECIPIENTS, 1)) return false;
 
         // Check recipients limit before adding new recipient.
         if (connection.getSession().getEnvelopes().getLast().getRcpts().size() >= recipientsLimit) {
@@ -133,6 +135,9 @@ public class ServerRcpt extends ServerMail {
                     connection.write("451 4.3.0 Local recipient transport is unavailable");
                     return false;
                 }
+                int extraRecipients = Math.max(0, expanded.size() - envelope.getRcpts().size() - 1);
+                if (extraRecipients > 0 && !SubmissionLimits.check(connection,
+                        SubmissionLimits.Resource.RECIPIENTS, extraRecipients)) return false;
                 envelope.addRoutedRecipients(routes);
                 connection.write(String.format(SmtpResponses.RECIPIENT_OK_250, connection.getSession().getUID()));
                 return true;

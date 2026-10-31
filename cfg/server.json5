@@ -141,6 +141,25 @@
     maxRecipients: 100
   },
 
+  // Per-process quotas keyed by authenticated account/domain, never peer IP.
+  submissionLimits: {
+    enabled: false,
+    windowSeconds: 3600,
+    account: {
+      messages: 200,
+      recipients: 1000,
+      bytes: 104857600,
+      concurrentConnections: 5,
+      authFailures: 20
+    },
+    domain: {
+      messages: 2000,
+      recipients: 10000,
+      bytes: 1073741824,
+      concurrentConnections: 50
+    }
+  },
+
   // Advertise STARTTLS support (default: true).
   starttls: true,
 

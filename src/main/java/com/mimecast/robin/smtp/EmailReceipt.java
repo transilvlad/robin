@@ -227,6 +227,7 @@ public class EmailReceipt implements Runnable {
             connection.getSmtpAuditContext().setException(e);
             log.info("Error reading/writing: {}", e.getMessage());
         } finally {
+            com.mimecast.robin.smtp.security.SubmissionLimits.releaseConnection(connection);
             connection.getSmtpAuditContext().recordConnection(connection.getSession());
             connection.getSession().closeProxyConnections();
 

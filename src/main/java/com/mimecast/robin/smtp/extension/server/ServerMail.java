@@ -7,6 +7,7 @@ import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.security.BlackholeMatcher;
 import com.mimecast.robin.smtp.security.SenderAuthorization;
+import com.mimecast.robin.smtp.security.SubmissionLimits;
 import com.mimecast.robin.smtp.verb.Verb;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.ThreadContext;
@@ -121,6 +122,7 @@ public class ServerMail extends ServerProcessor {
             if (!SenderAuthorization.checkEnvelope(connection, addressStr)) {
                 return false;
             }
+            if (!SubmissionLimits.check(connection, SubmissionLimits.Resource.MESSAGES, 1)) return false;
 
             // Make envelope.
             MessageEnvelope envelope = new MessageEnvelope();

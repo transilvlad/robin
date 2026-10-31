@@ -72,6 +72,64 @@ controls are disabled.
 
 ## Configuration Reference
 
+### Authenticated submission limits
+
+The root `submissionLimits` policy is opt-in (`enabled: false` by default) and
+independent of listener IP controls. It charges the verified AUTH principal and,
+for email-shaped principals, its account domain, not the envelope sender or the
+peer IP. Delegated senders cannot evade a principal's budget; clients sharing a
+Roundcube proxy or NAT do not share an account budget. Existing listener/IP
+limits still apply and must be sized separately for trusted shared proxies.
+
+```json5
+submissionLimits: {
+  enabled: true,
+  windowSeconds: 3600,
+  account: {
+    messages: 200,
+    recipients: 1000,
+    bytes: 104857600,
+    concurrentConnections: 5,
+    authFailures: 20
+  },
+  domain: {
+    messages: 2000,
+    recipients: 10000,
+    bytes: 1073741824,
+    concurrentConnections: 50
+  }
+}
+```
+
+Missing individual budgets or zero mean unlimited, subject to bounded tracker
+capacity. Unknown keys, malformed sections, fractional/overflowing/negative
+budgets, and nonpositive/overflowing windows fail explicitly; `enabled` must be
+a JSON boolean.
+Counters use monotonic, per-key windows, not calendar-hour resets. Message
+attempts are charged after sender authorization and before MAIL acceptance.
+Each RCPT attempt costs at least one recipient; managed aliases additionally
+reserve newly expanded recipients before mutating the envelope. Rejected later
+processing, RSET, or reconnecting do not refund already charged attempts/bytes.
+
+Both DATA and BDAT charge content bytes before writing accepted chunks, including
+blackholed messages, but exclude the server-generated Received header. Byte
+quota exhaustion/unavailability emits `451` and closes the connection so unread
+content cannot become SMTP commands; no storage processor or delivery accepts
+that message. Message limits return `451`, recipient limits `452`, and AUTH
+admission limits `454`. Failed passwords are tracked only for the named account,
+never the whole domain/IP. Unverified failure tracking has its own bounded map
+so arbitrary login names cannot exhaust the verified-submission tracker.
+
+Concurrent sessions are admitted only after password verification and released
+on disconnect, independent of message-spool auto-deletion. Window rollover does
+not forget still-active sessions. Quotas are process-local, not persistent or
+shared across Robin instances; process restart resets rate counters. Both
+counter maps and active-session tracking are bounded to 10,000 entries each;
+capacity exhaustion defers affected operations rather than silently bypassing
+limits. Activate admission limits with a listener restart: already-authenticated
+connections are not retroactively admitted. SMTP device credentials, distributed
+Redis quotas, and domain-wide failed-login lockouts are not implemented here.
+
 ### DoS Protection Parameters
 
 | Parameter | Default | Description |

@@ -11,6 +11,7 @@ import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.session.EmailDirection;
 import com.mimecast.robin.smtp.verb.AuthVerb;
 import com.mimecast.robin.smtp.verb.Verb;
+import com.mimecast.robin.smtp.security.SubmissionLimits;
 import org.apache.commons.codec.binary.Base64;
 
 import java.io.IOException;
@@ -69,8 +70,7 @@ public class ServerAuth extends ServerProcessor {
             switch (authVerb.getType()) {
                 case "PLAIN":
                     if (!processAuthPlain(verb)) {
-                        connection.write(SmtpResponses.AUTH_FAILED_535);
-                        return false;
+                        return SubmissionLimits.authenticationFailed(connection);
                     }
                     break;
 
@@ -84,6 +84,7 @@ public class ServerAuth extends ServerProcessor {
 
             // Get available users for authentication.
             if (!connection.getSession().getUsername().isEmpty()) {
+                if (!SubmissionLimits.allowAuthentication(connection, false)) return false;
                 // Check if users are enabled in configuration and try and authenticate if so.
                 if (Config.getServer().getDovecot().isAuthSqlEnabled()) {
                     SqlAuthProvider sqlAuth = SqlAuthManager.getAuthProvider();
@@ -94,13 +95,13 @@ public class ServerAuth extends ServerProcessor {
                     }
                     try {
                         if (sqlAuth.authenticate(connection.getSession().getUsername(), connection.getSession().getPassword())) {
+                            if (!SubmissionLimits.allowAuthentication(connection, true)) return false;
                             connection.getSession().setAuth(true);
                             connection.getSession().setDirection(EmailDirection.OUTBOUND);
                             connection.write(SmtpResponses.AUTH_SUCCESS_235);
                             return true;
                         } else {
-                            connection.write(SmtpResponses.AUTH_FAILED_535);
-                            return false;
+                            return SubmissionLimits.authenticationFailed(connection);
                         }
                     } catch (Exception e) {
                         log.error("SQL authentication error: {}", e.getMessage());
@@ -119,13 +120,13 @@ public class ServerAuth extends ServerProcessor {
                                 connection.getSession().getAddr(),
                                 connection.getSession().getFriendAddr()
                         )) {
+                            if (!SubmissionLimits.allowAuthentication(connection, true)) return false;
                             connection.getSession().setAuth(true);
                             connection.getSession().setDirection(EmailDirection.OUTBOUND);
                             connection.write(SmtpResponses.AUTH_SUCCESS_235);
                             return true;
                         } else {
-                            connection.write(SmtpResponses.AUTH_FAILED_535);
-                            return false;
+                            return SubmissionLimits.authenticationFailed(connection);
                         }
                     } catch (Exception e) {
                         log.error("Dovecot authentication error: {}", e.getMessage());
@@ -134,13 +135,13 @@ public class ServerAuth extends ServerProcessor {
                     // Scenario response.
                     Optional<UserConfig> opt = Config.getServer().getUsers().getUser(connection.getSession().getUsername());
                     if (opt.isPresent() && opt.get().getPass().equals(connection.getSession().getPassword())) {
+                        if (!SubmissionLimits.allowAuthentication(connection, true)) return false;
                         connection.getSession().setAuth(true);
                         connection.getSession().setDirection(EmailDirection.OUTBOUND);
                         connection.write(SmtpResponses.AUTH_SUCCESS_235);
                         return true;
                     } else {
-                        connection.write(SmtpResponses.AUTH_FAILED_535);
-                        return false;
+                        return SubmissionLimits.authenticationFailed(connection);
                     }
                 } else {
                     connection.write(String.format(SmtpResponses.UNKNOWN_MAILBOX_550, connection.getSession().getUID()));
