@@ -15,6 +15,14 @@ validation; an empty matching-MX set defers instead of downgrading. `testing` an
 `none` modes do not require TLS. Without an enforced policy, port 25 remains
 opportunistic and can deliver to a server that does not advertise STARTTLS.
 
+A changed or invalid DNS policy ID, HTTPS outage, invalid certificate, or malformed
+replacement does not discard a previously verified, unexpired policy. Robin
+retains it until expiry or a verified HTTPS replacement. An explicit valid
+`mode: none` policy withdraws it; unknown modes and malformed withdrawals do not.
+The default `MemoryPolicyCache` is process-local and bounded: policy memory is
+lost across restarts or capacity eviction. This is not durable MTA-STS cache
+storage; do not rely on it for enforcement continuity through process restarts.
+
 DANE trust is enabled only with `dns.trustAuthenticatedData: true` and an
 operator-controlled DNSSEC-validating resolver over a trusted transport. The
 default is false: ordinary unauthenticated TLSA answers are not trust anchors.
@@ -62,7 +70,8 @@ Considerations
 
 To allow rapid changes to long-lived policies MTA's MUST check the DNS TXT record before a connection
 even when having a cache entry for the domain.
-If the ID has changed the cache should be invalidated and the policy file re-downloaded.
+If the ID has changed, refresh the HTTPS policy while retaining the unexpired
+cached policy until a verified replacement is available.
 
 If multiple TXT records for "_mta-sts" are returned by the resolver, records that do not begin with "v=STSv1;" are discarded.
 If the number of resulting records is not one, or if the resulting record is syntactically invalid,

@@ -38,14 +38,14 @@ public abstract class PolicyCache {
      * <p>Validates before returning found policies.
      * <p>Checks policy record ID matched provided record ID.
      * <p>Checks policy has not expired.
-     * <p>Removes from cache if ID not matched or expired.
+     * <p>A changed ID requests refresh but does not remove the unexpired policy.
      *
      * @param record StsRecord instance.
      * @return Optional of StsPolicy instance.
      */
     public Optional<StsPolicy> getByRecord(StsRecord record) {
         if (record != null) {
-            StsPolicy policy = lookup(record.getDomain());
+            StsPolicy policy = getByDomain(record.getDomain()).orElse(null);
 
             if (policy != null) {
 
@@ -54,8 +54,7 @@ public abstract class PolicyCache {
                     policy.setCached(true);
                     return Optional.of(policy);
                 } else {
-                    log.info("Record and policy ID mismatch, removing policy from cache");
-                    remove(record.getDomain());
+                    log.info("Record and policy ID mismatch, retaining policy until verified refresh or expiry");
                 }
             }
         }
@@ -74,6 +73,10 @@ public abstract class PolicyCache {
         if (domain != null) {
             StsPolicy policy = lookup(domain);
 
+            if (policy != null && (!policy.isValid() || policy.isExpired())) {
+                remove(domain);
+                return Optional.empty();
+            }
             if (policy != null) {
                 policy.setCached(true);
                 return Optional.of(policy);
@@ -81,6 +84,15 @@ public abstract class PolicyCache {
         }
 
         return Optional.empty();
+    }
+
+    /**
+     * Removes a policy after a verified HTTPS withdrawal.
+     *
+     * @param domain Domain whose policy was withdrawn.
+     */
+    public void invalidate(String domain) {
+        remove(domain);
     }
 
     /**

@@ -99,6 +99,11 @@ public final class StsPolicy extends ConfigHandler {
      * Found mode or not.
      */
     private boolean foundMode = false;
+    private boolean explicitNone = false;
+    private int modeEntries;
+    private int versionEntries;
+    private int maxAgeEntries;
+    private boolean validMaxAge;
 
     /**
      * Constructs a new StsPolicy instance with given record and HTTP response.
@@ -207,15 +212,18 @@ public final class StsPolicy extends ConfigHandler {
         for (Pair entry : pairs) {
             switch (entry.getKey()) {
                 case "version":
+                    versionEntries++;
                     version = entry.getValue();
                     break;
 
                 case "mode":
+                    modeEntries++;
                     if(foundMode) {
                         String warning = "Multiple entries of mode found. mode: " + entry.getValue();
                         validator.addWarning(warning);
                     } else {
                         mode = StsMode.get(entry.getValue()).orElse(StsMode.NONE);
+                        explicitNone = "none".equals(entry.getValue());
                         foundMode = true;
                     }
                     break;
@@ -225,8 +233,10 @@ public final class StsPolicy extends ConfigHandler {
                     break;
 
                 case "max_age":
+                    maxAgeEntries++;
                     try {
                         maxAge = Integer.parseInt(entry.getValue());
+                        validMaxAge = maxAge >= 0 && entry.getValue().matches("[0-9]+");
                     } catch (NumberFormatException e) {
                         String error = "Max age is not the correct format: " + entry.getValue();
                         if (config.isRequireValidMaxAge()) {
@@ -375,6 +385,16 @@ public final class StsPolicy extends ConfigHandler {
     }
 
     /**
+     * A valid HTTPS mode:none policy explicitly withdraws enforcement. Unknown
+     * modes or malformed policies must never be mistaken for withdrawals.
+     */
+    public boolean isWithdrawal() {
+        return validator.getErrors().isEmpty() && "STSv1".equals(version)
+                && explicitNone && validMaxAge && modeEntries == 1
+                && versionEntries == 1 && maxAgeEntries == 1;
+    }
+
+    /**
      * Is expired.
      * <p>Has max age passed since fetch time?
      *
@@ -386,7 +406,7 @@ public final class StsPolicy extends ConfigHandler {
 
     /**
      * Match MX.
-     * <p>Masks are evaluated by a relaxed regex match.
+     * <p>DNS names are case-insensitive; only a complete left-most wildcard label is supported.
      *
      * @param mx MX domain string.
      * @return Boolean.
@@ -395,9 +415,22 @@ public final class StsPolicy extends ConfigHandler {
         if (mode.equals(StsMode.TESTING)) {
             return true;
         }
+        if (mx == null) {
+            return false;
+        }
+        String hostname = mx.toLowerCase(java.util.Locale.ROOT);
+        if (hostname.endsWith(".")) {
+            hostname = hostname.substring(0, hostname.length() - 1);
+        }
 
         for (String mask : mxMasks) {
-            if (mx.matches(mask.replace("*", ".*"))) {
+            String normalized = mask.toLowerCase(java.util.Locale.ROOT);
+            if (normalized.startsWith("*.")) {
+                String suffix = normalized.substring(1);
+                if (hostname.endsWith(suffix) && hostname.length() > suffix.length()) {
+                    return true;
+                }
+            } else if (hostname.equals(normalized)) {
                 return true;
             }
         }

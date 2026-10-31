@@ -80,6 +80,8 @@ class MemoryPolicyCacheTest {
         Optional<StsPolicy> cachePolicy = cache.getByRecord(newRecord);
 
         assertFalse(cachePolicy.isPresent());
+        assertSame(policy, cache.getByDomain("mimecast.com").orElseThrow(),
+                "A new DNS ID must not destroy an unexpired cached policy");
     }
 
     @Test

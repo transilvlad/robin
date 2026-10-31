@@ -133,29 +133,34 @@ public class StrictTransportSecurity {
         if (DomainValidator.getInstance(false).isValid(domain)) {
             log.info("Fetching record for domain: {}", domain);
 
-            // Get DNS TXT record.
-            Optional<StsRecord> optional = dnsRecordClient.getStsRecord(domain);
-            if (optional.isPresent() && optional.get().isValid()) {
-                log.info("Record found and valid");
-
-                // Search policy in cache or fetch from HTTPS.
-                policy = getPolicy(optional.get(), config);
-
-                // Validate policy.
-                if (!policy.isValid() || policy.isExpired()) {
-                    throw new BadPolicyException("Policy invalid for: " + domain);
+            try {
+                // Get DNS TXT record.
+                Optional<StsRecord> optional = dnsRecordClient.getStsRecord(domain);
+                if (optional.isPresent() && optional.get().isValid()) {
+                    log.info("Record found and valid");
+                    policy = getPolicy(optional.get(), config);
+                    if (policy.isWithdrawal()) {
+                        return Optional.empty();
+                    }
+                    if (!policy.isValid() || policy.isExpired()) {
+                        throw new BadPolicyException("Policy invalid for: " + domain);
+                    }
+                } else if (optional.isEmpty()) {
+                    log.warn("Record not found, searching cache for policy");
+                    policy = searchPolicyCache(domain);
+                    if (policy == null) {
+                        throw new NoRecordException("Record not found for: " + domain);
+                    }
+                } else {
+                    throw new BadRecordException("Record invalid for: " + domain);
                 }
-            } else if (!optional.isPresent()) {
-                log.warn("Record not found, searching cache for policy");
-
-                // Search policy in cache.
+            } catch (NoRecordException | BadRecordException | BadPolicyException
+                     | PolicyFetchErrorException | PolicyWebPKIInvalidException e) {
                 policy = searchPolicyCache(domain);
-
                 if (policy == null) {
-                    throw new NoRecordException("Record not found for: " + domain);
+                    throw e;
                 }
-            } else {
-                throw new BadRecordException("Record invalid for: " + domain);
+                log.warn("MTA-STS refresh failed for {}; retaining unexpired policy: {}", domain, e.getMessage());
             }
         } else {
             throw new ValidatorException("Domain invalid: " + domain);
@@ -173,7 +178,7 @@ public class StrictTransportSecurity {
      * @throws PolicyWebPKIInvalidException Policy web PKI invalid exception.
      * @throws PolicyFetchErrorException    Policy fetch error exception.
      */
-    private StsPolicy getPolicy(StsRecord stsRecord, Config config) throws PolicyWebPKIInvalidException, PolicyFetchErrorException {
+    private StsPolicy getPolicy(StsRecord stsRecord, Config config) throws PolicyWebPKIInvalidException, PolicyFetchErrorException, BadPolicyException {
         // Search policy in cache first.
         StsPolicy policy = searchPolicyCache(stsRecord);
 
@@ -232,7 +237,7 @@ public class StrictTransportSecurity {
      * @throws PolicyWebPKIInvalidException Policy web PKI invalid exception.
      * @throws PolicyFetchErrorException    Policy fetch error exception.
      */
-    private StsPolicy fetchPolicyHttps(StsRecord stsRecord, Config config) throws PolicyWebPKIInvalidException, PolicyFetchErrorException {
+    private StsPolicy fetchPolicyHttps(StsRecord stsRecord, Config config) throws PolicyWebPKIInvalidException, PolicyFetchErrorException, BadPolicyException {
         HttpsResponse response = httpsPolicyClient.getPolicy(stsRecord, Optional.ofNullable(config)
                 .map(Config::getPolicyMaxBodySize)
                 .orElse(new Config().getPolicyMaxBodySize()) // get default
@@ -246,7 +251,16 @@ public class StrictTransportSecurity {
 
         policy.make();
 
-        if (policy.isValid() && cache != null) {
+        if (policy.isWithdrawal()) {
+            if (cache != null) {
+                cache.invalidate(stsRecord.getDomain());
+            }
+            return policy;
+        }
+        if (!policy.isValid() || policy.isExpired()) {
+            throw new BadPolicyException("Policy invalid for: " + stsRecord.getDomain());
+        }
+        if (cache != null) {
             cache.put(policy);
         }
 
