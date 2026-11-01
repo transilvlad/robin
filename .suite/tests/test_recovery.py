@@ -1,4 +1,3 @@
-import importlib.util
 import json
 import os
 from pathlib import Path
@@ -9,10 +8,10 @@ import unittest
 from unittest.mock import patch
 import uuid
 
+from test_recovery_offline import load_archive_functions
 
-SPEC = importlib.util.spec_from_file_location("recovery", Path(__file__).resolve().parents[1] / "recovery.py")
-recovery = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(recovery)
+
+recovery = load_archive_functions()
 
 
 class RecoveryTest(unittest.TestCase):
@@ -24,7 +23,7 @@ class RecoveryTest(unittest.TestCase):
             {"type": "volume", "source": "cache", "target": "/cfg"}]}},
             "volumes": {"cache": {"name": "test-cache"}},
             "secrets": {"password": {"file": "/opt/robin/.suite/secrets/password"}}}
-        mounts = recovery.mounts(config, Path("/opt/robin/.suite"))
+        mounts = recovery.mounts(config, Path("/opt/robin/.suite").resolve())
         self.assertEqual({"mail:/store", "mail:/cfg", "secret:password"}, set(mounts))
         self.assertEqual("test-cache", mounts["mail:/cfg"]["source"])
 
@@ -76,6 +75,7 @@ class RecoveryTest(unittest.TestCase):
             root = Path(directory)
             suite = root / ".suite"
             suite.mkdir()
+            (suite / "docker-compose.yaml").write_text("synthetic Compose source")
             mount = root / "data"
             mount.mkdir()
             config = {"name": "test", "services": {"suite-postgres": {
@@ -105,11 +105,13 @@ class RecoveryTest(unittest.TestCase):
             recovery.require_matching_configuration([record], Path("/opt/robin/.suite"))
 
     def test_writers_with_overlapping_parent_mounts_are_rejected(self):
-        record = {"Name": "/another-writer", "Mounts": [
-            {"RW": True, "Source": "/opt/robin/store"}]}
-        with patch.object(recovery, "output", side_effect=["container-id", json.dumps([record])]), \
-             self.assertRaisesRegex(ValueError, "Another running container"):
-            recovery.require_no_writers({"mail:/data": {"source": "/opt/robin/store/robin"}})
+        with tempfile.TemporaryDirectory() as directory:
+            store = Path(directory) / "store"
+            record = {"Name": "/another-writer", "Mounts": [
+                {"RW": True, "Source": str(store)}]}
+            with patch.object(recovery, "output", side_effect=["container-id", json.dumps([record])]), \
+                 self.assertRaisesRegex(ValueError, "Another running container"):
+                recovery.require_no_writers({"mail:/data": {"source": str(store / "robin")}})
 
     def test_archive_references_must_have_checksums(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -128,6 +130,7 @@ class RecoveryTest(unittest.TestCase):
             root = Path(directory)
             suite = root / ".suite"
             suite.mkdir()
+            (suite / "docker-compose.yaml").write_text("synthetic Compose source")
             missing = {"type": "bind", "source": str(root / "missing"), "target": "/data"}
             cases = [
                 ([missing], {"Type": "bind", "Destination": "/data"}, "", "missing from the host"),

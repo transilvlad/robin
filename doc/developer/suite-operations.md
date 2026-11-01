@@ -68,6 +68,32 @@ hashes; take the backup **before** editing deployment settings. Missing mounted
 data and unconfigured anonymous/runtime volumes stop backup instead of producing
 a success-shaped incomplete archive.
 
+`deployment.tar` includes the configuration and production templates, both
+database-init trees, mailbox Compose includes, migrations, Cyrus support files,
+top-level entrypoint scripts and Compose overlays. Recorded local Compose files,
+required service `env_file` inputs and file-backed Docker configs/secrets are
+also inventoried; missing required inputs stop backup **before quiescing**.
+Inputs outside `.suite` that are not already bind mounts are archived under
+`external-inputs/` with their original paths in `manifest.json`.
+Read-only bind inputs outside `.suite` remain in the separate mount archives,
+not just in the deployment-input envelope. Named database/mailbox/queue volumes
+keep the existing independent, deduplicated inventory.
+
+A checksummed private `compose.resolved.json` preserves the fully resolved model
+and interpolated operator values, including shell overrides absent from `.env`.
+It removes dependence on transitive/remote Compose includes for reconstruction;
+literal dollar signs are escaped for re-reading by Compose. This file contains
+secrets and must be protected like the archives. The input-file checksums and
+directory inventory are verified before writing `COMPLETE` and before restore.
+File symlinks are dereferenced into the archive; directory symlinks require an
+explicit separate backup and are rejected rather than silently truncating
+their tree.
+Restore requires matching deployment files/directories already on the target;
+it does not silently copy them over operator state. Path-only `.env` relocation
+is allowed, but resolved runtime settings must still match. Older snapshots
+without the resolved model/input inventory require independent audited recovery;
+this tool will not label them reconstructible or bypass the missing proof.
+
 `COMPLETE` is written only after archives and checksums finish. A failure leaves
 an incomplete snapshot for investigation; never restore it or delete the
 previous good snapshot. Neither success nor failure restarts services
@@ -101,14 +127,33 @@ verification.
    the recorded Git revision, images and mount set. Retrieve that same source
    revision. Keep the snapshot outside the new checkout.
 2. Restore deployment inputs from `deployment.tar` into the new `.suite/`
-   **before** resolving Compose. Review `.env` paths; relocate `MAIL_TLS_DIR`
+   **before** resolving Compose. Review recorded `operatorInputs`, including
+   any `external-inputs/` mapping, and restore required external file-backed
+   configs/secrets before configuration resolution. Review `.env` paths;
+   relocate `MAIL_TLS_DIR`
    to an empty dedicated directory on the new host if needed. Keep the same
    mounted basenames and service/target mapping. Copy the file-backed secrets
    and retain the original encryption keys; do not run `init-secrets.sh` first.
 3. Run the recovery command below. Existing deployment files/directories must
    match the snapshot; existing mail/database/queue data must be empty.
    The tool restores TLS and data mounts, named volumes and saved images, but
-   never starts services or runs new-database init scripts.
+   never starts services or runs new-database init scripts. All bind-archive
+   roots and target basenames are checked before any data restore begins:
+   a bad bind later in the inventory cannot create an earlier fresh volume
+   first. Empty/malformed bind roots and basename changes are rejected;
+   parent-only relocation remains supported.
+
+For a deployment whose original external/transitive Compose includes are no
+longer available, make a private copy of `compose.resolved.json` and review
+relocation of bind sources and config/secret file paths. Keep all other runtime
+settings and named-volume identities unchanged. Set `COMPOSE_FILE` to that
+reviewed copy while running `recovery.py restore`; use the same copy followed
+by `images.yaml` for explicit startup afterward. Do not edit the checksum-covered
+snapshot itself or treat the flattened model as an upgrade. The restore guard
+ignores only build contexts and relocatable input paths when comparing the
+resolved model; changed credentials, commands, listeners or resource policy
+block restoration before data writes. Archived local source files remain
+available for audit even when reconstruction uses the flattened model.
 
 ```bash
 # Extract only a trusted operator snapshot. This contains secrets.
@@ -135,6 +180,18 @@ release too; an image archive alone does not replace those source definitions.
 Do not restore to a new PostgreSQL major version. A physical backup is tied to
 its platform and database binary version; recover the old deployment first and
 perform a separate logical migration/`pg_upgrade` later.
+
+Portable mocked input/archive/restore checks can run without Docker:
+
+```powershell
+$env:ROBIN_RECOVERY_DOCKER_TEST='0'
+py -m unittest discover -s .suite\tests -p test_recovery_offline.py -v
+```
+
+These use tiny synthetic archives and mocked host operations. They do not
+prove Linux operation locking, actual Compose reconstruction, filesystem
+ownership, image loading or fresh-host PostgreSQL recovery; those still require
+a separately authorized isolated Linux/Docker restore drill.
 
 Before DNS cutover, verify mailbox users/aliases and Admin access, the config
 store and cache, queue counts and representative payload paths, mailbox
