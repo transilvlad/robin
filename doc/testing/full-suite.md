@@ -40,6 +40,21 @@ revocation, and certificate-directory replacement followed by reload and a
 verified served certificate serial change. It does not modify or validate a
 running Cyrus/JMAP/webmail deployment.
 
+The offline `test_preflight.py` checks require no Docker opt-in. Production
+preflight takes already-captured private Compose JSON, database/runtime-status
+evidence, an image lock and Docker inspect JSON; it does not establish public
+DNS, reputation or end-to-end delivery. Resource evidence must include each
+deployed container's `HostConfig`, not only intended Compose budgets:
+`Memory` and `PidsLimit` must be positive integers exactly matching normalized
+`mem_limit` bytes and `pids_limit`; CPU must match numeric `cpus` through
+`NanoCpus / 1e9` or positive `CpuQuota / CpuPeriod`. Docker's default CFS period
+is 100000 microseconds when unspecified. Zero `NanoCpus` alone is not failure
+when a matching hard quota is present. Missing/unlimited/invalid limits,
+conflicting CPU representations and drift in any deployed replica block
+acceptance. Every replica must also use the reviewed image and be running,
+unpaused, healthy and not OOM-killed. CPU shares/reservations are not hard limits. These offline
+regressions do not prove that host cgroups actually enforce captured settings.
+
 ## Suite Organization
 
 Integration infrastructure is organized under `.integration/`. Unit/component
