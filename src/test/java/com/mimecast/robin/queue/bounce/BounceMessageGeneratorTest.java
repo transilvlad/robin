@@ -39,6 +39,12 @@ class BounceMessageGeneratorTest {
     }
 
     @Test
+    void unroutableReversePathSuppressesNotificationInsteadOfFailing() {
+        assertNull(new BounceMessageGenerator(original("postmaster"), "missing@destination.test").toRelaySession());
+        assertNull(new BounceMessageGenerator(original("sender@"), "missing@destination.test").toRelaySession());
+    }
+
+    @Test
     void transportFailuresWithoutEnvelopeTransactionsProduceUsefulStatus() {
         RelaySession original = new RelaySession(new Session().addEnvelope(
                 new MessageEnvelope().setMail("sender@example.test").setRcpt("missing@destination.test")));

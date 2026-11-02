@@ -175,38 +175,81 @@ class RelayRecipientFailureTest {
         assertEquals(1, result.newItems().size());
     }
 
-    @Test
-    void notificationPersistenceFailureDoesNotRemovePermanentOrOtherRecipients() {
-        var relay = relay(envelope("author@example.com", "hard@example.net", "soft@example.net"));
-        queue.enqueue(relay);
-        long now = Instant.now().getEpochSecond();
-        var claimed = queue.claimReady(1, now, "test", now + 100).getFirst();
-        var worker = new RelayDequeue(queue) {
-            @Override void attemptDelivery(RelaySession item) {
-                item.getSession().getSessionTransactionList().addEnvelope(
-                        rcpts("hard@example.net", "550 Missing", "soft@example.net", "451 Try later"));
-            }
+    private RelayDequeue failingNotifications(Consumer<RelaySession> script) {
+        return new RelayDequeue(queue) {
+            @Override void attemptDelivery(RelaySession item) { script.accept(item); }
             @Override RelaySession createBounceSession(RelaySession item, MessageEnvelope envelope, String recipient) {
                 throw new IllegalStateException("Synthetic notification persistence failure");
             }
         };
-        assertThrows(IllegalStateException.class, () -> worker.processClaimedItem(claimed, now));
-        assertEquals(List.of("hard@example.net", "soft@example.net"), claimed.getPayload().getSession().getEnvelopes().getFirst().getRcpts());
-        assertEquals(0, claimed.getRetryCount());
-        assertEquals(QueueItemState.CLAIMED, queue.getByUID(relay.getUID()).getState());
+    }
+
+    @Test
+    void notificationPersistenceFailureKeepsPermanentRecipientQueuedInsteadOfThrowing() {
+        var relay = relay(envelope("author@example.com", "hard@example.net", "soft@example.net"));
+        queue.enqueue(relay);
+        long now = Instant.now().getEpochSecond();
+        var claimed = queue.claimReady(1, now, "test", now + 100).getFirst();
+        var worker = failingNotifications(item -> item.getSession().getSessionTransactionList().addEnvelope(
+                rcpts("hard@example.net", "550 Missing", "soft@example.net", "451 Try later")));
+        var result = worker.processClaimedItem(claimed, now);
+        assertEquals(QueueMutationType.RESCHEDULE, result.mutation().type());
+        assertEquals(List.of("hard@example.net", "soft@example.net"),
+                result.mutation().item().getPayload().getSession().getEnvelopes().getFirst().getRcpts());
+        assertTrue(result.newItems().isEmpty());
+    }
+
+    @Test
+    void notificationPersistenceFailureAfterCommittedDeliveryDoesNotRedeliverAcceptedRecipient() {
+        var relay = relay(envelope("author@example.com", "ok@example.net", "hard@example.net"));
+        queue.enqueue(relay);
+        long now = Instant.now().getEpochSecond();
+        var claimed = queue.claimReady(1, now, "test", now + 100).getFirst();
+        var worker = failingNotifications(item -> {
+            var tx = rcpts("ok@example.net", "250 OK", "hard@example.net", "550 5.1.1 Missing");
+            tx.addTransaction("DATA", "250 Delivered");
+            item.getSession().getSessionTransactionList().addEnvelope(tx);
+        });
+        var result = worker.processClaimedItem(claimed, now);
+        assertEquals(QueueMutationType.RESCHEDULE, result.mutation().type());
+        assertEquals(List.of("hard@example.net"),
+                result.mutation().item().getPayload().getSession().getEnvelopes().getFirst().getRcpts(),
+                "The accepted recipient is retired so a later attempt cannot deliver it twice");
+        assertArrayEquals(CONTENT, readFirst(result));
+        queue.applyMutations(new QueueMutationBatch<>(List.of(result.mutation()), result.newItems()));
+
+        long next = result.mutation().nextAttemptAtEpochSeconds();
+        var reclaimed = queue.claimReady(1, next, "next", next + 100).getFirst();
+        var attempted = new ArrayList<String>();
+        var retry = new RelayDequeue(queue) {
+            @Override void attemptDelivery(RelaySession item) {
+                attempted.addAll(item.getSession().getEnvelopes().getFirst().getRcpts());
+                item.getSession().getSessionTransactionList().addEnvelope(rcpts("hard@example.net", "550 5.1.1 Missing"));
+            }
+        }.processClaimedItem(reclaimed, next);
+        assertEquals(List.of("hard@example.net"), attempted);
+        assertEquals(QueueMutationType.DEAD, retry.mutation().type());
+        assertEquals(1, retry.newItems().size(), "The owed notification is prepared once persistence recovers");
+        notifications.add(Path.of(retry.newItems().getFirst().getSession().getEnvelopes().getFirst().getFile()));
+    }
+
+    private static byte[] readFirst(RelayQueueWorkResult result) {
+        try {
+            return result.mutation().item().getPayload().getSession().getEnvelopes().getFirst().readMessageBytes();
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
     }
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void secondNotificationFailureCleansFirstPreparedFileWithoutChangingRecipientsOrCounts(boolean whollyPermanent) {
+    void secondNotificationFailureEnqueuesFirstAndKeepsOnlyOwedRecipientQueued(boolean whollyPermanent) {
         var recipients = whollyPermanent ? new String[]{"first@example.net", "second@example.net"}
                 : new String[]{"first@example.net", "second@example.net", "soft@example.net"};
         var relay = relay(envelope("author@example.com", recipients));
         queue.enqueue(relay);
         long now = Instant.now().getEpochSecond();
         var claimed = queue.claimReady(1, now, "test", now + 100).getFirst();
-        long created = claimed.getCreatedAtEpochSeconds();
-        var prepared = new ArrayList<Path>();
         var worker = new RelayDequeue(queue) {
             private int count;
             @Override void attemptDelivery(RelaySession item) {
@@ -216,21 +259,42 @@ class RelayRecipientFailureTest {
             }
             @Override RelaySession createBounceSession(RelaySession item, MessageEnvelope envelope, String recipient) {
                 if (++count == 2) throw new IllegalStateException("Synthetic second notification failure");
-                var notification = super.createBounceSession(item, envelope, recipient);
-                var path = Path.of(notification.getSession().getEnvelopes().getFirst().getFile());
-                prepared.add(path);
-                notifications.add(path);
-                assertTrue(Files.exists(path));
-                return notification;
+                return super.createBounceSession(item, envelope, recipient);
             }
         };
-        assertThrows(IllegalStateException.class, () -> worker.processClaimedItem(claimed, now));
-        assertEquals(1, prepared.size());
-        assertFalse(Files.exists(prepared.getFirst()));
-        assertEquals(List.of(recipients), claimed.getPayload().getSession().getEnvelopes().getFirst().getRcpts());
-        assertEquals(0, claimed.getRetryCount());
-        assertEquals(created, claimed.getCreatedAtEpochSeconds());
-        assertEquals(QueueItemState.CLAIMED, queue.getByUID(relay.getUID()).getState());
+        var result = worker.processClaimedItem(claimed, now);
+        assertEquals(1, result.newItems().size());
+        var notification = Path.of(result.newItems().getFirst().getSession().getEnvelopes().getFirst().getFile());
+        notifications.add(notification);
+        assertTrue(Files.exists(notification));
+        assertEquals(QueueMutationType.RESCHEDULE, result.mutation().type());
+        assertEquals(whollyPermanent ? List.of("second@example.net") : List.of("second@example.net", "soft@example.net"),
+                result.mutation().item().getPayload().getSession().getEnvelopes().getFirst().getRcpts());
+    }
+
+    @Test
+    void expiredItemWithFailedNotificationIsHeldUntilTheNotificationIsPrepared() {
+        var relay = relay(envelope("author@example.com", "late@example.net"));
+        queue.enqueue(relay);
+        long now = Instant.now().getEpochSecond();
+        var claimed = queue.claimReady(1, now, "test", now + 100).getFirst();
+        var held = failingNotifications(item -> fail("Expiry must not attempt delivery")).expireClaimedItem(claimed);
+        assertEquals(QueueMutationType.RESCHEDULE, held.mutation().type());
+        assertEquals(List.of("late@example.net"),
+                held.mutation().item().getPayload().getSession().getEnvelopes().getFirst().getRcpts());
+
+        var expired = new RelayDequeue(queue).expireClaimedItem(held.mutation().item());
+        assertEquals(QueueMutationType.DEAD, expired.mutation().type());
+        assertEquals(1, expired.newItems().size());
+        notifications.add(Path.of(expired.newItems().getFirst().getSession().getEnvelopes().getFirst().getFile()));
+    }
+
+    @Test
+    void unroutableReversePathRetiresPermanentFailureWithoutNotification() {
+        var result = process(relay(envelope("postmaster", "hard@example.net")), item ->
+                item.getSession().getSessionTransactionList().addEnvelope(rcpts("hard@example.net", "550 Missing")));
+        assertEquals(QueueMutationType.DEAD, result.mutation().type());
+        assertTrue(result.newItems().isEmpty());
     }
 
     @Test

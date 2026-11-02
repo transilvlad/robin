@@ -525,9 +525,9 @@ class RelayDequeueTest {
         }
 
         @Override
-        List<RelaySession> generateBounces(RelaySession relaySession) {
+        PreparedNotifications generateBounces(RelaySession relaySession) {
             generatedBounceCount += countRecipients(relaySession);
-            return List.of();
+            return new PreparedNotifications(List.of(), List.of());
         }
     }
 

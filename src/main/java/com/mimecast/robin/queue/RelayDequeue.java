@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class RelayDequeue {
     private static final Logger log = LogManager.getLogger(RelayDequeue.class);
     private static final AtomicLong RESCHEDULE_COUNT = new AtomicLong(0);
+    private static final long NOTIFICATION_RETRY_SECONDS = 60;
 
     private final PersistentQueue<RelaySession> queue;
     private final PooledLmtpDelivery pooledLmtpDelivery;
@@ -72,9 +73,13 @@ public class RelayDequeue {
         if (!permanent.isEmpty() && allRecipientsPermanent(relaySession, permanent)) {
             return deadSession(queueItem, relaySession, List.of(), deriveLastError(relaySession));
         }
-        List<RelaySession> notifications = persistPermanentNotifications(relaySession, permanent);
+        // A recipient whose notification could not be prepared stays queued like a temporary failure.
+        PreparedNotifications prepared = prepareNotifications(relaySession, permanent);
+        List<RecipientFailure> terminal = new ArrayList<>(permanent);
+        terminal.removeAll(prepared.unprepared());
+        List<RelaySession> notifications = new ArrayList<>(prepared.sessions());
         try {
-            return finishDelivery(queueItem, relaySession, currentEpochSeconds, permanent, notifications);
+            return finishDelivery(queueItem, relaySession, currentEpochSeconds, terminal, notifications);
         } catch (RuntimeException e) {
             for (RelaySession notification : notifications) {
                 deleteEnvelopeFiles(collectCleanupPaths(notification.getSession().getEnvelopes()));
@@ -119,7 +124,7 @@ public class RelayDequeue {
         return new RelayQueueWorkResult(dead.mutation(), notifications, dead.cleanupPaths());
     }
 
-    private record RecipientFailure(MessageEnvelope envelope, String recipient) {}
+    record RecipientFailure(MessageEnvelope envelope, String recipient) {}
 
     private boolean smtp(RelaySession relay) {
         return "esmtp".equalsIgnoreCase(relay.getProtocol()) || "smtp".equalsIgnoreCase(relay.getProtocol())
@@ -204,21 +209,30 @@ public class RelayDequeue {
         return true;
     }
 
-    private List<RelaySession> persistPermanentNotifications(RelaySession relay, List<RecipientFailure> failures) {
-        List<RelaySession> notifications = new ArrayList<>();
-        if (!Config.getServer().getRelay().getBooleanProperty("bounce", true)) return notifications;
-        try {
-            for (RecipientFailure failure : failures) {
-                RelaySession notification = createBounceSession(relay, failure.envelope(), failure.recipient());
-                if (notification != null) notifications.add(notification);
-            }
-            return notifications;
-        } catch (RuntimeException e) {
-            for (RelaySession notification : notifications) {
-                deleteEnvelopeFiles(collectCleanupPaths(notification.getSession().getEnvelopes()));
-            }
-            throw e;
+    record PreparedNotifications(List<RelaySession> sessions, List<RecipientFailure> unprepared) {}
+
+    /**
+     * Prepares one notification per failure. Failures are reported per recipient instead of thrown:
+     * a thrown exception leaves the item claimed, so reclaiming it re-delivers recipients that
+     * already accepted the message and an expired item could never be retired.
+     */
+    private PreparedNotifications prepareNotifications(RelaySession relay, List<RecipientFailure> failures) {
+        List<RelaySession> sessions = new ArrayList<>();
+        List<RecipientFailure> unprepared = new ArrayList<>();
+        if (!Config.getServer().getRelay().getBooleanProperty("bounce", true)) {
+            return new PreparedNotifications(sessions, unprepared);
         }
+        for (RecipientFailure failure : failures) {
+            try {
+                RelaySession notification = createBounceSession(relay, failure.envelope(), failure.recipient());
+                if (notification != null) sessions.add(notification);
+            } catch (RuntimeException e) {
+                log.error("Delivery status notification not prepared, keeping recipient queued: uid={}, error={}",
+                        relay.getSession().getUID(), e.getMessage());
+                unprepared.add(failure);
+            }
+        }
+        return new PreparedNotifications(sessions, unprepared);
     }
 
     RelayQueueWorkResult expireClaimedItem(QueueItem<RelaySession> item) {
@@ -234,10 +248,39 @@ public class RelayDequeue {
 
     private RelayQueueWorkResult deadSession(QueueItem<RelaySession> item, RelaySession session,
                                             List<Path> cleanupPaths, String error) {
-        List<RelaySession> bounces = Config.getServer().getRelay().getBooleanProperty("bounce", true)
-                ? generateBounces(session) : List.of();
+        PreparedNotifications prepared = Config.getServer().getRelay().getBooleanProperty("bounce", true)
+                ? generateBounces(session) : new PreparedNotifications(List.of(), List.of());
+        if (!prepared.unprepared().isEmpty()) {
+            return awaitNotifications(item, session, cleanupPaths, prepared, error);
+        }
         item.setPayload(session).setRetryCount(session.getRetryCount()).dead(error);
-        return new RelayQueueWorkResult(QueueMutation.dead(item, error), bounces, cleanupPaths);
+        return new RelayQueueWorkResult(QueueMutation.dead(item, error), prepared.sessions(), cleanupPaths);
+    }
+
+    /**
+     * Enqueues the prepared notifications and retires their recipients, keeping only recipients
+     * whose notification is still owed. Dead-lettering now would lose those notifications.
+     */
+    private RelayQueueWorkResult awaitNotifications(QueueItem<RelaySession> item, RelaySession session,
+                                                   List<Path> cleanupPaths, PreparedNotifications prepared,
+                                                   String error) {
+        Set<RecipientFailure> owed = new LinkedHashSet<>(prepared.unprepared());
+        List<MessageEnvelope> retired = new ArrayList<>();
+        for (MessageEnvelope envelope : session.getSession().getEnvelopes()) {
+            if (envelope.getRcpts() != null) {
+                envelope.setRcpts(new ArrayList<>(envelope.getRcpts().stream()
+                        .filter(recipient -> owed.contains(new RecipientFailure(envelope, recipient))).toList()));
+            }
+            if (envelope.getRcpts() == null || envelope.getRcpts().isEmpty()) retired.add(envelope);
+        }
+        session.getSession().getEnvelopes().removeAll(retired);
+        List<Path> paths = new ArrayList<>(cleanupPaths);
+        paths.addAll(collectCleanupPaths(retired));
+        item.setPayload(session).setRetryCount(session.getRetryCount());
+        RESCHEDULE_COUNT.incrementAndGet();
+        long nextAttempt = java.time.Instant.now().getEpochSecond() + NOTIFICATION_RETRY_SECONDS;
+        return new RelayQueueWorkResult(QueueMutation.reschedule(item, nextAttempt, error),
+                prepared.sessions(), paths);
     }
 
     boolean isReadyForRetry(RelaySession relaySession, long currentEpochSeconds) {
@@ -389,7 +432,7 @@ public class RelayDequeue {
         return RESCHEDULE_COUNT.get();
     }
 
-    List<RelaySession> generateBounces(RelaySession relaySession) {
+    PreparedNotifications generateBounces(RelaySession relaySession) {
         List<RecipientFailure> failures = new ArrayList<>();
         List<MessageEnvelope> remainingEnvelopes = relaySession.getSession().getEnvelopes();
         for (MessageEnvelope envelope : remainingEnvelopes) {
@@ -399,10 +442,10 @@ public class RelayDequeue {
                 }
             }
         }
-        List<RelaySession> bounces = persistPermanentNotifications(relaySession, failures);
+        PreparedNotifications bounces = prepareNotifications(relaySession, failures);
 
-        log.warn("Max retries reached: uid={}, generatedBounces={}",
-                relaySession.getSession().getUID(), bounces.size());
+        log.warn("Max retries reached: uid={}, generatedBounces={}, pendingBounces={}",
+                relaySession.getSession().getUID(), bounces.sessions().size(), bounces.unprepared().size());
         return bounces;
     }
 
