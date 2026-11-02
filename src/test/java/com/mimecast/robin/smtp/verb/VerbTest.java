@@ -77,6 +77,23 @@ class VerbTest {
     }
 
     @Test
+    void mailWithEqualsInLocalPart() throws IOException, AddressException {
+        MailVerb verb;
+        verb = new MailVerb(new Verb("MAIL FROM:<bounce+35191d.196cff-abuse=info.example.com@reports.example.net> SIZE=3456"));
+        assertEquals(new InternetAddress("bounce+35191d.196cff-abuse=info.example.com@reports.example.net"), verb.getAddress());
+        assertEquals(3456, verb.getSize());
+
+        verb = new MailVerb(new Verb("RCPT TO:<SRS0=HHH=TT=example.org=alice@example.com> NOTIFY=FAILURE"));
+        assertEquals(new InternetAddress("SRS0=HHH=TT=example.org=alice@example.com"), verb.getAddress());
+        assertArrayEquals(new String[]{"FAILURE"}, verb.getNotify());
+
+        verb = new MailVerb(new Verb("rcpt to: <a=b@example.com>"));
+        assertEquals(new InternetAddress("a=b@example.com"), verb.getAddress());
+
+        assertThrows(IOException.class, () -> new MailVerb(new Verb("RCPT FROM:<tony@example.com>")).getAddress());
+    }
+
+    @Test
     void auth() {
         AuthVerb verb;
         verb = new AuthVerb(new Verb("AUTH PLAIN dGVzdAB0ZXN0ADEyMzQ="));

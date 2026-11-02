@@ -70,4 +70,21 @@ class ServerRcptTest {
         // Recipient should NOT be added to envelope on failure.
         assertTrue(connection.getSession().getEnvelopes().getLast().getRcpts().isEmpty());
     }
+
+    @Test
+    void processWithEqualsInLocalPart() throws IOException {
+        StringBuilder stringBuilder = new StringBuilder();
+        ConnectionMock connection = new ConnectionMock(stringBuilder);
+        connection.getSession().addEnvelope(new MessageEnvelope());
+
+        Verb verb = new Verb("RCPT TO:<SRS0=HHH=TT=example.org=alice@example.com> NOTIFY=FAILURE");
+
+        ServerRcpt rcpt = new ServerRcpt();
+        boolean process = rcpt.process(connection, verb);
+
+        assertTrue(process);
+        assertEquals("SRS0=HHH=TT=example.org=alice@example.com", rcpt.getAddress().getAddress());
+        assertEquals("SRS0=HHH=TT=example.org=alice@example.com",
+                connection.getSession().getEnvelopes().getLast().getRcpts().get(0));
+    }
 }

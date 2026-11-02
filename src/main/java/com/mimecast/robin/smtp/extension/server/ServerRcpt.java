@@ -18,7 +18,6 @@ import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.smtp.verb.MailVerb;
 import com.mimecast.robin.smtp.verb.Verb;
 
-import javax.mail.internet.AddressException;
 import javax.mail.internet.InternetAddress;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -411,11 +410,7 @@ public class ServerRcpt extends ServerMail {
     @Override
     public InternetAddress getAddress() throws IOException {
         if (address == null) {
-            try {
-                address = new InternetAddress(verb.getParam("to"));
-            } catch (AddressException e) {
-                throw new IOException(e);
-            }
+            address = new MailVerb(verb).getAddress();
         }
 
         return address;

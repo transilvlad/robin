@@ -5,6 +5,8 @@ import org.apache.commons.lang3.StringUtils;
 import javax.mail.internet.AddressException;
 import javax.mail.internet.InternetAddress;
 import java.io.IOException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * MAIL verb.
@@ -17,6 +19,10 @@ import java.io.IOException;
  * @see <a href="https://tools.ietf.org/html/rfc6152">RFC 6152</a>
  */
 public class MailVerb extends Verb {
+    private static final Pattern MAIL_FROM = Pattern.compile(
+            "^MAIL\\s+FROM:\\s*(\\S+)(?:\\s+.*)?$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern RCPT_TO = Pattern.compile(
+            "^RCPT\\s+TO:\\s*(\\S+)(?:\\s+.*)?$", Pattern.CASE_INSENSITIVE);
 
     /**
      * TO address.
@@ -74,10 +80,12 @@ public class MailVerb extends Verb {
             return address;
         }
 
+        // The path is read from the raw command because the tokenized parts also split on '=',
+        // which is valid in a local part (VERP, SRS) and would truncate the address.
         // If MAIL FROM.
         if (parts[0].equalsIgnoreCase("mail")) {
             try {
-                String from = getParam("from").replace("<>", "");
+                String from = getPath(MAIL_FROM, "Expected MAIL FROM with a reverse-path").replace("<>", "");
                 address = StringUtils.isNotBlank(from) ? new InternetAddress(from) : new InternetAddress();
             } catch (AddressException e) {
                 throw new IOException(e);
@@ -87,13 +95,29 @@ public class MailVerb extends Verb {
         // If RCPT TO.
         if (parts[0].equalsIgnoreCase("rcpt")) {
             try {
-                address = new InternetAddress(getParam("to"));
+                address = new InternetAddress(getPath(RCPT_TO, "Expected RCPT TO with a forward-path"));
             } catch (AddressException e) {
                 throw new IOException(e);
             }
         }
 
         return address;
+    }
+
+    /**
+     * Gets the path argument of a MAIL FROM or RCPT TO command.
+     *
+     * @param pattern Command pattern with the path as its first group.
+     * @param error   Error message when the command does not match.
+     * @return Path string including any angle brackets.
+     * @throws AddressException Command has no path.
+     */
+    private String getPath(Pattern pattern, String error) throws AddressException {
+        Matcher matcher = pattern.matcher(getCommand());
+        if (!matcher.matches()) {
+            throw new AddressException(error);
+        }
+        return matcher.group(1);
     }
 
     /**
