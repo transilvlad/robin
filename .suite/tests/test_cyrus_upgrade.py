@@ -223,6 +223,17 @@ class CyrusUpgradeTest(unittest.TestCase):
         self.assertNotIn("jmap", (ROOT / "mailbox/cyrus.yaml").read_text().lower())
         self.assertNotIn("8008", (ROOT / "etc/cyrus/cyrus.conf").read_text())
 
+    def test_candidate_uses_reviewed_paired_bases_and_preserves_chardet_capability(self):
+        dockerfile = (ROOT / "cyrus/Dockerfile.jmap").read_text()
+        self.assertIn("ARG CYRUS_BASE_IMAGE=ubuntu:26.04@sha256:", dockerfile)
+        self.assertEqual(2, dockerfile.count("FROM ${CYRUS_BASE_IMAGE}"))
+        self.assertIn("Unreviewed Cyrus base image", dockerfile)
+        self.assertIn("Intermediate releases require the reviewed Debian base", dockerfile)
+        self.assertIn("debian:bookworm-slim@sha256:", dockerfile)
+        self.assertIn("set -- --without-chardet", dockerfile)
+        self.assertIn("libssl3t64 libical3t64 libxml2-16 libicu78", dockerfile)
+        self.assertIn('org.opencontainers.image.base.name="${CYRUS_BASE_IMAGE}"', dockerfile)
+
     def test_jmap_indexing_checks_actual_xapian_guid_entries(self):
         rolling = (ROOT / "etc/cyrus/cyrus-jmap.conf").read_text()
         offline = (ROOT / "cyrus/offline-upgrade.sh").read_text()
@@ -259,6 +270,14 @@ class CyrusUpgradeTest(unittest.TestCase):
         self.assertIn("sha256sum -c -", dockerfile)
         self.assertIn("make -j2", dockerfile)
         self.assertIn("--uid 101", dockerfile)
+
+    def test_runtime_reserves_cyrus_uid_before_packages_create_system_users(self):
+        dockerfile = (ROOT / "cyrus/Dockerfile.jmap").read_text()
+        runtime = dockerfile.rsplit("FROM ${CYRUS_BASE_IMAGE}", 1)[1]
+        self.assertLess(runtime.index("useradd --system --uid 101"), runtime.index("apt-get install"))
+        self.assertIn("usermod --append --groups sasl cyrus", runtime)
+        self.assertIn("/usr/local/bin/suite-cyrus-verify-stage",
+                      next(line for line in runtime.splitlines() if line.startswith("RUN chmod 755")))
 
     def test_current_stage_must_be_verified_before_next_stage(self):
         script = (ROOT / "cyrus/offline-upgrade.sh").read_text()

@@ -29,10 +29,22 @@ release asset metadata on 2026-10-27, are:
 | 3.12.4 | `87a39e27208d9019f00608483d532eb05bd0d71394a6f3f8bb05a72833ad8d91` |
 
 `.suite/cyrus/Dockerfile.jmap` permits only those version/hash pairs and builds
-with two jobs, stack protection, FORTIFY and full RELRO. The tarball is pinned;
-Debian base/apt inputs are not a reproducible distro snapshot. Preserve built
-image IDs and package inventories, scan the resulting images, and review updates
-before production. A version pin is not a perpetual security guarantee.
+with two jobs, stack protection, FORTIFY and full RELRO. Its default 3.12.4 build
+uses the same digest-pinned Ubuntu 26.04 LTS base for builder and runtime.
+Intermediate releases explicitly select the reviewed digest-pinned Debian
+Bookworm base. Mixed-distribution binaries or unreviewed bases are refused.
+APT packages are updated during construction; this is not a reproducible distro
+snapshot. Preserve exact built image IDs and package inventories, scan resulting
+images and review updates before production.
+
+The LTS rebuild addresses unresolved Bookworm library advisories found in the
+previously accepted image. XML parsing is present in vCard/SVG handling and must
+not be dismissed without checking the actual code path. Ubuntu's vendor packages
+fix the identified original critical library advisories. The new build preserves
+the observed `dependency.chardet=false` capability rather than automatically
+enabling the newer optional library. This source change is not new image
+acceptance: scan the exact result and repeat appropriate protocol, native-search,
+actual-data and recovery gates before promotion.
 
 ## Authentication And Submission
 
@@ -76,6 +88,18 @@ stop, restart or delete services/volumes for you.
    the suite recovery guide. Its cold PostgreSQL + queue + payload backup is
    broader than this Cyrus-only snapshot. Do not restore just the mailboxes
    against an independently rewound or still-processing mail queue/database.
+   Independently audit every effective runtime mount and referenced Compose
+   include, entrypoint, configuration and secret against the protected backup.
+   The earlier recovery helper could omit deployment inputs even when it wrote
+   `COMPLETE`. The current helper records an expanded deployment-input inventory
+   and private resolved Compose model, and rejects incomplete or incompatible
+   restores before data writes. These guards are not acceptance of an earlier
+   archive or a fresh current-suite recovery. Preserve local overlays such as
+   `store/local`, all referenced inputs and exact images; restore from the
+   audited effective runtime, not an unrelated dirty generic Compose chain.
+   Live row previews are not a coordinated snapshot. Preserve all PostgreSQL
+   physical files and state exactly which complete table-row sets were compared
+   on restoration.
 4. Take the Cyrus-specific snapshot:
 
 ```sh
@@ -120,9 +144,11 @@ the shared Docker slot is available. Do not use the legacy tag `:local`:
 
 ```sh
 docker build -f .suite/cyrus/Dockerfile.jmap -t robin-suite-cyrus:3.8.8-jmap \
+  --build-arg CYRUS_BASE_IMAGE=debian:bookworm-slim@sha256:99c0b25c46d0214d5a2091092e7908907dcaecd6a962cde0ac700acee222b6f3 \
   --build-arg CYRUS_VERSION=3.8.8 \
   --build-arg CYRUS_SHA256=13d10babf2e8bb753c5b8fe37328f6f9d43527539957561b840ebfa24a518b61 .suite/cyrus
 docker build -f .suite/cyrus/Dockerfile.jmap -t robin-suite-cyrus:3.10.4-jmap \
+  --build-arg CYRUS_BASE_IMAGE=debian:bookworm-slim@sha256:99c0b25c46d0214d5a2091092e7908907dcaecd6a962cde0ac700acee222b6f3 \
   --build-arg CYRUS_VERSION=3.10.4 \
   --build-arg CYRUS_SHA256=7ec307f26c7cf12cc59a2c9b59bef4186e51e0c31d933180558289f5ca837860 .suite/cyrus
 docker build -f .suite/cyrus/Dockerfile.jmap -t robin-suite-cyrus:3.12.4-jmap .suite/cyrus
