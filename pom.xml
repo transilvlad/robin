@@ -22,7 +22,7 @@
         <jmh.version>1.37</jmh.version>
         <rocksdb.version>11.8.1</rocksdb.version>
         <jackson.version>2.22.4</jackson.version>
-        <lz4.version>1.12.1</lz4.version>
+        <lz4.version>1.13.0</lz4.version>
         <!-- Integration tests need the .suite stack; .suite/run-tests.sh clears this -->
         <test.excludedGroups>integration</test.excludedGroups>
     </properties>
