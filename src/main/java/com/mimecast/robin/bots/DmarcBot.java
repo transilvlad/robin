@@ -116,7 +116,7 @@ public class DmarcBot implements BotProcessor {
                 
                 // For octet-stream, check filename extension
                 if (contentType.contains("application/octet-stream") && filename != null) {
-                    String lowerFilename = filename.toLowerCase();
+                    String lowerFilename = filename.toLowerCase(java.util.Locale.ROOT);
                     if (lowerFilename.endsWith(".gz") || lowerFilename.endsWith(".gzip")) {
                         return extractFromGzip(part);
                     } else if (lowerFilename.endsWith(".zip")) {
@@ -138,49 +138,14 @@ public class DmarcBot implements BotProcessor {
      */
     private String getContentType(MimePart part) {
         MimeHeader ctHeader = part.getHeader("Content-Type");
-        return ctHeader != null ? ctHeader.getValue().toLowerCase() : null;
+        return ctHeader != null ? ctHeader.getCleanValue().toLowerCase(java.util.Locale.ROOT) : null;
     }
 
     /**
      * Gets filename from Content-Disposition (filename=) or Content-Type (name=).
      */
     private String getFilename(MimePart part) {
-        // Try Content-Disposition filename= first
-        MimeHeader cdHeader = part.getHeader("Content-Disposition");
-        if (cdHeader != null) {
-            String filename = extractParameter(cdHeader.getValue(), "filename=");
-            if (filename != null) return filename;
-        }
-        
-        // Fall back to Content-Type name= parameter
-        MimeHeader ctHeader = part.getHeader("Content-Type");
-        if (ctHeader != null) {
-            String name = extractParameter(ctHeader.getValue(), "name=");
-            if (name != null) return name;
-        }
-        
-        return null;
-    }
-    
-    /**
-     * Extracts a parameter value from a header (e.g., filename= or name=).
-     */
-    private String extractParameter(String headerValue, String paramName) {
-        int idx = headerValue.toLowerCase().indexOf(paramName.toLowerCase());
-        if (idx >= 0) {
-            String value = headerValue.substring(idx + paramName.length()).trim();
-            // Remove quotes if present
-            if (value.startsWith("\"")) {
-                int endQuote = value.indexOf("\"", 1);
-                if (endQuote > 0) {
-                    return value.substring(1, endQuote);
-                }
-            }
-            // No quotes - take until semicolon or end
-            int semi = value.indexOf(";");
-            return semi > 0 ? value.substring(0, semi).trim() : value.trim();
-        }
-        return null;
+        return part.getHeaders().getFileName();
     }
 
     /**

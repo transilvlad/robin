@@ -4,6 +4,7 @@ import com.google.common.primitives.Bytes;
 import com.mimecast.robin.mime.headers.MimeHeader;
 
 import java.io.*;
+import java.nio.file.Files;
 import java.security.SecureRandom;
 
 /**
@@ -25,6 +26,8 @@ public class FileMimePart extends MimePart implements Closeable {
      * File instance if any.
      */
     protected File file;
+    private boolean closed;
+    private boolean ownsFile;
 
     /**
      * Constructs a new FileMimePart instance.
@@ -40,9 +43,7 @@ public class FileMimePart extends MimePart implements Closeable {
      * @throws IOException Unable to open/read from file.
      */
     public FileMimePart(File file) throws IOException {
-        this.file = file;
-        body = new BufferedInputStream(new FileInputStream(file), defaultBufferSize);
-        body.mark(defaultBufferSize);
+        this(file.getPath(), 8192);
     }
 
     /**
@@ -52,8 +53,7 @@ public class FileMimePart extends MimePart implements Closeable {
      * @throws IOException Unable to open/read from file.
      */
     public FileMimePart(String path) throws IOException {
-        body = new BufferedInputStream(new FileInputStream(path), defaultBufferSize);
-        body.mark(defaultBufferSize);
+        this(path, 8192);
     }
 
     /**
@@ -64,8 +64,28 @@ public class FileMimePart extends MimePart implements Closeable {
      * @throws IOException Unable to open/read from file.
      */
     public FileMimePart(String path, int bufferSize) throws IOException {
-        body = new BufferedInputStream(new FileInputStream(path), bufferSize);
-        body.mark(bufferSize);
+        if (bufferSize <= 0) {
+            throw new IllegalArgumentException("Buffer size must be positive");
+        }
+        file = new File(path);
+        defaultBufferSize = bufferSize;
+        try (InputStream ignored = new FileInputStream(file)) {
+            // Validate at construction without retaining a file handle.
+        }
+    }
+
+    /**
+     * Takes ownership of a temporary file, deleting it when the part is closed.
+     * Ordinary constructors borrow their source and never delete it.
+     *
+     * @param file Temporary backing file.
+     * @return An owned file part.
+     * @throws IOException Unable to open the file.
+     */
+    public static FileMimePart temporary(File file) throws IOException {
+        FileMimePart part = new FileMimePart(file);
+        part.ownsFile = true;
+        return part;
     }
 
     /**
@@ -106,8 +126,14 @@ public class FileMimePart extends MimePart implements Closeable {
      * @throws IOException Unable to read stream.
      */
     @Override
-    public byte[] getBytes() throws IOException {
-        byte[] bytes = super.getBytes();
+    public synchronized byte[] getBytes() throws IOException {
+        if (closed || file == null) {
+            throw new IOException("File MIME part is closed or has no backing file");
+        }
+        byte[] bytes;
+        try (InputStream input = new BufferedInputStream(new FileInputStream(file), defaultBufferSize)) {
+            bytes = input.readAllBytes();
+        }
 
         if (appendRandomBytes > 0) {
             byte[] randomBytes = new byte[appendRandomBytes];
@@ -129,17 +155,21 @@ public class FileMimePart extends MimePart implements Closeable {
     }
 
     /**
-     * Closes the backing file input stream so the temporary file can be deleted.
-     * <p>An open handle blocks file deletion on Windows and leaks a file
-     * descriptor on any OS, so the stream must be closed before the temp file is
-     * removed.
+     * Closes this part and deletes its backing file only if ownership was transferred
+     * through {@link #temporary(File)}. Repeated calls retry only a failed deletion;
+     * successful deletion or an already absent path relinquishes ownership.
      *
      * @throws IOException If closing the stream fails.
      */
     @Override
-    public void close() throws IOException {
+    public synchronized void close() throws IOException {
+        closed = true;
         if (body != null) {
             body.close();
+        }
+        if (ownsFile) {
+            Files.deleteIfExists(file.toPath());
+            ownsFile = false;
         }
     }
 }

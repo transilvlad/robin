@@ -35,7 +35,7 @@ The class implements `AutoCloseable` and is intended to be used in a try-with-re
 | `Message searchByMessageId(String messageId)` | Server-side IMAP SEARCH by Message-ID header. More efficient for large mailboxes. |
 | `boolean deleteMessage(Message message)` | Deletes a single message from the mailbox. |
 | `int purgeFolder()` | Deletes all messages in the configured folder. Returns count or -1 on error. |
-| `List<MimePart> extractMimeParts(Message message)` | Extracts MIME parts using the built-in EmailParser. Returns raw MimePart objects. |
+| `List<MimePart> extractMimeParts(Message message)` | Extracts MIME parts using the built-in EmailParser. Caller must close returned FileMimeParts. |
 | `List<PartDescriptor> extractParts(Message message)` | Extracts MIME parts as PartDescriptor records with headers, body, hashes, and size. |
 
 ### Basic example
@@ -109,6 +109,20 @@ Notes and tips
 - `purgeFolder()` deletes all messages in the configured folder - use with caution in production.
 - `extractParts(...)` and `extractMimeParts(...)` use the built-in `EmailParser` to parse MIME structures,
   supporting Base64/Quoted-Printable decoding and SHA-1/SHA-256/MD5 hash calculation.
+- Extraction serializes the supplied message to a temporary source, deleted before the call
+  returns. It does not open a mailbox itself. Serialization/parsing/read errors are logged
+  and return an empty list, not partial descriptors with failed bodies disguised as empty text.
+- `extractParts(...)` owns and cleans its parser's temporary files before returning.
+  Multipart wrappers retain header-only descriptors with empty body, zero size, and no
+  hashes. Text uses usable declared charsets; binary descriptor strings retain platform-default
+  decoding and are not a lossless binary API. Use sizes/hashes or raw parts for binary checks.
+- `extractMimeParts(...)` transfers ownership. Returned file parts, including enclosed-message
+  containers, remain readable independently of the client until the caller closes each one.
+  Closing them deletes their parser-created temporary files; closing the client does not.
+  Use `try/finally` and attempt all closes even if one fails. Multipart wrappers have no payload.
+- Both methods retain the parser's flat list, including message containers before descendants.
+  Match metadata rather than relying on old positional counts. Descriptor strings necessarily
+  retain their total text in memory; extraction is not a constant-memory streaming API.
 
 Limitations
 -----------

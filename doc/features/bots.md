@@ -12,6 +12,18 @@ Robin supports automated email infrastructure analysis bots that can receive ema
 
 ## How It Works
 
+Report attachment selection shares the MIME library's supplied-filename decoding.
+DMARC and TLS report bots recognize ordinary filename/name parameters and
+single-segment RFC 2231 extended values, including Unicode filenames. Disposition
+filenames take precedence over Content-Type names, and plain parameters take
+precedence over extended values. Numbered parameter continuations are not supported.
+
+Forensic reports retain enclosed message containers as well as their flattened
+parts. The first original-header source supplies the original header block and
+Subject; the enclosed body and later nested messages do not overwrite that header
+source. File-backed parts remain available throughout shared bot processing and
+are released when the shared parser closes.
+
 When an email is sent to a configured bot address:
 
 1. **Detection**: The `ServerRcpt` processor checks if the recipient matches any bot address patterns

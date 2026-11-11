@@ -40,6 +40,90 @@ created for MIME parts. Always use try-with-resources or manually call `close()`
 - **Attachment Detection** - Classifies and identifies attachments by MIME type.
 - **Automatic Cleanup** - Temporary part files are automatically deleted when parser is closed.
 
+### Content and structure contracts
+
+The result is a flat, wire-order list, not a MIME tree or a display-body selection.
+Multipart wrappers have headers but no body stream; do not call `getBytes()` on them.
+Nested `message/rfc822` members include a file-backed container **before** their
+existing flattened descendants. The container retains the decoded enclosed message,
+including its original headers, and its own attachment/CID metadata. Account for
+these containers when matching parts by index or selecting files for scanning.
+Top-level encapsulated messages may remain opaque. Expansion is limited to ten
+nesting levels; deeper structures remain opaque.
+
+Untyped roots and ordinary children default to `text/plain`; untyped direct
+`multipart/digest` children default to `message/rfc822`. Empty implicit trailing
+digest entries are not attachments, while explicit empty attachment metadata is
+retained. Effective defaults appear in part metadata, not fabricated wire headers.
+Full parsing moves root Content-* headers into root part metadata; headers-only
+parsing retains them in the message header collection.
+
+The first empty physical line terminates headers, even after a semicolon.
+Folding is accepted before that separator, not repaired across it. Multipart
+preambles/epilogues are ignored. Delimiters start at column zero and may have
+trailing ASCII spaces/tabs; indented boundary-like lines remain body content.
+Media types are compared case-insensitively without changing boundary or
+filename values. A multipart lacking its boundary parameter is retained opaquely
+with a warning rather than inferring a parameter from its body.
+
+`getBytes()`, size, and hashes describe transfer-decoded bytes, independently of
+text conversion. The parser retains boundary-adjacent line endings in part bytes.
+Quoted-printable accepts both CRLF and LF soft breaks while preserving unrelated
+hard line breaks. Invalid quoted-printable produces a warning and retains the
+complete encoded payload; this is recovery, not successful transfer decoding.
+
+`TextMimePart.getContent()` honors a supported declared charset when strict
+conversion succeeds. Missing, unsupported, or unusable declarations use charset
+detection (with a warning for unusable declarations), then the platform default
+if detection has no result. A usable declaration wins even when another charset
+would produce more plausible text. This does not change `getBytes()` or hashes.
+
+`MimeHeaders.getFileName()` returns a supplied name or null, preferring
+Content-Disposition over Content-Type and plain parameters over extended ones.
+Single-segment RFC 2231 values are decoded; numbered continuations are not supported.
+
+### Part ownership
+
+`getParts()` is borrowed from the parser: consume file-backed parts before closing
+it. `FileMimePart` reads are repeatable, including beyond 8 KiB. Ordinary file/path
+constructors borrow their source file and never delete it on close.
+`FileMimePart.temporary(file)` transfers file ownership; closing it deletes the file.
+Reads after close fail. A failed deletion is reported and may be retried by closing
+again. Successful deletion or an already absent path ends ownership; later closes
+do not delete a replacement file created at the same path.
+
+To keep parsed parts after closing the parser, explicitly transfer ownership:
+
+```java
+List<MimePart> parts;
+try (EmailParser parser = new EmailParser("message.eml")) {
+    parser.parse();
+    parts = parser.detachParts();
+}
+try {
+    // Read parts; multipart wrappers have no payload.
+} finally {
+    IOException failure = null;
+    for (MimePart part : parts) {
+        if (part instanceof FileMimePart filePart) {
+            try {
+                filePart.close();
+            } catch (IOException e) {
+                if (failure == null) failure = e;
+                else failure.addSuppressed(e);
+            }
+        }
+    }
+    if (failure != null) throw failure;
+}
+```
+
+`detachParts()` requires a completed full parse and an open ownership scope.
+It clears the parser's list; subsequent calls return an empty list. The caller
+must close every returned file part, including enclosed-message containers.
+If cleanup can fail, ensure the caller still attempts to close all remaining
+parts rather than stopping at the first failure.
+
 ### Basic Usage
 
 #### Parse Email from File
@@ -51,6 +135,7 @@ When parsing completes, temporary attachment files are automatically deleted via
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.headers.MimeHeaders;
 import com.mimecast.robin.mime.parts.MimePart;
+import com.mimecast.robin.mime.parts.FileMimePart;
 import java.io.IOException;
 import java.util.List;
 
@@ -150,12 +235,16 @@ headers.startsWith("x-custom-").forEach(header -> {
 ```java
 import com.mimecast.robin.mime.parts.MimePart;
 import com.mimecast.robin.mime.parts.TextMimePart;
+import com.mimecast.robin.mime.parts.MultipartMimePart;
 
 List<MimePart> parts = parser.getParts();
 
 for (MimePart part : parts) {
     // Get part metadata.
-    int size = part.getSize();
+    long size = part.getSize();
+    if (part instanceof MultipartMimePart) {
+        continue; // Structural wrapper, not payload.
+    }
     byte[] content = part.getBytes();
     
     // Get content type.
@@ -173,7 +262,7 @@ for (MimePart part : parts) {
     // Check if this is a text part.
     if (part instanceof TextMimePart) {
         TextMimePart textPart = (TextMimePart) part;
-        String text = new String(textPart.getBytes());
+        String text = textPart.getContent();
         System.out.println("Text: " + text);
     }
     

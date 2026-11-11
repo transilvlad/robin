@@ -11,7 +11,6 @@ import com.mimecast.robin.util.QuotedPrintableDecoder;
 import com.mimecast.robin.util.UuencodeDecoder;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Base64;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -21,6 +20,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Locale;
 
 /**
  * EmailParser is a standalone MIME email parser that extracts email headers, body content,
@@ -70,7 +70,7 @@ public class EmailParser implements AutoCloseable {
 
     /**
      * Checks whether a line is a MIME part boundary delimiter, per RFC 2046: "--" followed by
-     * the boundary value, alone on the line (aside from surrounding whitespace/line terminator).
+     * the boundary value at column zero, with optional trailing SP/TAB.
      * <p>Deliberately exact rather than a substring check, so body content that merely mentions
      * the boundary token cannot be mistaken for a real delimiter and desynchronize parsing.
      *
@@ -79,7 +79,7 @@ public class EmailParser implements AutoCloseable {
      * @return true if the line is the mid-part delimiter "--boundary".
      */
     private static boolean isBoundaryLine(String line, String boundary) {
-        return boundary != null && !boundary.isEmpty() && line.trim().equals("--" + boundary);
+        return matchesBoundary(line, boundary, false);
     }
 
     /**
@@ -91,7 +91,25 @@ public class EmailParser implements AutoCloseable {
      * @see #isBoundaryLine(String, String)
      */
     private static boolean isEndBoundaryLine(String line, String boundary) {
-        return boundary != null && !boundary.isEmpty() && line.trim().equals("--" + boundary + "--");
+        return matchesBoundary(line, boundary, true);
+    }
+
+    private static String withoutLineEnding(String line) {
+        int end = line.length();
+        if (end > 0 && line.charAt(end - 1) == '\n') end--;
+        if (end > 0 && line.charAt(end - 1) == '\r') end--;
+        return line.substring(0, end);
+    }
+
+    private static boolean matchesBoundary(String line, String boundary, boolean closing) {
+        if (boundary == null || boundary.isEmpty()) return false;
+        String value = withoutLineEnding(line);
+        String delimiter = "--" + boundary + (closing ? "--" : "");
+        if (!value.startsWith(delimiter)) return false;
+        for (int i = delimiter.length(); i < value.length(); i++) {
+            if (value.charAt(i) != ' ' && value.charAt(i) != '\t') return false;
+        }
+        return true;
     }
 
     /**
@@ -111,6 +129,24 @@ public class EmailParser implements AutoCloseable {
      * Includes both inline content and attachments, maintaining structure and metadata.
      */
     private final List<MimePart> parts = new ArrayList<>();
+    private final List<FileMimePart> ownedParts = new ArrayList<>();
+    private boolean closed;
+    private byte[] pendingLine;
+    private final List<String> activeBoundaries = new ArrayList<>();
+
+    private byte[] readLine() throws IOException {
+        if (pendingLine == null) return stream.readLine();
+        byte[] line = pendingLine;
+        pendingLine = null;
+        return line;
+    }
+
+    private boolean atBoundary(String line) {
+        for (String boundary : activeBoundaries) {
+            if (isBoundaryLine(line, boundary) || isEndBoundaryLine(line, boundary)) return true;
+        }
+        return false;
+    }
 
     /**
      * Whether this single-pass parser has completed parsing.
@@ -176,8 +212,8 @@ public class EmailParser implements AutoCloseable {
      * Constructs a new EmailParser instance from an existing LineInputStream.
      * <p>
      * Use this constructor for advanced scenarios such as parsing email content from
-     * network streams, memory buffers, or other custom input sources. The parser does
-     * not take ownership of the stream and will close it after parsing completes.
+     * network streams, memory buffers, or other custom input sources. The parser
+     * closes the supplied stream when parsing completes or the parser is closed.
      *
      * @param stream A pre-configured LineInputStream for reading email content
      * @see LineInputStream
@@ -212,11 +248,28 @@ public class EmailParser implements AutoCloseable {
      * </ul>
      * Each part includes metadata such as content type, encoding, size, and content hashes.
      *
-     * @return Unmodifiable list of MimePart objects
+     * @return Borrowed list of parts; file parts remain owned by this parser until detached.
      * @see MimePart
      */
     public List<MimePart> getParts() {
         return parts;
+    }
+
+    /**
+     * Transfers ownership of fully parsed parts to the caller. The caller must close
+     * each returned FileMimePart; closing this parser no longer releases those parts.
+     *
+     * @return Independent list of parts, empty after a previous transfer.
+     * @throws IllegalStateException If full parsing has not completed or this parser is closed.
+     */
+    public synchronized List<MimePart> detachParts() {
+        if (closed || !parsed || parsedHeadersOnly) {
+            throw new IllegalStateException("Parts can only be detached from a completed, open full parser");
+        }
+        List<MimePart> detached = new ArrayList<>(parts);
+        parts.clear();
+        ownedParts.removeAll(detached);
+        return detached;
     }
 
     /**
@@ -251,6 +304,9 @@ public class EmailParser implements AutoCloseable {
      * @throws IOException If an error occurs while reading the email file
      */
     public synchronized EmailParser parse(boolean headersOnly) throws IOException {
+        if (closed) {
+            throw new IllegalStateException("EmailParser is closed");
+        }
         if (parsed) {
             if (headersOnly || !parsedHeadersOnly) {
                 return this;
@@ -259,10 +315,7 @@ public class EmailParser implements AutoCloseable {
                     "Cannot fully parse an EmailParser that was already parsed in headers-only mode");
         }
 
-        EmailParser result = parse(headersOnly, 0);
-        parsed = true;
-        parsedHeadersOnly = headersOnly;
-        return result;
+        return parse(headersOnly, 0);
     }
 
     /**
@@ -275,15 +328,18 @@ public class EmailParser implements AutoCloseable {
      * @throws IOException If an error occurs while reading the email file
      */
     private EmailParser parse(boolean headersOnly, int depth) throws IOException {
-        parseHeaders();
-
-        if (!headersOnly) {
-            parseBody(depth);
+        try (stream) {
+            parseHeaders();
+            if (!headersOnly) {
+                parseBody(depth);
+            }
+            parsed = true;
+            parsedHeadersOnly = headersOnly;
+            return this;
+        } catch (IOException | RuntimeException e) {
+            close();
+            throw e;
         }
-
-        stream.close();
-
-        return this;
     }
 
     /**
@@ -297,58 +353,32 @@ public class EmailParser implements AutoCloseable {
      * @throws IOException If an error occurs while reading from the stream
      */
     private void parseHeaders() throws IOException {
-        byte[] bytes;
-        StringBuilder header = new StringBuilder();
-        while ((bytes = stream.readLine()) != null) {
-
-            String line = new String(bytes);
-
-            // If line doesn't start with a whitespace
-            // we need to produce a header from what we got so far
-            // if any.
-            if (!Character.isWhitespace(bytes[0]) && header.length() > 0) {
-                putIfValid(headers, header.toString());
-                header = new StringBuilder();
-            }
-
-            // Break if found end of headers.
-            if (StringUtils.isBlank(line.trim())) {
-                // Some malformed messages (commonly report/DSN-style) insert a spurious blank
-                // line in the middle of a folded parameterized header. If the header value being
-                // accumulated looks mid-fold (ends with ';') and the next line is itself a fold
-                // continuation (starts with whitespace), treat this blank line as noise rather
-                // than the real header/body separator.
-                if (header.toString().trim().endsWith(";") && nextByteIsFoldedContinuation()) {
-                    continue;
-                }
-                break;
-            }
-
-            header.append(line);
-        }
-
-        // Last header
-        if (header.length() > 0) {
-            putIfValid(headers, header.toString());
-        }
+        readHeaders(headers);
     }
 
-    /**
-     * Peeks the next byte to see if it looks like the start of a folded header continuation,
-     * i.e. whitespace. Only a single byte is ever read and pushed back (never a whole line),
-     * so this is safe regardless of the stream's configured pushback buffer size.
-     *
-     * @return true if there is a next byte and it is whitespace.
-     * @throws IOException If an error occurs while reading from the stream.
-     */
-    private boolean nextByteIsFoldedContinuation() throws IOException {
-        int nextByte = stream.read();
-        if (nextByte == -1) {
-            return false;
+    private boolean readHeaders(MimeHeaders target) throws IOException {
+        byte[] bytes;
+        StringBuilder header = new StringBuilder();
+        while ((bytes = readLine()) != null) {
+            String line = new String(bytes);
+            if (atBoundary(line)) {
+                pendingLine = bytes;
+                if (!header.isEmpty()) putIfValid(target, header.toString());
+                log.warn("MIME part ended before its header/body separator");
+                return false;
+            }
+            if (withoutLineEnding(line).isEmpty()) {
+                if (!header.isEmpty()) putIfValid(target, header.toString());
+                return true;
+            }
+            if (bytes[0] != ' ' && bytes[0] != '\t' && !header.isEmpty()) {
+                putIfValid(target, header.toString());
+                header.setLength(0);
+            }
+            header.append(line);
         }
-
-        stream.unread(nextByte);
-        return Character.isWhitespace(nextByte);
+        if (!header.isEmpty()) putIfValid(target, header.toString());
+        return false;
     }
 
     /**
@@ -382,35 +412,13 @@ public class EmailParser implements AutoCloseable {
      * @throws IOException If an error occurs while reading from the stream
      */
     private void parseBody(int depth) throws IOException {
-        Optional<MimeHeader> optional = headers.get("Content-Type");
-        if (optional.isPresent()) {
-            MimeHeader contentType = optional.get();
-            String boundary = contentType.getParameter("boundary");
-
-            MimePart part;
-            if (contentType.getValue().startsWith("multipart/")) {
-                part = new MultipartMimePart();
-
-            } else if (contentType.getValue().startsWith("text/")) {
-                part = parsePartContent(true, headers, boundary);
-
-            } else {
-                part = parsePartContent(false, headers, boundary);
-            }
-
-            // Move over part headers.
-            headers.startsWith("content-").forEach(part::addHeader);
-            part.getHeaders().get().forEach(headers::remove);
-
-            // Add part.
-            parts.add(part);
-
-            if (boundary == null || boundary.isEmpty()) {
-                parsePartContent(true, headers, "");
-            } else {
-                parsePart(boundary, depth);
-            }
+        MimeHeaders partHeaders = new MimeHeaders();
+        headers.startsWith("content-").forEach(partHeaders::put);
+        partHeaders.get().forEach(headers::remove);
+        if (partHeaders.get("Content-Type").isEmpty()) {
+            partHeaders.put(new MimeHeader("Content-Type", "text/plain"));
         }
+        parseEntity(partHeaders, null, depth, false);
     }
 
     /**
@@ -425,29 +433,12 @@ public class EmailParser implements AutoCloseable {
      * @return Filename string, or empty string if unable to determine
      */
     String getFileName(MimeHeaders headers) {
-        Optional<MimeHeader> optional = headers.get("Content-Disposition");
+        String supplied = headers.getFileName();
+        if (supplied != null) return supplied;
+
+        Optional<MimeHeader> optional = headers.get("Content-Type");
         if (optional.isPresent()) {
             MimeHeader header = optional.get();
-            String filename = header.getParameter("filename");
-            if (filename == null) {
-                filename = header.getExtendedParameter("filename");
-            }
-            if (filename != null) {
-                return filename;
-            }
-        }
-
-        optional = headers.get("Content-Type");
-        if (optional.isPresent()) {
-            MimeHeader header = optional.get();
-
-            String name = header.getParameter("name");
-            if (name == null) {
-                name = header.getExtendedParameter("name");
-            }
-            if (name != null) {
-                return name;
-            }
 
             String type = header.getCleanValue();
             if (type.equalsIgnoreCase("text/html")) {
@@ -459,10 +450,10 @@ public class EmailParser implements AutoCloseable {
             } else if (type.equalsIgnoreCase("text/calendar")) {
                 return "part." + parts.size() + ".cal";
 
-            } else if (type.toLowerCase().startsWith("image/")) {
+            } else if (type.toLowerCase(Locale.ROOT).startsWith("image/")) {
                 return "part." + parts.size() + ".img";
 
-            } else if (type.toLowerCase().startsWith("message/")) {
+            } else if (type.toLowerCase(Locale.ROOT).startsWith("message/")) {
                 return "rfc822." + parts.size() + ".eml";
 
             } else {
@@ -487,90 +478,80 @@ public class EmailParser implements AutoCloseable {
      * @param depth    Current nesting depth. See {@link #MAX_NESTING_DEPTH}.
      * @throws IOException If an error occurs while reading from the stream
      */
-    private void parsePart(String boundary, int depth) throws IOException {
-        MimeHeaders partHeaders = new MimeHeaders();
-        byte[] bytes;
-        StringBuilder header = new StringBuilder();
-        while ((bytes = stream.readLine()) != null) {
-
-            String line = new String(bytes);
-
-            // Break on end boundaries.
-            if (isEndBoundaryLine(line, boundary)) {
-                break;
-            }
-
-            // Skip boundaries.
-            if (isBoundaryLine(line, boundary)) {
-                continue;
-            }
-
-            // If line doens't start with a whitespace
-            // we need to produce a header from what we got so far
-            // if any.
-            if ((!Character.isWhitespace(bytes[0]) || line.trim().isEmpty()) && header.length() > 0) {
-                if (!header.toString().trim().isEmpty()) {
-                    putIfValid(partHeaders, header.toString().trim());
-                }
-                header = new StringBuilder();
-            }
-
-            // Break if found end of headers.
-            if (partHeaders.size() > 0 && StringUtils.isBlank(line.trim())) {
-
-                // If line doens't start with a whitespace
-                // we need to produce a header from what we got so far
-                // if any.
-                if (!header.toString().trim().isEmpty()) {
-                    putIfValid(partHeaders, header.toString().trim());
-                }
-
-                header = new StringBuilder();
-
-                // Find out which part it is.
-                MimePart part;
-                Optional<MimeHeader> optional = partHeaders.get("Content-Type");
-                if (optional.isPresent()) {
-                    MimeHeader ct = optional.get();
-                    boolean withinDepthLimit = depth < MAX_NESTING_DEPTH;
-
-                    if (ct.getValue().startsWith("multipart/") && withinDepthLimit) {
-                        part = new MultipartMimePart();
-                        partHeaders.get().forEach(h -> part.addHeader(h.getName(), h.getValue()));
-                        parts.add(part);
-                        parsePart(ct.getParameter("boundary"), depth + 1);
-
-                    } else if (ct.getValue().startsWith("message/rfc822") && withinDepthLimit) {
-                        part = parsePartContent(true, partHeaders, boundary);
-
-                        EmailParser rfc822 = new EmailParser(new LineInputStream(new ByteArrayInputStream(part.getBytes()), 1024))
-                                .parse(false, depth + 1);
-
-                        parts.addAll(rfc822.getParts());
-
-                    } else {
-                        if (!withinDepthLimit && (ct.getValue().startsWith("multipart/") || ct.getValue().startsWith("message/rfc822"))) {
-                            log.warn("MIME nesting depth limit ({}) reached, storing remaining structure as an opaque part", MAX_NESTING_DEPTH);
-                        }
-
-                        part = parsePartContent(ct.getValue().startsWith("text/") || ct.getValue().startsWith("message/"), partHeaders, boundary);
-
-                        partHeaders.get().forEach(h -> part.addHeader(h.getName(), h.getValue()));
-                        parts.add(part);
+    private void parsePart(String boundary, int depth, boolean digest) throws IOException {
+        activeBoundaries.add(boundary);
+        try {
+            byte[] bytes;
+            while ((bytes = readLine()) != null) {
+                String line = new String(bytes);
+                if (isEndBoundaryLine(line, boundary)) return;
+                if (isBoundaryLine(line, boundary)) {
+                    MimeHeaders partHeaders = new MimeHeaders();
+                    if (!readHeaders(partHeaders)) continue;
+                    boolean implicitMessage = digest && partHeaders.get("Content-Type").isEmpty();
+                    if (partHeaders.get("Content-Type").isEmpty()) {
+                        partHeaders.put(new MimeHeader("Content-Type", implicitMessage ? "message/rfc822" : "text/plain"));
                     }
-
-                    partHeaders = new MimeHeaders();
+                    parseEntity(partHeaders, boundary, depth, implicitMessage);
+                } else if (atBoundary(line)) {
+                    pendingLine = bytes;
+                    log.warn("Enclosing MIME boundary encountered before nested multipart closed");
+                    return;
                 }
             }
+            log.warn("Multipart ended without its closing MIME boundary");
+        } finally {
+            activeBoundaries.removeLast();
+        }
+    }
 
-            if (!line.trim().isEmpty()) {
-                header.append(line);
+    private void parseEntity(MimeHeaders partHeaders, String enclosingBoundary, int depth,
+                             boolean implicitMessage) throws IOException {
+        MimeHeader ct = partHeaders.get("Content-Type").orElseThrow();
+        String type = ct.getCleanValue().toLowerCase(Locale.ROOT);
+        String boundary = ct.getParameter("boundary");
+        boolean multipart = type.startsWith("multipart/");
+        boolean message = type.equals("message/rfc822");
+        boolean withinDepthLimit = depth < MAX_NESTING_DEPTH;
+        if (multipart && withinDepthLimit && boundary != null && !boundary.isEmpty()) {
+            MimePart part = new MultipartMimePart();
+            part.setHeaders(partHeaders);
+            parts.add(part);
+            parsePart(boundary, depth + 1, type.equals("multipart/digest"));
+            return;
+        }
+        if (multipart || (message && !withinDepthLimit)) {
+            log.warn("MIME structure is missing a boundary or exceeds nesting limit; retaining opaque content");
+        }
+        MimePart part = parsePartContent(type.startsWith("text/") || (type.startsWith("message/") && !message),
+                partHeaders, enclosingBoundary);
+        part.setHeaders(partHeaders);
+        if (implicitMessage && partHeaders.get("Content-Disposition").isEmpty()
+                && partHeaders.get("Content-ID").isEmpty() && onlyFraming(part)) {
+            ((FileMimePart) part).close();
+            ownedParts.remove(part);
+            return;
+        }
+        parts.add(part);
+        if (message && enclosingBoundary != null && withinDepthLimit && part.getSize() > 0) {
+            FileMimePart container = (FileMimePart) part;
+            try (EmailParser child = new EmailParser(new FileInputStream(container.getFile()))) {
+                child.parse(false, depth + 1);
+                for (MimePart descendant : child.detachParts()) {
+                    parts.add(descendant);
+                    if (descendant instanceof FileMimePart file) ownedParts.add(file);
+                }
             }
         }
+    }
 
-        // Last header.
-        if (header.length() > 0) {
-            putIfValid(headers, header.toString().trim());
+    private boolean onlyFraming(MimePart part) throws IOException {
+        try (InputStream input = new FileInputStream(((FileMimePart) part).getFile())) {
+            int value;
+            while ((value = input.read()) != -1) {
+                if (value != '\r' && value != '\n') return false;
+            }
+            return true;
         }
     }
 
@@ -616,94 +597,62 @@ public class EmailParser implements AutoCloseable {
             MessageDigest digestSha256 = MessageDigest.getInstance(HashType.SHA_256.getKey());
             MessageDigest digestMD5 = MessageDigest.getInstance(HashType.MD_5.getKey());
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            ByteArrayOutputStream content = new ByteArrayOutputStream();
             MimePart part;
+            byte[] bytes;
+            while ((bytes = readLine()) != null) {
+                String line = new String(bytes);
+                if (atBoundary(line) || isBoundaryLine(line, boundary) || isEndBoundaryLine(line, boundary)) {
+                    pendingLine = bytes;
+                    break;
+                }
+                baos.write(bytes);
+            }
+
+            byte[] content = baos.toByteArray();
+            if (isBase64) {
+                content = Base64.decodeBase64(content);
+            } else if (isQuotedPrintable) {
+                try {
+                    content = QuotedPrintableDecoder.decode(content);
+                } catch (DecoderException e) {
+                    log.warn("EmailParser decoder exception: {}", e.getMessage());
+                }
+            } else if (isUuencode || UuencodeDecoder.looksLikeUuencode(content)) {
+                content = decodeUuencodeOrRaw(content);
+            }
 
             if (isTextPart) {
-                byte[] bytes;
-                while ((bytes = stream.readLine()) != null) {
-                    String line = new String(bytes);
-                    if (isEndBoundaryLine(line, boundary)) {
-                        stream.unread(bytes);
-                        break;
-                    }
-                    if (isBoundaryLine(line, boundary)) {
-                        break;
-                    }
-
-                    baos.write(bytes);
-                }
-
-                // Decode if needed.
-                if (isBase64) {
-                    content.write(Base64.decodeBase64(baos.toByteArray()));
-
-                } else if (isQuotedPrintable) {
-                    try {
-                        content.write(QuotedPrintableDecoder.decode(baos.toByteArray()));
-
-                    } catch (DecoderException de) {
-                        log.warn("EmailParser decoder exception: {}", de.getMessage());
-                        content.write(baos.toByteArray());
-                    }
-                } else if (isUuencode || UuencodeDecoder.looksLikeUuencode(baos.toByteArray())) {
-                    content.write(decodeUuencodeOrRaw(baos.toByteArray()));
-                } else {
-                    content.write(baos.toByteArray());
-                }
-                baos.close();
-                part = new TextMimePart(content.toByteArray());
+                part = new TextMimePart(content);
             } else {
-                // For binary parts, still need to read line by line to respect boundary
-                byte[] bytes;
-                while ((bytes = stream.readLine()) != null) {
-                    String line = new String(bytes);
-                    if (isEndBoundaryLine(line, boundary)) {
-                        stream.unread(bytes);
-                        break;
-                    }
-                    if (isBoundaryLine(line, boundary)) {
-                        break;
-                    }
-                    baos.write(bytes);
-                }
-
-                // Decode if needed.
-                if (isBase64) {
-                    content.write(Base64.decodeBase64(baos.toByteArray()));
-                } else if (isQuotedPrintable) {
-                    try {
-                        content.write(QuotedPrintableDecoder.decode(baos.toByteArray()));
-                    } catch (DecoderException e) {
-                        log.warn("EmailParser decoder exception: {}", e.getMessage());
-                        content.write(baos.toByteArray());
-                    }
-                } else if (isUuencode || UuencodeDecoder.looksLikeUuencode(baos.toByteArray())) {
-                    content.write(decodeUuencodeOrRaw(baos.toByteArray()));
-                } else {
-                    content.write(baos.toByteArray());
-                }
-                baos.close();
-
-                // Write to temp file for large binary parts
                 File tempFile = File.createTempFile("mimepart-", ".tmp");
-                try (FileOutputStream fos = new FileOutputStream(tempFile)) {
-                    fos.write(content.toByteArray());
+                try {
+                    try (FileOutputStream fos = new FileOutputStream(tempFile)) {
+                        fos.write(content);
+                    }
+                    FileMimePart filePart = FileMimePart.temporary(tempFile);
+                    ownedParts.add(filePart);
+                    part = filePart;
+                } catch (IOException | RuntimeException e) {
+                    try {
+                        java.nio.file.Files.deleteIfExists(tempFile.toPath());
+                    } catch (IOException cleanup) {
+                        e.addSuppressed(cleanup);
+                    }
+                    throw e;
                 }
-                part = new FileMimePart(tempFile);
             }
 
             // Set part details.
-            digestSha1.update(content.toByteArray());
+            digestSha1.update(content);
             part.setHash(HashType.SHA_1, Base64.encodeBase64String(digestSha1.digest()));
 
-            digestSha256.update(content.toByteArray());
+            digestSha256.update(content);
             part.setHash(HashType.SHA_256, Base64.encodeBase64String(digestSha256.digest()));
 
-            digestMD5.update(content.toByteArray());
+            digestMD5.update(content);
             part.setHash(HashType.MD_5, Base64.encodeBase64String(digestMD5.digest()));
 
-            part.setSize(content.size());
+            part.setSize(content.length);
 
             return part;
 
@@ -732,24 +681,18 @@ public class EmailParser implements AutoCloseable {
      * This method is called automatically when using try-with-resources.
      */
     @Override
-    public void close() {
-        for (MimePart part : parts) {
-            if (part instanceof FileMimePart fileMimePart) {
-                // Close the backing stream first — an open handle blocks deletion on
-                // Windows and leaks a file descriptor everywhere.
-                try {
-                    fileMimePart.close();
-                } catch (IOException e) {
-                    log.warn("Failed to close temporary part stream: {}", e.getMessage());
-                }
-                File file = fileMimePart.getFile();
-                if (file != null && file.exists()) {
-                    if (file.delete()) {
-                        log.trace("Deleted temporary part file: {}", file.getAbsolutePath());
-                    } else {
-                        log.warn("Failed to delete temporary part file: {}", file.getAbsolutePath());
-                    }
-                }
+    public synchronized void close() {
+        closed = true;
+        try {
+            stream.close();
+        } catch (IOException e) {
+            log.warn("Failed to close MIME input stream: {}", e.getMessage());
+        }
+        for (FileMimePart part : ownedParts) {
+            try {
+                part.close();
+            } catch (IOException e) {
+                log.warn("Failed to release temporary MIME part: {}", e.getMessage());
             }
         }
     }

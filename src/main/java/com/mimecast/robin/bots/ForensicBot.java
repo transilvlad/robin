@@ -8,6 +8,7 @@ import com.mimecast.robin.mime.headers.MimeHeader;
 import com.mimecast.robin.mime.parts.FileMimePart;
 import com.mimecast.robin.mime.parts.MimePart;
 import com.mimecast.robin.smtp.connection.Connection;
+import com.mimecast.robin.smtp.io.LineInputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -15,11 +16,15 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.StringReader;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 
 /**
  * AFRF (Authentication Failure Reporting Format) forensic report processing bot.
@@ -93,7 +98,7 @@ public class ForensicBot implements BotProcessor {
         log.debug("Found {} MIME parts in email", parts.size());
 
         Map<String, Object> report = new HashMap<>();
-        String originalHeaders = null;
+        byte[] originalHeaders = null;
 
         for (MimePart part : parts) {
             String contentType = getContentType(part);
@@ -101,14 +106,12 @@ public class ForensicBot implements BotProcessor {
             if (contentType == null) continue;
 
             try {
-                if (contentType.contains("message/feedback-report")) {
+                if (contentType.equals("message/feedback-report")) {
                     // Parse the feedback-report part
                     parseFeedbackReport(part, report);
-                } else if (contentType.contains("text/rfc822-headers") ||
-                        contentType.contains("message/rfc822")) {
-                    // Extract original headers
-                    byte[] content = getPartContent(part);
-                    originalHeaders = new String(content);
+                } else if (originalHeaders == null && (contentType.equals("text/rfc822-headers") ||
+                        contentType.equals("message/rfc822"))) {
+                    originalHeaders = getOriginalHeaders(part);
                 }
             } catch (IOException e) {
                 log.warn("Failed to extract content from part: {}", e.getMessage());
@@ -117,7 +120,7 @@ public class ForensicBot implements BotProcessor {
 
         // Add original headers if found
         if (originalHeaders != null) {
-            report.put("originalHeaders", originalHeaders);
+            report.put("originalHeaders", new String(originalHeaders));
 
             // Try to extract subject from original headers
             String subject = extractHeaderValue(originalHeaders, "Subject");
@@ -238,17 +241,28 @@ public class ForensicBot implements BotProcessor {
     /**
      * Extracts a header value from raw headers text.
      */
-    private String extractHeaderValue(String headers, String headerName) {
-        String lowerHeaders = headers.toLowerCase();
-        String lowerName = headerName.toLowerCase() + ":";
-        int idx = lowerHeaders.indexOf(lowerName);
-        if (idx >= 0) {
-            int start = idx + lowerName.length();
-            int end = headers.indexOf('\n', start);
-            if (end < 0) end = headers.length();
-            return headers.substring(start, end).trim();
+    private String extractHeaderValue(byte[] headers, String headerName) {
+        try (EmailParser parser = new EmailParser(new ByteArrayInputStream(headers)).parse(true)) {
+            return parser.getHeaders().get(headerName).map(MimeHeader::getDecodedValue).orElse(null);
+        } catch (IOException e) {
+            log.warn("Failed to parse original report headers: {}", e.getMessage());
+            return null;
         }
-        return null;
+    }
+
+    private byte[] getOriginalHeaders(MimePart part) throws IOException {
+        InputStream input = part instanceof FileMimePart file
+                ? Files.newInputStream(file.getFile().toPath()) : new ByteArrayInputStream(part.getBytes());
+        try (LineInputStream lines = new LineInputStream(input);
+             ByteArrayOutputStream headers = new ByteArrayOutputStream()) {
+            byte[] line;
+            while ((line = lines.readLine()) != null) {
+                if ((line.length == 1 && (line[0] == '\r' || line[0] == '\n'))
+                        || (line.length == 2 && line[0] == '\r' && line[1] == '\n')) break;
+                headers.write(line);
+            }
+            return headers.toByteArray();
+        }
     }
 
     /**
@@ -256,7 +270,7 @@ public class ForensicBot implements BotProcessor {
      */
     private String getContentType(MimePart part) {
         MimeHeader ctHeader = part.getHeader("Content-Type");
-        return ctHeader != null ? ctHeader.getValue().toLowerCase() : null;
+        return ctHeader != null ? ctHeader.getCleanValue().toLowerCase(Locale.ROOT) : null;
     }
 
     /**

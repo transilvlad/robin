@@ -62,6 +62,25 @@ public class MimeHeaders {
     }
 
     /**
+     * Gets a supplied filename, preferring Content-Disposition over Content-Type.
+     * Plain parameters take precedence over supported single-segment RFC 2231 values.
+     * No generated fallback name is returned.
+     *
+     * @return Decoded supplied filename, or null if absent.
+     */
+    public String getFileName() {
+        for (String name : List.of("Content-Disposition", "Content-Type")) {
+            Optional<MimeHeader> header = get(name);
+            if (header.isEmpty()) continue;
+            String parameter = name.equals("Content-Disposition") ? "filename" : "name";
+            String filename = header.get().getParameter(parameter);
+            if (filename == null) filename = header.get().getExtendedParameter(parameter);
+            if (filename != null) return filename;
+        }
+        return null;
+    }
+
+    /**
      * Gets all headers by name.
      *
      * @param name Header name.

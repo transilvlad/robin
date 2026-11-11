@@ -32,14 +32,18 @@ public class QuotedPrintableDecoder {
         if (bytes == null) {
             return null;
         }
-        boolean skipLine = false;
         final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         for (int i = 0; i < bytes.length; i++) {
             final int b = bytes[i];
             if (b == ESCAPE_CHAR) {
                 try {
-                    if (bytes[++i] == CR) {
-                        skipLine = true;
+                    if (bytes[++i] == LF) {
+                        continue;
+                    }
+                    if (bytes[i] == CR) {
+                        if (++i >= bytes.length || bytes[i] != LF) {
+                            throw new DecoderException("Invalid quoted-printable soft line break");
+                        }
                         continue;
                     }
                     final int u = digit16(bytes[i]);
@@ -48,8 +52,7 @@ public class QuotedPrintableDecoder {
                 } catch (final ArrayIndexOutOfBoundsException e) {
                     throw new DecoderException("Invalid quoted-printable encoding", e);
                 }
-            } else if ((b != CR && b != LF) || !skipLine) {
-                skipLine = false;
+            } else {
                 buffer.write(b);
             }
         }

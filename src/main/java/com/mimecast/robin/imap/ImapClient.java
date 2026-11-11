@@ -5,6 +5,8 @@ import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.HashType;
 import com.mimecast.robin.mime.headers.MimeHeader;
 import com.mimecast.robin.mime.parts.MimePart;
+import com.mimecast.robin.mime.parts.FileMimePart;
+import com.mimecast.robin.mime.parts.MultipartMimePart;
 import com.mimecast.robin.mime.parts.TextMimePart;
 import jakarta.mail.*;
 import jakarta.mail.search.HeaderTerm;
@@ -12,10 +14,13 @@ import jakarta.mail.search.SearchTerm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.Reader;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
+import org.apache.commons.io.IOUtils;
 
 /**
  * Lightweight IMAP helper used by tests and utilities to fetch messages from a mailbox.
@@ -368,8 +373,8 @@ public class ImapClient implements AutoCloseable {
     /**
      * Extracts all MIME parts from a message using the built-in EmailParser.
      *
-     * <p>Writes the message to a byte stream and parses it using the project's
-     * EmailParser, which handles multipart structures and content decoding.
+     * <p>Returned FileMimeParts remain readable until the caller closes each one.
+     * The caller owns their temporary files, independently of this client.
      *
      * @param message The message to extract parts from.
      * @return List of MimePart objects, or empty list on error.
@@ -379,18 +384,33 @@ public class ImapClient implements AutoCloseable {
             return Collections.emptyList();
         }
 
-        try {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            message.writeTo(baos);
-
-            try (EmailParser parser = new EmailParser(new ByteArrayInputStream(baos.toByteArray()))) {
-                parser.parse();
-                return parser.getParts();
-            }
-
+        try (EmailParser parser = parseMessage(message)) {
+            return parser.detachParts();
         } catch (MessagingException | IOException e) {
-            log.error("Error extracting MIME parts: {}", e.getMessage());
+            log.error("Error extracting MIME parts", e);
             return Collections.emptyList();
+        }
+    }
+
+    private EmailParser parseMessage(Message message) throws MessagingException, IOException {
+        Path source = Files.createTempFile("mime-message-", ".tmp");
+        EmailParser parser = null;
+        try {
+            try (var output = Files.newOutputStream(source)) {
+                message.writeTo(output);
+            }
+            parser = new EmailParser(source.toString());
+            parser.parse();
+            Files.delete(source);
+            return parser;
+        } catch (MessagingException | IOException | RuntimeException e) {
+            if (parser != null) parser.close();
+            try {
+                Files.deleteIfExists(source);
+            } catch (IOException cleanup) {
+                e.addSuppressed(cleanup);
+            }
+            throw e;
         }
     }
 
@@ -404,45 +424,45 @@ public class ImapClient implements AutoCloseable {
      * @return List of PartDescriptor objects, or empty list on error.
      */
     public List<PartDescriptor> extractParts(Message message) {
-        List<MimePart> mimeParts = extractMimeParts(message);
+        if (message == null) return Collections.emptyList();
         List<PartDescriptor> descriptors = new ArrayList<>();
+        try (EmailParser parser = parseMessage(message)) {
+            for (MimePart part : parser.getParts()) {
+                // Extract headers.
+                Map<String, String> headers = new LinkedHashMap<>();
+                for (MimeHeader header : part.getHeaders().get()) {
+                    headers.put(header.getName(), header.getValue());
+                }
 
-        for (MimePart part : mimeParts) {
-            // Extract headers.
-            Map<String, String> headers = new LinkedHashMap<>();
-            for (MimeHeader header : part.getHeaders().get()) {
-                headers.put(header.getName(), header.getValue());
-            }
-
-            // Extract body content.
-            String body = "";
-            if (part instanceof TextMimePart textPart) {
-                try {
+                // Extract body content.
+                String body = "";
+                if (part instanceof TextMimePart textPart) {
                     body = textPart.getContent();
-                } catch (IOException e) {
-                    log.warn("Failed to read text part content: {}", e.getMessage());
+                } else if (part instanceof FileMimePart filePart) {
+                    try (Reader reader = new java.io.InputStreamReader(
+                            Files.newInputStream(filePart.getFile().toPath()), Charset.defaultCharset())) {
+                        body = IOUtils.toString(reader);
+                    }
+                } else if (!(part instanceof MultipartMimePart)) {
+                    body = new String(part.getBytes(), Charset.defaultCharset());
                 }
-            } else {
-                try {
-                    body = new String(part.getBytes());
-                } catch (IOException e) {
-                    log.warn("Failed to read part bytes: {}", e.getMessage());
-                }
+
+                // Extract hashes.
+                Map<String, String> hashes = new LinkedHashMap<>();
+                String sha1 = part.getHash(HashType.SHA_1);
+                String sha256 = part.getHash(HashType.SHA_256);
+                String md5 = part.getHash(HashType.MD_5);
+                if (sha1 != null) hashes.put("sha1", sha1);
+                if (sha256 != null) hashes.put("sha256", sha256);
+                if (md5 != null) hashes.put("md5", md5);
+
+                descriptors.add(new PartDescriptor(headers, body, hashes, part.getSize()));
             }
-
-            // Extract hashes.
-            Map<String, String> hashes = new LinkedHashMap<>();
-            String sha1 = part.getHash(HashType.SHA_1);
-            String sha256 = part.getHash(HashType.SHA_256);
-            String md5 = part.getHash(HashType.MD_5);
-            if (sha1 != null) hashes.put("sha1", sha1);
-            if (sha256 != null) hashes.put("sha256", sha256);
-            if (md5 != null) hashes.put("md5", md5);
-
-            descriptors.add(new PartDescriptor(headers, body, hashes, part.getSize()));
+            return descriptors;
+        } catch (MessagingException | IOException e) {
+            log.error("Error extracting MIME part descriptors", e);
+            return Collections.emptyList();
         }
-
-        return descriptors;
     }
 
     /**

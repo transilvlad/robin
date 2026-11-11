@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -105,8 +106,8 @@ class EmailParserTest {
     }
 
     @Test
-    @DisplayName("Spurious blank line inside a folded parameterized header is treated as noise")
-    void spuriousBlankLineInFoldedHeaderIsSkipped() throws IOException {
+    @DisplayName("A blank line ends headers even after a parameter separator")
+    void blankLineInsideParameterizedHeaderEndsHeaders() throws IOException {
         String mime = "Content-Type: multipart/mixed;\r\n" +
                 "\r\n" +
                 "\tboundary=\"abc\"\r\n" +
@@ -116,10 +117,9 @@ class EmailParserTest {
         EmailParser parser = new EmailParser(new LineInputStream(new ByteArrayInputStream(mime.getBytes()), 1024))
                 .parse(true);
 
-        assertEquals("abc", parser.getHeaders().get("Content-Type").get().getParameter("boundary"),
-                "Boundary parameter must survive the spurious blank line inside the fold");
-        assertEquals("after the fold", parser.getHeaders().get("Subject").get().getValue(),
-                "Header after the folded one must still be parsed");
+        assertNull(parser.getHeaders().get("Content-Type").get().getParameter("boundary"));
+        assertTrue(parser.getHeaders().get("Subject").isEmpty(),
+                "Lines after the first separator are body, not recovered headers");
     }
 
     @Test
@@ -281,21 +281,23 @@ class EmailParserTest {
     }
 
     @Test
-    @DisplayName("Parse lipsum.822.eml gives 7 parts")
+    @DisplayName("Parse lipsum.822.eml retains the message container and its descendants")
     void parseLipsum822() throws IOException {
         EmailParser parser = new EmailParser(new LineInputStream(
                 new BufferedInputStream(new FileInputStream(dir + "mime/lipsum.822.eml"), 8192), 1024))
                 .parse();
 
-        assertEquals(7, parser.getParts().size(), "Unexpected number of parts");
+        assertEquals(8, parser.getParts().size(), "Unexpected number of parts");
 
         assertEquals("uSdGze9aOjGMKP/QLtT9szHfcNV5K9DoaP12xlasxeU=", parser.getParts().get(2).getHash(HashType.SHA_256), "unexpected hash");
         assertEquals(780, parser.getParts().get(2).getSize(), "Unexpected file size");
         assertEquals(2, parser.getParts().get(2).getHeaders().size(), "Unexpected part headers size");
 
-        assertEquals("uSdGze9aOjGMKP/QLtT9szHfcNV5K9DoaP12xlasxeU=", parser.getParts().get(5).getHash(HashType.SHA_256), "unexpected hash");
-        assertEquals(780, parser.getParts().get(5).getSize(), "Unexpected file size");
-        assertEquals(2, parser.getParts().get(5).getHeaders().size(), "Unexpected part headers size");
+        assertEquals(2, parser.getParts().stream().filter(part ->
+                "uSdGze9aOjGMKP/QLtT9szHfcNV5K9DoaP12xlasxeU=".equals(part.getHash(HashType.SHA_256))
+                        && part.getSize() == 780 && part.getHeaders().size() == 2).count());
+        assertEquals(1, parser.getParts().stream().filter(part ->
+                part.getHeader("Content-Type").getCleanValue().equalsIgnoreCase("message/rfc822")).count());
     }
 
     @Test

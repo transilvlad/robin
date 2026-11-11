@@ -132,7 +132,7 @@ public class TlsrptBot implements BotProcessor {
                 } else if (contentType.contains("application/json")) {
                     candidate = new String(getPartContent(part));
                 } else if (contentType.contains("application/octet-stream") && filename != null) {
-                    String lowerFilename = filename.toLowerCase();
+                    String lowerFilename = filename.toLowerCase(java.util.Locale.ROOT);
                     if (lowerFilename.endsWith(".gz") || lowerFilename.endsWith(".gzip")) {
                         candidate = extractFromGzip(part);
                     } else if (lowerFilename.endsWith(".json")) {
@@ -175,52 +175,14 @@ public class TlsrptBot implements BotProcessor {
      */
     private String getContentType(MimePart part) {
         MimeHeader ctHeader = part.getHeader("Content-Type");
-        return ctHeader != null ? ctHeader.getValue().toLowerCase() : null;
+        return ctHeader != null ? ctHeader.getCleanValue().toLowerCase(java.util.Locale.ROOT) : null;
     }
 
     /**
      * Gets filename from Content-Disposition (filename=) or Content-Type (name=).
      */
     private String getFilename(MimePart part) {
-        // Check Content-Disposition first
-        MimeHeader cdHeader = part.getHeader("Content-Disposition");
-        if (cdHeader != null) {
-            String value = cdHeader.getValue();
-            int idx = value.toLowerCase().indexOf("filename=");
-            if (idx >= 0) {
-                String filename = value.substring(idx + 9).trim();
-                if (filename.startsWith("\"")) {
-                    int end = filename.indexOf("\"", 1);
-                    if (end > 0) {
-                        return filename.substring(1, end);
-                    }
-                } else {
-                    int end = filename.indexOf(";");
-                    return end > 0 ? filename.substring(0, end).trim() : filename.trim();
-                }
-            }
-        }
-
-        // Check Content-Type name=
-        MimeHeader ctHeader = part.getHeader("Content-Type");
-        if (ctHeader != null) {
-            String value = ctHeader.getValue();
-            int idx = value.toLowerCase().indexOf("name=");
-            if (idx >= 0) {
-                String name = value.substring(idx + 5).trim();
-                if (name.startsWith("\"")) {
-                    int end = name.indexOf("\"", 1);
-                    if (end > 0) {
-                        return name.substring(1, end);
-                    }
-                } else {
-                    int end = name.indexOf(";");
-                    return end > 0 ? name.substring(0, end).trim() : name.trim();
-                }
-            }
-        }
-
-        return null;
+        return part.getHeaders().getFileName();
     }
 
     /**
