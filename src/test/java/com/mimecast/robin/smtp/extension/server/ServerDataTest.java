@@ -275,7 +275,7 @@ class ServerDataTest {
     }
 
     @Test
-    void processAsciiCR() throws IOException {
+    void processAsciiCRRejectsAmbiguousHeaderFraming() throws IOException {
         StringBuilder stringBuilder = new StringBuilder();
         stringBuilder.append("MIME-Version: 1.0\r");
         stringBuilder.append("From: <tony@example.com>\r");
@@ -296,12 +296,10 @@ class ServerDataTest {
         ServerData data = new ServerData();
         boolean process = data.process(connection, verb);
 
-        assertTrue(process);
-
-        connection.parseLines();
-        assertEquals(SmtpResponses.READY_WILLING_354 + "\r\n", connection.getLine(1));
-        assertTrue(connection.getLine(2).startsWith("250 2.0.0 Received OK"), "startsWith(\"250 2.0.0 Received OK\")");
-        assertEquals(stringBuilder.toString().length() - (3 + 2), data.getBytesReceived());
+        assertFalse(process);
+        assertTrue(connection.getOutput().contains(SmtpResponses.INVALID_HEADER_FRAMING_554));
+        assertFalse(connection.getOutput().contains("250 "));
+        assertTrue(connection.getSocket().isClosed());
     }
 
     @Test

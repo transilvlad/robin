@@ -3,6 +3,7 @@ package com.mimecast.robin.storage;
 import com.mimecast.robin.smtp.connection.Connection;
 
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.OutputStream;
 
 /**
@@ -57,4 +58,13 @@ public interface StorageClient {
      * @return Boolean.
      */
     boolean save();
+
+    /**
+     * Closes an unaccepted receipt. Implementations owning temporary storage must also discard it.
+     *
+     * @throws IOException Unable to close or discard the receipt.
+     */
+    default void abort() throws IOException {
+        getStream().close();
+    }
 }

@@ -1,6 +1,7 @@
 package com.mimecast.robin.smtp.connection;
 
 import com.mimecast.robin.main.Factories;
+import com.mimecast.robin.mime.HeaderFraming;
 import com.mimecast.robin.smtp.io.LineInputStream;
 import com.mimecast.robin.smtp.io.SlowOutputStream;
 import com.mimecast.robin.smtp.security.SecurityPolicy;
@@ -255,6 +256,20 @@ public abstract class SmtpFoundation {
      * @throws LimitExceededException Email size limit exceeded.
      */
     public void readMultiline(OutputStream out, int emailSizeLimit) throws IOException, LimitExceededException {
+        readMultiline(out, emailSizeLimit, null);
+    }
+
+    /**
+     * Reads DATA with optional raw header validation before removing the transport terminator.
+     *
+     * @param out Receipt destination.
+     * @param emailSizeLimit Existing DATA byte limit.
+     * @param framing Header validator, or null for general multiline protocol input.
+     * @throws IOException Invalid framing or communication failure.
+     * @throws LimitExceededException Message size limit exceeded.
+     */
+    public void readMultiline(OutputStream out, int emailSizeLimit, HeaderFraming framing)
+            throws IOException, LimitExceededException {
         try {
             byte[] read;
             byte[] eol = new byte[0];
@@ -272,6 +287,8 @@ public abstract class SmtpFoundation {
                     break;
                 }
 
+                if (framing != null) framing.accept(read, 0, read.length);
+
                 // Write previous EOL if any
                 out.write(eol);
                 // Get current EOL and store.
@@ -280,6 +297,7 @@ public abstract class SmtpFoundation {
                 // Write line without EOL, avoiding a per-line array copy.
                 out.write(read, 0, read.length - eol.length);
             }
+            if (framing != null) framing.finish();
         } catch (IOException e) {
             log.info("Error reading: {}", e.getMessage());
             throw e;

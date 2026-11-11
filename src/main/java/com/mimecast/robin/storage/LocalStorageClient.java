@@ -7,11 +7,13 @@ import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
 import com.mimecast.robin.main.Server;
 import com.mimecast.robin.mime.EmailParser;
+import com.mimecast.robin.mime.HeaderFraming;
 import com.mimecast.robin.mime.headers.MimeHeader;
 import com.mimecast.robin.queue.relay.RelayMessage;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.MessageSource;
 import com.mimecast.robin.smtp.RefCountedFileMessageSource;
+import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.smtp.security.SenderAuthorization;
@@ -87,6 +89,17 @@ public class LocalStorageClient implements StorageClient {
      * Save file output stream.
      */
     protected OutputStream stream = NullOutputStream.INSTANCE;
+    private boolean receiptAborted;
+
+    @Override
+    public void abort() throws IOException {
+        if (receiptAborted) return;
+        stream.close();
+        if (stream instanceof MessageBufferOutputStream buffer && buffer.isSpilledToFile()) {
+            Files.deleteIfExists(Path.of(getFile()));
+        }
+        receiptAborted = true;
+    }
 
     /**
      * Sets file extension.
@@ -205,6 +218,12 @@ public class LocalStorageClient implements StorageClient {
                     }
                 }
 
+                // Validate the actual stored source, even when no parser consumer is enabled.
+                try (InputStream input = envelope != null
+                        ? envelope.openMessageStream() : Files.newInputStream(Path.of(getFile()))) {
+                    HeaderFraming.validate(input);
+                }
+
                 boolean parseHeadersOnly = shouldParseHeadersOnly(envelope);
                 boolean parseFullEmail = isFullEmailParseRequired();
                 if (parseHeadersOnly || parseFullEmail) {
@@ -248,12 +267,40 @@ public class LocalStorageClient implements StorageClient {
                 // Relay email if X-Robin-Relay or relay configuration or direction outbound enabled.
                 relay();
             }
+        } catch (HeaderFraming.InvalidHeaderException e) {
+            log.warn("Stored message refused: {}", e.getMessage());
+            try {
+                discardRejectedReceipt();
+            } catch (IOException cleanupFailure) {
+                log.error("Unable to discard rejected receipt: {}", cleanupFailure.getMessage());
+            }
+            try {
+                connection.write(SmtpResponses.INVALID_HEADER_FRAMING_554);
+                connection.markSmtpResponseSent();
+            } catch (IOException responseFailure) {
+                log.error("Unable to send header framing rejection: {}", responseFailure.getMessage());
+                connection.close();
+            }
+            return false;
         } catch (IOException e) {
             log.error("Storage unable to store the email: {}", e.getMessage());
             return false;
         }
 
         return true;
+    }
+
+    private void discardRejectedReceipt() throws IOException {
+        MessageEnvelope envelope = getCurrentEnvelope();
+        if (envelope != null && envelope.getMessageSource() != null) {
+            envelope.getMessageSource().release();
+            envelope.setMessageSource(null).setFile(null);
+            // The source has relinquished the spool; abort must not delete that path again.
+            receiptAborted = true;
+        } else {
+            abort();
+            if (envelope != null) envelope.setFile(null);
+        }
     }
 
     private boolean runStorageProcessors() {

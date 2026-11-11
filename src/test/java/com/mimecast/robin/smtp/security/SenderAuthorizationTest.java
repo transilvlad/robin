@@ -1,10 +1,13 @@
 package com.mimecast.robin.smtp.security;
 
 import com.mimecast.robin.mime.EmailParser;
+import com.mimecast.robin.mime.headers.MimeHeader;
+import com.mimecast.robin.smtp.connection.ConnectionMock;
 import com.zaxxer.hikari.HikariDataSource;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
@@ -65,6 +68,65 @@ class SenderAuthorizationTest {
     void sqlFailureIsNotConvertedToPermissionOrMissingMailbox() throws Exception {
         source.failure = true;
         assertThrows(SQLException.class, () -> authorization.isAuthorized("a@example.com", "a@example.com"));
+    }
+
+    @Test
+    void ambiguousHeaderFramingCannotAuthorizeEvenTheGrantedFirstIdentity() throws Exception {
+        source.results.add(true);
+        try (var parser = new EmailParser(new ByteArrayInputStream(
+                "From: first@origin.test\r\r\nFrom: second@other.test\r\n\r\nBody"
+                        .getBytes(StandardCharsets.US_ASCII)))) {
+            boolean refused = false;
+            try {
+                parser.parse(true);
+            } catch (IOException expected) {
+                refused = true;
+            }
+            assertFalse(authorization.isHeaderAuthorized("account@example.test", parser));
+            assertTrue(refused);
+            assertEquals(0, source.connections);
+        }
+    }
+
+    @Test
+    void unparsedHeaderCollectionIsNotAnAuthorizedIdentity() throws Exception {
+        source.results.add(true);
+        try (var parser = new EmailParser(new ByteArrayInputStream(new byte[0]))) {
+            parser.getHeaders().put(new MimeHeader("From", "first@origin.test"));
+            assertFalse(authorization.isHeaderAuthorized("account@example.test", parser));
+        }
+        assertEquals(0, source.connections);
+    }
+
+    @Test
+    void legalFoldedGrantedIdentitiesNeedNotShareAnAccountDomain() throws Exception {
+        for (String eol : List.of("\n", "\r\n")) {
+            source.results.addAll(List.of(true, true));
+            try (var parser = parse("From: First" + eol + "\t<first@origin.test>" + eol
+                    + "Sender: delegate@other.test" + eol + eol + "Body")) {
+                assertTrue(authorization.isHeaderAuthorized("account@example.test", parser));
+            }
+        }
+        assertEquals(4, source.connections);
+    }
+
+    @Test
+    void duplicateSendersCannotAuthorizeAFirstMatch() throws Exception {
+        source.results.add(true);
+        try (var parser = parse("From: first@origin.test\r\nSender: first@origin.test\r\n"
+                + "sender: second@other.test\r\n\r\nBody")) {
+            assertFalse(authorization.isHeaderAuthorized("account@example.test", parser));
+        }
+    }
+
+    @Test
+    void headerCheckCannotTreatAnUnparsedIdentityAsPermittedWhenGrantPolicyIsDisabled() throws Exception {
+        ConnectionMock connection = new ConnectionMock(new StringBuilder());
+        try (var parser = new EmailParser(new ByteArrayInputStream(new byte[0]))) {
+            assertFalse(SenderAuthorization.checkHeaders(connection, parser));
+            assertTrue(connection.getOutput().contains("554 5.6.0"));
+            assertTrue(connection.isSmtpResponseSent());
+        }
     }
 
     private EmailParser parse(String message) throws Exception {

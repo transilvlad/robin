@@ -170,6 +170,21 @@ authorization store returns `451 4.7.0`, never permission. Authenticated
 submission with a null reverse path is not implicitly permitted. Unauthenticated
 Internet delivery and its null-sender DSNs are unaffected by this opt-in policy.
 
+Independently of sender-grant enablement, raw header framing is checked before
+authorization, scanning, or signing. DATA and BDAT reject standalone header CR
+and prohibited ASCII header controls with `554 5.6.0`; early receipt failures
+close the connection so unread content cannot be interpreted as commands.
+LF/CRLF headers, folding TAB, and UTF-8 bytes remain supported. Body CR bytes
+are outside this header check; existing DATA transport conventions are unchanged.
+Message bytes are checked, not silently repaired for signature
+verification. This does not impose a new total-header-size limit.
+
+Custom `StorageClient` implementations should override `abort()` to discard
+their owned temporary receipt data after rejection; its default closes the
+receipt stream. The local storage implementation discards unaccepted spill
+files and independently validates the materialized source before processors,
+including paths that do not otherwise need a MIME parse.
+
 PLAIN (single step):
 ```java
 import com.mimecast.robin.sasl.DovecotSaslAuthNative;

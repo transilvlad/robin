@@ -656,7 +656,7 @@ public class EmailAnalysisBot implements BotProcessor {
             dkimAlignment.add(dkimDomain + "=" + (ok ? "aligned" : "not aligned"));
         }
 
-        CheckResult.Builder b = CheckResult.builder(Category.AUTHENTICATION, "DMARC identifier alignment")
+        CheckResult.Builder b = CheckResult.builder(Category.AUTHENTICATION, "Claimed DMARC identifier alignment")
                 .reference("RFC 9989")
                 .evidence("Header From domain", nvl(ctx.headerFromDomain(), "N/A"))
                 .evidence("Policy domain", nvl(policy.policyDomain(), "none"))
@@ -670,10 +670,12 @@ public class EmailAnalysisBot implements BotProcessor {
             return b.status(Status.SKIPPED).summary("No header From domain was available.").build();
         }
         if (spfAligned || dkimAligned) {
-            return b.status(Status.PASS).summary("At least one authenticated identifier aligns with the From domain.").build();
+            return b.status(Status.INFO)
+                    .summary("At least one claimed identifier aligns with the From domain; this is not authentication.")
+                    .build();
         }
         return b.status(Status.INFO)
-                .summary("No SPF or DKIM identifier alignment was visible in parsed message evidence.")
+                .summary("No claimed SPF or DKIM identifier aligns with the From domain; this is not authentication.")
                 .build();
     }
 

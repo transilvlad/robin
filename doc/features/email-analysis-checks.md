@@ -64,6 +64,12 @@ Domain age is deliberately disabled by default. Very new domains can be useful r
 
 SPF, DKIM, and DMARC verdicts come from Rspamd scan results stored on the envelope. Robin translates Rspamd symbols into explicit report statuses so the user does not have to know Rspamd symbol names.
 
+Incoming `Authentication-Results` and `DKIM-Signature` fields are ordered,
+unverified claims, not trusted scanner verdicts or proof of fresh signing.
+The claimed DMARC identifier-alignment check is informational (`INFO`): comparing
+envelope and signature `d=` claims to From does not authenticate those domains.
+A scanner's global DKIM pass does not identify which supplied signature verified.
+
 SPF mapping:
 
 | Rspamd Symbol | Report Status | Meaning |

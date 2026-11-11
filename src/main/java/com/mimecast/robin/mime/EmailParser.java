@@ -337,6 +337,7 @@ public class EmailParser implements AutoCloseable {
             parsedHeadersOnly = headersOnly;
             return this;
         } catch (IOException | RuntimeException e) {
+            parsed = false;
             close();
             throw e;
         }
@@ -357,9 +358,13 @@ public class EmailParser implements AutoCloseable {
     }
 
     private boolean readHeaders(MimeHeaders target) throws IOException {
+        HeaderFraming framing = new HeaderFraming();
         byte[] bytes;
         StringBuilder header = new StringBuilder();
         while ((bytes = readLine()) != null) {
+            framing.accept(bytes, 0, bytes.length);
+            // The general line reader also terminates on bare CR. It is never a header EOL.
+            if (bytes.length > 0 && bytes[bytes.length - 1] == '\r') framing.finish();
             String line = new String(bytes);
             if (atBoundary(line)) {
                 pendingLine = bytes;
@@ -377,8 +382,20 @@ public class EmailParser implements AutoCloseable {
             }
             header.append(line);
         }
+        framing.finish();
         if (!header.isEmpty()) putIfValid(target, header.toString());
         return false;
+    }
+
+    /**
+     * Whether parsing completed with valid raw header framing, not semantic RFC validation.
+     * Partial headers after a parse failure are diagnostic evidence only and must not
+     * be used to authorize an identity.
+     *
+     * @return True after a successful headers-only or full parse.
+     */
+    public boolean hasValidHeaders() {
+        return parsed;
     }
 
     /**

@@ -66,6 +66,18 @@ Media types are compared case-insensitively without changing boundary or
 filename values. A multipart lacking its boundary parameter is retained opaquely
 with a warning rather than inferring a parameter from its body.
 
+Header framing accepts LF and CRLF, including unambiguous mixed line endings.
+Standalone CR, ASCII controls other than folding TAB and line endings, and DEL
+in a header section throw `HeaderFraming.InvalidHeaderException` (an `IOException`).
+UTF-8 bytes are not interpreted as ASCII controls. Body bytes are opaque to this
+check; validation does not normalize or repair raw messages. Unambiguous
+header-only input ending at EOF remains supported.
+
+`hasValidHeaders()` is true only after a successful parse; it is not full RFC
+semantic validation. Headers exposed after a failed or incomplete parse are
+diagnostic evidence only, not an authorized identity. Duplicate fields remain
+ordered and available through `getAll()`.
+
 `getBytes()`, size, and hashes describe transfer-decoded bytes, independently of
 text conversion. The parser retains boundary-adjacent line endings in part bytes.
 Quoted-printable accepts both CRLF and LF soft breaks while preserving unrelated

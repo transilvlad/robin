@@ -137,6 +137,11 @@ public final class SmtpResponses {
     // ========== 5xx Permanent Failure Codes ==========
 
     /**
+     * 554 Invalid raw header framing.
+     */
+    public static final String INVALID_HEADER_FRAMING_554 = "554 5.6.0 Invalid message header framing";
+
+    /**
      * 500 Syntax error.
      */
     public static final String SYNTAX_ERROR_500 = "500 Syntax error";

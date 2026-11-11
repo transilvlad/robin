@@ -3,6 +3,7 @@ package com.mimecast.robin.smtp;
 import com.mimecast.robin.config.assertion.AssertConfig;
 import com.mimecast.robin.config.assertion.MimeConfig;
 import com.mimecast.robin.main.Config;
+import com.mimecast.robin.mime.HeaderFraming;
 import com.mimecast.robin.util.PathUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -57,6 +58,7 @@ public class MessageEnvelope implements Serializable, Cloneable {
 
     // Set EML stream or null.
     private transient InputStream stream = null;
+    private transient HeaderFraming headerFraming;
     // Used for serialisation.
     private byte[] bytes = null;
 
@@ -106,6 +108,16 @@ public class MessageEnvelope implements Serializable, Cloneable {
             padded.append(uid);
             msgId = padded.toString();
         }
+    }
+
+    /**
+     * Gets per-envelope receipt validation state, shared across BDAT commands only.
+     *
+     * @return Raw header framing validator.
+     */
+    public HeaderFraming getHeaderFraming() {
+        if (headerFraming == null) headerFraming = new HeaderFraming();
+        return headerFraming;
     }
 
     /**
@@ -1050,6 +1062,7 @@ public class MessageEnvelope implements Serializable, Cloneable {
     public MessageEnvelope clone() {
         try {
             MessageEnvelope cloned = (MessageEnvelope) super.clone();
+            cloned.headerFraming = null;
 
             // Deep copy mutable collections.
             cloned.rcpts = this.rcpts == null ? new ArrayList<>() : new ArrayList<>(this.rcpts);

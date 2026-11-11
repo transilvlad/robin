@@ -4,6 +4,7 @@ import com.mimecast.robin.config.BasicConfig;
 import com.mimecast.robin.db.SharedDataSource;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.mime.EmailParser;
+import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -64,7 +65,7 @@ public final class SenderAuthorization {
     }
 
     public boolean isHeaderAuthorized(String account, EmailParser parser) throws SQLException, AddressException {
-        if (parser == null || parser.getHeaders().getAll("From").size() != 1) {
+        if (parser == null || !parser.hasValidHeaders() || parser.getHeaders().getAll("From").size() != 1) {
             return false;
         }
         InternetAddress[] authors = InternetAddress.parseHeader(
@@ -103,6 +104,11 @@ public final class SenderAuthorization {
     }
 
     public static boolean checkHeaders(Connection connection, EmailParser parser) throws IOException {
+        if (parser == null || !parser.hasValidHeaders()) {
+            connection.write(SmtpResponses.INVALID_HEADER_FRAMING_554);
+            connection.markSmtpResponseSent();
+            return false;
+        }
         if (!isEnabled() || !connection.getSession().isAuth()) {
             return true;
         }
