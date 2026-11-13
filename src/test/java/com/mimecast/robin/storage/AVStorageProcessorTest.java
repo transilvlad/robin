@@ -3,22 +3,32 @@ package com.mimecast.robin.storage;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Foundation;
 import com.mimecast.robin.mime.EmailParser;
+import com.mimecast.robin.scanners.ClamAVMockServer;
 import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.connection.Connection;
+import com.mimecast.robin.smtp.connection.ConnectionMock;
 import com.mimecast.robin.smtp.session.Session;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.Isolated;
 
 import javax.naming.ConfigurationException;
 import java.io.IOException;
+import java.net.ServerSocket;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Isolated
+@Execution(ExecutionMode.SAME_THREAD)
 class AVStorageProcessorTest {
 
     private static final String TEST_EMAIL_CONTENT = "From: sender@example.com\r\n" +
@@ -64,6 +74,53 @@ class AVStorageProcessorTest {
             }
         } finally {
             Files.deleteIfExists(tmpFile);
+        }
+    }
+
+    @Test
+    void scansRecoveredEpilogueOnlyWhenAttachmentScanningIsEnabled() throws Exception {
+        int port;
+        try (ServerSocket socket = new ServerSocket(0)) {
+            port = socket.getLocalPort();
+        }
+        ClamAVMockServer server = new ClamAVMockServer(port);
+        assertTrue(server.start());
+        Map<String, Object> config = Config.getServer().getClamAV().getMap();
+        Map<String, Object> original = new HashMap<>(config);
+        try {
+            config.put("enabled", true);
+            config.put("host", "localhost");
+            config.put("port", port);
+            String fixture = Files.readString(Path.of("src/test/resources/cases/sources/eicar-epilogue.eml"));
+            String encodedEicar = "WDVPIVAlQEFQWzRcUFpYNTQoUF4pN0NDKTd9JEVJQ0FSLV\r\n"
+                    + "NUQU5EQVJELUFOVElWSVJVUy1URVNULUZJTEUhJEgrSCo=\r\n";
+            assertTrue(fixture.contains(encodedEicar));
+            byte[] raw = fixture.replace(encodedEicar, "U0lNVUxBVEVEX1ZJUlVT\r\n")
+                    .getBytes(StandardCharsets.US_ASCII);
+
+            for (String scenario : List.of("raw-only", "discard", "reject")) {
+                boolean scanAttachments = !scenario.equals("raw-only");
+                config.put("scanAttachments", scanAttachments);
+                config.put("onVirus", scenario.equals("reject") ? "reject" : "discard");
+                MessageEnvelope envelope = new MessageEnvelope().setBytes(raw);
+                ConnectionMock connection = new ConnectionMock(new StringBuilder());
+                connection.getSession().addEnvelope(envelope);
+                try (EmailParser parser = new EmailParser(envelope.openMessageStream()).parse()) {
+                    assertEquals(!scenario.equals("reject"), new AVStorageProcessor().process(connection, parser));
+                }
+                assertEquals(scenario.equals("discard"), envelope.isBlackholed());
+                assertEquals(scenario.equals("reject"), connection.getOutput().contains("554 5.7.1 Virus detected"));
+                assertEquals(scanAttachments ? 2 : 1, envelope.getScanResults().size());
+                if (scanAttachments) {
+                    Map<String, Object> result = envelope.getScanResults().getLast();
+                    assertEquals(true, result.get("infected"));
+                    assertTrue(((String) result.get("part")).startsWith("unframed "));
+                }
+            }
+        } finally {
+            config.clear();
+            config.putAll(original);
+            server.stop();
         }
     }
 

@@ -151,7 +151,7 @@ per run, so older results cannot masquerade as current reports. The runner recre
 integration services; no host port publishing is needed. It explicitly loads
 `.integration/client-cfg`, while the remote MTA mounts `.integration/cfg`
 read-only with database configuration synchronization disabled.
-The default `suite` tag selects the ten delivery/scanning/chaos cases and the
+The default `suite` tag selects the eleven delivery/scanning/chaos cases and the
 PostgreSQL config-store integration tests, not unrelated future integration suites.
 That test requires an explicit `robin.integration.jdbcUrl`; the runner supplies
 the private integration PostgreSQL address, with no production endpoint default.
@@ -185,7 +185,7 @@ java -jar target/robin.jar --client --conf .integration/client-cfg/ --gson src/t
 
 ## Test Case Details
 
-The ten JSON5 cases live in `src/test/resources/cases/config/integration/`.
+The eleven JSON5 cases live in `src/test/resources/cases/config/integration/`.
 The existing assertions remain the source of truth.
 
 | File | Coverage |
@@ -198,6 +198,7 @@ The existing assertions remain the source of truth.
 | `06-partial-delivery-mixed.json5` | Valid delivery alongside invalid recipient rejection |
 | `07-spam-gtube.json5` | GTUBE rejection with 541 and spam log evidence |
 | `08-virus-eicar.json5` | EICAR rejection by ClamAV |
+| `08b-virus-eicar-epilogue.json5` | EICAR rejection when the attachment is smuggled into a MIME epilogue |
 | `09-chaos-lda-failure.json5` | Injected delivery failure accepted with 250 and queued for retry |
 | `10-chaos-storage-failure.json5` | Injected storage failure rejected with 451 |
 

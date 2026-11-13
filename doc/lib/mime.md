@@ -60,8 +60,14 @@ parsing retains them in the message header collection.
 
 The first empty physical line terminates headers, even after a semicolon.
 Folding is accepted before that separator, not repaired across it. Multipart
-preambles/epilogues are ignored. Delimiters start at column zero and may have
-trailing ASCII spaces/tabs; indented boundary-like lines remain body content.
+preambles/epilogues are kept out of `getParts()`. Non-blank preamble or epilogue
+content (including after the outermost closing boundary) is parsed as a MIME
+entity and returned by `getUnframedParts()`, so scanners can inspect content a
+lenient client might render; content with invalid header framing is kept as raw
+bytes. The AV processor scans recovered file parts when `scanAttachments` is
+on. This recovery is best-effort, not a guarantee of detecting every malformed
+message. Delimiters start at column zero and may have trailing ASCII spaces/tabs;
+indented boundary-like lines remain body content.
 Media types are compared case-insensitively without changing boundary or
 filename values. A multipart lacking its boundary parameter is retained opaquely
 with a warning rather than inferring a parameter from its body.

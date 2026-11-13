@@ -130,6 +130,14 @@ public class EmailParser implements AutoCloseable {
      */
     private final List<MimePart> parts = new ArrayList<>();
     private final List<FileMimePart> ownedParts = new ArrayList<>();
+
+    /**
+     * Parts recovered from content outside any MIME part: a multipart preamble, the epilogue
+     * of a nested multipart, or the epilogue after the outermost closing boundary.
+     * <p>RFC 2046 says readers ignore this content, so it is kept out of {@link #parts}. It is
+     * still parsed and retained for scanning, because lenient mail clients may render it.
+     */
+    private final List<MimePart> unframedParts = new ArrayList<>();
     private boolean closed;
     private byte[] pendingLine;
     private final List<String> activeBoundaries = new ArrayList<>();
@@ -253,6 +261,19 @@ public class EmailParser implements AutoCloseable {
      */
     public List<MimePart> getParts() {
         return parts;
+    }
+
+    /**
+     * Gets parts recovered from content outside any MIME part (preamble or epilogue).
+     * <p>RFC 2046 readers ignore this content, so it never appears in {@link #getParts()}.
+     * It is parsed as a MIME entity and kept here so security scanners can inspect content
+     * that a lenient mail client might still render, such as an attachment placed after a
+     * closing boundary. Blank preambles and epilogues produce no parts.
+     *
+     * @return Borrowed list of parts; file parts remain owned by this parser.
+     */
+    public List<MimePart> getUnframedParts() {
+        return unframedParts;
     }
 
     /**
@@ -497,12 +518,22 @@ public class EmailParser implements AutoCloseable {
      */
     private void parsePart(String boundary, int depth, boolean digest) throws IOException {
         activeBoundaries.add(boundary);
+        ByteArrayOutputStream unframed = new ByteArrayOutputStream();
         try {
             byte[] bytes;
             while ((bytes = readLine()) != null) {
                 String line = new String(bytes);
-                if (isEndBoundaryLine(line, boundary)) return;
+                if (isEndBoundaryLine(line, boundary)) {
+                    retainUnframed(unframed, depth);
+                    if (activeBoundaries.size() == 1) {
+                        // Outermost multipart: whatever follows is its epilogue.
+                        while ((bytes = readLine()) != null) unframed.write(bytes);
+                        retainUnframed(unframed, depth);
+                    }
+                    return;
+                }
                 if (isBoundaryLine(line, boundary)) {
+                    retainUnframed(unframed, depth);
                     MimeHeaders partHeaders = new MimeHeaders();
                     if (!readHeaders(partHeaders)) continue;
                     boolean implicitMessage = digest && partHeaders.get("Content-Type").isEmpty();
@@ -512,14 +543,92 @@ public class EmailParser implements AutoCloseable {
                     parseEntity(partHeaders, boundary, depth, implicitMessage);
                 } else if (atBoundary(line)) {
                     pendingLine = bytes;
+                    retainUnframed(unframed, depth);
                     log.warn("Enclosing MIME boundary encountered before nested multipart closed");
                     return;
+                } else {
+                    // Preamble, or the epilogue of a nested multipart that just closed.
+                    unframed.write(bytes);
                 }
             }
+            retainUnframed(unframed, depth);
             log.warn("Multipart ended without its closing MIME boundary");
         } finally {
             activeBoundaries.removeLast();
         }
+    }
+
+    /**
+     * Parses buffered content found outside any MIME part and keeps the result in
+     * {@link #unframedParts}, then resets the buffer. Blank content is dropped. Leading blank
+     * lines are skipped so smuggled part headers are still read as headers.
+     *
+     * @param buffer Buffered preamble or epilogue bytes.
+     * @param depth  Current nesting depth. See {@link #MAX_NESTING_DEPTH}.
+     * @throws IOException If the content cannot be parsed or stored.
+     */
+    private void retainUnframed(ByteArrayOutputStream buffer, int depth) throws IOException {
+        byte[] content = buffer.toByteArray();
+        buffer.reset();
+        int start = 0;
+        while (start < content.length && Character.isWhitespace(content[start])) start++;
+        if (start == content.length) return;
+        while (start > 0 && content[start - 1] != '\n') start--;
+        if (start > 0) content = java.util.Arrays.copyOfRange(content, start, content.length);
+
+        log.debug("Retaining {} bytes of MIME content found outside any part", content.length);
+        if (depth >= MAX_NESTING_DEPTH) {
+            unframedParts.add(storeOpaque(content));
+            return;
+        }
+        try (EmailParser child = new EmailParser(new ByteArrayInputStream(content))) {
+            child.parse(false, depth + 1);
+            adoptUnframed(child.detachParts());
+            adoptUnframed(child.detachUnframedParts());
+        } catch (HeaderFraming.InvalidHeaderException e) {
+            log.debug("Unframed MIME content is not a valid entity: {}", e.getMessage());
+            unframedParts.add(storeOpaque(content));
+        }
+    }
+
+    private void adoptUnframed(List<MimePart> adopted) {
+        for (MimePart part : adopted) {
+            if (part instanceof MultipartMimePart) continue;
+            unframedParts.add(part);
+            if (part instanceof FileMimePart file) ownedParts.add(file);
+        }
+    }
+
+    private FileMimePart storeOpaque(byte[] content) throws IOException {
+        File tempFile = File.createTempFile("mimepart-", ".tmp");
+        try {
+            try (FileOutputStream fos = new FileOutputStream(tempFile)) {
+                fos.write(content);
+            }
+            FileMimePart filePart = FileMimePart.temporary(tempFile);
+            filePart.setSize(content.length);
+            ownedParts.add(filePart);
+            return filePart;
+        } catch (IOException | RuntimeException e) {
+            try {
+                java.nio.file.Files.deleteIfExists(tempFile.toPath());
+            } catch (IOException cleanup) {
+                e.addSuppressed(cleanup);
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Transfers ownership of the unframed parts to the caller.
+     *
+     * @return Independent list of unframed parts, empty after a previous transfer.
+     */
+    private synchronized List<MimePart> detachUnframedParts() {
+        List<MimePart> detached = new ArrayList<>(unframedParts);
+        unframedParts.clear();
+        ownedParts.removeAll(detached);
+        return detached;
     }
 
     private void parseEntity(MimeHeaders partHeaders, String enclosingBoundary, int depth,
@@ -558,6 +667,7 @@ public class EmailParser implements AutoCloseable {
                     parts.add(descendant);
                     if (descendant instanceof FileMimePart file) ownedParts.add(file);
                 }
+                adoptUnframed(child.detachUnframedParts());
             }
         }
     }

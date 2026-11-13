@@ -15,8 +15,10 @@ import org.apache.logging.log4j.Logger;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -59,12 +61,19 @@ public class AVStorageProcessor extends AbstractStorageProcessor {
             }
 
             // Scan each non-text part with ClamAV for improved results if enabled.
+            // Unframed parts (preamble/epilogue content) are scanned too: RFC 2046 readers ignore
+            // them, but a lenient mail client may still render an attachment smuggled there.
             if (clamAVConfig.getBooleanProperty("scanAttachments")) {
-                for (MimePart part : emailParser.getParts()) {
+                List<MimePart> scanned = new ArrayList<>(emailParser.getParts());
+                scanned.addAll(emailParser.getUnframedParts());
+                for (MimePart part : scanned) {
                     if (part instanceof FileMimePart) {
                         String partInfo = part.getHeader("content-type") != null ?
                                 part.getHeader("content-type").getValue().replaceAll("\\s+", " ") :
                                 "unknown attachment";
+                        if (emailParser.getUnframedParts().contains(part)) {
+                            partInfo = "unframed " + partInfo;
+                        }
 
                         if (!isClean(clamAVClient, ((FileMimePart) part).getFile(), partInfo, clamAVConfig, connection)) {
                             return false;

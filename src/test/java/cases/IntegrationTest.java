@@ -14,13 +14,13 @@ import java.nio.file.Path;
 /**
  * Integration tests for Robin MTA email delivery and processing.
  *
- * <p>Run all ten cases in the isolated LMTP, SQL-auth, ClamAV, and Rspamd stack:
+ * <p>Run all eleven cases in the isolated LMTP, SQL-auth, ClamAV, and Rspamd stack:
  * {@code docker compose --project-directory .integration --profile test run --build --rm integration-tests}.
  *
  * <p>Run specific tests:
  * <ul>
  *   <li>{@code -Dtest=IntegrationTest#test01_basicSmtp} - Pass to the container runner for one test</li>
- *   <li>{@code -Dgroups=dovecot} - Select eight cases, excluding scanner tests 07-08</li>
+ *   <li>{@code -Dgroups=dovecot} - Select eight cases, excluding scanner tests 07, 08 and 08b</li>
  * </ul>
  */
 @Tag("integration")
@@ -101,6 +101,13 @@ public class IntegrationTest {
     void test08_virusEicar() throws AssertException, IOException {
         new Client()
                 .send("src/test/resources/cases/config/integration/08-virus-eicar.json5");
+    }
+
+    @Test
+    @DisplayName("08b. Virus detection with EICAR in a MIME epilogue")
+    void test08b_virusEicarEpilogue() throws AssertException, IOException {
+        new Client()
+                .send("src/test/resources/cases/config/integration/08b-virus-eicar-epilogue.json5");
     }
 
     @Test

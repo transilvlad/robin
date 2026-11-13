@@ -1,0 +1,40 @@
+MIME-Version: 1.0
+From: <{$MAILFROM}>
+To: <{$RCPTTO}>
+Date: {$DATE}
+Message-ID: <{$MSGID}{$MAILFROM}>
+Subject: Lipsum
+X-Robin-Filename: eicar.eml
+Content-Type: multipart/mixed;
+	boundary="----====this-is-the-mixed-part"
+
+------====this-is-the-mixed-part
+Content-Type: multipart/alternative;
+	boundary="----====this-is-the-alternative-part"
+
+------====this-is-the-alternative-part
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+I have the virus EICAR test file.
+
+------====this-is-the-alternative-part
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+<body>
+<p>I have the virus EICAR test file.</p>
+</body>
+</html>
+
+------====this-is-the-alternative-part--
+Content-Type: application/octet-stream; name="eicar.com"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="eicar.com"
+
+WDVPIVAlQEFQWzRcUFpYNTQoUF4pN0NDKTd9JEVJQ0FSLV
+NUQU5EQVJELUFOVElWSVJVUy1URVNULUZJTEUhJEgrSCo=
+
+------====this-is-the-mixed-part--
