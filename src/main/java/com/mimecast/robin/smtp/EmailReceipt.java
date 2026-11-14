@@ -16,6 +16,7 @@ import com.mimecast.robin.smtp.extension.server.ServerRcpt;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.mimecast.robin.smtp.security.ConnectionTracker;
 import com.mimecast.robin.smtp.session.EmailDirection;
+import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.smtp.verb.Verb;
 import com.mimecast.robin.smtp.webhook.WebhookResponse;
 import com.mimecast.robin.util.Sleep;
@@ -107,8 +108,11 @@ public class EmailReceipt implements Runnable {
             ThreadContext.put("aCode", "");
             ThreadContext.put("bCode", "");
             ThreadContext.put("cCode", "");
+            Session.unpinLogContext(); // Pooled threads may carry a pin from an earlier connection.
 
             connection = new Connection(socket);
+            // Keep this connection's UID on its log lines while helper sessions are created.
+            Session.pinLogContext(connection.getSession());
             this.config = config;
             errorLimit = config.getErrorLimit();
             boolean authenticatedSubmission = submission || config.isAuthenticationRequired();
@@ -235,6 +239,7 @@ public class EmailReceipt implements Runnable {
                 connection.getSession().close();
             }
             connection.close();
+            Session.unpinLogContext();
         }
     }
 

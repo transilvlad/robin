@@ -285,10 +285,38 @@ public class Session implements Serializable, Cloneable {
     private final Map<String, List<?>> savedResults = new HashMap<>();
 
     /**
+     * Whether this thread's log context belongs to one long-lived session.
+     * <p>Set by inbound connection threads so helper sessions created while processing
+     * (relay retries, bounces, LMTP pool sessions) do not relabel the connection's log lines.
+     */
+    private static final ThreadLocal<Boolean> LOG_CONTEXT_PINNED = ThreadLocal.withInitial(() -> false);
+
+    /**
+     * Labels this thread's log lines with the given session's UID until {@link #unpinLogContext()}.
+     * <p>Sessions constructed on a pinned thread leave the log context unchanged.
+     *
+     * @param session Session owning the thread.
+     */
+    public static void pinLogContext(Session session) {
+        ThreadContext.put("aCode", session.getUID());
+        LOG_CONTEXT_PINNED.set(true);
+    }
+
+    /**
+     * Releases a pin set by {@link #pinLogContext(Session)}, so new sessions label the thread again.
+     */
+    public static void unpinLogContext() {
+        LOG_CONTEXT_PINNED.remove();
+    }
+
+    /**
      * Constructs a new Session instance.
+     * <p>Labels this thread's log lines with the new UID unless the log context is pinned.
      */
     public Session() {
-        ThreadContext.put("aCode", uid);
+        if (!LOG_CONTEXT_PINNED.get()) {
+            ThreadContext.put("aCode", uid);
+        }
 
         Magic.putMagic(this);
         setDate();

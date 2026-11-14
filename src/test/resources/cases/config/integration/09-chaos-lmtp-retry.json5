@@ -51,12 +51,12 @@
               url: "http://127.0.0.1:28090/logs?q={$transactionUid}",
               type: "GET"
             },
-            // Both lines carry the session UID in their text. Building the retry session currently
-            // replaces the thread's log UID, so later lines (pepper's LMTP delivery) are not found by
-            // this query; the pepper IMAP check below proves the inline delivery instead.
+            // Lines logged after the retry session is built must keep this session's UID.
             verify: [ "Enqueuing failed mailbox='happy@example\\.com' for action=retry" ],
             match: [
-              [ "Chaos header failing LMTP delivery for recipient=happy@example\\.com" ]
+              [ "Chaos header failing LMTP delivery for recipient=happy@example\\.com" ],
+              [ "Invoking LMTP delivery .*recipients=pepper@example\\.com outbound" ],
+              [ "LMTP delivery successful" ]
             ],
             refuse: [
               [ "Enqueuing failed mailbox='pepper@example\\.com'" ]

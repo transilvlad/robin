@@ -213,9 +213,12 @@ class DovecotStorageProcessorTest {
                         + "Subject: Test\r\n\r\nBody\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8)))).parse();
         boolean chaosEnabled = Config.getServer().isChaosHeaders();
         Config.getServer().getMap().put("chaosHeaders", true);
+        Session.pinLogContext(connection.getSession()); // As EmailReceipt does for inbound connections.
         try {
             new DovecotStorageProcessor(delivery).saveToLmtp(connection, parser, Config.getServer());
 
+            // Queuing the retry builds a new session; the inbound UID must stay on the log lines.
+            assertEquals(connection.getSession().getUID(), org.apache.logging.log4j.ThreadContext.get("aCode"));
             assertEquals(List.of("first@example.com"), delivered);
             var queued = queue.list(0, 10, QueueListFilter.activeOnly()).items();
             assertEquals(1, queued.size());
@@ -223,6 +226,7 @@ class DovecotStorageProcessorTest {
             assertEquals(List.of("chaos@example.com"), queued.getFirst().getPayload().getSession().getEnvelopes().getFirst().getRcpts());
         } finally {
             Config.getServer().getMap().put("chaosHeaders", chaosEnabled);
+            Session.unpinLogContext();
             for (var item : queue.list(0, 10, QueueListFilter.activeOnly()).items()) {
                 Files.deleteIfExists(Path.of(item.getPayload().getSession().getEnvelopes().getFirst().getFile()));
             }
