@@ -1,0 +1,43 @@
+name: Integration tests
+
+# End-to-end suite: Robin with Postgres, Redis, ClamAV, Rspamd and Dovecot in an isolated
+# Docker network, driven by Robin's own JSON5 cases (see doc/testing/full-suite.md).
+
+on:
+  push:
+    branches: [ "master" ]
+    paths-ignore: [ "doc/**", "**.md" ]
+  pull_request:
+    branches: [ "master" ]
+    paths-ignore: [ "doc/**", "**.md" ]
+  schedule:
+    # Nightly, to catch drift in the latest service images (Dovecot, Rspamd, ClamAV).
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run integration suite
+        run: .integration/ci.sh
+
+      - name: Upload reports and service logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-reports
+          path: .integration/reports/
+          retention-days: 14
+          if-no-files-found: warn

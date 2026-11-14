@@ -8,10 +8,14 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  CANDIDATE: robin:candidate
 
 jobs:
-  build-and-push-robin:
+  # Builds the image once, runs the integration suite against it, and pushes that same image.
+  # Nothing is published unless the suite passes.
+  test-and-publish-robin:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
       contents: read
       packages: write
@@ -22,13 +26,6 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata for Robin
         id: meta
@@ -41,29 +38,31 @@ jobs:
             type=semver,pattern={{major}}
             type=raw,value=latest
 
-      - name: Build and push Robin image
+      - name: Build candidate image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          load: true
+          push: false
+          tags: ${{ env.CANDIDATE }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  build-and-push-robin-dovecot:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
+      - name: Run integration suite against candidate
+        env:
+          ROBIN_IMAGE: ${{ env.CANDIDATE }}
+        run: .integration/ci.sh
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Upload reports and service logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-reports
+          path: .integration/reports/
+          retention-days: 30
+          if-no-files-found: warn
 
       - name: Log in to Container Registry
         uses: docker/login-action@v3
@@ -72,24 +71,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata for Robin+Dovecot
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dovecot
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest
-
-      - name: Build and push Robin+Dovecot image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./.dovecot/robin.Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Push tested image
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            docker tag "$CANDIDATE" "$tag"
+            docker push "$tag"
+          done <<< "$TAGS"

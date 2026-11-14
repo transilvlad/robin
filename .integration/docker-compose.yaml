@@ -109,6 +109,9 @@ services:
       retries: 12
 
   integration-robin:
+    # Set ROBIN_IMAGE to test a prebuilt image (CI tests the exact image it publishes);
+    # otherwise this tag is built from the working tree.
+    image: ${ROBIN_IMAGE:-robin-integration-robin:local}
     build:
       context: ../
       dockerfile: Dockerfile

@@ -151,7 +151,7 @@ per run, so older results cannot masquerade as current reports. The runner recre
 integration services; no host port publishing is needed. It explicitly loads
 `.integration/client-cfg`, while the remote MTA mounts `.integration/cfg`
 read-only with database configuration synchronization disabled.
-The default `suite` tag selects the eleven delivery/scanning/chaos cases and the
+The default `suite` tag selects the eleven delivery/scanning/chaos cases, the assertion self-tests and the
 PostgreSQL config-store integration tests, not unrelated future integration suites.
 That test requires an explicit `robin.integration.jdbcUrl`; the runner supplies
 the private integration PostgreSQL address, with no production endpoint default.
@@ -170,6 +170,30 @@ Never run these commands against the production suite:
 ```bash
 docker compose --project-directory .integration --profile test down -v
 ```
+
+### Continuous Integration
+
+`.integration/ci.sh` runs the suite the way CI does. It starts from removed volumes,
+saves Surefire reports and every service's logs under `.integration/reports/`, and
+removes the stack again, keeping the suite's exit code.
+
+```bash
+# Build Robin from the working tree and run the suite
+.integration/ci.sh
+
+# Test a prebuilt image instead
+ROBIN_IMAGE=robin:candidate .integration/ci.sh
+```
+
+GitHub Actions runs it in two places:
+
+| Workflow | Trigger | What it tests |
+|---|---|---|
+| `integration.yml` | Pushes and pull requests to `master` (except docs-only changes), nightly, manual | The image built from that commit. The nightly run catches breakage from new `latest` service images. Reports and logs are uploaded as the `integration-reports` artifact. |
+| `docker-publish.yml` | `v*` tags | Builds the release image once, runs the suite against it, and pushes that same image only if the suite passes. |
+
+The nightly run matters because the stack uses `latest` tags for Dovecot, Rspamd and
+ClamAV. For example, Dovecot 2.4.5 dropped the `dovecot` group the configuration relied on.
 
 ### Individual Test Cases
 

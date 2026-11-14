@@ -1,6 +1,6 @@
 # End-to-end test plan
 
-Status: Phase 0 implemented 2026-11-14 (unit-tested; Docker run pending). Phases 1-3 proposed. Goal: release confidence for production use, and a
+Status: steps 1-2 implemented 2026-11-14 (Phase 0 green in Docker; CI workflows added). Later steps proposed. Goal: release confidence for production use, and a
 suite of JSON5 cases that doubles as a demonstration of what Robin's case system
 can test on an MTA.
 

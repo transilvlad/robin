@@ -1,0 +1,6 @@
+# Overlay for testing a prebuilt Robin image (ROBIN_IMAGE) without Compose rebuilding it.
+# Used by ci.sh; without it Compose would rebuild and overwrite the image from the working tree.
+services:
+  integration-robin:
+    build: !reset null
+    pull_policy: never
