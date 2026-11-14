@@ -199,8 +199,9 @@ The existing assertions remain the source of truth.
 | `07-spam-gtube.json5` | GTUBE rejection with 541 and spam log evidence |
 | `08-virus-eicar.json5` | EICAR rejection by ClamAV |
 | `08b-virus-eicar-epilogue.json5` | EICAR rejection when the attachment is smuggled into a MIME epilogue |
-| `09-chaos-lda-failure.json5` | Injected delivery failure accepted with 250 and queued for retry |
+| `09-chaos-lmtp-retry.json5` | Injected LMTP failure for one recipient: the other is delivered inline, the failed one is queued and then delivered from the queue |
 | `10-chaos-storage-failure.json5` | Injected storage failure rejected with 451 |
+| `selftest/*.json5` | Cases that must fail, each for a stated reason; proves every assertion type can fail |
 
 `ConfigStoreSyncIntegrationTest` additionally checks rejected empty payloads,
 per-server configuration merges, and persistence of secret references rather

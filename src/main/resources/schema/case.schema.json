@@ -2,8 +2,9 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "http://transilvlad.net/json-schema/messaging/robin/case",
   "title": "Robin Case JSON",
-  "description": "This provides the deviations from the defaults for each case",
+  "description": "Deviations from client.json5 defaults for one SMTP or HTTP test case. See doc/testing/case-smtp.md and doc/testing/case-http.md.",
   "type": "object",
+  "additionalProperties": false,
   "oneOf": [
     {
       "required": [
@@ -17,30 +18,38 @@
     }
   ],
   "properties": {
+    "$schema": {
+      "description": "Editor schema hint",
+      "type": "string"
+    },
+    "$": {
+      "description": "Session magic variables; string values are magic-replaced in order so later entries can use earlier ones",
+      "type": "object"
+    },
     "retry": {
-      "description": "How many times to attempt connection",
+      "description": "How many times to attempt connection; only connect and banner failures are retried",
       "type": "integer",
       "default": 1
     },
     "delay": {
-      "description": "Delay between connection retries",
+      "description": "Seconds between connection attempts",
       "type": "integer",
       "default": 0
     },
     "timeout": {
-      "description": "Socket timeout in milliseconds",
+      "description": "Socket timeout in milliseconds; values below 60000 are raised to 60000",
       "type": "integer",
-      "default": 30
+      "default": 60000
     },
     "mx": {
-      "description": "MX Records",
+      "description": "MX hosts, shuffled before use",
       "type": "array",
       "items": {
-        "description": "TLDs or IP addresses",
+        "description": "Host names or IP addresses",
         "type": "string"
       },
       "default": [
-        "localhost"
+        "127.0.0.1"
       ]
     },
     "port": {
@@ -49,27 +58,25 @@
       "default": 25
     },
     "route": {
-      "description": "Predefine route name from client.json5",
+      "description": "Route name from client.json5 routes; overrides mx, port, auth, user and pass",
       "type": "string"
     },
     "tls": {
-      "description": "Enables TLS support",
+      "description": "Use STARTTLS when advertised",
       "type": "boolean",
-      "default": false
+      "default": true
     },
     "protocols": {
       "description": "Java TLS protocols",
       "type": "array",
       "items": {
-        "description": "Java protocol name",
         "type": "string"
       }
     },
     "ciphers": {
-      "description": "Java Cipher Suites",
+      "description": "Java cipher suites",
       "type": "array",
       "items": {
-        "description": "Java cipher suite name",
         "type": "string"
       }
     },
@@ -79,17 +86,17 @@
       "default": false
     },
     "authBeforeTls": {
-      "description": "Enable authentication before STARTTLS",
+      "description": "Authenticate before STARTTLS",
       "type": "boolean",
       "default": false
     },
     "authLoginCombined": {
-      "description": "Send username and password in one line",
+      "description": "Send AUTH LOGIN username on the command line",
       "type": "boolean",
       "default": false
     },
     "authLoginRetry": {
-      "description": "Disable authLoginCombined and retry authentication",
+      "description": "Retry AUTH LOGIN without authLoginCombined",
       "type": "boolean",
       "default": false
     },
@@ -101,143 +108,545 @@
       "description": "Authentication password",
       "type": "string"
     },
+    "helo": {
+      "description": "Send HELO with this domain; takes precedence over lhlo and ehlo",
+      "type": "string"
+    },
+    "lhlo": {
+      "description": "Send LHLO with this domain and switch to LMTP; takes precedence over ehlo",
+      "type": "string"
+    },
     "ehlo": {
-      "description": "EHLO",
-      "type": "string",
-      "default": "mimecast.net"
+      "description": "EHLO domain",
+      "type": "string"
     },
-    "mail": {
-      "description": "MAIL FROM",
-      "type": "string",
-      "pattern": "^[\\w-.]+@([\\w-]+\\.)+[\\w-]{2,4}$"
-    },
-    "rcpt": {
-      "description": "RCPT TO list",
+    "behaviour": {
+      "description": "Custom command sequence; QUIT is sent automatically. Uses the first envelope; RCPT sends one recipient per occurrence",
       "type": "array",
       "items": {
-        "description": "Email addresses",
         "type": "string",
-        "pattern": "^[\\w-.]+@([\\w-]+\\.)+[\\w-]{2,4}$"
-      }
-    },
-    "envelopes": {
-      "description": "List of email envelopes to deliver",
-      "type": "array",
-      "items": {
-        "description": "Supports: mail, rcpt, file, header, message, mime, request, assertions",
-        "properties": {
-          "chunkSize": {
-            "description": "Enables CHUNKING if grater than minimum 128",
-            "type": "integer",
-            "default": 2048
-          },
-          "chunkBdat": {
-            "description": "Writes BDAT command to socket along with the first chunk",
-            "type": "boolean",
-            "default": false
-          },
-          "chunkWrite": {
-            "description": "Writes to socket in uneven chunks between 1024 and 2048 bytes if chunkSize at least 2048",
-            "type": "boolean",
-            "default": false
-          },
-          "terminateAfterBytes": {
-            "description": "Terminates connection after transfering given bytes of DATA when greater. Enables terminateBeforeDot",
-            "type": "integer",
-            "default": 0
-          },
-          "terminateBeforeDot": {
-            "description": "Terminates connection right before transfering DATA terminator <CRLF>.<CRLF>",
-            "type": "boolean",
-            "default": false
-          },
-          "terminateAfterDot": {
-            "description": "Terminates connection right after transfering DATA terminator <CRLF>.<CRLF>",
-            "type": "boolean",
-            "default": false
-          },
-          "slowBytes": {
-            "description": "Adds a write delay every given number of bytes",
-            "type": "integer",
-            "default": 1
-          },
-          "slowWait": {
-            "description": "Wait time in milliseconds",
-            "type": "integer",
-            "default": 0,
-            "minimum": 100
-          },
-          "repeat": {
-            "description": "Repeat the same envelope delivery",
-            "type": "integer",
-            "default": 0
-          },
-          "mail": {
-            "description": "MAIL FROM",
-            "type": "string",
-            "pattern": "^([\\w-.]+@([\\w-]+\\.)+[\\w-]{2,4})|$"
-          },
-          "rcpt": {
-            "description": "RCPT TO list",
-            "type": "array",
-            "items": {
-              "description": "Email addresses",
-              "type": "string",
-              "pattern": "^([\\w-.]+@([\\w-]+\\.)+[\\w-]{2,4})|$"
-            }
-          },
-          "subject": {
-            "description": "Message subject",
-            "type": "string"
-          },
-          "message": {
-            "description": "Message content",
-            "type": "string"
-          },
-          "file": {
-            "description": "Path to eml file; Alternative to subject & message",
-            "type": "string"
-          },
-          "mime": {
-            "description": "MIME structure as per mime.md",
-            "type": "object"
-          }
-        },
-        "dependencies": {
-          "subject": {
-            "required": [
-              "message"
-            ]
-          },
-          "message": {
-            "required": [
-              "subject"
-            ]
-          }
-        },
-        "oneOf": [
-          {
-            "required": [
-              "subject",
-              "message"
-            ]
-          },
-          {
-            "required": [
-              "file"
-            ]
-          },
-          {
-            "required": [
-              "mime"
-            ]
-          }
+        "enum": [
+          "EHLO",
+          "XCLIENT",
+          "STARTTLS",
+          "AUTH",
+          "MAIL",
+          "RCPT",
+          "DATA"
         ]
       }
     },
+    "xclient": {
+      "description": "XCLIENT attributes, for example name, helo and addr; values are magic-replaced",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "mail": {
+      "description": "Default MAIL FROM for envelopes",
+      "type": "string"
+    },
+    "rcpt": {
+      "description": "Default RCPT TO list for envelopes",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "envelopes": {
+      "description": "Email envelopes delivered in order over one connection",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/envelope"
+      }
+    },
     "request": {
-      "description": "HTTP request structure as per request.md",
-      "type": "object"
+      "description": "HTTP request as per doc/testing/case-http.md",
+      "$ref": "#/definitions/request"
+    },
+    "assertions": {
+      "description": "Session assertions",
+      "$ref": "#/definitions/assertions"
+    }
+  },
+  "definitions": {
+    "envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": [
+            "subject",
+            "message"
+          ]
+        },
+        {
+          "required": [
+            "file"
+          ]
+        },
+        {
+          "required": [
+            "folder"
+          ]
+        },
+        {
+          "required": [
+            "mime"
+          ]
+        }
+      ],
+      "properties": {
+        "mail": {
+          "description": "MAIL FROM; empty string sends a null reverse-path",
+          "type": "string"
+        },
+        "rcpt": {
+          "description": "RCPT TO list",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "params": {
+          "description": "Raw parameters appended to MAIL and to every RCPT",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "MAIL": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "RCPT": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "headers": {
+          "description": "Magic headers used by {$HEADERS} in the eml, or prepended with prependHeaders; list values are joined with '; '",
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "array"
+            ]
+          }
+        },
+        "prependHeaders": {
+          "description": "Prepend the magic headers to the message",
+          "type": "boolean",
+          "default": false
+        },
+        "subject": {
+          "description": "Message subject; requires message",
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "description": "Message body; requires subject",
+          "type": "string",
+          "minLength": 1
+        },
+        "file": {
+          "description": "Path to an eml file",
+          "type": "string",
+          "minLength": 1
+        },
+        "folder": {
+          "description": "Folder from which a random eml file is picked",
+          "type": "string",
+          "minLength": 1
+        },
+        "mime": {
+          "description": "MIME builder as per doc/testing/mime.md",
+          "type": "object"
+        },
+        "chunkSize": {
+          "description": "Use BDAT with this chunk size when greater than 128 and CHUNKING is advertised",
+          "type": "integer",
+          "default": 0
+        },
+        "chunkBdat": {
+          "description": "Write the BDAT command in the same write as the first chunk",
+          "type": "boolean",
+          "default": false
+        },
+        "chunkWrite": {
+          "description": "Write chunks to the socket in uneven 1024 to 2048 byte pieces",
+          "type": "boolean",
+          "default": false
+        },
+        "terminateAfterBytes": {
+          "description": "Drop the connection after this many DATA bytes; enables terminateBeforeDot",
+          "type": "integer",
+          "default": 0
+        },
+        "terminateBeforeDot": {
+          "description": "Drop the connection before the DATA terminator",
+          "type": "boolean",
+          "default": false
+        },
+        "terminateAfterDot": {
+          "description": "Drop the connection after the DATA terminator",
+          "type": "boolean",
+          "default": false
+        },
+        "slowBytes": {
+          "description": "Pause after every given number of bytes",
+          "type": "integer",
+          "default": 1
+        },
+        "slowWait": {
+          "description": "Pause length in milliseconds",
+          "type": "integer",
+          "default": 0
+        },
+        "repeat": {
+          "description": "Deliver this many extra copies of the envelope",
+          "type": "integer",
+          "default": 0
+        },
+        "assertions": {
+          "description": "Envelope assertions",
+          "$ref": "#/definitions/assertions"
+        }
+      }
+    },
+    "assertions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocolFails": {
+          "description": "Fail on protocol assertion failure, otherwise skip remaining assertions",
+          "type": "boolean"
+        },
+        "smtpFails": {
+          "description": "Alias of protocolFails",
+          "type": "boolean"
+        },
+        "verifyFails": {
+          "description": "Fail on external assertion failure, otherwise skip remaining assertions",
+          "type": "boolean"
+        },
+        "protocol": {
+          "description": "Protocol assertions: [COMMAND] (transaction exists), [COMMAND, regex] or [COMMAND, regex, selector] where selector is any, all, none or a zero-based index",
+          "$ref": "#/definitions/protocolAssertions"
+        },
+        "smtp": {
+          "description": "Alias of protocol",
+          "$ref": "#/definitions/protocolAssertions"
+        },
+        "external": {
+          "description": "External assertions",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/external"
+          }
+        }
+      }
+    },
+    "protocolAssertions": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 3,
+        "items": {
+          "type": [
+            "string",
+            "integer"
+          ]
+        }
+      }
+    },
+    "patternGroups": {
+      "description": "List of pattern groups",
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "external": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "description": "External assertion client",
+          "type": "string",
+          "enum": [
+            "logs",
+            "humio",
+            "imap",
+            "request"
+          ]
+        },
+        "name": {
+          "description": "Label for readers and logs",
+          "type": "string"
+        },
+        "condition": {
+          "description": "Run only when '<magic> == value' or '<magic> != value' holds",
+          "type": "string"
+        },
+        "wait": {
+          "description": "Seconds before the first attempt",
+          "type": "integer"
+        },
+        "delay": {
+          "description": "Seconds between attempts",
+          "type": "integer"
+        },
+        "retry": {
+          "description": "Attempts",
+          "type": "integer",
+          "default": 1
+        },
+        "verify": {
+          "description": "Patterns that must all match one line before the data is accepted",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "verifyNone": {
+          "description": "Fail if any data is found on any attempt",
+          "type": "boolean"
+        },
+        "match": {
+          "description": "Every group must have all its patterns found in the data",
+          "$ref": "#/definitions/patternGroups"
+        },
+        "refuse": {
+          "description": "Fail if all patterns of any group are found in the data",
+          "$ref": "#/definitions/patternGroups"
+        },
+        "magic": {
+          "description": "Save group 1, or the whole match, into session magic",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "pattern"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "pattern": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "grep": {
+          "description": "logs and humio: line filters; parameter E for regex, v to invert, c to count",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "pattern"
+            ],
+            "properties": {
+              "pattern": {
+                "type": "string"
+              },
+              "parameter": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "logPrecedence": {
+          "description": "logs: prefix of the yyyyMMdd.log file name",
+          "type": "string"
+        },
+        "serviceName": {
+          "description": "humio: service name",
+          "type": "string"
+        },
+        "host": {
+          "description": "imap: server host",
+          "type": "string"
+        },
+        "port": {
+          "description": "imap: server port; 993 uses implicit TLS",
+          "type": "integer"
+        },
+        "user": {
+          "description": "imap: username",
+          "type": "string"
+        },
+        "pass": {
+          "description": "imap: password",
+          "type": "string"
+        },
+        "folder": {
+          "description": "imap: folder",
+          "type": "string"
+        },
+        "absent": {
+          "description": "imap: fail if the message is found on any attempt",
+          "type": "boolean"
+        },
+        "delete": {
+          "description": "imap: delete the verified message",
+          "type": "boolean"
+        },
+        "purge": {
+          "description": "imap: purge the folder after verification",
+          "type": "boolean"
+        },
+        "matches": {
+          "description": "imap: header and part matches",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "headers": {
+              "description": "Each group must match one 'Name: value' header line",
+              "$ref": "#/definitions/patternGroups"
+            },
+            "parts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "headers": {
+                    "$ref": "#/definitions/patternGroups"
+                  },
+                  "body": {
+                    "description": "Groups are ANDed; patterns within a group are alternatives",
+                    "$ref": "#/definitions/patternGroups"
+                  },
+                  "hashes": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "sha1": {
+                        "type": "string"
+                      },
+                      "sha256": {
+                        "type": "string"
+                      },
+                      "md5": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "request": {
+          "description": "request: HTTP request",
+          "$ref": "#/definitions/request"
+        },
+        "status": {
+          "description": "request: exact HTTP status expected; default is any 2xx",
+          "type": "integer"
+        },
+        "paths": {
+          "description": "request: keep only flattened JSON entries starting with these paths",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "nameValues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "value"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE"
+          ]
+        },
+        "headers": {
+          "$ref": "#/definitions/nameValues"
+        },
+        "params": {
+          "$ref": "#/definitions/nameValues"
+        },
+        "files": {
+          "$ref": "#/definitions/nameValues"
+        },
+        "content": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "payload": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "mimeType": {
+              "type": "string"
+            }
+          }
+        },
+        "object": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "mimeType": {
+              "type": "string"
+            }
+          }
+        },
+        "config": {
+          "description": "Template file supplying url, type and headers",
+          "type": "string"
+        }
+      }
     }
   }
 }

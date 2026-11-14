@@ -77,7 +77,7 @@
     protocol: [
       [ "SMTP", "^220" ],
       [ "EHLO", "STARTTLS" ],
-      [ "QUIT" ]
+      [ "QUIT", "^221" ]
     ]
   }
 }

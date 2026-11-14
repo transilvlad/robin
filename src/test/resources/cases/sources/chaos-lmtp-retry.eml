@@ -1,0 +1,14 @@
+MIME-Version: 1.0
+From: <{$MAILFROM}>
+To: <{$RCPTTO}>
+Message-ID: <{$MSGID}{$MAILFROM}>
+Date: {$DATE}
+Subject: Chaos Header Test - LMTP Retry
+Content-Type: text/plain; charset=UTF-8
+X-Robin-Chaos: DovecotLmtp; recipient=happy@example.com
+
+This email contains a chaos header that fails inline LMTP delivery
+for happy@example.com only.
+
+Robin must still deliver to the other recipients immediately, queue
+happy@example.com for retry, and deliver it from the queue later.

@@ -1,0 +1,20 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Self-test: MUST FAIL. A delivered message asserted as rejected.
+  // Proves a protocol assertion mismatch fails the case.
+  route: "docker",
+  tls: true,
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      file: "src/test/resources/cases/sources/lipsum.eml",
+      assertions: {
+        protocol: [
+          ["DATA", "^550"]
+        ]
+      }
+    }
+  ]
+}

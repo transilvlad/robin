@@ -16,7 +16,6 @@ import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * Logs external client.
@@ -68,37 +67,68 @@ public class LogsExternalClient extends MatchExternalClient {
     /**
      * Run assertions.
      *
+     * <p>With {@code verifyNone} the grep must find no lines. Otherwise lines must be found and satisfy {@code verify}
+     * before {@code match}, {@code refuse} and {@code magic} run. Failures throw unless {@code verifyFails} is false,
+     * which skips instead.
+     *
      * @throws AssertException Assertion exception.
      */
     @Override
     public void run() throws AssertException {
-        if (!config.isEmpty()) {
-            if (!config.checkCondition(connection)) {
-                log.info("Condition not met, skipping: {}", config.getStringProperty("condition"));
-                return;
+        if (config.isEmpty()) {
+            return;
+        }
+
+        if (!config.checkCondition(connection)) {
+            log.info("Condition not met, skipping: {}", config.getStringProperty("condition"));
+            return;
+        }
+
+        if (!verifyNone) {
+            compileVerify(); // Precompile verify patterns for performance.
+        }
+
+        List<String> data = getLogs();
+
+        if (verifyNone) {
+            if (data.isEmpty()) {
+                log.info("AssertExternal logs verify none success");
+            } else {
+                logResults(data);
+                fail("Logs found when none expected: " + data.get(0));
             }
 
-            try {
-                if (!verifyNone) {
-                    compileVerify(); // Precompile verify patterns for performance.
-                }
-                List<String> data = getLogs(); // Get the logs for that UID and verify.
+        } else if (data.isEmpty()) {
+            fail("No logs found to assert against");
 
-                // Verify no logs were found.
-                if (verifyNone) {
-                    log.info("AssertExternal logs verify none");
+        } else if (!checkVerify(data)) {
+            logResults(data);
+            fail("Logs did not match verify patterns " + verifyPatterns);
 
-                } else if (!skip) {
-                    runMatches(data);
-                }
-            } catch (Exception e) {
-                throw new AssertException(e);
-            }
+        } else {
+            runMatches(data);
         }
     }
 
     /**
+     * Fails the assertion, or skips when verify failures are not fatal.
+     *
+     * @param message Failure message.
+     * @throws AssertException When verify failures are fatal.
+     */
+    protected void fail(String message) throws AssertException {
+        if (assertVerifyFails) {
+            throw new AssertException(message);
+        }
+        log.warn("{}, skipping", message);
+        skip = true;
+    }
+
+    /**
      * Get logs.
+     *
+     * <p>Retries until {@code verify} is satisfied or attempts are spent.
+     * With {@code verifyNone} it retries while no lines are found, so absence holds across the whole window.
      *
      * @return List of String.
      * @throws AssertException Assertion exception.
@@ -107,65 +137,42 @@ public class LogsExternalClient extends MatchExternalClient {
         List<String> data = new ArrayList<>();
 
         if (dir.isEmpty()) {
-            log.error("AssertExternal logs.local.dir not found in properties");
+            throw new AssertException("AssertExternal localLogsDir not found in properties");
+        }
 
-        } else {
-            long delay = config.getWait() > 0 ? config.getWait() * 1000L : 0L;
-            for (int count = 0; count < config.getRetry(); count++) {
-                Sleep.nap((int) delay);
-                log.info("AssertExternal logs fetching locally");
+        String uid = UIDExtractor.getUID(connection, transactionId);
+        List<Grep> greps = getGreps();
+        boolean count = greps.stream().anyMatch(Grep::count);
 
-                try (BufferedReader br = new BufferedReader(new FileReader(path))) {
-                    String uid = UIDExtractor.getUID(connection, transactionId);
-                    Map<Pattern, String> patterns = getGreps();
+        long delay = config.getWait() > 0 ? config.getWait() * 1000L : 0L;
+        for (int attempt = 0; attempt < config.getRetry(); attempt++) {
+            Sleep.nap((int) delay);
+            delay = config.getDelay() * 1000L; // Retry delay.
+            log.info("AssertExternal logs fetching locally, attempt {} of {}", attempt + 1, config.getRetry());
 
-                    String line;
-                    data.clear();
-                    while ((line = br.readLine()) != null) {
-                        String finalLine = line;
-                        if ((patterns.isEmpty() && (uid == null || line.contains(uid))) || patterns.keySet().stream().allMatch(pattern -> pattern.matcher(finalLine).find())) {
-                            data.add(line);
-                        }
+            data.clear();
+            try (BufferedReader br = new BufferedReader(new FileReader(path))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    if (greps.isEmpty() ? (uid == null || line.contains(uid)) : Grep.all(greps, line)) {
+                        data.add(line);
                     }
-
-                    Optional<Map.Entry<Pattern, String>> counter =  patterns.entrySet().stream().filter(s -> s.getValue().contains("c")).findFirst();
-                    if (counter.isPresent()) {
-                        List<String> filteredData = data.stream()
-                                .filter(s -> !counter.get().getKey().matcher(s).matches())
-                                .collect(Collectors.toList());
-
-                        data.clear();
-                        data.add(String.valueOf(filteredData.size()));
-                    }
-
-                } catch (IOException e) {
-                    log.error("AssertExternal logs reading problems: {}", e.getMessage());
-                    throw new AssertException("No logs found to assert against");
                 }
-
-                if (verifyNone) break;
-
-                if (checkVerify(data)) {
-                    log.debug("AssertExternal logs fetch verify success");
-                    logResults(data);
-                    break;
-                }
-
-                delay = config.getDelay() * 1000L; // Retry delay.
-                log.info("AssertExternal logs fetch verify {}", (count < config.getRetry() - 1 ? "failure" : "attempts spent"));
-
-                if (!assertVerifyFails) {
-                    skip = true;
-                    log.warn("Skipping");
-                    return new ArrayList<>();
-                }
+            } catch (IOException e) {
+                throw new AssertException("AssertExternal logs reading problems: " + e.getMessage());
             }
 
-            if (data.isEmpty()) {
-                if (!verifyNone) {
-                    throw new AssertException("No logs found to assert against");
-                }
+            // `grep -c` replaces the lines with how many there were.
+            if (count) {
+                int size = data.size();
+                data.clear();
+                data.add(String.valueOf(size));
             }
+
+            if (verifyNone ? !data.isEmpty() : (!data.isEmpty() && checkVerify(data))) {
+                break;
+            }
+            log.info("AssertExternal logs fetch verify {}", (attempt < config.getRetry() - 1 ? "failure" : "attempts spent"));
         }
 
         return data;
@@ -174,28 +181,58 @@ public class LogsExternalClient extends MatchExternalClient {
     /**
      * Prepare grep patterns.
      *
-     * @return Map of Pattern, String.
+     * <p>Parameters follow grep: {@code E} compiles the pattern as a regex instead of a literal,
+     * {@code v} keeps lines that do not match, and {@code c} returns the count of kept lines.
+     *
+     * @return List of Grep.
      */
     @SuppressWarnings("unchecked")
-    protected Map<Pattern, String> getGreps() {
-        final Map<Pattern, String> patterns = new HashMap<>();
+    protected List<Grep> getGreps() {
+        List<Grep> greps = new ArrayList<>();
 
         ((List<Map<String, String>>) config.getListProperty("grep"))
                 .forEach(map -> {
                     String pattern = Magic.magicReplace(map.get("pattern"), connection.getSession());
+                    String parameter = map.getOrDefault("parameter", "");
 
-                    // `grep -E` compile as is or escape.
-                    pattern = map.containsKey("parameter") && map.get("parameter").contains("E") ? pattern : Pattern.quote(pattern);
-
-                    // `grep -v` negate regex.
-                    pattern = map.containsKey("parameter") && map.get("parameter").contains("v") ? "(?!" + pattern + ")" : pattern;
-
-                    patterns.put(
-                            Pattern.compile(pattern, Pattern.CASE_INSENSITIVE),
-                            map.getOrDefault("parameter", "")
-                    );
+                    greps.add(new Grep(
+                            Pattern.compile(parameter.contains("E") ? pattern : Pattern.quote(pattern), Pattern.CASE_INSENSITIVE),
+                            parameter.contains("v"),
+                            parameter.contains("c")
+                    ));
                 });
 
-        return patterns;
+        return greps;
+    }
+
+    /**
+     * Compiled grep filter.
+     *
+     * @param pattern Compiled pattern.
+     * @param invert  Keep lines that do not match.
+     * @param count   Return the count of kept lines.
+     */
+    protected record Grep(Pattern pattern, boolean invert, boolean count) {
+
+        /**
+         * Does the line pass this filter.
+         *
+         * @param line Log line.
+         * @return Boolean.
+         */
+        boolean keeps(String line) {
+            return pattern.matcher(line).find() != invert;
+        }
+
+        /**
+         * Does the line pass every filter.
+         *
+         * @param greps List of Grep.
+         * @param line  Log line.
+         * @return Boolean.
+         */
+        static boolean all(List<Grep> greps, String line) {
+            return greps.stream().allMatch(grep -> grep.keeps(line));
+        }
     }
 }

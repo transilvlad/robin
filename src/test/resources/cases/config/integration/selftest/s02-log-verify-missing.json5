@@ -1,0 +1,33 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Self-test: MUST FAIL. Waits for a log line Robin never writes.
+  // Proves a request assertion fails when verify never matches, after its retries.
+  route: "docker",
+  tls: true,
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      file: "src/test/resources/cases/sources/lipsum.eml",
+      assertions: {
+        protocol: [
+          ["DATA", "^250"]
+        ],
+        external: [
+          {
+            type: "request",
+            wait: 1,
+            delay: 1,
+            retry: 2,
+            request: {
+              url: "http://127.0.0.1:28090/logs?q={$transactionUid}",
+              type: "GET"
+            },
+            verify: [ "Robin self-test line that is never logged" ]
+          }
+        ]
+      }
+    }
+  ]
+}

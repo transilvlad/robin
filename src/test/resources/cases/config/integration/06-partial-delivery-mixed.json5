@@ -39,8 +39,8 @@
         // Check SMTP responses match regular expressions.
         protocol: [
           ["MAIL", "^250.*Sender OK"],
-          ["RCPT", "^250.*Recipient OK"],   // First recipient accepted
-          ["RCPT", "^550"]                   // Second recipient rejected (unknown user)
+          ["RCPT", "^250.*Recipient OK", 0], // First recipient accepted
+          ["RCPT", "^550", 1]                // Second recipient rejected (unknown user)
           // DATA still proceeds because at least one recipient was valid
         ],
 
@@ -98,10 +98,18 @@
               type: "GET"
             },
 
-            // Verification strings to look for in the response.
-            verify: [
-              "Unknown destination mailbox",
-              "Dovecot-LDA delivery successful"
+            // Wait until delivery is logged; verify patterns must all match one line.
+            verify: [ "LMTP delivery successful" ],
+
+            // Patterns in one group may match different lines, so each line check is a single regex.
+            match: [
+              [ "Unknown destination mailbox" ],
+              [ "Invoking LMTP delivery .*recipients=pepper@example\\.com outbound" ]
+            ],
+
+            // The rejected recipient must never reach LMTP.
+            refuse: [
+              [ "Invoking LMTP delivery .*nonexistent@example\\.com" ]
             ]
           }
         ]
@@ -116,7 +124,7 @@
     protocol: [
       [ "SMTP", "^220" ],
       [ "EHLO", "STARTTLS" ],
-      [ "QUIT" ]
+      [ "QUIT", "^221" ]
     ]
   }
 }

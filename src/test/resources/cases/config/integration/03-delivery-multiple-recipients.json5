@@ -1,11 +1,9 @@
 {
   $schema: "../../../../../main/resources/schema/case.schema.json",
 
-  // Test: Multi-recipient email delivery with LMTP protocol.
-  // Critical test: LMTP sends one "250" response per recipient after DATA.
-  // This differs from SMTP which sends a single "250" for all recipients.
-  // Validates: Proper LMTP response parsing (ClientData.java:188-212).
-  // Both recipients should receive the email in their mailboxes.
+  // Test: One SMTP transaction to two local recipients.
+  // Flow: SMTP → Rspamd → ClamAV → Robin delivers to Dovecot over LMTP (one reply per recipient).
+  // Validates: Every RCPT is accepted, one LMTP delivery covers both, and both mailboxes receive the message.
 
   // How many times to try and establish a connection to remote server. First counts.
   retry: 2,
@@ -39,9 +37,9 @@
         // Check SMTP responses match regular expressions.
         protocol: [
           ["MAIL", "^250.*Sender OK"],
-          ["RCPT", "^250.*Recipient OK"],    // First RCPT accepted
-          ["RCPT", "^250.*Recipient OK"],    // Second RCPT accepted
-          ["DATA", "^250.*Received OK"]      // LMTP will send TWO 250 responses (one per recipient)
+          ["RCPT", "^250.*Recipient OK", "all"], // Every RCPT accepted
+          ["RCPT", "Recipient OK", 1],           // And there were two
+          ["DATA", "^250.*Received OK"]
         ],
 
         // External assertions.
@@ -132,7 +130,7 @@
             },
 
             // Verification strings to look for in the response.
-            verify: [ "Dovecot-LDA delivery successful" ]
+            verify: [ "LMTP delivery successful" ]
           }
         ]
       }
@@ -146,7 +144,7 @@
     protocol: [
       [ "SMTP", "^220" ],
       [ "EHLO", "STARTTLS" ],
-      [ "QUIT" ]
+      [ "QUIT", "^221" ]
     ]
   }
 }

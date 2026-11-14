@@ -180,7 +180,8 @@ public class HttpClient {
     @SuppressWarnings("ConstantConditions")
     private static HttpResponse getResponse(Response response) throws IOException {
         HttpResponse httpResponse = new HttpResponse()
-                .setSuccess(response.isSuccessful()); // Set success.
+                .setSuccess(response.isSuccessful()) // Set success.
+                .setStatusCode(response.code());
 
         // Add headers.
         response.headers().toMultimap().forEach((key, value) -> value.forEach(v -> httpResponse.addHeader(key, v)));

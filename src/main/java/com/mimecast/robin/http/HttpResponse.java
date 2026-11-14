@@ -34,6 +34,31 @@ public class HttpResponse {
     }
 
     /**
+     * HTTP status code, or 0 when unknown.
+     */
+    private int statusCode = 0;
+
+    /**
+     * Gets HTTP status code.
+     *
+     * @return Status code, or 0 when unknown.
+     */
+    public int getStatusCode() {
+        return statusCode;
+    }
+
+    /**
+     * Sets HTTP status code.
+     *
+     * @param statusCode Status code.
+     * @return Self.
+     */
+    HttpResponse setStatusCode(int statusCode) {
+        this.statusCode = statusCode;
+        return this;
+    }
+
+    /**
      * Headers container.
      */
     private final Map<String, String> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);

@@ -8,8 +8,10 @@ import com.mimecast.robin.util.Magic;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -60,13 +62,31 @@ public abstract class MatchExternalClient extends ExternalClient {
      */
     public void runMatches(List<String> list) throws AssertException {
         compilePatterns(config.getMatch(connection.getSession()), matchGroups); // Precompile match patterns for performance.
-        compilePatterns(config.getRefuse(), refuseGroups); // Precompile refuse patterns for performance.
+        compilePatterns(magicReplace(config.getRefuse()), refuseGroups); // Precompile refuse patterns for performance.
 
         checkPatterns(list, true); // Match patterns to log lines.
         checkPatterns(list, false); // Refuse patterns to log lines.
 
         verifyMatches(); // Evaluate unmatched assertion and except.
         magicMatches(list); // Evaluate magic matches and record findings in Session magic.
+    }
+
+    /**
+     * Magic replace pattern groups.
+     *
+     * @param groups List of List of String.
+     * @return List of List of String.
+     */
+    protected List<List<String>> magicReplace(List<List<String>> groups) {
+        List<List<String>> results = new ArrayList<>();
+        for (List<String> group : groups) {
+            List<String> replaced = new ArrayList<>();
+            for (String pattern : group) {
+                replaced.add(Magic.magicReplace(pattern, connection.getSession()));
+            }
+            results.add(replaced);
+        }
+        return results;
     }
 
     /**
@@ -222,6 +242,7 @@ public abstract class MatchExternalClient extends ExternalClient {
     /**
      * Record matches in Session magic.
      * <p>Record group 1 is there is one else full match.
+     * <p>The first match in this data wins and replaces any value from an earlier assertion or envelope.
      *
      * @param list List of String.
      */
@@ -229,18 +250,20 @@ public abstract class MatchExternalClient extends ExternalClient {
         if (list != null) {
             Map<String, Pattern> patterns = new HashMap<>();
             for (Map<String, String> magic : config.getMagic()) {
-                patterns.put(magic.get("name"), Pattern.compile(magic.get("pattern"), Pattern.CASE_INSENSITIVE));
+                patterns.put(magic.get("name"), Pattern.compile(Magic.magicReplace(magic.get("pattern"), connection.getSession()), Pattern.CASE_INSENSITIVE));
             }
 
+            Set<String> captured = new HashSet<>();
             for (String line : list) {
                 if (line != null) {
                     for (Map.Entry<String, Pattern> pattern : patterns.entrySet()) {
-                        if (!connection.getSession().hasMagic(pattern.getKey())) {
+                        if (!captured.contains(pattern.getKey())) {
                             Matcher m = pattern.getValue().matcher(line);
                             if (m.find()) {
                                 String group = m.groupCount() == 0 ? m.group() : m.group(1);
                                 if (group != null) {
                                     connection.getSession().putMagic(pattern.getKey(), group);
+                                    captured.add(pattern.getKey());
                                     log.info("AssertExternal matched and saved magic: {} = {}", pattern.getKey(), group);
                                 }
                             }

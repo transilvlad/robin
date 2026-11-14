@@ -2,7 +2,6 @@ package com.mimecast.robin.assertion.client.imap;
 
 import com.google.common.collect.ImmutableList;
 import com.mimecast.robin.assertion.AssertException;
-import com.mimecast.robin.assertion.AssertExternalGroup;
 import com.mimecast.robin.assertion.client.MatchExternalClient;
 import com.mimecast.robin.imap.ImapClient;
 import com.mimecast.robin.imap.ImapClient.PartDescriptor;
@@ -39,6 +38,7 @@ import java.util.regex.Pattern;
  *   pass: "secret",
  *   folder: "INBOX",
  *   delete: true,
+ *   // absent: true, // Fail if the message is found instead.
  *   matches: {
  *     headers: [
  *       ["subject", "Test Email"]
@@ -71,70 +71,101 @@ public class ImapExternalClient extends MatchExternalClient {
     }
 
     /**
+     * Last verification failure reason, reported when attempts are spent.
+     */
+    private String lastFailure = "no email found";
+
+    /**
      * Runs the IMAP client to fetch and verify message.
+     *
+     * <p>Retries while the message is missing or does not match. With {@code absent: true} the message
+     * must not be found on any attempt.
      *
      * @throws AssertException If verification fails or no email is found.
      */
     @Override
     public void run() throws AssertException {
-        if (!config.isEmpty()) {
-            if (!config.checkCondition(connection)) {
-                log.info("Condition not met, skipping: {}", config.getStringProperty("condition"));
-                return;
-            }
+        if (config.isEmpty()) {
+            return;
+        }
 
-            boolean deleteAfter = config.getBooleanProperty("delete", false);
-            boolean purgeAfter = config.getBooleanProperty("purge", false);
+        if (!config.checkCondition(connection)) {
+            log.info("Condition not met, skipping: {}", config.getStringProperty("condition"));
+            return;
+        }
 
-            if (deleteAfter && purgeAfter) {
-                log.warn("Both 'delete' and 'purge' are set; 'purge' takes precedence");
-            }
+        if (transactionId < 0 || transactionId >= connection.getSession().getEnvelopes().size()) {
+            throw new AssertException("IMAP assertion must be configured on an envelope");
+        }
+        String messageId = connection.getSession().getEnvelopes().get(transactionId).getMessageId();
 
-            ImapClient imapClient = getClient();
-            Message verifiedMessage = null;
-            boolean verified = false;
+        boolean absent = config.getBooleanProperty("absent", false);
+        boolean deleteAfter = config.getBooleanProperty("delete", false);
+        boolean purgeAfter = config.getBooleanProperty("purge", false);
 
-            long delay = config.getWait() > 0 ? config.getWait() * 1000L : 0L;
-            for (int count = 0; count < config.getRetry(); count++) {
-                Sleep.nap((int) delay);
+        if (deleteAfter && purgeAfter) {
+            log.warn("Both 'delete' and 'purge' are set; 'purge' takes precedence");
+        }
 
-                Message message = imapClient.fetchEmailByMessageId(
-                        connection.getSession().getEnvelopes().get(transactionId).getMessageId()
-                );
-                verified = verifyMessage(message, imapClient);
-                if (verified) {
-                    verifiedMessage = message;
-                    log.info("AssertExternal IMAP fetch verify success");
-                    break;
-                }
+        ImapClient imapClient = getClient();
+        Message verifiedMessage = null;
 
-                delay = config.getDelay() * 1000L; // Retry delay.
-                log.info("AssertExternal IMAP fetch verify {}", (count < config.getRetry() - 1 ? "failure" : "attempts spent"));
+        long delay = config.getWait() > 0 ? config.getWait() * 1000L : 0L;
+        for (int count = 0; count < config.getRetry(); count++) {
+            Sleep.nap((int) delay);
+            delay = config.getDelay() * 1000L; // Retry delay.
 
-                if (!assertVerifyFails) {
-                    skip = true;
-                    log.warn("Skipping");
+            Message message = imapClient.fetchEmailByMessageId(messageId);
+            if (absent) {
+                if (message != null) {
+                    fail("IMAP email found when expected absent: " + messageId);
                     return;
                 }
+            } else if (verifyMessage(message, imapClient)) {
+                verifiedMessage = message;
+                log.info("AssertExternal IMAP fetch verify success");
+                break;
             }
 
-            if (!verified) {
-                throw new AssertException("IMAP email verification failed or no email found");
-            }
+            log.info("AssertExternal IMAP fetch verify {}", (count < config.getRetry() - 1 ? "failure" : "attempts spent"));
+        }
 
-            // Cleanup on success only.
-            if (purgeAfter) {
-                int purged = imapClient.purgeFolder();
-                log.info("AssertExternal IMAP purged {} message(s) from folder", purged);
-            } else if (deleteAfter && verifiedMessage != null) {
-                boolean deleted = imapClient.deleteMessage(verifiedMessage);
-                if (deleted) {
-                    log.info("AssertExternal IMAP deleted verified message");
-                } else {
-                    log.warn("AssertExternal IMAP failed to delete verified message");
-                }
+        if (absent) {
+            log.info("AssertExternal IMAP verify absent success");
+            return;
+        }
+
+        if (verifiedMessage == null) {
+            fail("IMAP email verification failed: " + lastFailure);
+            return;
+        }
+
+        // Cleanup on success only.
+        if (purgeAfter) {
+            int purged = imapClient.purgeFolder();
+            log.info("AssertExternal IMAP purged {} message(s) from folder", purged);
+        } else if (deleteAfter) {
+            boolean deleted = imapClient.deleteMessage(verifiedMessage);
+            if (deleted) {
+                log.info("AssertExternal IMAP deleted verified message");
+            } else {
+                log.warn("AssertExternal IMAP failed to delete verified message");
             }
         }
+    }
+
+    /**
+     * Fails the assertion, or skips when verify failures are not fatal.
+     *
+     * @param message Failure message.
+     * @throws AssertException When verify failures are fatal.
+     */
+    private void fail(String message) throws AssertException {
+        if (assertVerifyFails) {
+            throw new AssertException(message);
+        }
+        log.warn("{}, skipping", message);
+        skip = true;
     }
 
     /**
@@ -143,19 +174,19 @@ public class ImapExternalClient extends MatchExternalClient {
      * @param message    The email message to verify.
      * @param imapClient The IMAP client for part extraction.
      * @return Boolean indicating verification success.
-     * @throws AssertException If verification fails.
+     * @throws AssertException If the configuration is invalid or the message cannot be read.
      */
     @SuppressWarnings("unchecked")
     private boolean verifyMessage(Message message, ImapClient imapClient) throws AssertException {
         try {
             if (message == null) {
+                lastFailure = "no email found";
                 return false;
             }
 
             var matches = config.getMapProperty("matches");
             if (matches.isEmpty()) {
-                log.error("No matches found in assertion configuration");
-                return false;
+                throw new AssertException("IMAP assertion has no matches configured");
             }
 
             // Verify headers if configured.
@@ -165,12 +196,8 @@ public class ImapExternalClient extends MatchExternalClient {
             }
 
             // Verify parts if configured.
-            if (matches.containsKey("parts") &&
-                    !verifyParts(message, imapClient, (List<Map<String, Object>>) matches.get("parts"))) {
-                return false;
-            }
-
-            return true;
+            return !matches.containsKey("parts") ||
+                    verifyParts(message, imapClient, (List<Map<String, Object>>) matches.get("parts"));
 
         } catch (MessagingException e) {
             throw new AssertException("Error processing email message: " + e.getMessage());
@@ -180,30 +207,26 @@ public class ImapExternalClient extends MatchExternalClient {
     /**
      * Verifies message headers against configured patterns.
      *
+     * <p>Each group must match a single header line formatted as {@code Name: value}.
+     *
      * @param message       The email message.
      * @param headerMatches List of header match pattern groups.
      * @return Boolean indicating verification success.
      * @throws MessagingException If header extraction fails.
-     * @throws AssertException    If pattern matching fails.
      */
-    private boolean verifyHeaders(Message message, List<List<String>> headerMatches) throws MessagingException, AssertException {
-        var headers = ImmutableList.copyOf(message.getAllHeaders().asIterator());
-        if (headers.isEmpty()) {
-            log.error("No headers found in the email message");
-            return false;
+    private boolean verifyHeaders(Message message, List<List<String>> headerMatches) throws MessagingException {
+        List<String> lines = new ArrayList<>();
+        for (var header : ImmutableList.copyOf(message.getAllHeaders().asIterator())) {
+            lines.add(header.getName() + ": " + header.getValue());
         }
 
-        // Clear and compile patterns for headers.
-        matchGroups.clear();
-        compilePatterns(headerMatches);
-
-        for (var header : headers) {
-            for (var group : matchGroups) {
-                matchEntry(group, header.getName() + ": " + header.getValue(), true);
+        for (List<String> group : headerMatches) {
+            if (!anyLineMatchesAll(lines, compile(group, 0))) {
+                lastFailure = "no header matched " + group;
+                return false;
             }
         }
 
-        verifyMatches();
         return true;
     }
 
@@ -217,13 +240,12 @@ public class ImapExternalClient extends MatchExternalClient {
      * @param imapClient The IMAP client for part extraction.
      * @param partSpecs  List of part specification maps.
      * @return Boolean indicating verification success.
-     * @throws AssertException If pattern matching fails.
      */
     @SuppressWarnings("unchecked")
-    private boolean verifyParts(Message message, ImapClient imapClient, List<Map<String, Object>> partSpecs) throws AssertException {
+    private boolean verifyParts(Message message, ImapClient imapClient, List<Map<String, Object>> partSpecs) {
         List<PartDescriptor> parts = imapClient.extractParts(message);
         if (parts.isEmpty()) {
-            log.error("No MIME parts found in the email message");
+            lastFailure = "no MIME parts found";
             return false;
         }
 
@@ -232,43 +254,28 @@ public class ImapExternalClient extends MatchExternalClient {
             List<List<String>> bodyPatterns = (List<List<String>>) partSpec.get("body");
             Map<String, String> hashAssertions = (Map<String, String>) partSpec.get("hashes");
 
-            // Find matching part(s) by headers.
-            List<PartDescriptor> matchingParts = findMatchingParts(parts, headerPatterns);
-
-            if (matchingParts.isEmpty()) {
-                if (headerPatterns != null && !headerPatterns.isEmpty()) {
-                    throw new AssertException("No MIME part found matching header patterns: " + headerPatterns);
+            // Find matching part(s) by headers, or use all parts without a header filter.
+            List<PartDescriptor> matchingParts = parts;
+            if (headerPatterns != null && !headerPatterns.isEmpty()) {
+                matchingParts = findMatchingParts(parts, headerPatterns);
+                if (matchingParts.isEmpty()) {
+                    lastFailure = "no MIME part found matching header patterns: " + headerPatterns;
+                    return false;
                 }
-                // No header filter, use all parts.
-                matchingParts = parts;
             }
 
             // Verify body patterns against matching parts.
-            if (bodyPatterns != null && !bodyPatterns.isEmpty()) {
-                boolean bodyMatched = false;
-                for (PartDescriptor part : matchingParts) {
-                    if (verifyPartBody(part, bodyPatterns)) {
-                        bodyMatched = true;
-                        break;
-                    }
-                }
-                if (!bodyMatched) {
-                    throw new AssertException("No MIME part body matched patterns: " + bodyPatterns);
-                }
+            if (bodyPatterns != null && !bodyPatterns.isEmpty()
+                    && matchingParts.stream().noneMatch(part -> verifyPartBody(part, bodyPatterns))) {
+                lastFailure = "no MIME part body matched patterns: " + bodyPatterns;
+                return false;
             }
 
             // Verify hash assertions against matching parts.
-            if (hashAssertions != null && !hashAssertions.isEmpty()) {
-                boolean hashMatched = false;
-                for (PartDescriptor part : matchingParts) {
-                    if (verifyPartHashes(part, hashAssertions)) {
-                        hashMatched = true;
-                        break;
-                    }
-                }
-                if (!hashMatched) {
-                    throw new AssertException("No MIME part hashes matched: " + hashAssertions);
-                }
+            if (hashAssertions != null && !hashAssertions.isEmpty()
+                    && matchingParts.stream().noneMatch(part -> verifyPartHashes(part, hashAssertions))) {
+                lastFailure = "no MIME part hashes matched: " + hashAssertions;
+                return false;
             }
         }
 
@@ -276,57 +283,55 @@ public class ImapExternalClient extends MatchExternalClient {
     }
 
     /**
-     * Finds parts that match all specified header patterns.
+     * Finds parts where every header pattern group matches one of the part's header lines.
      *
      * @param parts          List of all parts.
-     * @param headerPatterns Header patterns to match (optional).
+     * @param headerPatterns Header pattern groups to match.
      * @return List of matching parts.
      */
     private List<PartDescriptor> findMatchingParts(List<PartDescriptor> parts, List<List<String>> headerPatterns) {
-        List<PartDescriptor> matching = new ArrayList<>();
-
-        if (headerPatterns == null || headerPatterns.isEmpty()) {
-            return matching;
+        List<List<Pattern>> groups = new ArrayList<>();
+        for (List<String> group : headerPatterns) {
+            groups.add(compile(group, 0));
         }
 
+        List<PartDescriptor> matching = new ArrayList<>();
         for (PartDescriptor part : parts) {
-            boolean allGroupsMatch = true;
+            List<String> lines = new ArrayList<>();
+            part.headers().forEach((name, value) -> lines.add(name + ": " + value));
 
-            for (List<String> patternGroup : headerPatterns) {
-                boolean groupMatched = false;
-                List<Pattern> compiled = new ArrayList<>();
-                for (String pattern : patternGroup) {
-                    compiled.add(Pattern.compile(Magic.magicReplace(pattern, connection.getSession()), Pattern.CASE_INSENSITIVE));
-                }
-
-                // Check if all patterns in the group match any header.
-                int matchedCount = 0;
-                for (Map.Entry<String, String> header : part.headers().entrySet()) {
-                    String headerLine = header.getKey() + ": " + header.getValue();
-                    for (Pattern p : compiled) {
-                        if (p.matcher(headerLine).find()) {
-                            matchedCount++;
-                            break;
-                        }
-                    }
-                }
-
-                if (matchedCount == compiled.size()) {
-                    groupMatched = true;
-                }
-
-                if (!groupMatched) {
-                    allGroupsMatch = false;
-                    break;
-                }
-            }
-
-            if (allGroupsMatch) {
+            if (groups.stream().allMatch(group -> anyLineMatchesAll(lines, group))) {
                 matching.add(part);
             }
         }
 
         return matching;
+    }
+
+    /**
+     * Does any single line match every pattern.
+     *
+     * @param lines    Lines to check.
+     * @param patterns Compiled patterns.
+     * @return Boolean.
+     */
+    private static boolean anyLineMatchesAll(List<String> lines, List<Pattern> patterns) {
+        return lines.stream().anyMatch(line -> patterns.stream().allMatch(p -> p.matcher(line).find()));
+    }
+
+    /**
+     * Compiles magic-replaced, case-insensitive patterns.
+     *
+     * @param patterns Pattern strings.
+     * @param flags    Extra Pattern flags.
+     * @return List of Pattern.
+     */
+    private List<Pattern> compile(List<String> patterns, int flags) {
+        List<Pattern> compiled = new ArrayList<>();
+        for (String pattern : patterns) {
+            compiled.add(Pattern.compile(Magic.magicReplace(pattern, connection.getSession()), Pattern.CASE_INSENSITIVE | flags));
+        }
+        return compiled;
     }
 
     /**
@@ -387,21 +392,5 @@ public class ImapExternalClient extends MatchExternalClient {
             log.debug("Hash matched for {}: {}", hashType, actual);
         }
         return true;
-    }
-
-    /**
-     * Compiles header match patterns.
-     *
-     * @param headerMatches List of header match patterns.
-     */
-    private void compilePatterns(List<List<String>> headerMatches) {
-        for (List<String> list : headerMatches) {
-            List<Pattern> compiled = new ArrayList<>();
-            for (String assertion : list) {
-                compiled.add(Pattern.compile(Magic.magicReplace(assertion, connection.getSession()), Pattern.CASE_INSENSITIVE));
-            }
-
-            matchGroups.add(new AssertExternalGroup().setPatterns(compiled));
-        }
     }
 }

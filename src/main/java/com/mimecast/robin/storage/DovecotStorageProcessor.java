@@ -9,6 +9,7 @@ import com.mimecast.robin.sasl.RecipientDirectory;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.mime.EmailParser;
 import com.mimecast.robin.mime.headers.ChaosHeaders;
+import com.mimecast.robin.mime.headers.MimeHeader;
 import com.mimecast.robin.queue.PersistentQueue;
 import com.mimecast.robin.queue.QueueFiles;
 import com.mimecast.robin.queue.RelaySession;
@@ -126,6 +127,20 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
             return;
         }
 
+        // Chaos testing: fail named recipients before LMTP and send them through the failure behaviour.
+        List<String> chaosFailed = getChaosFailedRecipients(emailParser, nonBotRecipients);
+        if (!chaosFailed.isEmpty()) {
+            nonBotRecipients = new ArrayList<>(nonBotRecipients);
+            nonBotRecipients.removeAll(chaosFailed);
+            for (String recipient : chaosFailed) {
+                log.info("Chaos header failing LMTP delivery for recipient={} uid={}", recipient, connection.getSession().getUID());
+                processFailure(connection, config, recipient);
+            }
+            if (nonBotRecipients.isEmpty()) {
+                return;
+            }
+        }
+
         log.info("Invoking LMTP delivery for sender={} recipients={} outbound={}",
                 envelope.getMail(),
                 String.join(",", nonBotRecipients),
@@ -181,6 +196,32 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
                 processFailure(connection, config, recipient);
             }
         }
+    }
+
+    /**
+     * Gets recipients whose LMTP delivery a chaos header forces to fail.
+     *
+     * @param emailParser EmailParser instance or null.
+     * @param recipients  Recipients about to be delivered.
+     * @return Recipients to fail, in delivery order.
+     */
+    private static List<String> getChaosFailedRecipients(EmailParser emailParser, List<String> recipients) {
+        if (!Config.getServer().isChaosHeaders() || emailParser == null) {
+            return List.of();
+        }
+
+        List<String> failed = new ArrayList<>();
+        for (MimeHeader header : new ChaosHeaders(emailParser).getByValue(ChaosHeaders.TARGET_DOVECOT_LMTP)) {
+            String recipient = header.getParameter("recipient");
+            if (recipient == null) {
+                log.warn("Ignoring {} chaos header without recipient parameter", ChaosHeaders.TARGET_DOVECOT_LMTP);
+                continue;
+            }
+            recipients.stream()
+                    .filter(r -> r.equalsIgnoreCase(recipient) && !failed.contains(r))
+                    .forEach(failed::add);
+        }
+        return failed;
     }
 
     private void saveRoutedInline(Connection connection, MessageEnvelope envelope, List<String> recipients,
@@ -539,7 +580,7 @@ public class DovecotStorageProcessor extends AbstractStorageProcessor {
             }
         }
 
-        log.debug("Enqueuing for action={}", dovecotConfig.getFailureBehaviour());
+        log.info("Enqueuing failed mailbox='{}' for action={} uid={}", mailbox, dovecotConfig.getFailureBehaviour(), connection.getSession().getUID());
 
         // Queue for retry.
         PersistentQueue.getInstance()

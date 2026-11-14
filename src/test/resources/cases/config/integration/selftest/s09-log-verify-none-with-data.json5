@@ -1,0 +1,33 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Self-test: MUST FAIL. Expects no log lines for a session that was logged.
+  // Proves `verifyNone` fails when data is found.
+  route: "docker",
+  tls: true,
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      file: "src/test/resources/cases/sources/lipsum.eml",
+      assertions: {
+        protocol: [
+          ["DATA", "^250"]
+        ],
+        external: [
+          {
+            type: "request",
+            wait: 2,
+            delay: 1,
+            retry: 2,
+            verifyNone: true,
+            request: {
+              url: "http://127.0.0.1:28090/logs?q={$transactionUid}",
+              type: "GET"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

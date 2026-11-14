@@ -187,6 +187,30 @@ See `doc/testing/case-smtp.md` for configuration details.
 }
 ```
 
+### Matching and retries
+
+- Each `headers` group must match a single header line formatted as `Name: value`, so `["subject", "Test Email"]`
+  checks the Subject header only. Anchor with `^` to avoid matching other headers, for example `["^subject: Test Email$"]`.
+- A missing or mismatching message is retried within `wait`, `delay` and `retry`; the failure reason is reported when attempts are spent.
+- The assertion must be configured on an envelope, since the message is looked up by that envelope's Message-ID.
+
+### Absence
+
+    {
+      type: "imap",
+      wait: 10,
+      delay: 5,
+      retry: 3,
+      host: "imap.example.com",
+      port: 993,
+      user: "test@example.com",
+      pass: "secret",
+      absent: true
+    }
+
+`absent: true` fails if the message is found on any attempt, proving it was not delivered. Connection failures
+also look like absence, so pair it with a positive assertion that uses the same server and credentials.
+
 ### Cleanup options
 
 - `delete: true` - Deletes only the verified message after successful assertion. Useful for test cleanup.

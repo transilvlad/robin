@@ -37,34 +37,13 @@
         protocol: [
           // Rejected at MAIL FROM stage - syntax error.
           // 501 = syntax error in parameters or arguments.
-          ["MAIL", "^(501)"]
-        ],
+          ["MAIL", "^501 5\\.1\\.3 Invalid address"],
 
-        // External assertions.
-        external: [
-          {
-            // Assertion type request for pulling logs from the API.
-            type: "request",
-
-            // How long to wait before asserting.
-            wait: 2,
-
-            // Delay between log pulling attempts.
-            delay: 2,
-
-            // How many times to retry should no logs be found or valid.
-            retry: 3,
-
-            // HTTP request details.
-            request: {
-              url: "http://127.0.0.1:28090/logs?q={$transactionUid}",
-              type: "GET"
-            },
-
-            // Verification strings to look for in the response.
-            verify: [ "Invalid address" ]
-          }
+          // The message must never be accepted.
+          ["DATA", "^250", "none"]
         ]
+
+        // No log assertion: the 501 reply carries no session UID, so {$transactionUid} cannot be resolved.
       }
     }
   ],
@@ -76,7 +55,7 @@
     protocol: [
       [ "SMTP", "^220" ],
       [ "EHLO", "STARTTLS" ],
-      [ "QUIT" ]
+      [ "QUIT", "^221" ]
     ]
   }
 }

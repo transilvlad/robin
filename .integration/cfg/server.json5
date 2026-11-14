@@ -34,5 +34,13 @@
 
   rbl: { enabled: false },
   emailSizeLimit: 10242400,
-  envelopesLimit: 100
+  envelopesLimit: 100,
+
+  // The whole suite connects from one test-runner IP, and the command limit is counted per IP.
+  // Keep DoS protection on but leave headroom so the suite's own burst is not tarpitted.
+  smtpConfig: {
+    dosProtectionEnabled: true,
+    maxCommandsPerMinute: 2000,
+    maxConnectionsPerWindow: 300
+  }
 }

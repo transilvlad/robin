@@ -1,0 +1,39 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Self-test: MUST FAIL. The message arrives but its subject does not match.
+  // Proves IMAP header groups must match one header line, and mismatches fail after retries.
+  // "Lipsum" appears in other headers (X-Robin-Filename), so a cross-header match would wrongly pass.
+  route: "docker",
+  tls: true,
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      file: "src/test/resources/cases/sources/lipsum.eml",
+      assertions: {
+        protocol: [
+          ["DATA", "^250"]
+        ],
+        external: [
+          {
+            type: "imap",
+            wait: 3,
+            delay: 2,
+            retry: 3,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "pepper@example.com",
+            pass: "potts",
+            folder: "INBOX",
+            matches: {
+              headers: [
+                ["^subject:", "Not The Subject Sent"]
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -16,6 +16,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 class AssertTest {
 
     private static AssertConfig assertConfig;
@@ -75,6 +78,70 @@ class AssertTest {
         session.getSessionTransactionList().addEnvelope(envelopeTransactionList);
 
         new Assert(new Connection(session)).run();
+    }
+
+    private static Session rcptSession(boolean protocolFails, List<Object> assertion) {
+        Session session = new Session();
+        Map<String, Object> config = new HashMap<>();
+        config.put("protocolFails", protocolFails);
+        config.put("protocol", List.of(assertion));
+        session.addAssertions(new AssertConfig(config));
+        session.getSessionTransactionList().addTransaction("RCPT", "250 Recipient OK", false);
+        session.getSessionTransactionList().addTransaction("RCPT", "550 Unknown user", true);
+        return session;
+    }
+
+    @Test
+    void selectorAnyMatchesOneTransaction() throws AssertException {
+        new Assert(new Connection(rcptSession(true, List.of("RCPT", "^550")))).run();
+    }
+
+    @Test
+    void selectorAllRequiresEveryTransaction() {
+        AssertException e = assertThrows(AssertException.class,
+                () -> new Assert(new Connection(rcptSession(true, List.of("RCPT", "^250", "all")))).run());
+        assertTrue(e.getMessage().contains("#1"));
+    }
+
+    @Test
+    void selectorIndexTargetsOneTransaction() throws AssertException {
+        new Assert(new Connection(rcptSession(true, List.of("RCPT", "^550", 1.0)))).run();
+        new Assert(new Connection(rcptSession(true, List.of("RCPT", "^250", "0")))).run();
+        assertThrows(AssertException.class,
+                () -> new Assert(new Connection(rcptSession(true, List.of("RCPT", "^250", 1)))).run());
+        assertThrows(AssertException.class,
+                () -> new Assert(new Connection(rcptSession(true, List.of("RCPT", "^250", 2)))).run());
+    }
+
+    @Test
+    void selectorNoneRefusesMatch() throws AssertException {
+        new Assert(new Connection(rcptSession(true, List.of("RCPT", "^452", "none")))).run();
+        new Assert(new Connection(rcptSession(true, List.of("BDAT", "^250", "none")))).run();
+        assertThrows(AssertException.class,
+                () -> new Assert(new Connection(rcptSession(true, List.of("RCPT", "^550", "none")))).run());
+    }
+
+    @Test
+    void commandOnlyAssertsTransactionExists() throws AssertException {
+        new Assert(new Connection(rcptSession(true, List.of("RCPT")))).run();
+        assertThrows(AssertException.class,
+                () -> new Assert(new Connection(rcptSession(true, List.of("QUIT")))).run());
+    }
+
+    @Test
+    void malformedAssertionFails() {
+        assertThrows(AssertException.class,
+                () -> new Assert(new Connection(rcptSession(false, List.of()))).run());
+        assertThrows(AssertException.class,
+                () -> new Assert(new Connection(rcptSession(false, List.of("RCPT", "^250", "all", "extra")))).run());
+        assertThrows(AssertException.class,
+                () -> new Assert(new Connection(rcptSession(true, List.of("RCPT", "^250", "some")))).run());
+    }
+
+    @Test
+    void protocolFailureSkipsWhenNotFatal() throws AssertException {
+        Assert assertion = new Assert(new Connection(rcptSession(false, List.of("RCPT", "^421")))).run();
+        assertTrue(assertion.skipped());
     }
 
     @Test

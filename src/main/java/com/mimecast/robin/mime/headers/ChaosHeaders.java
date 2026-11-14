@@ -46,6 +46,14 @@ public class ChaosHeaders {
      * Target class name for DovecotLdaClient chaos headers.
      */
     public static final String TARGET_DOVECOT_LDA_CLIENT = "DovecotLdaClient";
+
+    /**
+     * Target for Dovecot LMTP delivery chaos testing.
+     * <p>Fails delivery for the named recipient before LMTP is attempted, sending it through the configured
+     * failure behaviour (retry queue or bounce).
+     * <p>Example: {@code X-Robin-Chaos: DovecotLmtp; recipient=pepper@example.com}
+     */
+    public static final String TARGET_DOVECOT_LMTP = "DovecotLmtp";
     
     /**
      * List of chaos headers found in the email.

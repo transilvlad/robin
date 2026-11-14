@@ -1,0 +1,118 @@
+{
+  $schema: "../../../../../main/resources/schema/case.schema.json",
+
+  // Test: Inline LMTP failure for one recipient is queued and redelivered.
+  // Uses `X-Robin-Chaos: DovecotLmtp; recipient=happy@example.com` (needs chaosHeaders: true).
+  // Flow: SMTP 250 → pepper delivered inline over LMTP → happy sent to the failure behaviour
+  //       (failureBehaviour: "retry") → Postgres relay queue → dequeued → LMTP → IMAP.
+  // Validates: Per-recipient failure isolation, retry queueing, and queued redelivery end to end.
+  // Different from test 10: here the failure is recoverable and the client still gets 250.
+
+  // How many times to try and establish a connection to remote server. First counts.
+  retry: 2,
+
+  // Delay between tries.
+  delay: 5,
+
+  // Delivery route.
+  route: "docker",
+
+  // Enable TLS.
+  tls: true,
+
+  // Email envelopes.
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: [
+        "pepper@example.com", // Delivered inline.
+        "happy@example.com"   // Failed by the chaos header, delivered from the queue.
+      ],
+
+      // Contains the X-Robin-Chaos header naming happy@example.com.
+      file: "src/test/resources/cases/sources/chaos-lmtp-retry.eml",
+
+      assertions: {
+        protocol: [
+          ["MAIL", "^250.*Sender OK"],
+          ["RCPT", "^250.*Recipient OK", "all"],
+          // An LMTP failure after acceptance is Robin's to retry, so the client still gets 250.
+          ["DATA", "^250.*Received OK"]
+        ],
+
+        external: [
+          {
+            // Robin logged the injected failure and queued only happy@example.com.
+            type: "request",
+            wait: 2,
+            delay: 2,
+            retry: 5,
+            request: {
+              url: "http://127.0.0.1:28090/logs?q={$transactionUid}",
+              type: "GET"
+            },
+            // Both lines carry the session UID in their text. Building the retry session currently
+            // replaces the thread's log UID, so later lines (pepper's LMTP delivery) are not found by
+            // this query; the pepper IMAP check below proves the inline delivery instead.
+            verify: [ "Enqueuing failed mailbox='happy@example\\.com' for action=retry" ],
+            match: [
+              [ "Chaos header failing LMTP delivery for recipient=happy@example\\.com" ]
+            ],
+            refuse: [
+              [ "Enqueuing failed mailbox='pepper@example\\.com'" ]
+            ]
+          },
+          {
+            // pepper@example.com is delivered inline, without waiting for the queue.
+            type: "imap",
+            name: "pepper-inline",
+            wait: 3,
+            delay: 2,
+            retry: 5,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "pepper@example.com",
+            pass: "potts",
+            folder: "INBOX",
+            delete: true,
+            matches: {
+              headers: [
+                ["^subject: Chaos Header Test - LMTP Retry$"]
+              ]
+            }
+          },
+          {
+            // happy@example.com arrives only once the relay queue delivers it.
+            // A newly queued item is attempted on the next queue tick (queueInterval 30s); the
+            // firstWaitMinutes back-off only applies if that attempt fails too.
+            type: "imap",
+            name: "happy-from-queue",
+            wait: 5,
+            delay: 5,
+            retry: 18,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "happy@example.com",
+            pass: "hogan",
+            folder: "INBOX",
+            delete: true,
+            matches: {
+              headers: [
+                ["^subject: Chaos Header Test - LMTP Retry$"],
+                ["^x-robin-chaos: DovecotLmtp"]
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      [ "SMTP", "^220" ],
+      [ "EHLO", "STARTTLS" ],
+      [ "QUIT", "^221" ]
+    ]
+  }
+}

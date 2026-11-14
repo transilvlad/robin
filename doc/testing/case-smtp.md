@@ -156,6 +156,24 @@ There are session level and envelope level assertions.
         [ "DATA", "Received OK$" ],
         [ "BDAT", "^250" ],
 
+#### Forms and selectors
+Regexes are case-insensitive and match anywhere in the reply unless anchored.
+
+- `[ COMMAND ]` - A transaction for that command exists.
+- `[ COMMAND, regex ]` - At least one transaction for that command matches.
+- `[ COMMAND, regex, "all" ]` - Every transaction for that command matches.
+- `[ COMMAND, regex, "none" ]` - No transaction for that command matches. Passes when the command was never sent.
+- `[ COMMAND, regex, index ]` - The transaction at that zero-based index exists and matches.
+
+Selectors matter for commands that repeat in one envelope: `RCPT`, `BDAT` and `LMTP`.
+
+        [ "RCPT", "^250", "all" ],   // Every recipient accepted.
+        [ "RCPT", "^550", 1 ],       // The second recipient rejected.
+        [ "DATA", "^250", "none" ]   // The message was never accepted.
+
+Any other form is a configuration error and fails the case, whatever `protocolFails` is set to.
+With `protocolFails: false` a failed assertion skips the remaining assertions instead of failing.
+
 
 MTA Assertions
 ---------------
@@ -166,14 +184,19 @@ _See LogsClient.java interface for implementation of external clients._
 
 - `logPrecedence` - _(String)_ Prepends provided string to the log filename which is otherwise `yyyyMMdd`.log.
 - `wait` - _(Integer, Seconds)_ [default: 2, min: 2] Initial wait before calling the external client.
-- `retry` - _(Integer, Attempts)_ [default: 1, min: 1] How many times to attempt if verify fails.
+- `retry` - _(Integer, Attempts)_ [default: 1, min: 1] How many times to fetch logs until `verify` matches.
 - `delay` - _(Integer, Attempts)_ [default: 2, min: 2] Delay between attempts.
-- `grep` - _(List of Map, String, Regex)_ Grep sequence to match/exclude logs. Default: `{$uid}`
-- `verifyNone` - _(Boolean)_ Verify that no logs were found. Disables all below functionalities.
-- `verify` - _(List, String, Regex)_ List of regex matches to verify bottom most needed logs received. Provides stability when MTA takes more time.
-- `match` - _(List of List, String, Regex)_ Regex assertions to run against log lines. Multiple expressions can run on the same line. All must match.
-- `refuse` - _(List of List, String, Regex)_ The opposite of match. Will stop and error on first match.
-- `magic` - _(List of Map, String, Regex)_ Collect matching group 1 or whole patterns into magic variable.
+- `grep` - _(List of Map, String, Regex)_ Line filters; a line is kept when it passes every filter. Without `grep` lines containing the envelope transaction UID are kept.
+  - `parameter: "E"` compiles the pattern as a regex instead of a literal.
+  - `parameter: "v"` keeps lines that do not match.
+  - `parameter: "c"` replaces the kept lines with their count, for example `verify: [ "^2$" ]`.
+- `verifyNone` - _(Boolean)_ Fails if any line is found on any attempt. Disables all below functionalities.
+- `verify` - _(List, String, Regex)_ Patterns that must all match one line before the logs are accepted. Provides stability when the MTA takes more time. Fails when attempts are spent.
+- `match` - _(List of List, String, Regex)_ Every group must have all its patterns found. Patterns in one group may match different lines, so use one regex per group to check a single line.
+- `refuse` - _(List of List, String, Regex)_ The opposite of match. Fails when all patterns of a group are found.
+- `magic` - _(List of Map, String, Regex)_ Collect matching group 1 or whole patterns into magic variable. The first match in this assertion replaces any earlier value.
+
+Failures throw unless the case sets `verifyFails: false`, which skips the remaining assertions instead.
 
 ### Basic example.
 
@@ -206,15 +229,53 @@ _See LogsClient.java interface for implementation of external clients._
 
 ### Example for verify none.
 
+Fails if this transaction logged an error or exception within the wait window.
+
         type: "logs",
         wait: 10,
         grep: [
           {
-            parameter: "-E",
-            pattern: "{$uid}"
+            pattern: "{$transactionUid}"
           },
+          {
+            parameter: "-E",
+            pattern: "ERROR|Exception"
+          }
         ]
         verifyNone: true
+
+
+#### Request
+
+`type: "request"` makes an HTTP call and asserts against the response, for example the Robin `/logs` API.
+JSON bodies are flattened into `path: value` lines; other bodies are split into lines.
+It takes `wait`, `retry`, `delay`, `verify`, `verifyNone`, `match`, `refuse` and `magic` with the same meaning as above, plus:
+
+- `request` - _(Map)_ The HTTP request, as in [case-http.md](case-http.md).
+- `status` - _(Integer)_ Exact HTTP status expected. Default: any 2xx.
+- `paths` - _(List, String)_ Keep only flattened JSON lines starting with these paths.
+
+Each attempt is retried until the status is acceptable and `verify` matches.
+
+        type: "request",
+        wait: 2,
+        delay: 2,
+        retry: 5,
+        request: {
+          url: "http://127.0.0.1:28090/logs?q={$transactionUid}",
+          type: "GET"
+        },
+        verify: [ "LMTP delivery successful" ],
+        refuse: [
+          [ "Enqueuing failed mailbox" ]
+        ]
+
+
+#### IMAP
+
+`type: "imap"` fetches the envelope's message by Message-ID, so the eml must use `{$MSGID}` in its Message-ID header.
+See [imap.md](../lib/imap.md) for all options. It retries until the message is found and matches.
+`absent: true` instead fails if the message is found on any attempt; use it to prove a message was not delivered.
 
 
 #### Humio

@@ -40,7 +40,7 @@
             type: "imap",
 
             // IMAP server to connect to.
-            server: "imap.example.com",
+            host: "imap.example.com",
             port: 143,
 
             // User credentials.

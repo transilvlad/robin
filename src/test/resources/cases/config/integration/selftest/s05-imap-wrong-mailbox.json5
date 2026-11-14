@@ -1,0 +1,38 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Self-test: MUST FAIL. Looks for the message in a mailbox it was not sent to.
+  // Proves an IMAP assertion fails when the message never arrives.
+  route: "docker",
+  tls: true,
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      file: "src/test/resources/cases/sources/lipsum.eml",
+      assertions: {
+        protocol: [
+          ["DATA", "^250"]
+        ],
+        external: [
+          {
+            type: "imap",
+            wait: 3,
+            delay: 2,
+            retry: 2,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "happy@example.com",
+            pass: "hogan",
+            folder: "INBOX",
+            matches: {
+              headers: [
+                ["^subject: Lipsum$"]
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

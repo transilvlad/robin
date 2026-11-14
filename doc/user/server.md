@@ -772,6 +772,12 @@ This forces the specified storage processor to return the predefined value witho
 
 This simulates a storage failure for the specified recipient with exit code `1` and error message `storage full`.
 
+**Simulate Dovecot LMTP delivery failure for one recipient:**
+
+    X-Robin-Chaos: DovecotLmtp; recipient=happy@example.com
+
+The named recipient is removed from inline LMTP delivery and sent through `failureBehaviour` (retry queue or bounce), while the other recipients are delivered normally. The client still receives 250. Queued retries are delivered over LMTP without the chaos check, so the message arrives once the queue retries it. The `recipient` parameter is required.
+
 **Test multiple scenarios:**
 
     X-Robin-Chaos: LocalStorageClient; processor=AVStorageProcessor; return=true

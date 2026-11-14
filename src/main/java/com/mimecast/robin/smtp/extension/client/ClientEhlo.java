@@ -104,7 +104,7 @@ public class ClientEhlo extends ClientProcessor {
             }
 
             if (line.startsWith("auth ")) {
-                Collections.addAll(connection.getSession().getEhloAuth(), line.replace("^auth", "").trim().split("\\s"));
+                Collections.addAll(connection.getSession().getEhloAuth(), line.substring("auth ".length()).trim().split("\\s+"));
             }
 
             if (line.contains("smtputf8")) connection.getSession().setSmtpUtf8(true);

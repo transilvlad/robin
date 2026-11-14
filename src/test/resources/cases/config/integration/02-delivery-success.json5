@@ -93,7 +93,7 @@
             },
 
             // Verification strings to look for in the response.
-            verify: [ "Dovecot-LDA delivery successful" ]
+            verify: [ "LMTP delivery successful" ]
           }
         ]
       }
@@ -107,7 +107,7 @@
     protocol: [
       [ "SMTP", "^220" ],
       [ "EHLO", "STARTTLS" ],
-      [ "QUIT" ]
+      [ "QUIT", "^221" ]
     ]
   }
 }

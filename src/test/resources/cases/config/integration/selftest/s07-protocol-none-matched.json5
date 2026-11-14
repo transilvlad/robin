@@ -1,0 +1,20 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Self-test: MUST FAIL. Asserts no RCPT was accepted when one was.
+  // Proves the `none` protocol selector fails on a match.
+  route: "docker",
+  tls: true,
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      file: "src/test/resources/cases/sources/lipsum.eml",
+      assertions: {
+        protocol: [
+          ["RCPT", "^250", "none"]
+        ]
+      }
+    }
+  ]
+}

@@ -251,8 +251,7 @@ public class ConfigMapper {
                     break;
 
                 default:
-                    ret = "";
-                    break;
+                    break; // Left for session magic below.
             }
         }
 

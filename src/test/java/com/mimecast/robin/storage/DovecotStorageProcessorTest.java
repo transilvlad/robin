@@ -191,6 +191,45 @@ class DovecotStorageProcessorTest {
         }
     }
 
+    @Test
+    void chaosHeaderQueuesNamedRecipientAndDeliversOthers() throws Exception {
+        Config.getServer().getDovecot().getMap().put("saveLmtp", java.util.Map.of("enabled", true, "inline", true));
+        var connection = createInboundConnection(List.of("first@example.com", "chaos@example.com"));
+        Path original = Path.of(connection.getSession().getEnvelopes().getFirst().getFile());
+        List<String> delivered = new ArrayList<>();
+        var delivery = new PooledLmtpDelivery() {
+            @Override public boolean deliver(Session session, long attempts, int delay) {
+                delivered.addAll(session.getEnvelopes().getFirst().getRcpts());
+                var tx = new EnvelopeTransactionList();
+                for (String recipient : session.getEnvelopes().getFirst().getRcpts()) {
+                    tx.addTransaction("LMTP", "RCPT TO:<" + recipient + ">", "250 Delivered");
+                }
+                session.getSessionTransactionList().addEnvelope(tx);
+                return true;
+            }
+        };
+        var parser = new com.mimecast.robin.mime.EmailParser(new com.mimecast.robin.smtp.io.LineInputStream(
+                new java.io.ByteArrayInputStream(("X-Robin-Chaos: DovecotLmtp; recipient=Chaos@example.com\r\n"
+                        + "Subject: Test\r\n\r\nBody\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8)))).parse();
+        boolean chaosEnabled = Config.getServer().isChaosHeaders();
+        Config.getServer().getMap().put("chaosHeaders", true);
+        try {
+            new DovecotStorageProcessor(delivery).saveToLmtp(connection, parser, Config.getServer());
+
+            assertEquals(List.of("first@example.com"), delivered);
+            var queued = queue.list(0, 10, QueueListFilter.activeOnly()).items();
+            assertEquals(1, queued.size());
+            assertEquals("lmtp", queued.getFirst().getProtocol());
+            assertEquals(List.of("chaos@example.com"), queued.getFirst().getPayload().getSession().getEnvelopes().getFirst().getRcpts());
+        } finally {
+            Config.getServer().getMap().put("chaosHeaders", chaosEnabled);
+            for (var item : queue.list(0, 10, QueueListFilter.activeOnly()).items()) {
+                Files.deleteIfExists(Path.of(item.getPayload().getSession().getEnvelopes().getFirst().getFile()));
+            }
+            Files.deleteIfExists(original);
+        }
+    }
+
     private Connection createInboundConnection(List<String> recipients) throws IOException {
         Session session = new Session();
         session.setUID("dovecot-lda-test-" + System.nanoTime());

@@ -84,58 +84,119 @@ public class Assert {
     /**
      * Assert against transactions.
      *
+     * <p>Each assertion is {@code [COMMAND]}, {@code [COMMAND, regex]} or {@code [COMMAND, regex, selector]}.
+     * {@code [COMMAND]} passes when a transaction of that command exists. Without a selector it passes
+     * when any transaction of that command matches. Selectors:
+     * <ul>
+     *     <li>{@code all} - every transaction of that command must match.</li>
+     *     <li>{@code none} - no transaction of that command may match.</li>
+     *     <li>a zero-based index - that transaction must exist and match.</li>
+     * </ul>
+     *
      * @param list            Protocol assertions as a list in list.
      * @param transactionList TransactionList instance.
      * @throws AssertException Assertion exception.
      */
     private void assertProtocol(List<List<String>> list, TransactionList transactionList) throws AssertException {
-        if (list != null && !list.isEmpty()) {
-            for (List<String> assertion : list) {
-                if (assertion.size() == 2 && !skip) {
-                    List<Transaction> transactions = transactionList.getTransactions(assertion.get(0));
-                    if (transactions.isEmpty()) {
-                        if (assertProtocolFails) {
-                            throw new AssertException("Assert unable to find transaction for [" + assertion.get(0) + "]");
-                        } else {
-                            log.error("Assert unable to find transaction for [{}], skipping", assertion.get(0));
-                            skip = true;
-                            return;
+        if (list == null || list.isEmpty()) {
+            return;
+        }
+
+        for (List<?> assertion : list) {
+            if (skip) return;
+
+            if (assertion == null || assertion.isEmpty() || assertion.size() > 3) {
+                throw new AssertException("Invalid protocol assertion " + assertion + ", expected [COMMAND], [COMMAND, regex] or [COMMAND, regex, selector]");
+            }
+
+            String command = String.valueOf(assertion.get(0));
+            String regex = assertion.size() > 1 ? String.valueOf(assertion.get(1)) : "";
+            String selector = assertion.size() == 3 ? selector(assertion.get(2)) : "any";
+
+            List<Transaction> transactions = transactionList.getTransactions(command);
+            if (transactions.isEmpty() && !selector.equals("none")) {
+                protocolFailure("Assert unable to find transaction for [" + command + "]");
+                continue;
+            }
+
+            Pattern p = Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
+            switch (selector) {
+                case "any" -> {
+                    if (transactions.stream().noneMatch(t -> matches(p, t))) {
+                        protocolFailure("Assert unable to match [" + command + "] [" + regex + "]");
+                    }
+                }
+                case "all" -> {
+                    for (int i = 0; i < transactions.size(); i++) {
+                        if (!matches(p, transactions.get(i))) {
+                            protocolFailure("Assert unable to match [" + command + "] #" + i + " [" + regex + "]: " + transactions.get(i).getResponse());
+                            break;
                         }
                     }
-                    assertTransactions(transactions, assertion.get(1));
+                }
+                case "none" -> {
+                    for (Transaction transaction : transactions) {
+                        if (matches(p, transaction)) {
+                            protocolFailure("Assert matched refused [" + command + "] [" + regex + "]: " + transaction.getResponse());
+                            break;
+                        }
+                    }
+                }
+                default -> {
+                    int index = Integer.parseInt(selector);
+                    if (index >= transactions.size()) {
+                        protocolFailure("Assert unable to find transaction [" + command + "] #" + index + ", found " + transactions.size());
+                    } else if (!matches(p, transactions.get(index))) {
+                        protocolFailure("Assert unable to match [" + command + "] #" + index + " [" + regex + "]: " + transactions.get(index).getResponse());
+                    }
                 }
             }
         }
     }
 
     /**
-     * Run regex assertions against transaction.
+     * Normalizes a protocol assertion selector.
      *
-     * @param transactions Transactions list.
-     * @param regex        Assertion regex.
-     * @throws AssertException Assertion exception.
+     * @param value Selector value from configuration; JSON numbers may arrive as Double.
+     * @return "any", "all", "none" or a non-negative index as String.
+     * @throws AssertException When the selector is not recognized.
      */
-    private void assertTransactions(List<Transaction> transactions, String regex) throws AssertException {
-        // No need to precompile patterns as they are transaction specific.
-        Pattern p = Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
-
-        boolean matched = false;
-        for (Transaction transaction : transactions) {
-            String response = transaction.getResponse();
-            if (p.matcher(response).find()) {
-                matched = true;
-                break;
-            }
+    private static String selector(Object value) throws AssertException {
+        if (value instanceof Number number && number.doubleValue() >= 0 && number.doubleValue() == Math.floor(number.doubleValue())) {
+            return String.valueOf(number.intValue());
         }
 
-        if (!matched) {
-            if (assertProtocolFails) {
-                throw new AssertException("Assert unable to match [" + regex + "]");
-            } else {
-                log.warn("Assert unable to match [{}], skipping", regex);
-                skip = true;
-            }
+        String selector = String.valueOf(value).trim().toLowerCase();
+        if (selector.equals("any") || selector.equals("all") || selector.equals("none") || selector.matches("\\d+")) {
+            return selector;
         }
+
+        throw new AssertException("Invalid protocol assertion selector [" + value + "], expected any, all, none or an index");
+    }
+
+    /**
+     * Does the transaction response match.
+     *
+     * @param pattern     Compiled pattern.
+     * @param transaction Transaction instance.
+     * @return Boolean.
+     */
+    private static boolean matches(Pattern pattern, Transaction transaction) {
+        return transaction.getResponse() != null && pattern.matcher(transaction.getResponse()).find();
+    }
+
+    /**
+     * Fails the protocol assertion, or skips the remaining assertions when protocol failures are not fatal.
+     *
+     * @param message Failure message.
+     * @throws AssertException When protocol failures are fatal.
+     */
+    private void protocolFailure(String message) throws AssertException {
+        if (assertProtocolFails) {
+            throw new AssertException(message);
+        }
+        log.warn("{}, skipping", message);
+        skip = true;
     }
 
     /**

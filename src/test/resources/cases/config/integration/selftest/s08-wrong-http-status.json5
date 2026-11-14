@@ -1,0 +1,33 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Self-test: MUST FAIL. Expects 404 from an API call that returns 200.
+  // Proves the request `status` check fails on a mismatch.
+  route: "docker",
+  tls: true,
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      file: "src/test/resources/cases/sources/lipsum.eml",
+      assertions: {
+        protocol: [
+          ["DATA", "^250"]
+        ],
+        external: [
+          {
+            type: "request",
+            wait: 1,
+            delay: 1,
+            retry: 2,
+            status: 404,
+            request: {
+              url: "http://127.0.0.1:28090/logs?q={$transactionUid}",
+              type: "GET"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -155,3 +155,10 @@ This bypasses the actual Dovecot LDA call for the specified recipient and return
 - Error message: `"storage full"`
 
 The `exitCode` parameter is an integer and the `message` parameter contains the error message. Quotes are optional for the message parameter unless it contains special characters.
+
+**Simulate Dovecot LMTP failure for one recipient:**
+```
+X-Robin-Chaos: DovecotLmtp; recipient=happy@example.com
+```
+
+This removes the recipient from inline LMTP delivery and sends it through the Dovecot `failureBehaviour` (retry queue or bounce), while other recipients are delivered normally. The `recipient` parameter is required. Queued retries skip the chaos check, so with `failureBehaviour: "retry"` the message is delivered when the queue retries it.

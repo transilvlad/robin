@@ -23,6 +23,11 @@ import java.util.stream.Collectors;
  * Request external client.
  *
  * <p>This is a basic HTTP request client.</p>
+ * <p>Each attempt makes the request and collects its data. An attempt succeeds when the response status is
+ * acceptable and the data satisfies {@code verify}; otherwise it is retried within {@code retry} and {@code delay}.
+ * With {@code verifyNone} the data must stay empty on every attempt. When attempts are spent the assertion fails,
+ * or skips when {@code verifyFails} is false.</p>
+ * <p>The optional {@code status} key sets the exact HTTP status code expected; by default any 2xx is accepted.</p>
  * <p>Example configuration:</p>
  * <pre>
  * {
@@ -30,6 +35,7 @@ import java.util.stream.Collectors;
  *   "wait": 5,
  *   "delay": 5,
  *   "retry": 3,
+ *   "status": 200,
  *   request: {
  *     url: "https://robin.requestcatcher.com/",
  *     type: "POST",
@@ -81,121 +87,161 @@ public class RequestExternalClient extends MatchExternalClient {
      * @throws AssertException Assertion exception.
      */
     @Override
-    @SuppressWarnings("unchecked")
     public void run() throws AssertException {
         if (!config.checkCondition(connection)) {
             log.info("Condition not met, skipping: {}", config.getStringProperty("condition"));
             return;
         }
 
-        List<String> data = new ArrayList<>();
-        HttpResponse httpResponse = makeRequest();
+        verifyNone = config.getVerifyNone();
+        compileVerify();
 
-        // Path based data collection for JSON format.
-        String responseCT = httpResponse.getHeaders().get("Content-Type");
-        if (responseCT != null && responseCT.toLowerCase().contains("/json")) {
-
-            // Parse JSON.
-            Map<String, Object> map = new Gson().fromJson(httpResponse.getBody(), Map.class);
-            if (map != null && !map.isEmpty()) {
-
-                // Flatten map.
-                MapUtils.flattenMap(map, "", data);
-
-                // Filter data.
-                List<String> paths = config.getListProperty("paths");
-                data = data.stream().filter(s -> {
-                    for (String path : paths) {
-                        if (s.startsWith(path)) {
-                            return true;
-                        }
-                    }
-                    return false;
-                }).collect(Collectors.toList());
-            }
-        }
-
-        // Treat data as text and split into lines if any.
-        else {
-            data.addAll(List.of(httpResponse.getBody().split("\n")));
-        }
-
-        // Verify no data was found.
-        if (data.isEmpty()) {
-            if (verifyNone) {
-                log.info("AssertExternal data verify none");
-                logResults(data);
-
-            } else {
-                throw new AssertException("No request data found to assert against");
-            }
-        }
-        // Verify found data.
-        else {
-            // Precompile verify patterns for performance.
-            compileVerify();
-
-            if (checkVerify(data)) {
-                log.debug("AssertExternal request response verify success");
-                logResults(data);
-
-                runMatches(data);
-            }
-
-            // Skip fail on verify.
-            else if (!assertVerifyFails) {
-                skip = true;
-                log.warn("Skipping");
-            }
-        }
-    }
-
-    /**
-     * Makes HTTP request
-     *
-     * @return HttpResponse instance.
-     * @throws AssertException Assertion exception.
-     */
-    protected HttpResponse makeRequest() throws AssertException {
+        Long expectedStatus = config.hasProperty("status") ? config.getLongProperty("status") : null;
         HttpResponse httpResponse = null;
+        List<String> data = new ArrayList<>();
 
         long delay = config.getWait() > 0 ? config.getWait() * 1000L : 0L;
         for (int count = 0; count < config.getRetry(); count++) {
             Sleep.nap((int) delay);
+            delay = config.getDelay() * 1000L;
             log.info("AssertExternal request attempt {} of {}", count + 1, config.getRetry());
 
-            try {
-                RequestConfig requestConfig = new RequestConfig(config.getMapProperty("request"), connection.getSession());
-                httpResponse = new RequestClient(connection.getSession())
-                        .request(requestConfig);
+            httpResponse = makeRequest();
+            if (!isAcceptable(httpResponse, expectedStatus)) {
+                continue;
+            }
 
-                // Retry delay if needed.
-                delay = config.getDelay() * 1000L;
-
-                // Verify response.
-                if (httpResponse == null || !httpResponse.isSuccessfull()) {
-                    log.info("AssertExternal request verify {}", (count < config.getRetry() - 1 ? "failure" : "attempts spent"));
-                    continue;
+            data = getData(httpResponse);
+            if (verifyNone) {
+                if (!data.isEmpty()) {
+                    logResults(data);
+                    fail("Request data found when none expected: " + data.get(0));
+                    return;
                 }
+                continue; // Absence must hold for every attempt.
+            }
 
-                // Verify response Content-Type is as requested if any requested.
-                String[] configCT = requestConfig.getHeaders().getHeader("Content-Type");
-                String responseCT = httpResponse.getHeaders().get("Content-Type");
-
-                // If we requested a Content-Type ensure it matches.
-                if (configCT != null && configCT.length > 0 && (responseCT == null || !responseCT.toLowerCase().startsWith(configCT[0].toLowerCase()))) {
-                    log.info("AssertExternal request Content-Type did not verify: {} != {}", configCT[0], responseCT);
-                    continue;
-                }
-
-                break;
-
-            } catch (Exception e) {
-                throw new AssertException(e.getMessage());
+            if (!data.isEmpty() && checkVerify(data)) {
+                log.debug("AssertExternal request response verify success");
+                logResults(data);
+                runMatches(data);
+                return;
             }
         }
 
-        return httpResponse;
+        if (!isAcceptable(httpResponse, expectedStatus)) {
+            fail("Request did not return " + (expectedStatus != null ? "status " + expectedStatus : "a successful status")
+                    + (httpResponse != null ? ", got " + httpResponse.getStatusCode() : ", no response"));
+        } else if (verifyNone) {
+            log.info("AssertExternal request verify none success");
+        } else if (data.isEmpty()) {
+            fail("No request data found to assert against");
+        } else {
+            logResults(data);
+            fail("Request data did not match verify patterns " + verifyPatterns);
+        }
+    }
+
+    /**
+     * Fails the assertion, or skips when verify failures are not fatal.
+     *
+     * @param message Failure message.
+     * @throws AssertException When verify failures are fatal.
+     */
+    private void fail(String message) throws AssertException {
+        if (assertVerifyFails) {
+            throw new AssertException(message);
+        }
+        log.warn("{}, skipping", message);
+        skip = true;
+    }
+
+    /**
+     * Is the response acceptable for assertion.
+     *
+     * @param httpResponse   HttpResponse instance or null.
+     * @param expectedStatus Expected status code, or null for any successful status.
+     * @return Boolean.
+     */
+    private boolean isAcceptable(HttpResponse httpResponse, Long expectedStatus) {
+        if (httpResponse == null) {
+            return false;
+        }
+        if (expectedStatus != null) {
+            return httpResponse.getStatusCode() == expectedStatus;
+        }
+        return httpResponse.isSuccessfull();
+    }
+
+    /**
+     * Collects assertable data from the response.
+     *
+     * <p>JSON bodies are flattened and filtered by {@code paths} when given; other bodies are split into non-blank lines.
+     *
+     * @param httpResponse HttpResponse instance.
+     * @return List of String.
+     */
+    @SuppressWarnings("unchecked")
+    protected List<String> getData(HttpResponse httpResponse) {
+        List<String> data = new ArrayList<>();
+        String body = httpResponse.getBody();
+        if (body == null || body.isEmpty()) {
+            return data;
+        }
+
+        String responseCT = httpResponse.getHeaders().get("Content-Type");
+        if (responseCT != null && responseCT.toLowerCase().contains("/json")) {
+            Map<String, Object> map = new Gson().fromJson(body, Map.class);
+            if (map != null && !map.isEmpty()) {
+                MapUtils.flattenMap(map, "", data);
+
+                List<String> paths = config.getListProperty("paths");
+                if (!paths.isEmpty()) {
+                    data = data.stream()
+                            .filter(s -> paths.stream().anyMatch(s::startsWith))
+                            .collect(Collectors.toList());
+                }
+            }
+        } else {
+            for (String line : body.split("\n")) {
+                if (!line.isBlank()) {
+                    data.add(line);
+                }
+            }
+        }
+
+        return data;
+    }
+
+    /**
+     * Makes one HTTP request.
+     *
+     * <p>A response whose Content-Type does not match a requested Content-Type is treated as no response.
+     *
+     * @return HttpResponse instance or null.
+     * @throws AssertException Assertion exception.
+     */
+    protected HttpResponse makeRequest() throws AssertException {
+        try {
+            RequestConfig requestConfig = new RequestConfig(config.getMapProperty("request"), connection.getSession());
+            HttpResponse httpResponse = new RequestClient(connection.getSession()).request(requestConfig);
+            if (httpResponse == null) {
+                log.info("AssertExternal request got no response");
+                return null;
+            }
+
+            String[] configCT = requestConfig.getHeaders().getHeader("Content-Type");
+            String responseCT = httpResponse.getHeaders().get("Content-Type");
+            if (configCT != null && configCT.length > 0 && (responseCT == null || !responseCT.toLowerCase().startsWith(configCT[0].toLowerCase()))) {
+                log.info("AssertExternal request Content-Type did not verify: {} != {}", configCT[0], responseCT);
+                return null;
+            }
+
+            return httpResponse;
+
+        } catch (Exception e) {
+            throw new AssertException(e.getMessage());
+        }
     }
 
     /**

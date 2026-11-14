@@ -19,7 +19,6 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.lang.reflect.Method;
-import java.lang.reflect.InvocationTargetException;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -102,9 +101,9 @@ class ImapClientTest {
                                 .digest("Hello\r\n".getBytes(StandardCharsets.US_ASCII))))),
                 Map.of("headers", List.of(List.of("Content-Type: multipart/mixed"))));
         assertEquals(true, verify.invoke(assertion, raw, client, specifications));
-        assertThrows(InvocationTargetException.class, () -> verify.invoke(assertion, raw, client,
+        assertEquals(false, verify.invoke(assertion, raw, client,
                 List.of(Map.of("body", List.of(List.of("not present"))))));
-        assertThrows(InvocationTargetException.class, () -> verify.invoke(assertion, raw, client,
+        assertEquals(false, verify.invoke(assertion, raw, client,
                 List.of(Map.of("hashes", Map.of("sha256", "not a matching hash")))));
     }
 }

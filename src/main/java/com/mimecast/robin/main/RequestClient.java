@@ -111,7 +111,9 @@ public class RequestClient extends RequestBase {
             }
 
             if (httpResponse != null) {
-                connection.getSession().getSessionTransactionList().addTransaction("HTTP", new Gson().toJson(httpResponse.getHeaders()), !httpResponse.isSuccessfull());
+                // Status code first so protocol assertions can match it with "^200".
+                connection.getSession().getSessionTransactionList().addTransaction("HTTP",
+                        httpResponse.getStatusCode() + " " + new Gson().toJson(httpResponse.getHeaders()), !httpResponse.isSuccessfull());
             }
         } else {
             connection = new Connection(session);

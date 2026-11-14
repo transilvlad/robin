@@ -10,6 +10,15 @@ This provided some basic functionalities but can leverage the external assertion
 
 Response headers are set as magic variables.
 
+The response is recorded as an `HTTP` protocol transaction: the status code, a space, then the response headers as JSON.
+Assert the status with a session protocol assertion:
+
+      assertions: {
+        protocol: [
+          [ "HTTP", "^200 " ]
+        ]
+      }
+
 _You will need to make your own client and implement any response body data handling._
 
 
