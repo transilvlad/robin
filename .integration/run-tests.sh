@@ -13,8 +13,12 @@ WAIT_SECONDS=60
 # Format: local_port:target_host:target_port
 FORWARDS=(
     "2525:mta-backend:25"           # SMTP
+    "2587:mta-backend:587"          # Submission
     "28090:mta-backend:8090"        # Robin API
     "2143:imap-backend:143"         # IMAP
+    "2526:sink-backend:25"          # robin-sink SMTP (remote MTA)
+    "28091:sink-backend:8090"       # robin-sink API (/store, /logs)
+    "28099:http-sink:8080"          # HTTP sink (/_sink/requests)
 )
 
 echo "Copying sources to $WORK..."

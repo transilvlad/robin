@@ -1,0 +1,10 @@
+{
+  // Store every received message in a local maildir: <path>/<domain>/<user>/new/.
+  enabled: true,
+  autoDelete: false,
+  localMailbox: true,
+  disableRenameHeader: true,
+  path: "/usr/local/robin/store/",
+  inboundFolder: "new",
+  clean: false
+}

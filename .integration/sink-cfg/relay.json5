@@ -1,0 +1,9 @@
+{
+  // The sink is a final destination; it never relays.
+  enabled: false,
+  inboundEnabled: false,
+  outboundEnabled: false,
+  outboundMxEnabled: false,
+  disableRelayHeader: true,
+  bounce: false
+}

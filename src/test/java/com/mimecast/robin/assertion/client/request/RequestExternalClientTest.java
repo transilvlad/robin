@@ -90,6 +90,21 @@ class RequestExternalClientTest {
     }
 
     @Test
+    void jsonArrayResponseIsFlattened() throws AssertException {
+        QueuedRequestExternalClient client = client(Map.of("verify", List.of("^1: b\\.eml$")), true,
+                HttpResponseFixture.of(200, "application/json", "[\"a.eml\", \"b.eml\"]"));
+
+        client.run();
+        assertFalse(client.skip());
+    }
+
+    @Test
+    void invalidJsonFallsBackToText() throws AssertException {
+        client(Map.of("verify", List.of("not json")), true,
+                HttpResponseFixture.of(200, "application/json", "not json")).run();
+    }
+
+    @Test
     void verifyNeedsAllPatternsOnOneLine() {
         QueuedRequestExternalClient client = client(Map.of("verify", List.of("alpha", "beta")), true,
                 text("alpha\nbeta"));

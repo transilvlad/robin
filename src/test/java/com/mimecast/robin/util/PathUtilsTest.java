@@ -49,6 +49,40 @@ class PathUtilsTest {
         assertTrue(new File(path).delete());
     }
 
+    /**
+     * Concurrent first messages on a fresh store all create the spool directory at once;
+     * every caller must see success, not only the thread that won the race.
+     */
+    @Test
+    void makePathConcurrently() throws Exception {
+        String path = tempDir.resolve("a").resolve("b").resolve("tmp").toString();
+        int threads = 16;
+        java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(threads);
+        try {
+            java.util.List<java.util.concurrent.Future<Boolean>> results = new java.util.ArrayList<>();
+            for (int i = 0; i < threads; i++) {
+                results.add(pool.submit(() -> {
+                    start.await();
+                    return PathUtils.makePath(path);
+                }));
+            }
+            start.countDown();
+            for (java.util.concurrent.Future<Boolean> result : results) {
+                assertTrue(result.get());
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    void makePathFailsOnFile() throws IOException {
+        Path file = tempDir.resolve("file");
+        java.nio.file.Files.writeString(file, "x");
+        assertFalse(PathUtils.makePath(file.toString()));
+    }
+
     @Test
     void isDirectory() {
         assertTrue(PathUtils.isDirectory("src/test/resources/"));

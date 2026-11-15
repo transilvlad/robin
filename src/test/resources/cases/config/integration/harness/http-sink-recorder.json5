@@ -1,0 +1,39 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: The HTTP sink records a request and serves it back.
+  // Flow: HTTP POST to http-sink → GET /_sink/requests for that path.
+  // Validates: the recorder later cases rely on for webhooks and callbacks, and an HTTP case
+  //            with a status assertion plus an external request assertion.
+
+  request: {
+    url: "http://127.0.0.1:28099/harness/recorder",
+    type: "POST",
+    content: {
+      payload: "{\"case\": \"robin-harness\"}",
+      mimeType: "application/json"
+    }
+  },
+
+  assertions: {
+    protocol: [
+      ["HTTP", "^200 "]
+    ],
+    external: [
+      {
+        type: "request",
+        wait: 0,
+        delay: 1,
+        retry: 3,
+        request: {
+          url: "http://127.0.0.1:28099/_sink/requests?path=/harness/recorder",
+          type: "GET"
+        },
+        verify: ["^requests>\\d+>body: .*robin-harness"],
+        match: [
+          ["^requests>\\d+>method: POST$"]
+        ]
+      }
+    ]
+  }
+}

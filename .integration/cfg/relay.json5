@@ -1,0 +1,14 @@
+{
+  // Queue workers run; inbound mail is delivered locally, never relayed.
+  enabled: true,
+  inboundEnabled: false,
+
+  // Authenticated (outbound) mail to other domains is relayed by MX lookup.
+  // The test DNS points remote.test at robin-sink (see etc/coredns).
+  outboundEnabled: true,
+  outboundMxEnabled: true,
+
+  disableRelayHeader: true,
+  bounce: true,
+  maxRetryCount: 30
+}

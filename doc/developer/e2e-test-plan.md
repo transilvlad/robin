@@ -1,6 +1,11 @@
 # End-to-end test plan
 
-Status: steps 1-2 implemented 2026-11-14 (Phase 0 green in Docker; CI workflows added). Later steps proposed. Goal: release confidence for production use, and a
+Status: steps 1-3 implemented 2026-11-14 (Phase 0 green in Docker; CI workflows added;
+harness with robin-sink, http-sink, test DNS and folder discovery). Later steps proposed.
+The harness found two release bugs on its first relay: the shipped `cfg/server.json5` pointed
+the truststore at a JDK path missing from the Corretto image, which disabled MTA-STS, and
+`StrictMx` then threw a NullPointerException that bypassed the 451 retry handling, so every
+MX delivery failed. `robin-edge` is deferred to the steps that need it (policy, auth, DoS). Goal: release confidence for production use, and a
 suite of JSON5 cases that doubles as a demonstration of what Robin's case system
 can test on an MTA.
 

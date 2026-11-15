@@ -1,0 +1,7 @@
+{
+  localLogsDir: "/var/log/robin/",
+  uidPattern: "\\s\\[([a-z0-9\\-_]+)]",
+  propertiesAutoReload: { enabled: false },
+  serverAutoReload: { enabled: false },
+  logging: { data: false, textPartBody: false }
+}

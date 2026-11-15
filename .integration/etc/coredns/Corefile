@@ -1,0 +1,20 @@
+# Test DNS for the integration stack. Robin under test uses it for dnsjava lookups (MX, RBL, MTA-STS, DANE).
+# Test zones are served from files; everything else, including container names such as
+# mx.sink.test, is forwarded to Docker's embedded DNS.
+
+remote.test {
+    file /etc/coredns/remote.test.db
+    log
+    errors
+}
+
+rbl.test {
+    file /etc/coredns/rbl.test.db
+    log
+    errors
+}
+
+. {
+    forward . 127.0.0.11
+    errors
+}

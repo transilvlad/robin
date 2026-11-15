@@ -1,0 +1,41 @@
+{
+  // robin-sink: a second Robin acting as the remote internet MTA for remote.test.
+  // It accepts mail for any recipient, stores it in local mailboxes readable through
+  // the /store API, and answers scripted addresses from scenarios.json5.
+  hostname: "mx.sink.test",
+  bind: "::",
+  smtpPort: 25,
+  securePort: 0,
+  submissionPort: 0,
+
+  auth: false,
+  starttls: true,
+  chunking: true,
+  keystore: "/usr/local/robin/keystore.jks",
+  keystorepassword: "avengers",
+  allowSelfSigned: true,
+
+  service: {
+    port: 8080,
+    authType: "none",
+    authValue: "",
+    allowList: ["127.0.0.1", "::1"]
+  },
+  api: {
+    port: 8090,
+    authType: "none",
+    authValue: "",
+    allowList: ["127.0.0.1", "::1"]
+  },
+
+  chaosHeaders: false,
+  xclientEnabled: false,
+  renameHeaderEnabled: false,
+
+  rbl: { enabled: false },
+  emailSizeLimit: 10242400,
+  envelopesLimit: 100,
+
+  // Every relay attempt from the Robin under test comes from one IP.
+  smtpConfig: { dosProtectionEnabled: false }
+}

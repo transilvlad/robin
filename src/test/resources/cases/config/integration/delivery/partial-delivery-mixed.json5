@@ -1,5 +1,5 @@
 {
-  $schema: "../../../../../main/resources/schema/case.schema.json",
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
 
   // Test: Partial delivery with mixed valid/invalid recipients.
   // SMTP behavior: Each recipient is validated independently.

@@ -1,6 +1,6 @@
 {
   queueInitialDelay: 10,
-  queueInterval: 30,
+  queueInterval: 5,
   maxDequeuePerTick: 10,
   retry: {
     totalRetries: 30,

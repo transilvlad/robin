@@ -1,6 +1,6 @@
 package com.mimecast.robin.assertion.client.request;
 
-import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
 import com.mimecast.robin.assertion.AssertException;
 import com.mimecast.robin.assertion.client.MatchExternalClient;
 import com.mimecast.robin.config.BasicConfig;
@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -191,26 +190,40 @@ public class RequestExternalClient extends MatchExternalClient {
 
         String responseCT = httpResponse.getHeaders().get("Content-Type");
         if (responseCT != null && responseCT.toLowerCase().contains("/json")) {
-            Map<String, Object> map = new Gson().fromJson(body, Map.class);
-            if (map != null && !map.isEmpty()) {
-                MapUtils.flattenMap(map, "", data);
+            try {
+                MapUtils.flattenJson(body, data);
+            } catch (JsonSyntaxException e) {
+                log.warn("AssertExternal request response is not valid JSON, asserting on text: {}", e.getMessage());
+                data.clear();
+                addLines(body, data);
+                return data;
+            }
 
-                List<String> paths = config.getListProperty("paths");
-                if (!paths.isEmpty()) {
-                    data = data.stream()
-                            .filter(s -> paths.stream().anyMatch(s::startsWith))
-                            .collect(Collectors.toList());
-                }
+            List<String> paths = config.getListProperty("paths");
+            if (!paths.isEmpty()) {
+                data = data.stream()
+                        .filter(s -> paths.stream().anyMatch(s::startsWith))
+                        .collect(Collectors.toList());
             }
         } else {
-            for (String line : body.split("\n")) {
-                if (!line.isBlank()) {
-                    data.add(line);
-                }
-            }
+            addLines(body, data);
         }
 
         return data;
+    }
+
+    /**
+     * Adds the non-blank lines of a text body.
+     *
+     * @param body Response body.
+     * @param data Collector.
+     */
+    private static void addLines(String body, List<String> data) {
+        for (String line : body.split("\n")) {
+            if (!line.isBlank()) {
+                data.add(line);
+            }
+        }
     }
 
     /**

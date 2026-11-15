@@ -1,10 +1,11 @@
 {
-  $schema: "../../../../../main/resources/schema/case.schema.json",
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
 
-  // Test: Spam detection with GTUBE pattern.
-  // GTUBE (Generic Test for Unsolicited Bulk Email) should be detected by Rspamd.
-  // With reject score of 15, GTUBE (score 20) triggers rejection.
-  // Expected: 541 rejection at DATA stage.
+  // Test: Chaos engineering for storage processor failure.
+  // Uses X-Robin-Chaos header to force AVStorageProcessor to return false.
+  // This simulates a critical storage error (e.g., virus scanner returning failure).
+  // Expected behavior: Server should reject with 451 (temporary failure).
+  // Critical to test error response is sent (previously caused client hang).
 
   // How many times to try and establish a connection to remote server. First counts.
   retry: 2,
@@ -22,11 +23,12 @@
   envelopes: [
     // Envelope one.
     {
-      mail: "spammer@badactor.com",
+      mail: "tony@example.com",
       rcpt: ["pepper@example.com"],
 
       // Email eml file to transmit.
-      file: "src/test/resources/cases/sources/gtube.eml",
+      // Contains: X-Robin-Chaos: LocalStorageClient; processor=AVStorageProcessor; return=false
+      file: "src/test/resources/cases/sources/chaos-storage-fail.eml",
 
       // Assertions to run against the envelope.
       assertions: {
@@ -36,8 +38,9 @@
         protocol: [
           ["MAIL", "^250.*Sender OK"],
           ["RCPT", "^250.*Recipient OK"],
-          // With reject score of 15, GTUBE (score 20) should be rejected.
-          ["DATA", "^541"]  // 541 = rejected (spam detected)
+          // Storage processor failure should result in 451 temporary rejection.
+          // Critical to test error response is sent (previously caused client hang).
+          ["DATA", "^451"]
         ],
 
         // External assertions.
@@ -62,7 +65,7 @@
             },
 
             // Verification strings to look for in the response.
-            verify: [ "Spam detected" ]
+            verify: [ "Internal server error" ]
           }
         ]
       }

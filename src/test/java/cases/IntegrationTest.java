@@ -1,37 +1,48 @@
 package cases;
 
 import com.mimecast.robin.assertion.AssertException;
+import com.mimecast.robin.config.client.CaseConfig;
 import com.mimecast.robin.main.Client;
 import com.mimecast.robin.main.Foundation;
+import com.mimecast.robin.main.RequestClient;
 import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.naming.ConfigurationException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Integration tests for Robin MTA email delivery and processing.
+ * Integration suite: runs every JSON5 case under {@code src/test/resources/cases/config/integration/<area>/}.
  *
- * <p>Run all eleven cases and the self-tests in the isolated LMTP, SQL-auth, ClamAV, and Rspamd stack:
- * {@code docker compose --project-directory .integration --profile test run --build --rm integration-tests}.
+ * <p>Cases are discovered by folder, so adding coverage needs no Java. Each area folder groups one
+ * capability (inbound, delivery, scanning, queue, relay, harness, ...). A case with a top-level
+ * {@code request} block is an HTTP case run by {@link RequestClient}; any other case is an SMTP case
+ * run by {@link Client}. Cases run concurrently and must not depend on each other.
  *
- * <p>Run specific tests:
- * <ul>
- *   <li>{@code -Dtest=IntegrationTest#test01_basicSmtp} - Pass to the container runner for one test</li>
- *   <li>{@code -Dgroups=dovecot} - Select eight cases and the self-tests, excluding scanner tests 07, 08 and 08b</li>
- * </ul>
+ * <p>The {@code selftest} folder holds cases that must fail; see {@link #selfTests()}.
+ *
+ * <p>Run the suite in the isolated stack (Robin, robin-sink, http-sink, test DNS, LMTP, SQL auth,
+ * ClamAV and Rspamd): {@code .integration/ci.sh}.
+ *
+ * <p>Select cases with {@code -Drobin.integration.cases=<regex>}, matched against the case path
+ * relative to the integration folder, for example {@code -Drobin.integration.cases='^(inbound|relay)/'}.
  */
 @Tag("integration")
 @Tag("suite")
-@TestMethodOrder(MethodOrderer.MethodName.class)
 public class IntegrationTest {
+
+    private static final Path CASES = Path.of("src/test/resources/cases/config/integration");
+    private static final String SELFTEST = "selftest";
 
     @BeforeAll
     static void before() throws ConfigurationException {
@@ -46,81 +57,57 @@ public class IntegrationTest {
         Foundation.init(configDir);
     }
 
-    @Test
-    @Tag("dovecot")
-    @DisplayName("01. Basic SMTP delivery test")
-    void test01_basicSmtp() throws AssertException, IOException {
-        new Client()
-                .send("src/test/resources/cases/config/integration/01-basic-smtp.json5");
+    // Zero invocations are allowed when the filter selects only self-tests; cases() rejects a filter
+    // that selects nothing at all.
+    @ParameterizedTest(name = "{0}", allowZeroInvocations = true)
+    @MethodSource("cases")
+    @DisplayName("Integration case")
+    void integrationCase(String name) throws Exception {
+        String path = CASES.resolve(name).toString();
+        if (new CaseConfig(path).hasProperty("request")) {
+            new RequestClient().request(path);
+        } else {
+            new Client().send(path);
+        }
     }
 
-    @Test
-    @Tag("dovecot")
-    @DisplayName("02. Successful delivery with IMAP verification")
-    void test02_deliverySuccess() throws AssertException, IOException {
-        new Client()
-                .send("src/test/resources/cases/config/integration/02-delivery-success.json5");
+    /**
+     * Lists the cases to run as {@code area/name.json5}, sorted, excluding self-tests.
+     *
+     * <p>A case placed directly in the integration folder fails discovery instead of being skipped,
+     * and so does a filter that selects nothing.
+     */
+    static Stream<String> cases() throws IOException {
+        List<String> all = listCases();
+        List<String> loose = all.stream().filter(name -> !name.contains("/")).toList();
+        if (!loose.isEmpty()) {
+            throw new IllegalStateException("Integration cases must live in an area folder: " + loose);
+        }
+
+        List<String> selected = all.stream()
+                .filter(name -> !name.startsWith(SELFTEST + "/"))
+                .filter(IntegrationTest::selected)
+                .toList();
+        if (selected.isEmpty() && !selected(SELFTEST + "/")) {
+            throw new IllegalStateException("No integration cases match robin.integration.cases="
+                    + System.getProperty("robin.integration.cases"));
+        }
+        return selected.stream();
     }
 
-    @Test
-    @Tag("dovecot")
-    @DisplayName("03. Delivery to multiple recipients")
-    void test03_deliveryMultipleRecipients() throws AssertException, IOException {
-        new Client()
-                .send("src/test/resources/cases/config/integration/03-delivery-multiple-recipients.json5");
+    private static List<String> listCases() throws IOException {
+        try (Stream<Path> files = Files.walk(CASES, 2)) {
+            return files.filter(Files::isRegularFile)
+                    .filter(p -> p.getFileName().toString().endsWith(".json5"))
+                    .map(p -> CASES.relativize(p).toString().replace('\\', '/'))
+                    .sorted()
+                    .toList();
+        }
     }
 
-    @Test
-    @Tag("dovecot")
-    @DisplayName("04. User not found rejection")
-    void test04_userNotFound() throws AssertException, IOException {
-        new Client()
-                .send("src/test/resources/cases/config/integration/04-user-not-found.json5");
-    }
-
-    @Test
-    @Tag("dovecot")
-    @DisplayName("05. Invalid sender rejection")
-    void test05_invalidSender() throws AssertException, IOException {
-        new Client()
-                .send("src/test/resources/cases/config/integration/05-invalid-sender.json5");
-    }
-
-    @Test
-    @Tag("dovecot")
-    @DisplayName("06. Partial delivery with mixed valid/invalid recipients")
-    void test06_partialDeliveryMixed() throws AssertException, IOException {
-        new Client()
-                .send("src/test/resources/cases/config/integration/06-partial-delivery-mixed.json5");
-    }
-
-    @Test
-    @DisplayName("07. Spam detection with GTUBE pattern")
-    void test07_spamGtube() throws AssertException, IOException {
-        new Client()
-                .send("src/test/resources/cases/config/integration/07-spam-gtube.json5");
-    }
-
-    @Test
-    @DisplayName("08. Virus detection with EICAR")
-    void test08_virusEicar() throws AssertException, IOException {
-        new Client()
-                .send("src/test/resources/cases/config/integration/08-virus-eicar.json5");
-    }
-
-    @Test
-    @DisplayName("08b. Virus detection with EICAR in a MIME epilogue")
-    void test08b_virusEicarEpilogue() throws AssertException, IOException {
-        new Client()
-                .send("src/test/resources/cases/config/integration/08b-virus-eicar-epilogue.json5");
-    }
-
-    @Test
-    @Tag("dovecot")
-    @DisplayName("09. Chaos: LMTP failure queued and redelivered")
-    void test09_chaosLmtpRetry() throws AssertException, IOException {
-        new Client()
-                .send("src/test/resources/cases/config/integration/09-chaos-lmtp-retry.json5");
+    private static boolean selected(String name) {
+        String filter = System.getProperty("robin.integration.cases", "");
+        return filter.isBlank() || Pattern.compile(filter).matcher(name).find();
     }
 
     /**
@@ -145,29 +132,22 @@ public class IntegrationTest {
     }
 
     @TestFactory
-    @Tag("dovecot")
     @DisplayName("Self-tests: assertions that must fail")
     Stream<DynamicTest> selfTests() throws IOException {
-        Path folder = Path.of("src/test/resources/cases/config/integration/selftest");
+        Path folder = CASES.resolve(SELFTEST);
         try (Stream<Path> files = Files.list(folder)) {
             Set<String> found = files.map(p -> p.getFileName().toString()).collect(Collectors.toSet());
             Assertions.assertEquals(SELF_TESTS.keySet(), found, "Every self-test case needs an expected failure");
         }
 
-        return SELF_TESTS.entrySet().stream().map(entry -> DynamicTest.dynamicTest(entry.getKey(), () -> {
-            AssertException e = Assertions.assertThrows(AssertException.class,
-                    () -> new Client().send(folder.resolve(entry.getKey()).toString()),
-                    entry.getKey() + " passed but must fail");
-            Assertions.assertTrue(e.getMessage() != null && e.getMessage().contains(entry.getValue()),
-                    entry.getKey() + " failed for the wrong reason: " + e.getMessage());
-        }));
-    }
-
-    @Test
-    @Tag("dovecot")
-    @DisplayName("10. Chaos: Storage processor failure")
-    void test10_chaosStorageFailure() throws AssertException, IOException {
-        new Client()
-                .send("src/test/resources/cases/config/integration/10-chaos-storage-failure.json5");
+        return SELF_TESTS.entrySet().stream()
+                .filter(entry -> selected(SELFTEST + "/" + entry.getKey()))
+                .map(entry -> DynamicTest.dynamicTest(entry.getKey(), () -> {
+                    AssertException e = Assertions.assertThrows(AssertException.class,
+                            () -> new Client().send(folder.resolve(entry.getKey()).toString()),
+                            entry.getKey() + " passed but must fail");
+                    Assertions.assertTrue(e.getMessage() != null && e.getMessage().contains(entry.getValue()),
+                            entry.getKey() + " failed for the wrong reason: " + e.getMessage());
+                }));
     }
 }

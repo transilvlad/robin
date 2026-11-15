@@ -1,5 +1,5 @@
 {
-  $schema: "../../../../../main/resources/schema/case.schema.json",
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
 
   // Test: Email rejection for invalid sender address format.
   // Validates: RFC 5321 address validation at MAIL FROM stage.

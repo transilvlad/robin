@@ -1,5 +1,5 @@
 {
-  $schema: "../../../../../main/resources/schema/case.schema.json",
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
 
   // Test: One SMTP transaction to two local recipients.
   // Flow: SMTP → Rspamd → ClamAV → Robin delivers to Dovecot over LMTP (one reply per recipient).

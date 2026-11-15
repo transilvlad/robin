@@ -10,6 +10,30 @@ import java.util.Map;
 public class MapUtils {
 
     /**
+     * Flatten a JSON document of any shape into "path: value" lines.
+     *
+     * <p>An object is flattened like {@link #flattenMap}, a top-level array uses each index as
+     * the first path segment ("0: value", "1>name: value"), and a scalar becomes one line.
+     * An empty object or array adds nothing.
+     *
+     * @param json      JSON text.
+     * @param collector List of string to collect results.
+     * @throws com.google.gson.JsonSyntaxException When the text is not valid JSON.
+     */
+    public static void flattenJson(String json, List<String> collector) {
+        Object parsed = new com.google.gson.Gson().fromJson(json, Object.class);
+        if (parsed instanceof List<?> list) {
+            for (int i = 0; i < list.size(); i++) {
+                flattenObject(list.get(i), i + ">", collector);
+            }
+        } else if (parsed instanceof Map) {
+            flattenMap((Map<String, Object>) parsed, "", collector);
+        } else if (parsed != null) {
+            collector.add(String.valueOf(parsed));
+        }
+    }
+
+    /**
      * Flatten map.
      *
      * @param map        Map of String, Object instance to flatten.

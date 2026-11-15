@@ -34,6 +34,7 @@ for service in $("${compose[@]}" ps -a --services); do
     "${compose[@]}" logs --no-color "$service" > "$logs/$service.log" 2>&1
 done
 "${compose[@]}" exec -T integration-robin sh -c 'cat /var/log/robin/*.log' > "$logs/robin-files.log" 2>&1 || true
+"${compose[@]}" exec -T integration-sink sh -c 'cat /var/log/robin/*.log' > "$logs/sink-files.log" 2>&1 || true
 
 "${compose[@]}" down -v --remove-orphans
 

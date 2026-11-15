@@ -1,5 +1,5 @@
 {
-  $schema: "../../../../../main/resources/schema/case.schema.json",
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
 
   // Test: Inline LMTP failure for one recipient is queued and redelivered.
   // Uses `X-Robin-Chaos: DovecotLmtp; recipient=happy@example.com` (needs chaosHeaders: true).
@@ -83,13 +83,13 @@
           },
           {
             // happy@example.com arrives only once the relay queue delivers it.
-            // A newly queued item is attempted on the next queue tick (queueInterval 30s); the
+            // A newly queued item is attempted on the next queue tick (queueInterval 5s); the
             // firstWaitMinutes back-off only applies if that attempt fails too.
             type: "imap",
             name: "happy-from-queue",
             wait: 5,
-            delay: 5,
-            retry: 18,
+            delay: 3,
+            retry: 15,
             host: "127.0.0.1",
             port: 2143,
             user: "happy@example.com",

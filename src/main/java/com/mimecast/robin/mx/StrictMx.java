@@ -26,9 +26,19 @@ public class StrictMx {
     private static StrictTransportSecurity strictTransportSecurity = null;
 
     /**
+     * Why the last initialization failed, for the routing error.
+     */
+    private static volatile String initError = "not initialized";
+
+    /**
      * Domain to query.
      */
     private final String domain;
+
+    /**
+     * StrictTransportSecurity used by this instance, or null when it could not be initialized.
+     */
+    private final StrictTransportSecurity sts;
 
     /**
      * StsPolicy instance.
@@ -46,21 +56,53 @@ public class StrictMx {
         if (strictTransportSecurity == null) {
             init();
         }
+        this.sts = strictTransportSecurity;
+    }
+
+    /**
+     * Constructs a new StrictMx instance with the given StrictTransportSecurity.
+     * <p>For testing; null simulates an initialization failure.
+     *
+     * @param domain Recipient domain.
+     * @param sts    StrictTransportSecurity instance or null.
+     */
+    StrictMx(String domain, StrictTransportSecurity sts) {
+        this.domain = domain;
+        this.sts = sts;
     }
 
     /**
      * Initialize.
-     * <p>Construct a new StrictTransportSecurity if needed.
+     * <p>Construct a new StrictTransportSecurity if needed. A failure is retried by the next instance.
      */
-    private void init() {
+    private static synchronized void init() {
+        if (strictTransportSecurity != null) {
+            return;
+        }
         try {
             System.setProperty("com.sun.net.ssl.checkRevocation", "true");
             Security.setProperty("ocsp.enable", "true");
 
             strictTransportSecurity = new StrictTransportSecurity();
         } catch (Exception e) {
-            log.error("Initialization error: {}", e.getMessage());
+            initError = e.getClass().getSimpleName() + ": " + e.getMessage();
+            log.error("MTA-STS initialization error (check the server truststore setting): {}", initError);
         }
+    }
+
+    /**
+     * Gets the StrictTransportSecurity instance.
+     * <p>Without it the MTA-STS policy cannot be checked, so delivery must not proceed: an enforced
+     * policy would be silently ignored. Fails as a transient routing error so the message is retried.
+     *
+     * @return StrictTransportSecurity instance.
+     * @throws MailRoutingException When MTA-STS could not be initialized.
+     */
+    private StrictTransportSecurity sts() {
+        if (sts == null) {
+            throw new MailRoutingException("MTA-STS policy check unavailable for " + domain + ": " + initError, false);
+        }
+        return sts;
     }
 
     /**
@@ -72,7 +114,7 @@ public class StrictMx {
     public StsPolicy getPolicy() {
         if (policy == null) {
             try {
-                Optional<StsPolicy> optional = strictTransportSecurity.getPolicy(domain);
+                Optional<StsPolicy> optional = sts().getPolicy(domain);
 
                 if (optional.isPresent() && optional.get().isValid()) {
                     log.info("Policy loaded");
@@ -100,7 +142,7 @@ public class StrictMx {
      * @return List of MXRecord instances.
      */
     public List<DnsRecord> getMxRecords() {
-        List<DnsRecord> mxRecords = strictTransportSecurity.getMxRecords(domain);
+        List<DnsRecord> mxRecords = sts().getMxRecords(domain);
         log.debug("RAW records count: {}", mxRecords.size());
 
         if (getPolicy() != null) {

@@ -248,7 +248,9 @@ Fails if this transaction logged an error or exception within the wait window.
 #### Request
 
 `type: "request"` makes an HTTP call and asserts against the response, for example the Robin `/logs` API.
-JSON bodies are flattened into `path: value` lines; other bodies are split into lines.
+JSON bodies are flattened into `path: value` lines, with `>` between path segments
+(`{"items": [{"name": "a.eml"}]}` gives `items>0>name: a.eml`). A top-level array uses the index
+as the first segment (`0: a.eml`). Other bodies, and JSON that does not parse, are split into lines.
 It takes `wait`, `retry`, `delay`, `verify`, `verifyNone`, `match`, `refuse` and `magic` with the same meaning as above, plus:
 
 - `request` - _(Map)_ The HTTP request, as in [case-http.md](case-http.md).

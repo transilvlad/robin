@@ -108,6 +108,50 @@ services:
       timeout: 5s
       retries: 12
 
+  # Test DNS: serves remote.test (MX -> robin-sink) and rbl.test, forwards the rest to Docker.
+  # The image has no shell, so there is no healthcheck; CoreDNS is ready within milliseconds.
+  integration-dns:
+    image: coredns/coredns:1.11.3
+    command: ["-conf", "/etc/coredns/Corefile"]
+    volumes:
+      - ./etc/coredns:/etc/coredns:ro
+    networks:
+      integration:
+        aliases: [dns-backend]
+
+  # A second Robin acting as the remote internet MTA (mx.sink.test, MX for remote.test).
+  # It stores what it receives in local mailboxes, readable through its /store API,
+  # and answers scripted addresses from sink-cfg/scenarios.json5.
+  integration-sink:
+    image: ${ROBIN_IMAGE:-robin-integration-robin:local}
+    pull_policy: never
+    volumes:
+      - ./sink-cfg:/usr/local/robin/cfg:ro
+      - ../src/test/resources/keystore.jks:/usr/local/robin/keystore.jks:ro
+    networks:
+      integration:
+        aliases: [sink-backend, mx.sink.test]
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 25 && wget -q -O - http://localhost:8090/health | grep -q UP"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+
+  # Records HTTP requests (webhooks, callbacks) and replays them to cases; see http-sink/http_sink.py.
+  integration-http-sink:
+    image: python:3.13-alpine
+    command: ["python3", "-u", "/sink/http_sink.py"]
+    volumes:
+      - ./http-sink:/sink:ro
+    networks:
+      integration:
+        aliases: [http-sink]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/_sink/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
   integration-robin:
     # Set ROBIN_IMAGE to test a prebuilt image (CI tests the exact image it publishes);
     # otherwise this tag is built from the working tree.
@@ -131,14 +175,18 @@ services:
         condition: service_healthy
       integration-dovecot:
         condition: service_healthy
+      integration-dns:
+        condition: service_started
+      integration-sink:
+        condition: service_healthy
     networks:
       integration:
         aliases: [mta-backend]
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "25"]
+      test: ["CMD-SHELL", "nc -z localhost 25 && wget -q -O - http://localhost:8090/health | grep -q UP"]
       interval: 5s
       timeout: 5s
-      retries: 12
+      retries: 24
 
   integration-tests:
     profiles: [test]
@@ -147,6 +195,10 @@ services:
       dockerfile: tests.Dockerfile
     depends_on:
       integration-robin:
+        condition: service_healthy
+      integration-sink:
+        condition: service_healthy
+      integration-http-sink:
         condition: service_healthy
     volumes:
       - ../:/src:ro

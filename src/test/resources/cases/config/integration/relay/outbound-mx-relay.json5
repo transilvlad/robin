@@ -1,0 +1,93 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: Authenticated submission relayed to a remote domain by MX lookup.
+  // Flow: AUTH on 587 → outbound session → MX lookup for remote.test (test DNS) → queue →
+  //       relay to robin-sink (mx.sink.test) → stored in the sink's local mailbox.
+  // Validates: the outbound relay path end to end, and the received copy at the remote MTA.
+
+  mx: ["127.0.0.1"],
+  port: 2587,
+  tls: true,
+
+  auth: true,
+  user: "tony@example.com",
+  pass: "stark",
+
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["relay-smoke@remote.test"],
+      file: "src/test/resources/cases/sources/lipsum.eml",
+
+      assertions: {
+        protocol: [
+          ["MAIL", "^250"],
+          ["RCPT", "^250"],
+          ["DATA", "^250"]
+        ],
+
+        external: [
+          {
+            // Robin under test queued the message for MX relay.
+            type: "request",
+            wait: 0,
+            delay: 2,
+            retry: 5,
+            request: {
+              url: "http://127.0.0.1:28090/logs?q={$transactionUid}",
+              type: "GET"
+            },
+            verify: ["Relaying session: 1"]
+          },
+          {
+            // The sink stored it in remote.test/relay-smoke. Relay runs on the next queue tick.
+            type: "request",
+            wait: 2,
+            delay: 3,
+            retry: 15,
+            request: {
+              url: "http://127.0.0.1:28091/store/remote.test/relay-smoke/new/",
+              type: "GET",
+              headers: [
+                { name: "Accept", value: "application/json" }
+              ]
+            },
+            verify: ["^items>\\d+>name: .*\\.eml$"],
+            magic: [
+              {
+                name: "sinkEml",
+                pattern: "^items>\\d+>path: (/store/remote\\.test/relay-smoke/new/.*\\.eml)$"
+              }
+            ]
+          },
+          {
+            // The copy the remote MTA received carries the original headers and a trace header.
+            type: "request",
+            wait: 0,
+            delay: 1,
+            retry: 2,
+            request: {
+              url: "http://127.0.0.1:28091{$sinkEml}",
+              type: "GET"
+            },
+            verify: ["^Subject: Lipsum"],
+            match: [
+              ["^From: <tony@example\\.com>"],
+              ["^To: <relay-smoke@remote\\.test>"],
+              ["^Received: "]
+            ]
+          }
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"],
+      ["AUTH", "^235"],
+      ["QUIT", "^221"]
+    ]
+  }
+}

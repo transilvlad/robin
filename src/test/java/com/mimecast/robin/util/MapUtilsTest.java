@@ -29,6 +29,25 @@ class MapUtilsTest {
     }
 
     @Test
+    void flattenJsonShapes() {
+        List<String> data = new ArrayList<>();
+        MapUtils.flattenJson("[\"a.eml\", {\"name\": \"b.eml\"}]", data);
+        assertEquals(List.of("0: a.eml", "1>name: b.eml"), data);
+
+        data.clear();
+        MapUtils.flattenJson("{\"status\": \"UP\"}", data);
+        assertEquals(List.of("status: UP"), data);
+
+        data.clear();
+        MapUtils.flattenJson("\"UP\"", data);
+        assertEquals(List.of("UP"), data);
+
+        data.clear();
+        MapUtils.flattenJson("[]", data);
+        assertEquals(List.of(), data);
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void flattenMapError() {
         List<String> data = new ArrayList<>();

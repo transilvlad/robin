@@ -1,0 +1,8 @@
+{
+  // No mailbox server: accept any recipient and keep messages in local storage.
+  auth: false,
+  userLookup: false,
+  authSql: { enabled: false },
+  saveLmtp: { enabled: false },
+  saveLda: { enabled: false }
+}

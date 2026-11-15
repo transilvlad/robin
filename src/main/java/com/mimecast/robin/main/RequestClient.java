@@ -1,6 +1,7 @@
 package com.mimecast.robin.main;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
 import com.mimecast.robin.assertion.Assert;
 import com.mimecast.robin.assertion.AssertException;
 import com.mimecast.robin.config.client.CaseConfig;
@@ -17,7 +18,6 @@ import java.net.URISyntaxException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * HTTP/S request client.
@@ -88,7 +88,13 @@ public class RequestClient extends RequestBase {
                 String responseCT = httpResponse.getHeaders().get("Content-Type");
 
                 if (responseCT != null && responseCT.toLowerCase().contains("/json")) {
-                    MapUtils.flattenMap(new Gson().fromJson(httpResponse.getBody(), Map.class), "", response);
+                    try {
+                        MapUtils.flattenJson(httpResponse.getBody(), response);
+                    } catch (JsonSyntaxException e) {
+                        log.warn("Request Client: response is not valid JSON: {}", e.getMessage());
+                        response.clear();
+                        response.addAll(List.of(httpResponse.getBody().split("\n")));
+                    }
                 } else {
                     response.addAll(List.of(httpResponse.getBody().split("\n")));
                 }

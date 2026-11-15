@@ -180,7 +180,8 @@
   keystorepassword: "avengers",
 
   // Java truststore (default: /usr/local/truststore.jks).
-  truststore: "/opt/java/openjdk/lib/security/cacerts",
+  // Empty uses the JVM's default CA roots. A missing file disables MTA-STS, which defers all MX delivery.
+  truststore: "",
 
   // Truststore password or path to password file.
   truststorepassword: "avengers",

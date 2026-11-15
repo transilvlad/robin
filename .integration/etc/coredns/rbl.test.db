@@ -1,0 +1,8 @@
+; rbl.test: a DNS blocklist. 127.0.0.2 is the conventional always-listed test entry.
+$ORIGIN rbl.test.
+$TTL 60
+@                IN SOA  ns.rbl.test. hostmaster.rbl.test. 1 3600 600 86400 60
+@                IN NS   ns.rbl.test.
+ns               IN A    127.0.0.1
+2.0.0.127        IN A    127.0.0.2
+2.0.0.127        IN TXT  "Listed by rbl.test (integration fixture)"

@@ -64,13 +64,20 @@ public final class PathUtils extends File {
 
     /**
      * Makes directory path if not exists.
+     * <p>Safe when several threads create the same path at once: File.mkdirs() returns false to
+     * the thread that loses that race even though the directory then exists.
      *
      * @param path Directory path.
-     * @return Boolean.
+     * @return True if the path is a directory afterwards.
      */
     public static boolean makePath(String path) {
         Objects.requireNonNull(path, "path must not be null");
-        return new PathUtils(path).isDirectory() || new PathUtils(path).mkdirs();
+        try {
+            Files.createDirectories(Paths.get(path));
+            return true;
+        } catch (IOException e) {
+            return Files.isDirectory(Paths.get(path));
+        }
     }
 
     /**

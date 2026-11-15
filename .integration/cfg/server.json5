@@ -10,7 +10,8 @@
   chunking: true,
   keystore: "/usr/local/robin/keystore.jks",
   keystorepassword: "avengers",
-  truststore: "/opt/java/openjdk/lib/security/cacerts",
+  // Empty: use the JVM's default CA roots (the image's JDK path differs per base image).
+  truststore: "",
   truststorepassword: "avengers",
   allowSelfSigned: true,
 
@@ -33,12 +34,30 @@
   renameHeaderEnabled: false,
 
   rbl: { enabled: false },
+
+  // dnsjava lookups (MX, RBL, MTA-STS, DANE) go to the test DNS. It serves remote.test and
+  // rbl.test and forwards everything else to Docker. Short timeouts keep failing cases fast.
+  dns: {
+    servers: ["dns-backend"],
+    timeoutSeconds: 2
+  },
   emailSizeLimit: 10242400,
   envelopesLimit: 100,
 
-  // The whole suite connects from one test-runner IP, and the command limit is counted per IP.
-  // Keep DoS protection on but leave headroom so the suite's own burst is not tarpitted.
+  // The whole suite connects from one test-runner IP, and the command count is shared across
+  // listeners per IP while each listener applies its own limit. Keep DoS protection on but leave
+  // headroom on every listener so the suite's own burst is not tarpitted.
   smtpConfig: {
+    dosProtectionEnabled: true,
+    maxCommandsPerMinute: 2000,
+    maxConnectionsPerWindow: 300
+  },
+  secureConfig: {
+    dosProtectionEnabled: true,
+    maxCommandsPerMinute: 2000,
+    maxConnectionsPerWindow: 300
+  },
+  submissionConfig: {
     dosProtectionEnabled: true,
     maxCommandsPerMinute: 2000,
     maxConnectionsPerWindow: 300

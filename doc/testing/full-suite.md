@@ -69,12 +69,19 @@ workloads use `.perf/`, and production-oriented deployment uses `.suite/`.
 │   ├── clamav.json5      # ClamAV settings
 │   ├── rspamd.json5      # Rspamd settings
 │   └── log4j2.xml        # Logging config (suite.log)
+│   └── relay.json5       # Outbound MX relay
+├── sink-cfg/             # robin-sink: the remote MTA for remote.test
+│   └── scenarios.json5   # Scripted tempfail/permfail addresses
+├── http-sink/            # HTTP request recorder (http_sink.py)
 ├── client-cfg/           # JUnit/client configuration, not the remote server
 ├── docker-compose.yaml   # Isolated services, no host ports
 ├── docker-compose.host.yaml # Optional loopback ports for host/manual tests
+├── docker-compose.prebuilt.yaml # Test a prebuilt image (ci.sh with ROBIN_IMAGE)
+├── ci.sh                 # Run the suite the way CI does
 ├── run-tests.sh          # Container test entrypoint
 ├── tests.Dockerfile      # Maven 3.9.9 / Corretto 21
 ├── etc/                  # Test-specific application configurations
+│   ├── coredns/          # Test DNS: Corefile and zones (remote.test, rbl.test)
 │   ├── dovecot/          # Dovecot config (mounted)
 │   └── rspamd/           # Rspamd test overrides
 └── db-init/              # Database init scripts
@@ -89,6 +96,21 @@ Compose project-scoped named volumes. There are no fixed container or network
 names, no production `log/` or `store/` mounts, and no Admin/installer services.
 The default project is `robin-integration`; use `-p` consistently for independent
 test environments. Test users and certificates must never be used in production.
+
+### Harness services
+
+Besides the Robin under test and its backends (Postgres, Redis, ClamAV, Rspamd, Dovecot),
+the stack has three services that let cases test outbound paths without the internet:
+
+| Service | Network names | Role |
+|---|---|---|
+| `integration-sink` | `sink-backend`, `mx.sink.test` | A second Robin, the remote MTA. It accepts any recipient, stores mail in local maildirs readable through `GET /store/<domain>/<user>/new/`, and answers scripted addresses from `sink-cfg/scenarios.json5` (`tempfail@`, `tempfail-full@`, `greylist@`, `permfail@`, `permfail-quota@`, `permfail-policy@remote.test`). |
+| `integration-dns` | `dns-backend` | CoreDNS. Serves `remote.test` (MX `mx.sink.test`) and `rbl.test` (`127.0.0.2` listed), and forwards everything else to Docker DNS. Robin under test uses it through `server.json5` `dns.servers`. |
+| `integration-http-sink` | `http-sink` | Records every HTTP request and serves them back: `GET /_sink/requests?path=/prefix`. Replies can be scripted with `POST /_sink/responses` (`path`, `status`, `body`, `contentType`, `delaySeconds`). See `http-sink/http_sink.py`. |
+
+Robin under test relays authenticated (outbound) mail by MX lookup (`cfg/relay.json5`), so a
+message submitted on port 587 to `anyone@remote.test` ends up in the sink. Unauthenticated
+mail to `remote.test` is refused as an unserved domain. The queue ticks every 5 seconds.
 
 ## Test Environment Setup
 
@@ -141,17 +163,26 @@ Maven's exit code.
 # From the repository root: run all integration tests
 docker compose --project-directory .integration --profile test run --build --rm integration-tests
 
-# Extra arguments are passed to Maven, e.g. a single test
-docker compose --project-directory .integration --profile test run --rm integration-tests -Dtest='IntegrationTest#test01_basicSmtp'
+# Extra arguments are passed to Maven, e.g. only some case folders (a regex on area/name.json5)
+docker compose --project-directory .integration --profile test run --rm integration-tests -Drobin.integration.cases='^(inbound|relay)/'
 ```
 
 Surefire reports are copied to a fresh `.integration/reports/<run-id>/` directory
 per run, so older results cannot masquerade as current reports. The runner recreates
-`2525`, `28090`, and `2143` inside its container with forwards to the
-integration services; no host port publishing is needed. It explicitly loads
-`.integration/client-cfg`, while the remote MTA mounts `.integration/cfg`
+these ports inside its container with forwards to the integration services; no host
+port publishing is needed:
+
+| Port | Target |
+|---|---|
+| `2525` / `2587` | Robin under test, SMTP / submission |
+| `28090` | Robin under test, API (`/logs`, `/client/...`) |
+| `2143` | Dovecot IMAP |
+| `2526` / `28091` | robin-sink, SMTP / API (`/store`, `/logs`) |
+| `28099` | http-sink |
+
+It explicitly loads `.integration/client-cfg`, while the remote MTA mounts `.integration/cfg`
 read-only with database configuration synchronization disabled.
-The default `suite` tag selects the eleven delivery/scanning/chaos cases, the assertion self-tests and the
+The default `suite` tag selects every integration case, the assertion self-tests and the
 PostgreSQL config-store integration tests, not unrelated future integration suites.
 That test requires an explicit `robin.integration.jdbcUrl`; the runner supplies
 the private integration PostgreSQL address, with no production endpoint default.
@@ -204,27 +235,32 @@ Any test case can be run directly:
 mvn clean package
 
 # Run individual test case
-java -jar target/robin.jar --client --conf .integration/client-cfg/ --gson src/test/resources/cases/config/integration/07-spam-gtube.json5
+java -jar target/robin.jar --client --conf .integration/client-cfg/ --gson src/test/resources/cases/config/integration/scanning/spam-gtube.json5
 ```
 
 ## Test Case Details
 
-The eleven JSON5 cases live in `src/test/resources/cases/config/integration/`.
-The existing assertions remain the source of truth.
+Cases live in `src/test/resources/cases/config/integration/<area>/` and are discovered by
+`cases.IntegrationTest`: adding a case needs no Java. A case with a top-level `request` block
+is an HTTP case; any other is an SMTP case. Cases run concurrently, so each must use its own
+recipients or messages. A case placed directly in the integration folder fails discovery.
+The assertions in each file remain the source of truth.
 
-| File | Coverage |
+| Case | Coverage |
 |------|----------|
-| `01-basic-smtp.json5` | SMTP acceptance |
-| `02-delivery-success.json5` | Delivery through scanners and LMTP, verified by IMAP |
-| `03-delivery-multiple-recipients.json5` | Delivery to both valid recipients |
-| `04-user-not-found.json5` | SQL-backed recipient rejection |
-| `05-invalid-sender.json5` | Invalid MAIL FROM rejection |
-| `06-partial-delivery-mixed.json5` | Valid delivery alongside invalid recipient rejection |
-| `07-spam-gtube.json5` | GTUBE rejection with 541 and spam log evidence |
-| `08-virus-eicar.json5` | EICAR rejection by ClamAV |
-| `08b-virus-eicar-epilogue.json5` | EICAR rejection when the attachment is smuggled into a MIME epilogue |
-| `09-chaos-lmtp-retry.json5` | Injected LMTP failure for one recipient: the other is delivered inline, the failed one is queued and then delivered from the queue |
-| `10-chaos-storage-failure.json5` | Injected storage failure rejected with 451 |
+| `inbound/basic-smtp.json5` | SMTP acceptance |
+| `inbound/user-not-found.json5` | SQL-backed recipient rejection |
+| `inbound/invalid-sender.json5` | Invalid MAIL FROM rejection |
+| `delivery/delivery-success.json5` | Delivery through scanners and LMTP, verified by IMAP |
+| `delivery/multiple-recipients.json5` | Delivery to both valid recipients |
+| `delivery/partial-delivery-mixed.json5` | Valid delivery alongside invalid recipient rejection |
+| `delivery/chaos-storage-failure.json5` | Injected storage failure rejected with 451 |
+| `scanning/spam-gtube.json5` | GTUBE rejection with 541 and spam log evidence |
+| `scanning/virus-eicar.json5` | EICAR rejection by ClamAV |
+| `scanning/virus-eicar-epilogue.json5` | EICAR rejection when the attachment is smuggled into a MIME epilogue |
+| `queue/chaos-lmtp-retry.json5` | Injected LMTP failure for one recipient: the other is delivered inline, the failed one is queued and then delivered from the queue |
+| `relay/outbound-mx-relay.json5` | Authenticated submission relayed by MX lookup to robin-sink; the received copy is read back through the sink's `/store` API |
+| `harness/http-sink-recorder.json5` | HTTP case: the http-sink records a POST and serves it back |
 | `selftest/*.json5` | Cases that must fail, each for a stated reason; proves every assertion type can fail |
 
 `ConfigStoreSyncIntegrationTest` additionally checks rejected empty payloads,

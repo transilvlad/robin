@@ -1,0 +1,8 @@
+; remote.test: the "internet" domain whose mail exchanger is robin-sink.
+; mx.sink.test is robin-sink's network alias, resolved by Docker's embedded DNS.
+$ORIGIN remote.test.
+$TTL 60
+@       IN SOA  ns.remote.test. hostmaster.remote.test. 1 3600 600 86400 60
+@       IN NS   ns.remote.test.
+ns      IN A    127.0.0.1
+@       IN MX   10 mx.sink.test.

@@ -1,0 +1,14 @@
+{
+  // Scripted remote mailboxes on remote.test, applied to every client ("*" matches any EHLO).
+  // Values are regular expressions. Any other recipient is accepted and stored.
+  "*": {
+    rcpt: [
+      { value: "tempfail@remote\\.test", response: "450 4.2.1 Mailbox temporarily unavailable" },
+      { value: "tempfail-full@remote\\.test", response: "452 4.2.2 Mailbox full, try again later" },
+      { value: "greylist@remote\\.test", response: "450 4.7.1 Greylisted, please retry" },
+      { value: "permfail@remote\\.test", response: "550 5.1.1 User unknown" },
+      { value: "permfail-quota@remote\\.test", response: "552 5.2.2 Mailbox quota exceeded" },
+      { value: "permfail-policy@remote\\.test", response: "553 5.7.1 Rejected by policy" }
+    ]
+  }
+}
