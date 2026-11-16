@@ -18,15 +18,46 @@ services:
     image: ${POSTGRES_IMAGE:?Set POSTGRES_IMAGE to a reviewed PostgreSQL 18 image}
     volumes:
       - ./db-init-production/01-create-users.sql:/docker-entrypoint-initdb.d/01-create-users.sql:ro
+      - ./migration/001-mail-domains-and-sender-grants.sql:/docker-entrypoint-initdb.d/03-mail-domains-and-sender-grants.sql:ro
   suite-redis:
     <<: *runtime
     image: ${REDIS_IMAGE:?Set REDIS_IMAGE to a reviewed Redis image}
+    command:
+      - sh
+      - -ec
+      - |
+        test -s /run/secrets/redis_auth.conf
+        test -s /run/secrets/redis_auth.acl
+        if [ ! -f /data/redis.conf ]; then
+          printf 'save 60 1\nloglevel warning\ndir /data\nprotected-mode yes\n' > /data/redis.conf
+        fi
+        exec redis-server /data/redis.conf --include /run/secrets/redis_auth.conf
+    secrets:
+      - source: redis_auth
+        target: redis_auth.conf
+      - source: redis_acl
+        target: redis_auth.acl
+      - redis_password
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'REDISCLI_AUTH="$$(cat /run/secrets/redis_password)" redis-cli --raw ping | grep -qx PONG'
+      interval: 10s
+      timeout: 5s
+      retries: 5
   suite-clamav:
     <<: *runtime
     image: ${CLAMAV_IMAGE:?Set CLAMAV_IMAGE to a reviewed ClamAV image}
   suite-rspamd:
     <<: *runtime
     image: ${RSPAMD_IMAGE:?Set RSPAMD_IMAGE to a reviewed Rspamd image}
+    volumes:
+      - ./etc/rspamd/production/local.d:/etc/rspamd/local.d
+    secrets:
+      - source: rspamd_controller
+        target: rspamd_controller.inc
+      - source: rspamd_redis
+        target: rspamd_redis.inc
   suite-roundcube:
     <<: *runtime
     image: ${ROUNDCUBE_IMAGE:?Set ROUNDCUBE_IMAGE to a reviewed Roundcube image}
@@ -41,7 +72,18 @@ services:
   suite-robin:
     <<: *runtime
     image: ${ROBIN_IMAGE:?Set ROBIN_IMAGE to a local release-specific build tag}
-    volumes:
+    volumes: !override
+      - robin-config:/usr/local/robin/cfg
+      - ./cfg/config.json5:/usr/local/robin/cfg/config.json5:ro
       - ${MAIL_TLS_DIR:?Set MAIL_TLS_DIR to the operator certificate directory}:/run/robin-tls:ro
+      - ../log/robin:/var/log/robin
+      - ../store/robin:/usr/local/robin/store
     environment:
       - MAIL_HOSTNAME=${MAIL_HOSTNAME:?Set MAIL_HOSTNAME to your public mail hostname}
+      - ROBIN_API_AUTH=${ROBIN_API_AUTH:?Set the unique API credential for trusted suite clients}
+  suite-admin:
+    environment:
+      - ROBIN_API_AUTH=${ROBIN_API_AUTH:?Set the unique API credential for trusted suite clients}
+      - REDIS_ADMIN_DSN=${REDIS_ADMIN_DSN:?Set an authenticated Redis DSN matching secrets/redis_password}
+    volumes:
+      - ./etc/rspamd/production/local.d:/mnt/rspamd/local.d

@@ -20,8 +20,8 @@
 # docker-compose.override.yaml points its mounts at this suite.
 include:
   - path:
-      - https://github.com/transilvlad/robin-admin.git#v${ROBIN_ADMIN_VERSION:-1.1.1}:docker-compose.yaml
-      - https://github.com/transilvlad/robin-admin.git#v${ROBIN_ADMIN_VERSION:-1.1.1}:docker-compose.suite.yaml
+      - ${ROBIN_ADMIN_COMPOSE_FILE:-https://github.com/transilvlad/robin-admin.git#v${ROBIN_ADMIN_VERSION:-1.2.0}:docker-compose.yaml}
+      - ${ROBIN_ADMIN_SUITE_COMPOSE_FILE:-https://github.com/transilvlad/robin-admin.git#v${ROBIN_ADMIN_VERSION:-1.2.0}:docker-compose.suite.yaml}
     env_file: .env
   # Mailbox backend. Each file defines the IMAP/LMTP services and the
   # dependencies Robin and Roundcube need on them.
@@ -175,9 +175,9 @@ services:
       suite-rspamd:
         condition: service_healthy
     ports:
-      - "${MAIL_BIND:-0.0.0.0}:25:25"
-      - "${MAIL_BIND:-0.0.0.0}:587:587"
-      - "${MAIL_BIND:-0.0.0.0}:465:465"
+      - "${MAIL_BIND:-127.0.0.1}:25:25"
+      - "${MAIL_BIND:-127.0.0.1}:587:587"
+      - "${MAIL_BIND:-127.0.0.1}:465:465"
     environment:
       - JAVA_TOOL_OPTIONS=-Dnetworkaddress.cache.negative.ttl=300 -Dsun.net.inetaddr.negative.ttl=300 ${JAVA_TOOL_OPTIONS:-}
       - MTA_DB_PASSWORD_FILE=/run/secrets/mta_db_password
@@ -257,3 +257,13 @@ secrets:
     file: ./secrets/roundcube_db_password
   roundcube_des_key:
     file: ./secrets/roundcube_des_key
+  rspamd_controller:
+    file: ./secrets/rspamd_controller.inc
+  rspamd_redis:
+    file: ./secrets/rspamd_redis.inc
+  redis_password:
+    file: ./secrets/redis_password
+  redis_auth:
+    file: ./secrets/redis_auth.conf
+  redis_acl:
+    file: ./secrets/redis_auth.acl

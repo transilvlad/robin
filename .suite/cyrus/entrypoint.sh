@@ -9,6 +9,7 @@ if [ "${#CYRUS_ADMIN_PASSWORD}" -lt 32 ]; then
 fi
 
 ROBIN_AUTH_URL="${ROBIN_AUTH_URL:-http://mta-backend:8090/users/authenticate}"
+/usr/local/bin/robin-auth --init
 DATA_DIR=/var/lib/cyrus
 
 # Syslog to a file under /var/log (Cyrus only logs to syslog).

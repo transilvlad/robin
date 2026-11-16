@@ -40,7 +40,9 @@ services:
     restart: unless-stopped
     image: nginx:alpine
     container_name: suite-imap-proxy
+    command: ["sh", "/etc/nginx/suite-start.sh"]
     volumes:
+      - ../etc/imap-proxy/start.sh:/etc/nginx/suite-start.sh:ro
       - ../etc/imap-proxy/nginx.conf:/etc/nginx/nginx.conf:ro
       - ../etc/dovecot/certs/imap.crt:/etc/nginx/certs/imap.crt:ro
       - ../etc/dovecot/certs/imap.key:/etc/nginx/certs/imap.key:ro
@@ -52,7 +54,7 @@ services:
       suite-cyrus:
         condition: service_healthy
     ports:
-      - "${MAIL_BIND:-0.0.0.0}:993:993"
+      - "${MAIL_BIND:-127.0.0.1}:993:993"
     networks:
       suite:
         aliases:

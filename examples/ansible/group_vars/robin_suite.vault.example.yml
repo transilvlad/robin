@@ -7,6 +7,7 @@ robin_suite_secrets:
   admin_db: ""
   monitor_db: ""
   agent: ""
+  api: ""
   tools_proxy: ""
   qa_proxy: ""
   sheriff_proxy: ""

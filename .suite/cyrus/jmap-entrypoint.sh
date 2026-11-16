@@ -22,6 +22,7 @@ chown cyrus:mail /etc/sasldb2
 chmod 640 /etc/sasldb2
 
 auth_url="${ROBIN_AUTH_URL:-http://mta-backend:8090/users/authenticate}"
+/usr/local/bin/robin-auth --init
 case "$auth_url" in
     http://mta-backend:8090/users/authenticate) ;;
     *) echo 'ERROR: Unexpected Robin authentication endpoint' >&2; exit 1 ;;

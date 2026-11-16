@@ -19,12 +19,22 @@ $env:ROBIN_SUITE_DOCKER_TEST='1'
 py -m unittest discover -s .suite\tests -p test_mail_policy.py -v
 py -m unittest discover -s .suite\tests -p test_mailbox.py -v
 py -m unittest discover -s .suite\tests -p test_preflight.py -v
+py -m unittest discover -s .suite\tests -p test_compose.py -v
+py -m unittest discover -s .suite\tests -p test_rspamd.py -v
+py -m unittest discover -s .suite\tests -p test_cyrus_auth.py -v
 ```
 
 Pre-pull reviewed `postgres:18-alpine`, `dovecot/dovecot:latest` and `alpine:3.23`
 fixture images, or set `ROBIN_TEST_POSTGRES_IMAGE` / `ROBIN_TEST_DOVECOT_IMAGE`
 to compatible reviewed image references. The mailbox check was exercised with
 Dovecot 2.4.2. These defaults are test conveniences, **not production image pins**.
+The scanner fixture additionally uses reviewed cached Redis and Rspamd images
+(`ROBIN_TEST_REDIS_IMAGE` / `ROBIN_TEST_RSPAMD_IMAGE`, defaulting to `redis:alpine`
+and `rspamd/rspamd:latest`); it refuses pulls. Native OpenSSL and Bash (Git Bash
+on Windows) are required. It runs only disposable Redis (128 MiB/0.5 CPU) and
+Rspamd (768 MiB/1 CPU), with memory/swap and PID caps. It exercises the normalized
+production commands, healthchecks and generated secret includes, not an
+unauthenticated Redis substitute.
 The fixtures bound Postgres to 256 MiB/1 CPU/PID 128 and Dovecot to 512 MiB/1 CPU/
 PID 256, sequentially. Fixture-only `initdb --no-sync` avoids expensive initial
 filesystem synchronization; running PostgreSQL keeps its default fsync policy.
@@ -39,6 +49,29 @@ TLS ManageSieve script activation and actual Junk filing, next-login password
 revocation, and certificate-directory replacement followed by reload and a
 verified served certificate serial change. It does not modify or validate a
 running Cyrus/JMAP/webmail deployment.
+
+Compose model checks use synthetic local Admin includes, never a remote fetch
+or sibling checkout. They cover both mailbox backends, loopback defaults,
+production TLS mounts, Basic credential propagation and missing-input refusals.
+The Ansible environment-template regression also requires Jinja2 and PyYAML
+(included with Ansible); it renders the checked-in example into both production
+Compose models and verifies the API credential and generated Redis DSN.
+Offline initialization checks cover explicit demo/production selection,
+existing-database refusal, secret idempotence, invalid credentials and stale
+derived includes. The scanner check proves Redis authentication, controller
+read/write separation, cryptographically verified authenticated DKIM signing,
+unsigned inbound/missing-key cases, retained Redis state and actual password/key
+rotation through recreation. DNS key lookup is disabled only in that synthetic
+scanner fixture. This is not Robin-to-scanner end-to-end signing, real Admin
+reload, public DNS or whole-suite production acceptance.
+The Cyrus callback check uses cached `robin-suite-cyrus:local` and `nginx:alpine`
+images (or `ROBIN_TEST_CYRUS_AUTH_IMAGE` / `ROBIN_TEST_NGINX_IMAGE`) without pulls.
+It mounts only copied current callback/entrypoint/proxy scripts and synthetic
+configuration, starts a disposable actual Cyrus/IMAPS pair (256/64 MiB with
+matching swap, CPU and PID caps), and tests alias login with authenticated
+proxy/PAM callbacks plus wrong-credential refusals. Its protected Robin HTTP
+callbacks are synthetic: this does not establish a deployed Robin/Cyrus SQL
+identity or live-account migration pass.
 
 The offline `test_preflight.py` checks require no Docker opt-in. Production
 preflight takes already-captured private Compose JSON, database/runtime-status

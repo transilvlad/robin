@@ -22,13 +22,23 @@ cp .suite/.env.example .suite/.env
 chmod 600 .suite/.env
 # Fill every required value, including independent random secrets and TLS paths.
 bash .suite/init-secrets.sh
-sudo bash .suite/init-suite.sh
+# Set REDIS_ADMIN_DSN from the newly generated secrets/redis_password.
+sudo bash .suite/init-suite.sh --production
 ```
 
 Supply a public CA-issued `fullchain.pem` and matching unencrypted PKCS8
 `privkey.pem` in a dedicated `MAIL_TLS_DIR`; no example private key is supplied.
 Set a real `MAIL_HOSTNAME`. Copy certificate contents, not dangling symlinks into
 another directory. Keep the private key root-readable only.
+Mail listeners default to loopback. Set `MAIL_BIND` to the intended public
+interface only after reviewing firewall rules. Set an independent
+`ROBIN_API_AUTH=username:password` for Robin and Admin; private APIs remain
+unpublished and Basic authentication does not replace network isolation.
+Keep `ROBIN_ADMIN_VERSION=1.2.0` or a reviewed compatible release; 1.1.x does not
+authenticate configuration reloads. Set `SUITE_LOG_MOUNT` to the checkout's
+absolute `log` directory. Set `REDIS_ADMIN_DSN` to
+`redis://:<contents of secrets/redis_password>@redis-backend:6379` so Admin uses
+the same Redis credential as Rspamd.
 
 For the production overlay add these to `.suite/.env`:
 
@@ -55,6 +65,11 @@ the checked-out release; digest pins (`image@sha256:...`) are preferred. Do not
 change PostgreSQL major versions through a Compose pull. Robin is built locally
 with `INCLUDE_CFG=false`, so its tagged image does not embed demo credentials.
 Admin's Git include is version-pinned by `ROBIN_ADMIN_VERSION`.
+Unpublished local Admin Compose inputs are opt-in through
+`ROBIN_ADMIN_COMPOSE_FILE` and `ROBIN_ADMIN_SUITE_COMPOSE_FILE`; leave both unset
+to use the pinned public release. The suite does not silently select a sibling
+checkout. Confirm that the selected Admin release sends `ROBIN_API_AUTH` on API
+and reload requests.
 
 ```bash
 # Validate without printing resolved credentials:
@@ -69,6 +84,9 @@ docker compose -f examples/docker-compose/compose.yaml ps
 users/domains through Admin before pointing MX records here. Verify inbound mail,
 submission, mailbox delivery and relay restrictions before routing live traffic.
 Roundcube connects to verified IMAPS and authenticated STARTTLS submission.
+Provision DKIM keys and DNS before accepting outbound mail. See
+[scanner credentials and DKIM](../../doc/developer/robin-suite.md#scanner-credentials-and-dkim)
+for key paths, missing-key behavior and coordinated Redis/controller rotation.
 
 Admin is loopback HTTPS on 3443; webmail is loopback HTTP on 8888. Use an SSH
 tunnel for initial Admin setup or an appropriately secured HTTPS reverse proxy.

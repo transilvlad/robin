@@ -17,8 +17,8 @@
   emailSizeLimit: 20971520,
   envelopesLimit: 100,
   dnsNegativeTtl: 300,
-  service: { port: 8080, authType: "none", allowList: [], authValue: "" },
-  api: { port: 8090, authType: "none", allowList: [], authValue: "" },
+  service: { port: 8080, authType: "basic", allowList: [], authValue: "{$secret:ROBIN_API_AUTH}" },
+  api: { port: 8090, authType: "basic", allowList: [], authValue: "{$secret:ROBIN_API_AUTH}" },
   rbl: { enabled: false },
   smtpConfig: {
     backlog: 50, errorLimit: 3, envelopeLimit: 100,

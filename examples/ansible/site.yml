@@ -21,6 +21,7 @@
           - robin_suite_admin_url is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
           - robin_suite_admin_url != 'https://admin.example.com'
           - robin_suite_admin_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+          - robin_suite_admin_version is version('1.2.0', '>=')
           - robin_suite_mailbox_backend in ['dovecot', 'cyrus']
         fail_msg: "Use a reviewed full commit, real hostnames, and preconfigured network/TLS."
 
@@ -35,8 +36,8 @@
     - name: Validate independent Vault secrets
       ansible.builtin.assert:
         that:
-          - robin_suite_secrets | length == 8
-          - robin_suite_secrets.values() | unique | length == 8
+          - robin_suite_secrets | length == 9
+          - robin_suite_secrets.values() | unique | length == 9
           - item is match('^[0-9a-f]{64}$')
       loop: "{{ robin_suite_secrets.values() | list }}"
       no_log: true
@@ -103,6 +104,18 @@
       ansible.builtin.assert:
         that: existing_containers.stdout | length == 0
 
+    - name: Generate file secrets without rotating existing values
+      ansible.builtin.command:
+        argv: [bash, "{{ robin_suite_install_dir }}/.suite/init-secrets.sh"]
+      changed_when: true
+      no_log: true
+
+    - name: Read the generated Redis credential for Admin
+      ansible.builtin.slurp:
+        src: "{{ robin_suite_install_dir }}/.suite/secrets/redis_password"
+      register: suite_redis_password
+      no_log: true
+
     - name: Inspect an existing environment file
       ansible.builtin.stat:
         path: "{{ robin_suite_install_dir }}/.suite/.env"
@@ -133,15 +146,9 @@
         force: false
       no_log: true
 
-    - name: Generate file secrets without rotating existing values
-      ansible.builtin.command:
-        argv: [bash, "{{ robin_suite_install_dir }}/.suite/init-secrets.sh"]
-      changed_when: true
-      no_log: true
-
     - name: Prepare mailbox ownership and data directories
       ansible.builtin.command:
-        argv: [bash, "{{ robin_suite_install_dir }}/.suite/init-suite.sh"]
+        argv: [bash, "{{ robin_suite_install_dir }}/.suite/init-suite.sh", --production]
       changed_when: true
 
     - name: Validate effective Compose configuration without displaying credentials

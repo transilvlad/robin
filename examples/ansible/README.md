@@ -34,6 +34,10 @@ nginx image when `robin_suite_mailbox_backend` is `cyrus`. The
 playbook validates digest syntax, not compatibility or supply-chain provenance.
 It generates file-backed credentials only if absent, writes `.env` mode 0600
 without overwriting it, and never forces Git resets.
+Use Admin 1.2.0 or newer and nine independent Vault secrets, including `api` for
+Robin's protected HTTP endpoints. The template supplies the absolute agent log
+path and derives Admin's Redis DSN from the generated Redis password. Directory
+initialization explicitly uses `--production`; it never creates demo TLS keys.
 
 Back up the generated secrets immediately. Keep Admin and webmail on loopback;
 use an SSH tunnel or the [HTTPS proxy example](../docker-compose/nginx.conf.example).
