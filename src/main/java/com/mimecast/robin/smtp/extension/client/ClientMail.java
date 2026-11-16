@@ -2,6 +2,7 @@ package com.mimecast.robin.smtp.extension.client;
 
 import com.google.common.base.CharMatcher;
 import com.mimecast.robin.smtp.MessageEnvelope;
+import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.transaction.EnvelopeTransactionList;
 import org.apache.commons.lang3.StringUtils;
@@ -39,10 +40,21 @@ public class ClientMail extends ClientProcessor {
         // Check if envelope requires SMTPUTF8.
         boolean smtpUtf8 = isUTF8(envelope.getMail().getBytes()) || envelope.getRcpts().stream().anyMatch(r -> isUTF8(r.getBytes()));
 
+        // A message received as 8-bit may only be relayed to a server that accepts it (RFC 6152 section 3).
+        String body = "";
+        if (envelope.isEightBitMime()) {
+            if (!connection.getSession().isEhlo8bit()) {
+                transactionList.addTransaction("MAIL", "MAIL FROM:<" + envelope.getMail() + ">", SmtpResponses.CONVERSION_NOT_SUPPORTED_554, true);
+                connection.getSession().getSessionTransactionList().addEnvelope(transactionList);
+                return false;
+            }
+            body = " BODY=8BITMIME";
+        }
+
         // Sender.
         // LMTP doesn't support SIZE parameter, so skip it for LMTP connections.
         int size = StringUtils.isNotBlank(connection.getSession().getLhlo()) ? 0 : sizeMessage(envelope);
-        String write = "MAIL FROM:<" + envelope.getMail() + ">" + (size > 0 ? " SIZE=" + size : "") + (smtpUtf8 ? " SMTPUTF8" : "") + envelope.getParams("mail");
+        String write = "MAIL FROM:<" + envelope.getMail() + ">" + (size > 0 ? " SIZE=" + size : "") + body + (smtpUtf8 ? " SMTPUTF8" : "") + envelope.getParams("mail");
         connection.write(write);
 
         String read = connection.read("250");

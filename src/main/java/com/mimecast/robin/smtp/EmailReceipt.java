@@ -17,12 +17,12 @@ import com.mimecast.robin.smtp.metrics.SmtpMetrics;
 import com.mimecast.robin.smtp.security.ConnectionTracker;
 import com.mimecast.robin.smtp.session.EmailDirection;
 import com.mimecast.robin.smtp.session.Session;
+import com.mimecast.robin.smtp.verb.BdatVerb;
 import com.mimecast.robin.smtp.verb.Verb;
 import com.mimecast.robin.smtp.webhook.WebhookResponse;
 import com.mimecast.robin.util.Sleep;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.ThreadContext;
 
 import java.io.IOException;
 import java.net.Socket;
@@ -105,10 +105,7 @@ public class EmailReceipt implements Runnable {
      */
     public EmailReceipt(Socket socket, ListenerConfig config, boolean secure, boolean submission) {
         try {
-            ThreadContext.put("aCode", "");
-            ThreadContext.put("bCode", "");
-            ThreadContext.put("cCode", "");
-            Session.unpinLogContext(); // Pooled threads may carry a pin from an earlier connection.
+            Session.clearLogContext(); // Pooled threads may carry an earlier connection's context.
 
             connection = new Connection(socket);
             // Keep this connection's UID on its log lines while helper sessions are created.
@@ -239,7 +236,7 @@ public class EmailReceipt implements Runnable {
                 connection.getSession().close();
             }
             connection.close();
-            Session.unpinLogContext();
+            Session.clearLogContext();
         }
     }
 
@@ -349,6 +346,10 @@ public class EmailReceipt implements Runnable {
     private void processExtension(Verb verb) throws IOException {
         Optional<Extension> opt = Extensions.getExtension(verb);
         if (opt.isPresent()) {
+            if (!checkSequence(verb)) {
+                return;
+            }
+
             // Call webhook before processing extension.
             if (!processWebhook(verb)) {
                 return; // Webhook intercepted processing.
@@ -369,7 +370,62 @@ public class EmailReceipt implements Runnable {
                 ((ServerData) server).setListenerConfig(config);
             }
 
-            server.process(connection, verb);
+            boolean processed = server.process(connection, verb);
+            endTransaction(verb, processed);
+        }
+    }
+
+    /**
+     * Enforces the mail transaction order (RFC 5321 3.3, 4.1.4): MAIL only outside a transaction,
+     * RCPT, DATA and BDAT only inside one. EHLO, HELO, LHLO and STARTTLS abort an open transaction
+     * like RSET does.
+     *
+     * @param verb Verb instance.
+     * @return True to process the command, false when it was refused.
+     * @throws IOException Unable to communicate.
+     */
+    private boolean checkSequence(Verb verb) throws IOException {
+        String key = verb.getKey().toLowerCase();
+        var envelopes = connection.getSession().getEnvelopes();
+        MessageEnvelope last = envelopes.isEmpty() ? null : envelopes.getLast();
+        boolean open = last != null && last.isTransactionOpen();
+        switch (key) {
+            case "ehlo", "helo", "lhlo", "starttls" -> connection.reset();
+            case "mail" -> {
+                if (open) {
+                    connection.write(String.format(SmtpResponses.NESTED_MAIL_503, connection.getSession().getUID()));
+                    return false;
+                }
+                connection.reset(); // Drops the envelope a refused MAIL left behind.
+            }
+            case "rcpt", "data" -> {
+                if (!open) {
+                    connection.write(String.format(SmtpResponses.NEED_MAIL_503, connection.getSession().getUID()));
+                    return false;
+                }
+            }
+            default -> {
+                // Other commands are valid anywhere. BDAT is checked by ServerData, which must read
+                // and drop the chunk's bytes before refusing it, or they would be read as commands.
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Ends the transaction once its message data has been handled: after DATA, after BDAT LAST,
+     * and after a BDAT chunk that failed, since the message can no longer be completed.
+     *
+     * @param verb      Verb instance.
+     * @param processed Whether the command succeeded.
+     */
+    private void endTransaction(Verb verb, boolean processed) {
+        String key = verb.getKey().toLowerCase();
+        boolean ends = key.equals("data")
+                || key.equals("bdat") && (!processed || new BdatVerb(verb).isLast());
+        var envelopes = connection.getSession().getEnvelopes();
+        if (ends && !envelopes.isEmpty() && envelopes.getLast().isTransactionOpen()) {
+            envelopes.getLast().endTransaction();
         }
     }
 

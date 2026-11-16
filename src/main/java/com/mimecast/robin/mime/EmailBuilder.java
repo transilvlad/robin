@@ -217,7 +217,7 @@ public class EmailBuilder {
      * Automatically generates the following headers if not already present:
      * <ul>
      *     <li><b>Date</b> - Current date/time in RFC 2822 format</li>
-     *     <li><b>Message-ID</b> - The envelope's message ID with the sender domain</li>
+     *     <li><b>Message-ID</b> - The envelope's message ID with the sender address</li>
      *     <li><b>Subject</b> - Default subject with Message-ID if not provided</li>
      *     <li><b>From</b> - Sender address from MessageEnvelope</li>
      *     <li><b>To</b> - Recipient addresses from MessageEnvelope</li>
@@ -236,8 +236,7 @@ public class EmailBuilder {
             headers.add(new MimeHeader("Date", dateFormat.format(new Date())));
         }
 
-        // Message-ID: the envelope's ID (IMAP assertions find the message by it), with a domain so it
-        // is a valid RFC 5322 msg-id. Same form as MessageEnvelope.buildHeaders().
+        // Message-ID: the envelope's ID, as in MessageEnvelope.buildHeaders(), so IMAP assertions find it.
         String mail = envelope.getMail();
         String messageId = "<" + envelope.getMessageId()
                 + (mail != null && mail.contains("@") ? mail : "@robin.invalid") + ">";

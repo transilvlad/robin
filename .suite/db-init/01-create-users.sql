@@ -87,8 +87,9 @@ END $$;
 -- Sample aliases: pepper receives mail for tony-alias@example.com
 INSERT INTO aliases (source, destination) VALUES ('tony-alias@example.com', 'tony@example.com') ON CONFLICT DO NOTHING;
 
--- Sample auto alias: map tony@ to tony@example.com (example of pattern-based mapping stored as explicit entries)
-INSERT INTO auto_aliases (source, destination) VALUES ('tony@', 'tony@example.com') ON CONFLICT DO NOTHING;
+-- Sample auto alias: tony@example.net is delivered to tony@example.com. Auto aliases are explicit
+-- full addresses, looked up after aliases and users; there is no wildcard matching.
+INSERT INTO auto_aliases (source, destination) VALUES ('tony@example.net', 'tony@example.com') ON CONFLICT DO NOTHING;
 
 GRANT SELECT ON users, aliases, auto_aliases TO robin_mailbox, robin_mta;
 GRANT SELECT, INSERT, UPDATE, DELETE ON users, aliases, auto_aliases TO robin_admin;

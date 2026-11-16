@@ -315,6 +315,16 @@ public class Session implements Serializable, Cloneable {
     }
 
     /**
+     * Clears this thread's log context, so a pooled thread starts and ends each unit of work unlabelled.
+     */
+    public static void clearLogContext() {
+        unpinLogContext();
+        ThreadContext.put("aCode", "");
+        ThreadContext.put("bCode", "");
+        ThreadContext.put("cCode", "");
+    }
+
+    /**
      * Constructs a new Session instance.
      * <p>Labels this thread's log lines with the new UID unless the log context is pinned.
      */

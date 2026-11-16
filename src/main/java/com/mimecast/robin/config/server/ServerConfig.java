@@ -219,6 +219,27 @@ public class ServerConfig extends ConfigFoundation {
     }
 
     /**
+     * Whether Robin prepends its Authentication-Results header to inbound mail.
+     * <p>Config: {@code traceHeaders.authenticationResults}, default true. Turn it off where stored
+     * messages must stay as they arrived, such as journal archiving.
+     *
+     * @return Boolean.
+     */
+    public boolean isAuthenticationResultsHeader() {
+        return new BasicConfig(getMapProperty("traceHeaders")).getBooleanProperty("authenticationResults", true);
+    }
+
+    /**
+     * Whether Robin prepends X-Spam-Status, X-Spam-Score and X-Spam-Flag to scanned mail.
+     * <p>Config: {@code traceHeaders.spam}, default true.
+     *
+     * @return Boolean.
+     */
+    public boolean isSpamHeaders() {
+        return new BasicConfig(getMapProperty("traceHeaders")).getBooleanProperty("spam", true);
+    }
+
+    /**
      * Gets key store.
      *
      * @return Key store path.

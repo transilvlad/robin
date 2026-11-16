@@ -72,6 +72,9 @@ public class CustomBehaviour implements Behaviour {
                 case "DATA":
                     if (!data()) return;
                     break;
+                case "RSET":
+                    if (!rset()) return;
+                    break;
             }
         }
 

@@ -287,9 +287,9 @@ public abstract class SmtpFoundation {
                     break;
                 }
 
-                // Dot unstuffing: drop the period the sender added to any line starting with one
-                // (RFC 5321 4.5.2). Without it ".hidden" is stored and relayed as "..hidden".
-                int offset = read.length > 0 && read[0] == '.' ? 1 : 0;
+                // Dot unstuffing (RFC 5321 4.5.2), only at a line start: a bare CR does not end a line.
+                boolean lineStart = eol.length == 0 || eol[eol.length - 1] == '\n';
+                int offset = lineStart && read.length > 0 && read[0] == '.' ? 1 : 0;
 
                 if (framing != null) framing.accept(read, offset, read.length - offset);
 
@@ -493,13 +493,13 @@ public abstract class SmtpFoundation {
         OutputStream outStream = slowBytes >= 1 && slowWait >= 100 ? new SlowOutputStream(out, slowBytes, slowWait) : out;
 
         byte[] bytes;
+        boolean lineStart = true;
         while ((bytes = inputStream.readLine()) != null) {
-            // Dot stuffing: every line starting with a period gets one more (RFC 5321 4.5.2).
-            // The receiver strips the first period of any such line, so stuffing only lone "."
-            // lines would corrupt lines like "..." or ".hidden".
-            if (bytes.length > 0 && bytes[0] == '.') {
+            // Dot stuffing (RFC 5321 4.5.2), only at a line start: a bare CR does not end a line.
+            if (lineStart && bytes.length > 0 && bytes[0] == '.') {
                 outStream.write('.');
             }
+            lineStart = bytes.length > 0 && bytes[bytes.length - 1] == '\n';
 
             outStream.write(bytes);
 

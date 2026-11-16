@@ -1,0 +1,39 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: RSET ends the mail transaction, and the server enforces command order.
+  // Flow: EHLO → STARTTLS → MAIL → RCPT pepper → RSET → RCPT happy. The client stops at the refused
+  //       RCPT and closes the connection, so no DATA or QUIT follows.
+  // Validates: RSET is answered 250 2.0.0 and discards the transaction, so the next RCPT is
+  // refused with 503 5.5.1 instead of joining the aborted message (RFC 5321 4.1.1.5, 3.3).
+
+  mx: ["127.0.0.1"],
+  port: 2525,
+  tls: true,
+
+  behaviour: ["EHLO", "STARTTLS", "MAIL", "RCPT", "RSET", "RCPT", "DATA"],
+
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com", "happy@example.com"],
+      subject: "RSET sequence",
+      message: "This message is never sent.",
+      assertions: {
+        protocol: [
+          ["MAIL", "^250"],
+          ["RCPT", "^250", 0],
+          ["RCPT", "^503 5\\.5\\.1 Need MAIL command", 1],
+          ["DATA", "", "none"]
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"],
+      ["RSET", "^250 2\\.0\\.0"]
+    ]
+  }
+}

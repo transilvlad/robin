@@ -1,6 +1,7 @@
 package com.mimecast.robin.endpoints;
 
 import com.mimecast.robin.config.server.EndpointConfig;
+import com.mimecast.robin.smtp.session.Session;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.apache.logging.log4j.LogManager;
@@ -42,6 +43,27 @@ public abstract class HttpEndpoint {
      * @throws IOException If an I/O error occurs during server startup.
      */
     public abstract void start(EndpointConfig config) throws IOException;
+
+    /**
+     * Creates the HTTP server.
+     * <p>Each request runs with a clean log context.
+     *
+     * @param port Port to listen on.
+     * @return HttpServer instance.
+     * @throws IOException If the port cannot be bound.
+     */
+    protected static HttpServer createServer(int port) throws IOException {
+        HttpServer httpServer = HttpServer.create(new InetSocketAddress(port), 10);
+        httpServer.setExecutor(task -> {
+            Session.clearLogContext();
+            try {
+                task.run();
+            } finally {
+                Session.clearLogContext();
+            }
+        });
+        return httpServer;
+    }
 
     /**
      * Stops the HTTP endpoint if it is running.

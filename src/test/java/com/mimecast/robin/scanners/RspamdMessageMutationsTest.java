@@ -59,6 +59,35 @@ class RspamdMessageMutationsTest {
         assertFalse(RspamdMessageMutations.apply(envelope, Map.of()));
     }
 
+    @Test
+    void scannerChangesAndOwnHeadersAreAppliedTogether() throws Exception {
+        byte[] body = new byte[]{'b', 0, (byte) 0xff, '\r', '\n'};
+        ByteArrayOutputStream message = new ByteArrayOutputStream();
+        message.write(("Received: from upstream\r\nAuthentication-Results: mx.robin.test; spf=pass\r\n"
+                + "Authentication-Results: upstream.example; dkim=pass\r\nX-Spam-Status: No, score=-100\r\n"
+                + "From: a@example.com\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
+        message.write(body);
+        MessageEnvelope envelope = envelope(message.toByteArray());
+        var result = Map.<String, Object>of("dkim-signature", "v=1; d=example.com; b=synthetic");
+        try {
+            assertTrue(RspamdMessageMutations.apply(envelope, result,
+                    java.util.List.of(new String[]{"Authentication-Results", "mx.robin.test;\r\n\tspf=pass"},
+                            new String[]{"X-Spam-Status", "No, score=0.50"}),
+                    (name, value) -> name.equals("authentication-results") && value.startsWith("mx.robin.test;")
+                            || name.equals("x-spam-status")));
+
+            byte[] updated = envelope.readMessageBytes();
+            String header = new String(updated, StandardCharsets.ISO_8859_1);
+            assertTrue(header.startsWith("Authentication-Results: mx.robin.test;\r\n\tspf=pass\r\n"
+                    + "X-Spam-Status: No, score=0.50\r\nDKIM-Signature: v=1;"), header);
+            assertTrue(header.contains("Authentication-Results: upstream.example; dkim=pass\r\n"), header);
+            assertFalse(header.contains("score=-100"), header);
+            assertArrayEquals(body, Arrays.copyOfRange(updated, updated.length - body.length, updated.length));
+        } finally {
+            envelope.getMessageSource().release();
+        }
+    }
+
     private MessageEnvelope envelope(byte[] message) {
         return new MessageEnvelope().setBytes(message).setFile(directory.resolve("input.eml").toString());
     }

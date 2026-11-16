@@ -28,7 +28,30 @@ public final class RspamdMessageMutations {
     private RspamdMessageMutations() {
     }
 
+    /**
+     * Selects existing headers to remove by lower-case name and value.
+     */
+    @FunctionalInterface
+    public interface Removal {
+        boolean test(String name, String value);
+    }
+
     public static boolean apply(MessageEnvelope envelope, Map<String, Object> result) throws IOException {
+        return apply(envelope, result, List.of(), (name, value) -> false);
+    }
+
+    /**
+     * Applies the scanner's changes and Robin's own headers in one rewrite of the header block.
+     *
+     * @param envelope Envelope whose message is rewritten.
+     * @param result   Scanner result; may be empty.
+     * @param prepend  Name and value pairs to prepend, in order.
+     * @param removal  Selects existing headers to remove before prepending.
+     * @return Whether a fresh DKIM signature was added.
+     * @throws IOException When the message cannot be read or a change is not valid.
+     */
+    public static boolean apply(MessageEnvelope envelope, Map<String, Object> result,
+                                List<String[]> prepend, Removal removal) throws IOException {
         Map<?, ?> milter = result.get("milter") instanceof Map<?, ?> value ? value : Map.of();
         for (String unsupported : List.of("change_from", "add_rcpt", "del_rcpt")) {
             if (milter.containsKey(unsupported)) {
@@ -56,11 +79,53 @@ public final class RspamdMessageMutations {
             add(additions, "X-Spam", "Yes");
         }
         Map<?, ?> removals = milter.get("remove_headers") instanceof Map<?, ?> value ? value : Map.of();
-        if (additions.isEmpty() && removals.isEmpty()) {
+        List<Addition> own = new ArrayList<>();
+        for (int i = 0; i < prepend.size(); i++) {
+            // Order i keeps them in the given order at the top of the header block.
+            add(own, prepend.get(i)[0], Map.of("value", prepend.get(i)[1], "order", i));
+        }
+        if (additions.isEmpty() && removals.isEmpty() && own.isEmpty()) {
             return false;
         }
         boolean signed = additions.stream().anyMatch(header ->
                 header.name().equalsIgnoreCase("DKIM-Signature") && !header.value().isBlank());
+        rewrite(envelope, headers -> {
+            for (var entry : removals.entrySet()) {
+                String name = entry.getKey().toString();
+                validateName(name);
+                if (!(entry.getValue() instanceof Number index)) {
+                    throw new IOException("Invalid Rspamd header removal");
+                }
+                remove(headers, name, index.intValue());
+            }
+            if ("rewrite subject".equals(result.get("action"))) {
+                remove(headers, "Subject", 0);
+            }
+            insert(headers, additions);
+            headers.removeIf(header -> {
+                String text = new String(header.raw(), StandardCharsets.ISO_8859_1);
+                return removal.test(header.name(), text.substring(text.indexOf(':') + 1).replaceAll("\\r?\\n$", "").trim());
+            });
+            insert(headers, own);
+        });
+        return signed;
+    }
+
+    @FunctionalInterface
+    private interface HeaderEdit {
+        void apply(List<Header> headers) throws IOException;
+    }
+
+    private static void insert(List<Header> headers, List<Addition> additions) {
+        for (Addition addition : additions) {
+            byte[] bytes = (addition.name() + ": " + addition.value() + "\r\n")
+                    .getBytes(StandardCharsets.UTF_8);
+            int index = addition.order() < 0 ? headers.size() : Math.min(addition.order(), headers.size());
+            headers.add(index, new Header(addition.name(), bytes));
+        }
+    }
+
+    private static void rewrite(MessageEnvelope envelope, HeaderEdit edit) throws IOException {
         Path destination = envelope.getFile() == null ? Path.of(System.getProperty("java.io.tmpdir"))
                 : Path.of(envelope.getFile()).toAbsolutePath().getParent();
         Files.createDirectories(destination);
@@ -70,23 +135,7 @@ public final class RspamdMessageMutations {
             try (LineInputStream input = new LineInputStream(envelope.openMessageStream(), 8192);
                  var output = Files.newOutputStream(rewritten)) {
                 List<Header> headers = readHeaders(input);
-                for (var removal : removals.entrySet()) {
-                    String name = removal.getKey().toString();
-                    validateName(name);
-                    if (!(removal.getValue() instanceof Number index)) {
-                        throw new IOException("Invalid Rspamd header removal");
-                    }
-                    remove(headers, name, index.intValue());
-                }
-                if ("rewrite subject".equals(result.get("action"))) {
-                    remove(headers, "Subject", 0);
-                }
-                for (Addition addition : additions) {
-                    byte[] bytes = (addition.name() + ": " + addition.value() + "\r\n")
-                            .getBytes(StandardCharsets.UTF_8);
-                    int index = addition.order() < 0 ? headers.size() : Math.min(addition.order(), headers.size());
-                    headers.add(index, new Header(addition.name(), bytes));
-                }
+                edit.apply(headers);
                 for (Header header : headers) {
                     output.write(header.raw());
                 }
@@ -99,7 +148,6 @@ public final class RspamdMessageMutations {
             if (oldSource != null) {
                 oldSource.release();
             }
-            return signed;
         } finally {
             if (!published) {
                 Files.deleteIfExists(rewritten);

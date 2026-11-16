@@ -118,6 +118,12 @@ public class ServerMail extends ServerProcessor {
                 connection.write(String.format(SmtpResponses.INVALID_ADDRESS_501 + " [%s]", connection.getSession().getUID()));
                 return false;
             }
+            // Only 7BIT and 8BITMIME are advertised (RFC 6152).
+            String bodyType = getBody();
+            if (verb.hasParam("body") && !bodyType.equalsIgnoreCase("7BIT") && !bodyType.equalsIgnoreCase("8BITMIME")) {
+                connection.write(String.format(SmtpResponses.INVALID_ARGS_501 + " [%s]", connection.getSession().getUID()));
+                return false;
+            }
             String addressStr = internetAddress.getAddress();
             if (!SenderAuthorization.checkEnvelope(connection, addressStr)) {
                 return false;
@@ -125,7 +131,7 @@ public class ServerMail extends ServerProcessor {
             if (!SubmissionLimits.check(connection, SubmissionLimits.Resource.MESSAGES, 1)) return false;
 
             // Make envelope.
-            MessageEnvelope envelope = new MessageEnvelope();
+            MessageEnvelope envelope = new MessageEnvelope().setEightBitMime(bodyType.equalsIgnoreCase("8BITMIME"));
             connection.getSession().addEnvelope(envelope);
 
             // Check if envelope should be blackholed based on IP, EHLO, and MAIL FROM.

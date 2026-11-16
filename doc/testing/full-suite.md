@@ -251,7 +251,7 @@ The assertions in each file remain the source of truth.
 | `inbound/basic-smtp.json5` | SMTP acceptance |
 | `inbound/user-not-found.json5` | SQL-backed recipient rejection |
 | `inbound/invalid-sender.json5` | Invalid MAIL FROM rejection |
-| `inbound/ehlo-capabilities.json5` | EHLO extensions before and after STARTTLS; no AUTH on the inbound port; no STARTTLS once TLS is up |
+| `inbound/ehlo-capabilities.json5` | EHLO extensions (including 8BITMIME) before and after STARTTLS; no AUTH on the inbound port; no STARTTLS once TLS is up |
 | `inbound/tls-negotiated.json5` | STARTTLS negotiates TLS 1.2 or 1.3 and the message is delivered |
 | `inbound/tls-legacy-refused.json5` | A TLS 1.0-only client cannot negotiate TLS |
 | `inbound/bdat-byte-exact.json5` | CHUNKING in several chunks, including chunks that split lines, delivers a binary part byte for byte |
@@ -260,6 +260,7 @@ The assertions in each file remain the source of truth.
 | `inbound/size-limit-data.json5` | A message over the size limit is refused with 552 over DATA |
 | `inbound/size-limit-bdat.json5` | The size limit applies to the whole BDAT message, not each chunk |
 | `inbound/multiple-envelopes.json5` | Several transactions on one connection are each delivered |
+| `inbound/rset-sequence.json5` | RSET ends the transaction, so a following RCPT is refused with 503 5.5.1 |
 | `submission/auth-plain.json5`, `auth-login.json5`, `auth-login-combined.json5` | Submission with each AUTH mechanism, relayed and read back at robin-sink |
 | `submission/auth-bad-password.json5` | A wrong password gets 535 |
 | `submission/mail-without-auth.json5` | MAIL on the submission port without AUTH gets 530 |
@@ -269,8 +270,9 @@ The assertions in each file remain the source of truth.
 | `delivery/partial-delivery-mixed.json5` | Valid delivery alongside invalid recipient rejection |
 | `delivery/chaos-storage-failure.json5` | Injected storage failure rejected with 451 |
 | `delivery/chaos-matrix.json5` | Injected failure in each processor (antivirus, spam, local storage, Dovecot) gets 451 and nothing is delivered |
-| `delivery/rich-mime-roundtrip.json5` | A built multipart message (QP text with non-ASCII, HTML, PDF, JPEG) arrives with every part intact |
+| `delivery/rich-mime-roundtrip.json5` | A built multipart message (QP text with non-ASCII, HTML, PDF, JPEG) arrives with every part intact, with Robin's Authentication-Results and X-Spam headers |
 | `delivery/sql-alias.json5` | Mail to an SQL alias is delivered to the alias target |
+| `delivery/sql-auto-alias.json5` | Mail to an SQL auto alias (`tony@example.net`) is delivered to its destination |
 | `scanning/spam-gtube.json5` | GTUBE rejection with 541 and spam log evidence |
 | `scanning/virus-eicar.json5` | EICAR rejection by ClamAV |
 | `scanning/virus-eicar-epilogue.json5` | EICAR rejection when the attachment is smuggled into a MIME epilogue |
@@ -280,11 +282,12 @@ The assertions in each file remain the source of truth.
 | `queue/queue-api.json5` | `/client/queue` returns the item uid; list, retry, bounce and delete each change the queue as expected |
 | `queue/admin-bounce-dsn.json5` | A deferred message bounced through `/client/queue/bounce` reaches its sender as a DSN carrying the administrator's reason |
 | `queue/queue-raw-eml.json5` | A raw EML upload to `/client/queue` is queued, listed and deleted |
-| `relay/outbound-mx-relay.json5` | Authenticated submission relayed by MX lookup to robin-sink; the received copy is read back through the sink's `/store` API |
+| `relay/outbound-mx-relay.json5` | Authenticated submission relayed by MX lookup to robin-sink; the received copy, read back through the sink's `/store` API, carries no Authentication-Results from Robin |
 | `relay/open-relay-refused.json5` | Unauthenticated mail to a remote domain is refused and never reaches robin-sink |
 | `relay/permfail-bounce.json5` | A 5xx from the remote MTA is bounced at once: a DSN with the 5.1.1 status, the original headers and an `In-Reply-To` reaches the sender |
 | `relay/tempfail-retry-bounce.json5` | A 4xx is retried until the retry budget is spent, then bounced with `Action: failed` |
 | `api/health.json5` | `/health` reports UP |
+| `api/logs-absent.json5` | `/logs` can prove a string is absent: the search does not log its own query |
 | `api/users.json5` | `/users`, `/users/{user}/exists` and `/users/authenticate` against the SQL backend, both outcomes |
 | `api/client-send.json5` | `/client/send` runs a case inside Robin and returns the SMTP session |
 | `harness/http-sink-recorder.json5` | HTTP case: the http-sink records a POST and serves it back |

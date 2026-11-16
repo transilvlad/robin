@@ -1,0 +1,45 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: /logs can prove a line is absent.
+  // Flow: GET /logs for a string nothing logs, twice.
+  // Validates: the search does not log its own query, so the result is empty both times. When the
+  // handler echoed the query, every search matched its own log line and the next search matched the
+  // previous one, so verifyNone on /logs could never pass.
+
+  request: {
+    url: "http://127.0.0.1:28090/health",
+    type: "GET"
+  },
+
+  assertions: {
+    protocol: [
+      ["HTTP", "^200 "]
+    ],
+    external: [
+      {
+        type: "request",
+        wait: 0,
+        delay: 1,
+        retry: 1,
+        request: {
+          url: "http://127.0.0.1:28090/logs?q=logs-absent-sentinel-7f3a",
+          type: "GET"
+        },
+        verifyNone: true
+      },
+      {
+        // The first search left nothing behind for the second one to find.
+        type: "request",
+        wait: 1,
+        delay: 1,
+        retry: 1,
+        request: {
+          url: "http://127.0.0.1:28090/logs?q=logs-absent-sentinel-7f3a",
+          type: "GET"
+        },
+        verifyNone: true
+      }
+    ]
+  }
+}

@@ -141,7 +141,8 @@ public class QueueOperationsHandler {
     /**
      * Handles <b>POST /client/queue/retry</b> requests.
      *
-     * <p>Retries queue items by UID or UIDs by making them immediately ready again.
+     * <p>Retries queue items by UID or UIDs by making them immediately ready again. Dead items are
+     * revived. Items a worker is delivering, and missing items, are listed under "notReady".
      * <p>Accepts JSON body with either "uid" (single string) or "uids" (array of strings).
      */
     public void handleRetry(HttpExchange exchange) throws IOException {
@@ -180,17 +181,21 @@ public class QueueOperationsHandler {
             }
 
             int retriedCount = 0;
+            List<String> notReady = new ArrayList<>();
             for (String uid : targetUIDs) {
-                if (queue.retryNow(uid)) {
+                if (uid != null && !uid.isBlank() && queue.retryNow(uid)) {
                     retriedCount++;
+                } else {
+                    notReady.add(uid);
                 }
             }
 
-            log.info("Retried {} queue items", retriedCount);
+            log.info("Retried {} queue items, notReady={}", retriedCount, notReady);
 
             Map<String, Object> response = new HashMap<>();
             response.put("status", "OK");
             response.put("retriedCount", retriedCount);
+            response.put("notReady", notReady);
             response.put("queueSize", queue.size());
 
             String json = gson.toJson(response);

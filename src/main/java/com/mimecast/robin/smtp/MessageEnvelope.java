@@ -45,6 +45,9 @@ public class MessageEnvelope implements Serializable, Cloneable {
     // Blackholed status - true if email should be accepted but not saved.
     private boolean blackholed = false;
 
+    // Received with BODY=8BITMIME, so relaying requires a next hop that supports it.
+    private boolean eightBitMime = false;
+
     // Bot addresses - recipients that matched bot patterns with their bot names
     private Map<String, List<String>> botAddresses = new LinkedHashMap<>();
 
@@ -138,6 +141,42 @@ public class MessageEnvelope implements Serializable, Cloneable {
      */
     public MessageEnvelope setPendingReceipt(PendingReceipt pendingReceipt) {
         this.pendingReceipt = pendingReceipt;
+        return this;
+    }
+
+    /**
+     * [Server] Whether the SMTP transaction this envelope records has ended (message data
+     * handled, accepted or not). Not persisted: queued envelopes are always complete.
+     */
+    private transient boolean transactionEnded;
+
+    /**
+     * [Server] Whether this envelope is an open SMTP transaction: MAIL was accepted and the
+     * message data has not been handled yet (RFC 5321 3.3).
+     *
+     * @return Boolean.
+     */
+    public boolean isTransactionOpen() {
+        return mail != null && !transactionEnded;
+    }
+
+    /**
+     * [Server] Whether this envelope's transaction ended with message data, so the envelope
+     * stays part of the session.
+     *
+     * @return Boolean.
+     */
+    public boolean isTransactionEnded() {
+        return transactionEnded;
+    }
+
+    /**
+     * [Server] Marks the transaction ended once its message data has been handled.
+     *
+     * @return Self.
+     */
+    public MessageEnvelope endTransaction() {
+        this.transactionEnded = true;
         return this;
     }
 
@@ -994,6 +1033,26 @@ public class MessageEnvelope implements Serializable, Cloneable {
      */
     public MessageEnvelope setBlackholed(boolean blackholed) {
         this.blackholed = blackholed;
+        return this;
+    }
+
+    /**
+     * Is envelope received with BODY=8BITMIME.
+     *
+     * @return Boolean.
+     */
+    public boolean isEightBitMime() {
+        return eightBitMime;
+    }
+
+    /**
+     * Sets envelope received with BODY=8BITMIME.
+     *
+     * @param eightBitMime Boolean.
+     * @return MessageEnvelope instance.
+     */
+    public MessageEnvelope setEightBitMime(boolean eightBitMime) {
+        this.eightBitMime = eightBitMime;
         return this;
     }
 

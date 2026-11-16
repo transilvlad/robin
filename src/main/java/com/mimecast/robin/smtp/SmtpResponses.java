@@ -78,7 +78,7 @@ public final class SmtpResponses {
     /**
      * 250 All clear (RSET response).
      */
-    public static final String ALL_CLEAR_250 = "250 2.1.5 All clear";
+    public static final String ALL_CLEAR_250 = "250 2.0.0 All clear";
 
     /**
      * 250 Received OK (DATA response).
@@ -162,6 +162,16 @@ public final class SmtpResponses {
     public static final String INVALID_ADDRESS_501 = "501 5.1.3 Invalid address format";
 
     /**
+     * 503 MAIL inside an open transaction.
+     */
+    public static final String NESTED_MAIL_503 = "503 5.5.1 Nested MAIL command [%s]";
+
+    /**
+     * 503 RCPT, DATA or BDAT outside a transaction.
+     */
+    public static final String NEED_MAIL_503 = "503 5.5.1 Need MAIL command [%s]";
+
+    /**
      * 504 Unrecognized authentication mechanism.
      */
     public static final String UNRECOGNIZED_AUTH_504 = "504 5.7.4 Unrecognized authentication mechanism";
@@ -225,6 +235,11 @@ public final class SmtpResponses {
      * 554 Virus detected.
      */
     public static final String VIRUS_FOUND_550 = "554 5.7.1 Virus detected [%s]";
+
+    /**
+     * 554 8-bit message for a next hop without 8BITMIME (RFC 6152 section 3).
+     */
+    public static final String CONVERSION_NOT_SUPPORTED_554 = "554 5.6.3 Conversion required but not supported";
 
     /**
      * 554 No valid recipients.

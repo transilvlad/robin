@@ -3,8 +3,10 @@ package com.mimecast.robin.storage;
 import com.mimecast.robin.config.server.RspamdConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.mime.EmailParser;
+import com.mimecast.robin.scanners.AuthenticationHeaders;
 import com.mimecast.robin.scanners.RspamdClient;
 import com.mimecast.robin.scanners.RspamdMessageMutations;
+import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.connection.Connection;
 import com.mimecast.robin.smtp.metrics.SmtpMetrics;
@@ -13,14 +15,30 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Storage processor for spam scanning using Rspamd.
  */
 public class SpamStorageProcessor extends AbstractStorageProcessor {
     private static final Logger log = LogManager.getLogger(SpamStorageProcessor.class);
+    private static final String AUTHENTICATION_RESULTS = "Authentication-Results";
+    private static final Set<String> SPAM_HEADERS = Set.of("x-spam-status", "x-spam-score", "x-spam-flag");
+
+    private final AuthenticationHeaders.Resolver resolver;
+
+    public SpamStorageProcessor() {
+        this(AuthenticationHeaders.DNS);
+    }
+
+    SpamStorageProcessor(AuthenticationHeaders.Resolver resolver) {
+        this.resolver = resolver;
+    }
 
     /**
      * Processes the email for spam scanning using Rspamd.
@@ -97,10 +115,11 @@ public class SpamStorageProcessor extends AbstractStorageProcessor {
                 envelope.setBlackholed(true);
                 return true;
             }
-            if (!action.isEmpty() && !java.util.Set.of("no action", "add header", "rewrite subject").contains(action)) {
+            if (!action.isEmpty() && !Set.of("no action", "add header", "rewrite subject").contains(action)) {
                 throw new IOException("Unsupported Rspamd action");
             }
-            boolean signed = RspamdMessageMutations.apply(envelope, scanResult);
+            List<String[]> trace = traceHeaders(connection, envelope, scanResult);
+            boolean signed = RspamdMessageMutations.apply(envelope, scanResult, trace, traceRemoval(trace));
             if (signingRequired && !signed) {
                 throw new IOException("Required Rspamd DKIM signature is missing");
             }
@@ -136,9 +155,54 @@ public class SpamStorageProcessor extends AbstractStorageProcessor {
             } else {
                 log.info("Spam scan clean with score {}", score);
             }
+        } else if (!connection.getSession().getEnvelopes().isEmpty()) {
+            var envelope = connection.getSession().getEnvelopes().getLast();
+            List<String[]> trace = traceHeaders(connection, envelope, null);
+            if (!trace.isEmpty() && !envelope.isBlackholed() && envelope.hasMessageSource()) {
+                RspamdMessageMutations.apply(envelope, Map.of(), trace, traceRemoval(trace));
+            }
         }
 
         return true;
     }
 
+    /**
+     * Gets Robin's Authentication-Results and X-Spam-* headers for an inbound message.
+     * <p>Outbound mail gets none: they would expose the sender's login and scores to recipients.
+     *
+     * @param connection Connection instance.
+     * @param envelope   MessageEnvelope instance.
+     * @param scanResult Rspamd scan result, or null when not scanned.
+     * @return Name and value pairs, in order.
+     */
+    private List<String[]> traceHeaders(Connection connection, MessageEnvelope envelope, Map<String, Object> scanResult) {
+        List<String[]> headers = new ArrayList<>();
+        if (!connection.getSession().isInbound()) {
+            return headers;
+        }
+        if (Config.getServer().isAuthenticationResultsHeader()) {
+            headers.add(new String[]{AUTHENTICATION_RESULTS, AuthenticationHeaders.authenticationResults(
+                    Config.getServer().getHostname(), connection.getSession(), envelope, scanResult, resolver)});
+        }
+        if (Config.getServer().isSpamHeaders()) {
+            headers.addAll(AuthenticationHeaders.spamHeaders(scanResult));
+        }
+        return headers;
+    }
+
+    /**
+     * Gets the existing headers replaced by Robin's: Authentication-Results claiming its authserv-id
+     * (RFC 8601 section 5) and X-Spam-* when Robin adds its own.
+     *
+     * @param trace Headers Robin adds.
+     * @return Removal predicate.
+     */
+    private static RspamdMessageMutations.Removal traceRemoval(List<String[]> trace) {
+        boolean results = trace.stream().anyMatch(header -> header[0].equals(AUTHENTICATION_RESULTS));
+        boolean spam = trace.stream().anyMatch(header -> header[0].equals("X-Spam-Status"));
+        String authservId = Config.getServer().getHostname();
+        return (name, value) -> results && name.equalsIgnoreCase(AUTHENTICATION_RESULTS)
+                && AuthenticationHeaders.claims(value, authservId)
+                || spam && SPAM_HEADERS.contains(name.toLowerCase(Locale.ROOT));
+    }
 }

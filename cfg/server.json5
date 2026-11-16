@@ -166,6 +166,13 @@
   // Advertise CHUNKING support (default: true).
   chunking: true,
 
+  // Headers Robin prepends to inbound mail after scanning (default: both true).
+  // Turn them off where messages must be stored exactly as received, such as journal archives.
+  traceHeaders: {
+    authenticationResults: true, // RFC 8601 Authentication-Results, authserv-id = hostname.
+    spam: true                   // X-Spam-Status, X-Spam-Score and X-Spam-Flag from the Rspamd scan.
+  },
+
   // PEM certificate file path (alternative to JKS keystore).
   // If both pemCert and pemKey are set, they take precedence over keystore.
   pemCert: "",

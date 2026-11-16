@@ -52,7 +52,8 @@ public class LogsHandler {
             throw new IllegalArgumentException("Query cannot be null or blank");
         }
 
-        log.info("Searching logs for query: '{}'", query);
+        // The query is not logged: this search reads the log it would be written to.
+        log.info("Searching logs: queryLength={}", query.length());
         RollingFileAppender appender = getRollingFileAppender();
         if (appender == null) {
             throw new LogsSearchException("Could not determine log file location from log4j2 configuration");
@@ -109,7 +110,7 @@ public class LogsHandler {
         for (Path file : files) {
             matchCount += searchLogFile(file.toString(), query, results);
         }
-        log.debug("Logs search completed: query='{}', matches={}", query, matchCount);
+        log.debug("Logs search completed: matches={}", matchCount);
         return results.toString();
     }
 

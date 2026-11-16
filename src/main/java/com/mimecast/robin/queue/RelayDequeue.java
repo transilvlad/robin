@@ -264,7 +264,7 @@ public class RelayDequeue {
             return AdminBounce.NOT_READY;
         }
         RelayQueueWorkResult result;
-        try {
+        try (var context = QueueLogContext.enter(item)) {
             result = bounceClaimedItem(item, reason);
         } catch (RuntimeException e) {
             queue.applyMutations(new QueueMutationBatch<>(List.of(QueueMutation.reschedule(

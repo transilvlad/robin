@@ -79,17 +79,18 @@ class EmailReceiptTest {
         assertEquals("quit", connection.getSmtpAuditContext().getTerminationReason());
         connection.parseLines();
         assertEquals("250-Welcome [example.net (127.0.0.1)]\r\n", connection.getLine(2));
-        assertEquals("250-SMTPUTF8\r\n", connection.getLine(3));
-        assertEquals("250-HELP\r\n", connection.getLine(4));
-        assertEquals("250-PIPELINING\r\n", connection.getLine(5));
-        assertEquals("250-AUTH PLAIN LOGIN\r\n", connection.getLine(6));
+        assertEquals("250-PIPELINING\r\n", connection.getLine(3));
+        assertEquals("250-8BITMIME\r\n", connection.getLine(4));
         // No STARTTLS: TLS is already up (RFC 3207 4.2).
-        assertEquals("250 CHUNKING\r\n", connection.getLine(7));
-        assertTrue(connection.getLine(8).startsWith("250 2.1.0 Sender OK"), "startsWith(\"250 2.1.0 Sender OK\")");
-        assertTrue(connection.getLine(9).startsWith("250 2.1.5 Recipient OK"), "startsWith(\"250 2.1.5 Recipient OK\")");
-        assertEquals("354 Ready and willing\r\n", connection.getLine(10));
-        assertTrue(connection.getLine(11).startsWith("250 2.0.0 Received OK"), "startsWith(\"250 2.0.0 Received OK\")");
-        assertEquals("221 2.0.0 Closing connection\r\n", connection.getLine(12));
+        assertEquals("250-AUTH PLAIN LOGIN\r\n", connection.getLine(5));
+        assertEquals("250-SMTPUTF8\r\n", connection.getLine(6));
+        assertEquals("250-CHUNKING\r\n", connection.getLine(7));
+        assertEquals("250 HELP\r\n", connection.getLine(8));
+        assertTrue(connection.getLine(9).startsWith("250 2.1.0 Sender OK"), "startsWith(\"250 2.1.0 Sender OK\")");
+        assertTrue(connection.getLine(10).startsWith("250 2.1.5 Recipient OK"), "startsWith(\"250 2.1.5 Recipient OK\")");
+        assertEquals("354 Ready and willing\r\n", connection.getLine(11));
+        assertTrue(connection.getLine(12).startsWith("250 2.0.0 Received OK"), "startsWith(\"250 2.0.0 Received OK\")");
+        assertEquals("221 2.0.0 Closing connection\r\n", connection.getLine(13));
     }
 
     @Test
@@ -152,15 +153,16 @@ class EmailReceiptTest {
 
         connection.parseLines();
         assertEquals("250-Welcome [example.net (127.0.0.1)]\r\n", connection.getLine(2));
-        assertEquals("250-SMTPUTF8\r\n", connection.getLine(3));
-        assertEquals("250-HELP\r\n", connection.getLine(4));
-        assertEquals("250-PIPELINING\r\n", connection.getLine(5));
-        assertEquals("250-AUTH PLAIN LOGIN\r\n", connection.getLine(6));
+        assertEquals("250-PIPELINING\r\n", connection.getLine(3));
+        assertEquals("250-8BITMIME\r\n", connection.getLine(4));
         // No STARTTLS: TLS is already up (RFC 3207 4.2).
-        assertEquals("250 CHUNKING\r\n", connection.getLine(7));
-        assertTrue(connection.getLine(8).startsWith("250 2.1.0 Sender OK"), "startsWith(\"250 2.1.0 Sender OK\")");
-        assertEquals("501 Invalid address\r\n", connection.getLine(9));
-        assertEquals("221 2.0.0 Closing connection\r\n", connection.getLine(10));
+        assertEquals("250-AUTH PLAIN LOGIN\r\n", connection.getLine(5));
+        assertEquals("250-SMTPUTF8\r\n", connection.getLine(6));
+        assertEquals("250-CHUNKING\r\n", connection.getLine(7));
+        assertEquals("250 HELP\r\n", connection.getLine(8));
+        assertTrue(connection.getLine(9).startsWith("250 2.1.0 Sender OK"), "startsWith(\"250 2.1.0 Sender OK\")");
+        assertEquals("501 Invalid address\r\n", connection.getLine(10));
+        assertEquals("221 2.0.0 Closing connection\r\n", connection.getLine(11));
     }
 
     @Test
@@ -179,16 +181,128 @@ class EmailReceiptTest {
 
         connection.parseLines();
         assertEquals("250-Welcome [example.net (127.0.0.1)]\r\n", connection.getLine(2));
-        assertEquals("250-SMTPUTF8\r\n", connection.getLine(3));
-        assertEquals("250-HELP\r\n", connection.getLine(4));
-        assertEquals("250-PIPELINING\r\n", connection.getLine(5));
-        assertEquals("250-AUTH PLAIN LOGIN\r\n", connection.getLine(6));
+        assertEquals("250-PIPELINING\r\n", connection.getLine(3));
+        assertEquals("250-8BITMIME\r\n", connection.getLine(4));
         // No STARTTLS: TLS is already up (RFC 3207 4.2).
-        assertEquals("250 CHUNKING\r\n", connection.getLine(7));
-        assertTrue(connection.getLine(8).startsWith("250 2.1.0 Sender OK"), "startsWith(\"250 2.1.0 Sender OK\")");
-        assertEquals("501 Invalid address\r\n", connection.getLine(9));
-        assertTrue(connection.getLine(10).startsWith("554 5.5.1 No valid recipients"), "startsWith(\"554 5.5.1 No valid recipients\")");
-        assertEquals("221 2.0.0 Closing connection\r\n", connection.getLine(11));
+        assertEquals("250-AUTH PLAIN LOGIN\r\n", connection.getLine(5));
+        assertEquals("250-SMTPUTF8\r\n", connection.getLine(6));
+        assertEquals("250-CHUNKING\r\n", connection.getLine(7));
+        assertEquals("250 HELP\r\n", connection.getLine(8));
+        assertTrue(connection.getLine(9).startsWith("250 2.1.0 Sender OK"), "startsWith(\"250 2.1.0 Sender OK\")");
+        assertEquals("501 Invalid address\r\n", connection.getLine(10));
+        assertTrue(connection.getLine(11).startsWith("554 5.5.1 No valid recipients"), "startsWith(\"554 5.5.1 No valid recipients\")");
+        assertEquals("221 2.0.0 Closing connection\r\n", connection.getLine(12));
+    }
+
+    private ConnectionMock runSecure(String commands) throws IOException {
+        ConnectionMock connection = getConnection(new StringBuilder(commands));
+        connection.getSession().setSecurePort(true);
+        connection.getSession().setStartTls(true);
+        new EmailReceipt(connection).run();
+        connection.parseLines();
+        return connection;
+    }
+
+    private static final String MESSAGE = "Subject: Sequence\r\n\r\nBody\r\n.\r\n";
+
+    @Test
+    void rsetAbortsTheTransactionSoItsRecipientsAreNotDelivered() throws IOException {
+        ConnectionMock connection = runSecure("EHLO example.com\r\n" +
+                "MAIL FROM:<john@example.com>\r\n" +
+                "RCPT TO:<jane@example.com>\r\n" +
+                "RSET\r\n" +
+                "RCPT TO:<jane@example.com>\r\n" +
+                "DATA\r\n" +
+                "QUIT\r\n");
+
+        assertTrue(connection.getLine(11).startsWith("250 2.0.0 All clear"), connection.getOutput());
+        assertTrue(connection.getLine(12).startsWith("503 5.5.1 Need MAIL command"), connection.getOutput());
+        assertTrue(connection.getLine(13).startsWith("503 5.5.1 Need MAIL command"), connection.getOutput());
+        assertEquals(0, connection.getSmtpAuditContext().getAcceptedMessages());
+    }
+
+    @Test
+    void anotherMessageCanFollowRset() throws IOException {
+        ConnectionMock connection = runSecure("EHLO example.com\r\n" +
+                "MAIL FROM:<john@example.com>\r\n" +
+                "RCPT TO:<jane@example.com>\r\n" +
+                "RSET\r\n" +
+                "MAIL FROM:<john@example.com>\r\n" +
+                "RCPT TO:<jane@example.com>\r\n" +
+                "DATA\r\n" + MESSAGE +
+                "QUIT\r\n");
+
+        assertTrue(connection.getOutput().contains("250 2.0.0 Received OK"), connection.getOutput());
+        assertEquals(1, connection.getSmtpAuditContext().getAcceptedMessages());
+    }
+
+    @Test
+    void nestedMailIsRefusedAndTheOpenTransactionKept() throws IOException {
+        ConnectionMock connection = runSecure("EHLO example.com\r\n" +
+                "MAIL FROM:<john@example.com>\r\n" +
+                "RCPT TO:<jane@example.com>\r\n" +
+                "MAIL FROM:<other@example.com>\r\n" +
+                "DATA\r\n" + MESSAGE +
+                "QUIT\r\n");
+
+        assertTrue(connection.getLine(11).startsWith("503 5.5.1 Nested MAIL command"), connection.getOutput());
+        assertTrue(connection.getOutput().contains("250 2.0.0 Received OK"), connection.getOutput());
+        assertEquals(1, connection.getSmtpAuditContext().getAcceptedMessages());
+    }
+
+    @Test
+    void recipientsAndDataNeedMail() throws IOException {
+        ConnectionMock connection = runSecure("EHLO example.com\r\n" +
+                "RCPT TO:<jane@example.com>\r\n" +
+                "DATA\r\n" +
+                "QUIT\r\n");
+
+        assertTrue(connection.getLine(9).startsWith("503 5.5.1 Need MAIL command"), connection.getOutput());
+        assertTrue(connection.getLine(10).startsWith("503 5.5.1 Need MAIL command"), connection.getOutput());
+        assertEquals(0, connection.getSmtpAuditContext().getAcceptedMessages());
+    }
+
+    @Test
+    void eachMessageNeedsItsOwnMail() throws IOException {
+        ConnectionMock connection = runSecure("EHLO example.com\r\n" +
+                "MAIL FROM:<john@example.com>\r\n" +
+                "RCPT TO:<jane@example.com>\r\n" +
+                "DATA\r\n" + MESSAGE +
+                "RCPT TO:<jane@example.com>\r\n" +
+                "DATA\r\n" +
+                "MAIL FROM:<john@example.com>\r\n" +
+                "QUIT\r\n");
+
+        assertTrue(connection.getLine(12).startsWith("250 2.0.0 Received OK"), connection.getOutput());
+        assertTrue(connection.getLine(13).startsWith("503 5.5.1 Need MAIL command"), connection.getOutput());
+        assertTrue(connection.getLine(14).startsWith("503 5.5.1 Need MAIL command"), connection.getOutput());
+        assertTrue(connection.getLine(15).startsWith("250 2.1.0 Sender OK"), connection.getOutput());
+    }
+
+    @Test
+    void bdatAfterACompletedMessageIsConsumedAndRefused() throws IOException {
+        String chunk = "Subject: Stray\r\n\r\nQUIT\r\n";
+        ConnectionMock connection = runSecure("EHLO example.com\r\n" +
+                "MAIL FROM:<john@example.com>\r\n" +
+                "RCPT TO:<jane@example.com>\r\n" +
+                "DATA\r\n" + MESSAGE +
+                "BDAT " + chunk.length() + " LAST\r\n" + chunk +
+                "QUIT\r\n");
+
+        assertTrue(connection.getLine(13).startsWith("503 5.5.1 Need MAIL command"), connection.getOutput());
+        assertEquals("221 2.0.0 Closing connection\r\n", connection.getLine(14), "The chunk is not read as commands");
+        assertEquals(1, connection.getSmtpAuditContext().getAcceptedMessages());
+    }
+
+    @Test
+    void ehloAbortsAnOpenTransaction() throws IOException {
+        ConnectionMock connection = runSecure("EHLO example.com\r\n" +
+                "MAIL FROM:<john@example.com>\r\n" +
+                "EHLO example.com\r\n" +
+                "RCPT TO:<jane@example.com>\r\n" +
+                "QUIT\r\n");
+
+        assertTrue(connection.getOutput().contains("503 5.5.1 Need MAIL command"), connection.getOutput());
     }
 
     @Test

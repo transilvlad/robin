@@ -1,0 +1,52 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: mail to an SQL auto alias is delivered to its destination.
+  // Flow: RCPT tony@example.net → no alias or user matches → auto_aliases maps it to
+  //       tony@example.com (seeded by .integration/db-init) → LMTP delivery to tony's INBOX.
+  // Validates: an auto alias makes its domain served, is accepted as a recipient, and resolves at
+  // the lowest priority, after aliases and users.
+
+  mx: ["127.0.0.1"],
+  port: 2525,
+  tls: true,
+
+  envelopes: [
+    {
+      mail: "pepper@example.com",
+      rcpt: ["tony@example.net"],
+      subject: "Mail for an auto alias",
+      message: "Sent to tony@example.net, delivered to tony@example.com.",
+      assertions: {
+        protocol: [
+          ["RCPT", "^250"],
+          ["DATA", "^250"]
+        ],
+        external: [
+          {
+            type: "imap",
+            wait: 2,
+            delay: 2,
+            retry: 5,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "tony@example.com",
+            pass: "stark",
+            folder: "INBOX",
+            delete: true,
+            matches: {
+              headers: [["^subject: Mail for an auto alias$"]]
+            }
+          }
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"],
+      ["QUIT", "^221"]
+    ]
+  }
+}

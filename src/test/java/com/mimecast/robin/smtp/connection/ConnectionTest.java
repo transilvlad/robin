@@ -1,7 +1,11 @@
 package com.mimecast.robin.smtp.connection;
 
+import com.mimecast.robin.config.server.ProxyRule;
 import com.mimecast.robin.config.server.ScenarioConfig;
 import com.mimecast.robin.main.Foundation;
+import com.mimecast.robin.smtp.MessageEnvelope;
+import com.mimecast.robin.smtp.ProxyEmailDelivery;
+import com.mimecast.robin.smtp.session.Session;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -14,6 +18,8 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -36,14 +42,32 @@ class ConnectionTest {
 
     @Test
     void streamStuffsEveryLineStartingWithADot() throws Exception {
-        String body = "Subject: Dots\r\n\r\n.\r\n..\r\n.hidden\r\n...three\r\n . indented\r\nplain.\r\n";
+        String body = "Subject: Dots\r\n\r\n.\r\n..\r\n.hidden\r\n...three\r\n . indented\r\nplain.\r\nbare\r.cr\r\n";
         ConnectionMock connection = getConnection(new StringBuilder());
 
         connection.stream(new com.mimecast.robin.smtp.io.LineInputStream(
                 new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8))));
 
-        assertEquals("Subject: Dots\r\n\r\n..\r\n...\r\n..hidden\r\n....three\r\n . indented\r\nplain.\r\n\r\n",
+        assertEquals("Subject: Dots\r\n\r\n..\r\n...\r\n..hidden\r\n....three\r\n . indented\r\nplain.\r\nbare\r.cr\r\n\r\n",
                 connection.getOutput());
+    }
+
+    @Test
+    void resetClosesOnlyTheProxyConnectionOfTheAbortedTransaction() {
+        ConnectionMock connection = getConnection(new StringBuilder());
+        MessageEnvelope finished = new MessageEnvelope().setMail("tony@example.com").endTransaction();
+        MessageEnvelope open = new MessageEnvelope().setMail("tony@example.com");
+        connection.getSession().addEnvelope(finished);
+        connection.getSession().addEnvelope(open);
+        ProxyEmailDelivery idle = new ProxyEmailDelivery(new Session(), finished);
+        connection.getSession().setProxyConnection(new ProxyRule(Map.of("hosts", List.of("idle.example"))), idle);
+        connection.getSession().setProxyConnection(new ProxyRule(Map.of("hosts", List.of("active.example"))),
+                new ProxyEmailDelivery(new Session(), open));
+
+        connection.reset();
+
+        assertEquals(List.of(idle), List.copyOf(connection.getSession().getProxyConnections().values()));
+        assertEquals(List.of(finished), connection.getSession().getEnvelopes());
     }
 
     @Test

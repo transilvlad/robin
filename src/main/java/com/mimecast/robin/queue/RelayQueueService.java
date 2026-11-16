@@ -231,7 +231,7 @@ public class RelayQueueService {
         }
         try {
             completion.submit(() -> {
-                try (var acquired = lease.orElseThrow()) {
+                try (var context = QueueLogContext.enter(item); var acquired = lease.orElseThrow()) {
                     return expired ? dequeue.expireClaimedItem(item)
                             : dequeue.processClaimedItem(item, Instant.now().getEpochSecond());
                 }
@@ -241,7 +241,9 @@ public class RelayQueueService {
             lease.orElseThrow().close();
             log.error("Queue worker submission rejected: uid={}", item.getUid(), e);
             if (expired) {
-                return Optional.of(dequeue.expireClaimedItem(item));
+                try (var context = QueueLogContext.enter(item)) {
+                    return Optional.of(dequeue.expireClaimedItem(item));
+                }
             }
             return Optional.of(new RelayQueueWorkResult(limits.defer(item, now, maximumAge,
                     "Queue worker capacity unavailable"), List.of(), List.of()));

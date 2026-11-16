@@ -125,6 +125,30 @@ class QueueControlsTest {
     }
 
     @Test
+    void retryLeavesAnItemAWorkerIsDeliveringAlone() {
+        RelaySession relaySession = enqueueSession("busy");
+        long now = java.time.Instant.now().getEpochSecond();
+        assertEquals(1, queue.claimReady(1, now, "worker", now + 300).size());
+
+        assertFalse(queue.retryNow(relaySession.getUID()));
+
+        QueueItem<RelaySession> item = queue.getByUID(relaySession.getUID());
+        assertEquals(QueueItemState.CLAIMED, item.getState());
+        assertEquals("worker", item.getClaimOwner());
+        assertEquals(0, item.getRetryCount());
+    }
+
+    @Test
+    void retryRevivesADeadItemAndIgnoresAMissingOne() {
+        RelaySession relaySession = enqueueSession("dead");
+        queue.markDead(relaySession.getUID(), "550 failed");
+
+        assertTrue(queue.retryNow(relaySession.getUID()));
+        assertEquals(QueueItemState.READY, queue.getByUID(relaySession.getUID()).getState());
+        assertFalse(queue.retryNow("missing"));
+    }
+
+    @Test
     void testBulkDeleteLeavesExpectedItems() {
         RelaySession[] sessions = new RelaySession[10];
         for (int i = 0; i < sessions.length; i++) {

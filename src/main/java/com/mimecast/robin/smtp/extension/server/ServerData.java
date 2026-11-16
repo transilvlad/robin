@@ -488,6 +488,13 @@ public class ServerData extends ServerProcessor {
             connection.close();
             return false;
 
+        } else if (envelope != null && envelope.isTransactionEnded()) {
+            // The last message is complete and no MAIL opened another (RFC 5321 3.3): drop the
+            // chunk and refuse it, or it would become a second message on the finished envelope.
+            discardChunk(bdatVerb);
+            connection.write(String.format(SmtpResponses.NEED_MAIL_503, connection.getSession().getUID()));
+            return false;
+
         } else if (envelope == null || envelope.getRcpts().isEmpty()) {
             discardChunk(bdatVerb);
             connection.write(String.format(SmtpResponses.NO_VALID_RECIPIENTS_554, connection.getSession().getUID()));
@@ -505,15 +512,23 @@ public class ServerData extends ServerProcessor {
             boolean isBlackholed = envelope.isBlackholed();
 
             if (isBlackholed) {
-                // Blackholed email - read bytes but don't store.
-                try (CountingOutputStream cos = new CountingOutputStream(
-                        receivingStream(java.io.OutputStream.nullOutputStream()))) {
-                    binaryRead(bdatVerb, cos);
-                    bytesReceived = cos.getByteCount();
+                // Blackholed email - read bytes but don't store; the count keeps the size limit on the total.
+                BdatReceipt receipt = envelope.getPendingReceipt() instanceof BdatReceipt pending ? pending
+                        : BdatReceipt.discarding(new CountingOutputStream(receivingStream(OutputStream.nullOutputStream())));
+                envelope.setPendingReceipt(receipt);
+                try {
+                    binaryRead(bdatVerb, receipt.stream());
+                    bytesReceived = receipt.bytes();
                     if (bdatVerb.isLast()) headerFraming().finish();
+                } catch (IOException e) {
+                    envelope.setPendingReceipt(null);
+                    receipt.abort();
+                    throw e;
                 }
 
                 if (bdatVerb.isLast()) {
+                    envelope.setPendingReceipt(null);
+                    receipt.finish();
                     log.info("Blackholed email - {} bytes received but not saved", bytesReceived);
                 }
             } else {

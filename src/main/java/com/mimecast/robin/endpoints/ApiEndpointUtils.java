@@ -115,7 +115,8 @@ public final class ApiEndpointUtils {
                 map.put(urlDecode(pair), "");
             }
         }
-        log.debug("Parsed query params: {}", map);
+        // Names only: values may be /logs search text.
+        log.debug("Parsed query params: {}", map.keySet());
         return map;
     }
 

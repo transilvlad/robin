@@ -78,7 +78,7 @@ public class BounceMessageGenerator {
             message.setSentDate(new Date());
             message.setHeader("Auto-Submitted", "auto-replied");
 
-            // Tie the notification to the original so clients (and tests) can correlate them.
+            // Reference the original message.
             byte[] originalHeaders = originalHeaders();
             String originalMessageId = originalMessageId(originalHeaders);
             if (originalMessageId != null) {
@@ -169,8 +169,7 @@ public class BounceMessageGenerator {
     }
 
     private InputStream openOriginal() throws IOException {
-        // getStream() opens a fresh stream from the message source or bytes; never the raw
-        // construction-time stream, which would be consumed.
+        // getStream() opens a fresh stream; the construction-time stream may already be consumed.
         InputStream stream = envelope.getStream();
         if (stream != null) {
             return stream;

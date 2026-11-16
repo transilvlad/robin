@@ -295,10 +295,27 @@ public class Connection extends SmtpFoundation {
     }
 
     /**
-     * [Server] Reset connection.
+     * [Server] Aborts the mail transaction in progress (RSET, EHLO/HELO, STARTTLS).
+     *
+     * <p>The envelope of an unfinished transaction is dropped with its partial BDAT receipt, so
+     * the next MAIL starts clean (RFC 5321 4.1.1.5). Envelopes whose message was received stay.
+     * An upstream proxy connection that took part in the aborted transaction is closed, since it
+     * still holds that transaction open; the next proxied recipient connects afresh.
      */
-    @SuppressWarnings("EmptyMethod")
     public void reset() {
-        // TODO Implement reset.
+        var envelopes = session.getEnvelopes();
+        if (envelopes.isEmpty() || envelopes.getLast().isTransactionEnded()) {
+            return;
+        }
+        MessageEnvelope aborted = envelopes.removeLast();
+        aborted.abortPendingReceipt();
+        session.getProxyConnections().values().removeIf(delivery -> {
+            if (!delivery.isForCurrentEnvelope(aborted)) {
+                return false;
+            }
+            delivery.close();
+            return true;
+        });
+        log.debug("Mail transaction reset: sender={}, recipients={}", aborted.getMail(), aborted.getRcpts().size());
     }
 }

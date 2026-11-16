@@ -137,7 +137,8 @@
           "AUTH",
           "MAIL",
           "RCPT",
-          "DATA"
+          "DATA",
+          "RSET"
         ]
       }
     },

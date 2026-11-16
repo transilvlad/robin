@@ -81,7 +81,7 @@ public class ServerEhlo extends ServerProcessor {
      * @throws IOException Unable to communicate.
      */
     public void writeAdverts() throws IOException {
-        List<String> adverts = Lists.newArrayList(Sets.newHashSet(collectAdverts(connection)));
+        List<String> adverts = Lists.newArrayList(Sets.newLinkedHashSet(collectAdverts(connection)));
         for (int i = 0; i < adverts.size(); i++) {
             String prefix = (adverts.size() - 1) > i ? SmtpResponses.ADVERT_250_MULTILINE : SmtpResponses.ADVERT_250_LAST;
             connection.write(prefix + adverts.get(i));
@@ -98,6 +98,9 @@ public class ServerEhlo extends ServerProcessor {
     public static List<String> collectAdverts(Connection connection) {
         List<String> adverts = new ArrayList<>();
         adverts.add("PIPELINING");
+        // Robin stores and relays message bytes unchanged, so 8-bit bodies need no conversion (RFC 6152).
+        // SMTPUTF8 also requires it (RFC 6531 3.1).
+        adverts.add("8BITMIME");
         for (String s : Extensions.getExtensions().keySet()) {
 
             Optional<Extension> ept = Extensions.getExtension(s);

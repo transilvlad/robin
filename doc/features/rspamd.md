@@ -103,6 +103,51 @@ unsupported envelope rerouting, or headers exceeding the one-MiB rewrite budget
 defer explicitly. The scanner endpoint is a trusted internal service and must
 not be exposed to untrusted callers that could supply their own `User` context.
 
+### Authentication-Results and spam headers
+
+Robin prepends its own trace headers to inbound messages, in the same rewrite as Rspamd's
+header changes, before local delivery, the queue and relay. Submitted (outbound) mail gets none, so a sender's
+login and scores are not exposed to recipients:
+
+```
+Authentication-Results: mx.example.com;
+	iprev=pass policy.iprev=198.51.100.7 (mail.sender.example);
+	spf=pass smtp.mailfrom=alice@sender.example;
+	dkim=pass header.d=sender.example;
+	dmarc=pass header.from=sender.example;
+	arc=none
+X-Spam-Status: No, score=0.90 required=6.00 action="no action"
+X-Spam-Score: 0.90
+```
+
+- The authserv-id is the server `hostname`.
+- A null sender's SPF result names its HELO identity: `smtp.helo=<name>`.
+- `spf`, `dkim`, `dmarc` and `arc` come from Rspamd's symbols (`R_SPF_*`, `R_DKIM_*`,
+  `DMARC_*`, `ARC_*`). A check Rspamd did not report is left out.
+- `auth=pass smtp.auth=<user>` is added for authenticated sessions.
+- `iprev` forward-confirms the client's reverse DNS name through Robin's DNS client.
+  Private and loopback clients are not checked.
+- With Rspamd disabled, the header still carries `auth` and `iprev`, or `none`.
+- `X-Spam-Status` says `Yes` when Rspamd asked for the message to be marked, or its score
+  reached the `add header` threshold; `X-Spam-Flag: YES` is added then. Unscanned mail
+  gets no `X-Spam-*` headers.
+- Per RFC 8601 section 5, an incoming `Authentication-Results` that claims Robin's
+  authserv-id is removed; other hosts' results are kept. Incoming `X-Spam-Status`,
+  `X-Spam-Score` and `X-Spam-Flag` are replaced when Robin scanned the message.
+
+Both are on by default. Turn either off in `server.json5`, for example where messages are
+archived as journals and must be stored exactly as received:
+
+```json5
+traceHeaders: {
+  authenticationResults: false, // No Authentication-Results; incoming ones are left as they are.
+  spam: false                   // No X-Spam-*; incoming ones are left as they are.
+}
+```
+
+With both off Robin does not rewrite the message at all (a `Received` header is still
+added on receipt, and Rspamd's own header changes still apply when Rspamd returns them).
+
 How It Works
 ------------
 

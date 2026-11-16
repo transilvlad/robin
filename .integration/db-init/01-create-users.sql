@@ -75,5 +75,5 @@ VALUES ('tony-alias@example.com', 'tony@example.com')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO auto_aliases (source, destination)
-VALUES ('tony@', 'tony@example.com')
+VALUES ('tony@example.net', 'tony@example.com')
 ON CONFLICT DO NOTHING;

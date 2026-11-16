@@ -4,7 +4,8 @@
   // Test: Authenticated submission relayed to a remote domain by MX lookup.
   // Flow: AUTH on 587 → outbound session → MX lookup for remote.test (test DNS) → queue →
   //       relay to robin-sink (mx.sink.test) → stored in the sink's local mailbox.
-  // Validates: the outbound relay path end to end, and the received copy at the remote MTA.
+  // Validates: the outbound relay path end to end, and the received copy at the remote MTA,
+  // which carries no Authentication-Results from Robin.
 
   mx: ["127.0.0.1"],
   port: 2587,
@@ -76,6 +77,11 @@
               ["^From: <tony@example\\.com>"],
               ["^To: <relay-smoke@remote\\.test>"],
               ["^Received: "]
+            ],
+            // Outbound mail carries no trace headers from Robin: they would expose the login and scores.
+            refuse: [
+              ["^Authentication-Results: docker;"],
+              ["smtp\\.auth=tony@example\\.com"]
             ]
           }
         ]

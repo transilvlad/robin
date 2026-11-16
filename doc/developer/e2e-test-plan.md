@@ -27,20 +27,23 @@ can test on an MTA.
 - Harness: the per-IP connection cap (10) dropped concurrent cases; `example.com` had no test
   zone, so DSNs to local senders went to the real domain's null MX.
 
-**Open questions from step 4**
+**Open questions from step 4** (all resolved 2026-11-16)
 
-- 8BITMIME is not advertised although SMTPUTF8 is (RFC 6531 requires 8BITMIME support).
-- ~~`/client/queue/bounce` marks the item dead without sending the sender a DSN, and `markDead`
-  is unconditional: it also kills an item a worker is delivering.~~ Fixed: the endpoint claims
-  the item, queues a DSN per remaining recipient and dead-letters it in one batch
-  (`queue/admin-bounce-dsn.json5`). `retry` still reschedules without a claim.
-- Queue worker log lines carry the previous item's session, IP and sender in the context columns.
-- RSET is a no-op on the client connection, and the server enforces no command sequence
-  (BDAT or DATA without MAIL).
-- `/logs` logs its own query, so `verifyNone` on `/logs` always matches itself.
-- The seeded auto-alias `tony@` is not resolved by the integration alias query.
-- No spam or `Authentication-Results` headers are added on clean mail (Rspamd returns no
-  header mutations in this stack), so the section C spam-header row is not covered.
+- 8BITMIME is advertised; `BODY=` accepts `7BIT` and `8BITMIME` and refuses others with 501
+  (`inbound/ehlo-capabilities.json5`). Mail received with `BODY=8BITMIME` is relayed with it, and
+  refused with `554 5.6.3` for a next hop without 8BITMIME (no downgrade).
+- `/client/queue/bounce` claims the item, queues a DSN per remaining recipient and dead-letters it
+  in one batch (`queue/admin-bounce-dsn.json5`). `retry` claims a ready item too, leaves an item a
+  worker holds alone (`notReady`) and still revives dead items.
+- Queue workers label each item's log lines with its session UID and sender and clear them after.
+- RSET discards the open transaction (including a partial BDAT message and a proxied upstream
+  transaction); EHLO, HELO and STARTTLS do too. MAIL inside a transaction and RCPT, DATA or BDAT
+  outside one get 503 5.5.1 (`inbound/rset-sequence.json5`). The case `behaviour` list gains RSET.
+- `/logs` no longer logs the query text (`api/logs-absent.json5`).
+- The seeded auto-alias is a full address, `tony@example.net` (`delivery/sql-auto-alias.json5`).
+  Auto aliases are explicit mappings; there is no wildcard matching.
+- Robin adds `Authentication-Results` and `X-Spam-*` to inbound messages; outbound mail gets none
+  (`delivery/rich-mime-roundtrip.json5`, `relay/outbound-mx-relay.json5`).
 
 ## 1. Where we are
 

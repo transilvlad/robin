@@ -5,7 +5,7 @@ import com.mimecast.robin.smtp.extension.client.*;
 import com.mimecast.robin.smtp.extension.server.*;
 import com.mimecast.robin.smtp.verb.Verb;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -27,7 +27,7 @@ public class Extensions {
     /**
      * Extensions container.
      */
-    private static final Map<String, Extension> map = new HashMap<>();
+    private static final Map<String, Extension> map = new LinkedHashMap<>(); // EHLO lists adverts in this order.
 
     /*
       Default extensions.

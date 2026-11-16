@@ -129,13 +129,26 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
         return size() == 0;
     }
 
+    /**
+     * Makes an item ready for immediate delivery and bumps its retry count.
+     *
+     * <p>A READY item is claimed first, so it cannot be rescheduled under a worker that is
+     * delivering it; an item a worker holds is left alone. A dead item is revived: workers never
+     * touch dead items, so no claim is needed.
+     *
+     * @param uid Queue item UID.
+     * @return True when the item was rescheduled; false when it is missing or being delivered.
+     */
     @SuppressWarnings("unchecked")
     public boolean retryNow(String uid) {
-        QueueItem<T> item = database.getByUID(uid);
-        if (item == null) {
-            return false;
-        }
         long now = Instant.now().getEpochSecond();
+        QueueItem<T> item = database.claimByUID(uid, "admin-retry", now + 300);
+        if (item == null) {
+            item = database.getByUID(uid);
+            if (item == null || item.getState() != QueueItemState.DEAD) {
+                return false;
+            }
+        }
         if (item.getPayload() instanceof RelaySession relaySession) {
             relaySession.bumpRetryCount();
             item.setPayload((T) relaySession).setRetryCount(relaySession.getRetryCount());

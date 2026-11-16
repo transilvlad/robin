@@ -4,7 +4,8 @@
   // Test: a multipart message built at run time arrives with every part intact.
   // Flow: MIME builder → text, HTML, PDF and JPEG parts → SMTP → scanners → Dovecot.
   // Validates: each part is delivered with its headers, the text parts with their content
-  // (including non-ASCII text), and both binary parts with their original SHA-256.
+  // (including non-ASCII text), and both binary parts with their original SHA-256. The
+  // delivered copy also carries Robin's Authentication-Results and X-Spam-* headers.
 
   mx: ["127.0.0.1"],
   port: 2525,
@@ -75,7 +76,11 @@
               headers: [
                 ["^subject: Rich MIME round trip$"],
                 ["^from: Tony Stark <tony@example\\.com>$"],
-                ["^content-type: multipart/"]
+                ["^content-type: multipart/"],
+                // Robin's trace headers, added to every accepted message after scanning.
+                ["^authentication-results: docker;"],
+                ["^x-spam-status: (No|Yes), score=-?\\d+\\.\\d{2}"],
+                ["^x-spam-score: -?\\d+\\.\\d{2}$"]
               ],
               parts: [
                 {

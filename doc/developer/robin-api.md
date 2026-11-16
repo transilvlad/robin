@@ -172,7 +172,9 @@ Response:
 
 `POST /client/queue/retry`
 
-Re-queues items for immediate retry with bumped retry count.
+Re-queues items for immediate retry with bumped retry count. A ready item is claimed
+first, so an item a worker is delivering is left alone and listed under `notReady`, as
+is a missing UID. Dead items are revived.
 
 Body (JSON):
 - `uid` (string, single UID to retry), or
@@ -186,7 +188,7 @@ curl -s -X POST \
 ```
 
 Response:
-- `200`: `{"status":"OK","retriedCount":2,"queueSize":12}`
+- `200`: `{"status":"OK","retriedCount":2,"notReady":[],"queueSize":12}`
 - `400`: `"Missing 'uid' or 'uids' parameter"`
 
 ### 3.4 Bounce queue items

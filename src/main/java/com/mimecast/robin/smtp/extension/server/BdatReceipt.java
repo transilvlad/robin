@@ -23,6 +23,13 @@ final class BdatReceipt implements PendingReceipt {
         this.stream = stream;
     }
 
+    /**
+     * A receipt that counts the message without storing it, for blackholed messages.
+     */
+    static BdatReceipt discarding(CountingOutputStream stream) {
+        return new BdatReceipt(null, stream);
+    }
+
     StorageClient storageClient() {
         return storageClient;
     }
@@ -53,7 +60,7 @@ final class BdatReceipt implements PendingReceipt {
             log.debug("Unable to close abandoned BDAT receipt: {}", e.getMessage());
         }
         try {
-            storageClient.abort();
+            if (storageClient != null) storageClient.abort();
         } catch (IOException e) {
             log.error("Unable to discard abandoned BDAT receipt: {}", e.getMessage());
         }

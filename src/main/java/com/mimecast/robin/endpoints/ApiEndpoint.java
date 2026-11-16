@@ -3,12 +3,10 @@ package com.mimecast.robin.endpoints;
 import com.mimecast.robin.config.server.EndpointConfig;
 import com.mimecast.robin.main.Config;
 import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 
 /**
  * API endpoint for case submission and queue management.
@@ -60,7 +58,7 @@ public class ApiEndpoint extends HttpEndpoint {
 
         // Bind the HTTP server to the configured API port.
         int apiPort = config.getPort(8090);
-        this.server = HttpServer.create(new InetSocketAddress(apiPort), 10);
+        this.server = createServer(apiPort);
 
         // Register endpoints.
 

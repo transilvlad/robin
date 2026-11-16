@@ -106,11 +106,27 @@ public class Verb {
             if (splinter.equalsIgnoreCase(name)) {
 
                 // Move to next entry.
-                return parts[i + 1];
+                return i + 1 < parts.length ? parts[i + 1] : "";
             }
         }
 
         return "";
+    }
+
+    /**
+     * Has parameter by name.
+     *
+     * @param name Parameter name string.
+     * @return Boolean.
+     */
+    public boolean hasParam(String name) {
+        for (int i = 1; i < parts.length; i++) {
+            if (parts[i].equalsIgnoreCase(name)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

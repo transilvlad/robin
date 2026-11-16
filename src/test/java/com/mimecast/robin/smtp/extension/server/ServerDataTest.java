@@ -214,7 +214,7 @@ class ServerDataTest {
 
     @Test
     void dataUnstuffsLinesStartingWithADot() throws Exception {
-        String wire = "Subject: Dots\r\n\r\n..\r\n...\r\n..hidden\r\n . indented\r\n.\r\n";
+        String wire = "Subject: Dots\r\n\r\n..\r\n...\r\n..hidden\r\n . indented\r\nbare\r.cr\r\n.\r\n";
         Map<String, Object> storage = Config.getServer().getStorage().getMap();
         Map<String, Object> originalStorage = new HashMap<>(storage);
         List<Callable<StorageProcessor>> originalProcessors = new ArrayList<>(Factories.getStorageProcessors());
@@ -233,7 +233,7 @@ class ServerDataTest {
             assertTrue(new ServerData().process(connection, new Verb("DATA")));
 
             String stored = saved.toString(StandardCharsets.UTF_8);
-            assertTrue(stored.endsWith("Subject: Dots\r\n\r\n.\r\n..\r\n.hidden\r\n . indented"), stored);
+            assertTrue(stored.endsWith("Subject: Dots\r\n\r\n.\r\n..\r\n.hidden\r\n . indented\r\nbare\r.cr"), stored);
         } finally {
             Factories.setStorageProcessors(originalProcessors);
             storage.clear();
@@ -457,10 +457,12 @@ class ServerDataTest {
         }
     }
 
-    @Test
-    void bdatSizeLimitAppliesToTheWholeMessage() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void bdatSizeLimitAppliesToTheWholeMessage(boolean blackholed) throws Exception {
         String[] chunks = {"Subject: Big\r\n\r\n" + "a".repeat(30), "b".repeat(40)};
         ConnectionMock connection = bdatConnection(chunks);
+        connection.getSession().getEnvelopes().getLast().setBlackholed(blackholed);
         List<Boolean> results = new ArrayList<>();
         try {
             ByteArrayOutputStream saved = runChunks(connection, 60, results, chunks);
@@ -501,7 +503,7 @@ class ServerDataTest {
 
             assertTrue(aborted.get());
             assertFalse(saved.get());
-            assertTrue(connection.getSession().getEnvelopes().getLast().getPendingReceipt() == null);
+            assertTrue(connection.getSession().getEnvelopes().isEmpty(), "RSET drops the unfinished transaction");
         } finally {
             Factories.setStorageClient(null);
             connection.getSession().close();

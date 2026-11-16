@@ -3,7 +3,6 @@ package com.mimecast.robin.endpoints;
 import com.mimecast.robin.config.server.EndpointConfig;
 import com.mimecast.robin.metrics.MetricsRegistry;
 import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
 import io.micrometer.core.instrument.Clock;
 import io.micrometer.core.instrument.binder.jvm.JvmGcMetrics;
 import io.micrometer.core.instrument.binder.jvm.JvmMemoryMetrics;
@@ -59,7 +58,7 @@ public class ServiceEndpoint extends HttpEndpoint {
         bindJvmMetrics();
 
         int metricsPort = config.getPort(8080);
-        server = HttpServer.create(new InetSocketAddress(metricsPort), 10);
+        server = createServer(metricsPort);
         createContexts();
         shutdownHooks();
 

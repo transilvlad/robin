@@ -57,10 +57,13 @@ class LocalStorageClientTest {
         Foundation.init("src/test/resources/cfg/");
         previousStoragePath = Config.getServer().getStorage().getStringProperty("path");
         Config.getServer().getStorage().getMap().put("path", tempDir.resolve("store").toString());
+        // These tests check stored bytes and file names exactly; Robin's trace headers would rewrite both.
+        Config.getServer().getMap().put("traceHeaders", java.util.Map.of("authenticationResults", false, "spam", false));
     }
 
     @AfterAll
     static void after() {
+        Config.getServer().getMap().remove("traceHeaders");
         if (previousStoragePath != null) {
             Config.getServer().getStorage().getMap().put("path", previousStoragePath);
         }

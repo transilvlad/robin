@@ -31,7 +31,7 @@ class ServerMailTest {
         StringBuilder stringBuilder = new StringBuilder();
         ConnectionMock connection = new ConnectionMock(stringBuilder);
 
-        Verb verb = new Verb("MAIL FROM: <tony@example.com> SIZE=42 BODY=BINARYMIME " +
+        Verb verb = new Verb("MAIL FROM: <tony@example.com> SIZE=42 BODY=8BITMIME " +
                 "NOTIFY=FAILURE,DELAY ORCPT=rfc822;pepper@example.com RET=HDRS ENVID=QQ314159");
 
         ServerMail mail = new ServerMail();
@@ -41,11 +41,32 @@ class ServerMailTest {
         assertEquals("tony@example.com", mail.getAddress().getAddress());
         assertEquals("tony@example.com", connection.getSession().getEnvelopes().getLast().getMail());
         assertEquals(42, mail.getSize());
-        assertEquals("BINARYMIME", mail.getBody());
+        assertEquals("8BITMIME", mail.getBody());
         assertEquals("[FAILURE, DELAY]", Arrays.toString(mail.getNotify()));
         assertEquals("pepper@example.com", mail.getORcpt().getAddress());
         assertEquals("HDRS", mail.getRet());
         assertEquals("QQ314159", mail.getEnvId());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"7BIT", "8bitmime"})
+    void advertisedBodyTypesAreAccepted(String body) throws IOException {
+        ConnectionMock connection = new ConnectionMock(new StringBuilder());
+
+        assertTrue(new ServerMail().process(connection, new Verb("MAIL FROM:<tony@example.com> BODY=" + body)));
+
+        assertEquals("tony@example.com", connection.getSession().getEnvelopes().getLast().getMail());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"BODY=BINARYMIME", "BODY", "BODY="})
+    void unadvertisedOrMissingBodyTypeIsRefusedWithoutOpeningATransaction(String body) throws IOException {
+        ConnectionMock connection = new ConnectionMock(new StringBuilder());
+
+        assertFalse(new ServerMail().process(connection, new Verb("MAIL FROM:<tony@example.com> " + body)));
+
+        assertTrue(connection.getOutput().startsWith("501 5.5.4"), connection.getOutput());
+        assertTrue(connection.getSession().getEnvelopes().isEmpty());
     }
 
     @ParameterizedTest
