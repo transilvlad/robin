@@ -176,6 +176,13 @@ authentication settings and any saved Fleet API credentials to match, as part
 of the reviewed migration. Replacing templates alone does not secure an
 already-initialized installation.
 
+### Delivery concurrency
+
+The queue uses eight workers, at most 16 in-flight items and claim batches of 16.
+LMTP independently pools at most eight connections, below Dovecot's 16-process
+LMTP limit. These are bounded starting points, not benchmark results: monitor
+queue age, connection waits, memory and disk latency before increasing them.
+
 ### TLS modes
 
 The base suite mounts `.suite/etc/demo-tls/robin-keystore.jks` for Robin and

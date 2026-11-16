@@ -1,12 +1,9 @@
 {
-  // Queue cron initial run delay (in seconds).
-  queueInitialDelay: 10,
-
-  // Queue cron processing interval (in seconds).
-  queueInterval: 30,
-
-  // Maximum number of messages to attempt to relay per cron tick.
-  maxDequeuePerTick: 10,
+  startDelaySeconds: 10,
+  housekeepingIntervalSeconds: 30,
+  maxClaimBatch: 16,
+  workerThreads: 8,
+  maxInFlight: 16,
 
   // Retry backoff configuration for message relay attempts.
   // Uses geometric progression: wait_time = firstWaitMinutes * (growthFactor ^ retryCount)

@@ -74,8 +74,8 @@
     // Enable TLS for LMTP connections (default: false).
     tls: false,
 
-    // Maximum number of pooled connections (default: 50).
-    connectionPoolSize: 50,
+    // Bound deliveries below Dovecot's 16 LMTP processes.
+    connectionPoolSize: 8,
 
     // Max time (seconds) to wait for a connection from the pool (default: 60).
     connectionPoolTimeoutSeconds: 60,
