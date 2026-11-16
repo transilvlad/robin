@@ -230,4 +230,9 @@ public final class SmtpResponses {
      * 554 No valid recipients.
      */
     public static final String NO_VALID_RECIPIENTS_554 = "554 5.5.1 No valid recipients [%s]";
+
+    /**
+     * 554 Bounced by the queue administrator (DSN diagnostic for POST /client/queue/bounce).
+     */
+    public static final String QUEUE_ADMIN_BOUNCE_554 = "554 5.0.0 Message bounced by the queue administrator";
 }

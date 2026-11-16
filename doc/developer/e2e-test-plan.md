@@ -30,8 +30,10 @@ can test on an MTA.
 **Open questions from step 4**
 
 - 8BITMIME is not advertised although SMTPUTF8 is (RFC 6531 requires 8BITMIME support).
-- `/client/queue/bounce` marks the item dead without sending the sender a DSN, and `markDead`
-  is unconditional: it also kills an item a worker is delivering.
+- ~~`/client/queue/bounce` marks the item dead without sending the sender a DSN, and `markDead`
+  is unconditional: it also kills an item a worker is delivering.~~ Fixed: the endpoint claims
+  the item, queues a DSN per remaining recipient and dead-letters it in one batch
+  (`queue/admin-bounce-dsn.json5`). `retry` still reschedules without a claim.
 - Queue worker log lines carry the previous item's session, IP and sender in the context columns.
 - RSET is a no-op on the client connection, and the server enforces no command sequence
   (BDAT or DATA without MAIL).

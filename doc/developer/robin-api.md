@@ -193,14 +193,23 @@ Response:
 
 `POST /client/queue/bounce`
 
-Removes items from the queue (bounce = delete in current implementation).
+Fails items on the operator's behalf: the sender gets a delivery status notification
+for every remaining recipient (`Status: 5.0.0`, reason `554 5.0.0 Message bounced by the
+queue administrator`) and the item moves to the dead state. The notifications are not
+sent when `relay.bounce` is false or the sender is null.
+
+The item is claimed first, so a bounce never races a delivery:
+- An item a worker is delivering, a dead item or a missing UID is left alone and listed
+  under `notReady`. Retry the request to bounce an item once its delivery attempt ends.
+- If a notification cannot be prepared (for example the queue disk is full), nothing is
+  sent, the item stays queued unchanged and it is listed under `notNotified`.
 
 Body (JSON):
 - `uid` (string, single UID to bounce), or
 - `uids` (array of strings, multiple UIDs to bounce)
 
 Response:
-- `200`: `{"status":"OK","bouncedCount":1,"queueSize":11}`
+- `200`: `{"status":"OK","bouncedCount":1,"notReady":[],"notNotified":[],"queueSize":11}`
 - `400`: `"Missing 'uid' or 'uids' parameter"`
 
 ## 4) Log search

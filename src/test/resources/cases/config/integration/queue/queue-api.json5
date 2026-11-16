@@ -6,8 +6,7 @@
   //       retrying) → list → retry the first → bounce it → delete the second.
   // Validates: queueing returns the item uid; the item is listed; retry and bounce report the item;
   // a bounced item leaves the active queue and is listed as dead; a deleted item is gone.
-  // Not asserted: a DSN after the admin bounce. The endpoint marks the item dead without notifying
-  // the sender; see the e2e test plan.
+  // The DSN an admin bounce sends is checked by admin-bounce-dsn.json5.
 
   request: {
     url: "http://127.0.0.1:28090/health",

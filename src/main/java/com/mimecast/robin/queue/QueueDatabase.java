@@ -32,6 +32,14 @@ public interface QueueDatabase<T extends Serializable> extends Closeable {
     List<QueueItem<T>> claimReady(int limit, long nowEpochSeconds, String consumerId, long claimUntilEpochSeconds);
 
     /**
+     * Claims one READY item by queue UID, whatever its next attempt time.
+     *
+     * <p>The READY to CLAIMED transition is atomic, so an item a worker is delivering, a dead item
+     * or a missing item returns null and the caller owns the item only when one is returned.
+     */
+    QueueItem<T> claimByUID(String uid, String consumerId, long claimUntilEpochSeconds);
+
+    /**
      * Acknowledges successful completion and removes the item from the active queue.
      */
     boolean acknowledge(String uid);

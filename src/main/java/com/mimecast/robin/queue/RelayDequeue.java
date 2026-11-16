@@ -29,6 +29,8 @@ public class RelayDequeue {
     private static final Logger log = LogManager.getLogger(RelayDequeue.class);
     private static final AtomicLong RESCHEDULE_COUNT = new AtomicLong(0);
     private static final long NOTIFICATION_RETRY_SECONDS = 60;
+    private static final String ADMIN_CONSUMER_ID = "admin-bounce";
+    private static final long ADMIN_CLAIM_SECONDS = 300;
 
     private final PersistentQueue<RelaySession> queue;
     private final PooledLmtpDelivery pooledLmtpDelivery;
@@ -233,6 +235,85 @@ public class RelayDequeue {
             }
         }
         return new PreparedNotifications(sessions, unprepared);
+    }
+
+    /**
+     * Outcome of an administrator bounce.
+     */
+    public enum AdminBounce {
+        /** Dead-lettered, with a notification queued for every remaining recipient. */
+        BOUNCED,
+        /** Missing, dead or being delivered by a worker; left untouched. */
+        NOT_READY,
+        /** A notification could not be prepared; nothing was sent and the item stays queued. */
+        NOT_NOTIFIED
+    }
+
+    /**
+     * Bounces a queued item on an administrator's request.
+     *
+     * <p>The item is claimed first, so a message a worker is delivering is never dead-lettered
+     * under it. Every remaining recipient's sender then gets a delivery status notification, and
+     * the notifications and the dead item are committed in one mutation batch. If any notification
+     * cannot be prepared, the prepared ones are discarded and the claim is released unchanged.
+     */
+    public AdminBounce bounceByAdmin(String uid, String reason) {
+        long now = java.time.Instant.now().getEpochSecond();
+        QueueItem<RelaySession> item = queue.claimByUID(uid, ADMIN_CONSUMER_ID, now + ADMIN_CLAIM_SECONDS);
+        if (item == null) {
+            return AdminBounce.NOT_READY;
+        }
+        RelayQueueWorkResult result;
+        try {
+            result = bounceClaimedItem(item, reason);
+        } catch (RuntimeException e) {
+            queue.applyMutations(new QueueMutationBatch<>(List.of(QueueMutation.reschedule(
+                    item, item.getNextAttemptAtEpochSeconds(), item.getLastError())), List.of()));
+            throw e;
+        }
+        queue.applyMutations(new QueueMutationBatch<>(List.of(result.mutation()), result.newItems()));
+        deleteEnvelopeFiles(result.cleanupPaths());
+        if (result.mutation().type() != QueueMutationType.DEAD) {
+            return AdminBounce.NOT_NOTIFIED;
+        }
+        log.info("Bounced by administrator: item={}, notifications={}", uid, result.newItems().size());
+        return AdminBounce.BOUNCED;
+    }
+
+    /**
+     * Builds the outcome of an administrator bounce for a claimed item without committing it.
+     * The work happens on a copy of the payload, so releasing the claim stores the item as it was.
+     */
+    RelayQueueWorkResult bounceClaimedItem(QueueItem<RelaySession> item, String reason) {
+        RelaySession original = item.getPayload();
+        if (original == null || original.getSession() == null) {
+            return new RelayQueueWorkResult(QueueMutation.dead(item, reason), List.of(), List.of());
+        }
+        RelaySession session = (RelaySession) QueuePayloadCodec.deserialize(QueuePayloadCodec.serialize(original));
+        session.getSession().getSessionTransactionList().clear();
+        session.getSession().getSessionTransactionList().addTransaction("QUEUE", reason, true);
+
+        List<RecipientFailure> failures = new ArrayList<>();
+        for (MessageEnvelope envelope : session.getSession().getEnvelopes()) {
+            if (envelope != null && envelope.getRcpts() != null) {
+                for (String recipient : new LinkedHashSet<>(envelope.getRcpts())) {
+                    failures.add(new RecipientFailure(envelope, recipient));
+                }
+            }
+        }
+        PreparedNotifications prepared = prepareNotifications(session, failures);
+        if (!prepared.unprepared().isEmpty()) {
+            List<Path> discarded = new ArrayList<>();
+            for (RelaySession notification : prepared.sessions()) {
+                discarded.addAll(collectCleanupPaths(notification.getSession().getEnvelopes()));
+            }
+            log.error("Administrator bounce not applied, notifications could not be prepared: item={}, pending={}",
+                    item.getUid(), prepared.unprepared().size());
+            return new RelayQueueWorkResult(QueueMutation.reschedule(item, item.getNextAttemptAtEpochSeconds(),
+                    item.getLastError()), List.of(), discarded);
+        }
+        item.setPayload(session).setRetryCount(session.getRetryCount()).dead(reason);
+        return new RelayQueueWorkResult(QueueMutation.dead(item, reason), prepared.sessions(), List.of());
     }
 
     RelayQueueWorkResult expireClaimedItem(QueueItem<RelaySession> item) {

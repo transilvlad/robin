@@ -197,6 +197,28 @@ class RedisQueueDatabaseTest {
         assertEquals(itemCount, page.items().size());
     }
 
+    @Test
+    void claimByUidTakesOnlyReadyItems() {
+        long now = Instant.now().getEpochSecond();
+        QueueItem<RelaySession> busy = database.enqueue(QueueItem.ready(relaySession("busy")));
+        assertEquals(1, database.claimReady(1, now, "worker", now + 60).size());
+        QueueItem<RelaySession> future = database.enqueue(QueueItem.ready(relaySession("future")).readyAt(now + 3600));
+        QueueItem<RelaySession> dead = database.enqueue(QueueItem.ready(relaySession("dead")));
+        database.markDead(dead.getUid(), "permanent failure");
+
+        assertNull(database.claimByUID(busy.getUid(), "admin", now + 300));
+        assertEquals("worker", database.getByUID(busy.getUid()).getClaimOwner());
+        assertNull(database.claimByUID(dead.getUid(), "admin", now + 300));
+        assertNull(database.claimByUID("missing", "admin", now + 300));
+
+        QueueItem<RelaySession> claimed = database.claimByUID(future.getUid(), "admin", now + 300);
+        assertNotNull(claimed);
+        assertEquals(QueueItemState.CLAIMED, claimed.getState());
+        assertEquals("admin", claimed.getClaimOwner());
+        assertNull(database.claimByUID(future.getUid(), "admin", now + 300));
+        assertTrue(database.claimReady(10, now + 7200, "worker", now + 7300).isEmpty());
+    }
+
     private RelaySession relaySession(String sessionUid) {
         return new RelaySession(new Session().setUID(sessionUid));
     }

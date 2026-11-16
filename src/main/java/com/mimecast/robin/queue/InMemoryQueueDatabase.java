@@ -105,6 +105,18 @@ public class InMemoryQueueDatabase<T extends Serializable> implements QueueDatab
     }
 
     @Override
+    public synchronized QueueItem<T> claimByUID(String uid, String consumerId, long claimUntilEpochSeconds) {
+        QueueItem<T> item = uid == null ? null : items.get(uid);
+        if (item == null || item.getState() != QueueItemState.READY) {
+            return null;
+        }
+        removeIndexes(item);
+        item.claim(consumerId, claimUntilEpochSeconds);
+        upsert(item);
+        return copyItem(item);
+    }
+
+    @Override
     public synchronized boolean acknowledge(String uid) {
         QueueMutationBatch<T> batch = new QueueMutationBatch<>(
                 List.of(QueueMutation.acknowledge(QueueItem.restore(uid, 0L, null))),

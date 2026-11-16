@@ -224,6 +224,35 @@ public abstract class SQLQueueDatabase<T extends Serializable> implements QueueD
     }
 
     @Override
+    public QueueItem<T> claimByUID(String uid, String consumerId, long claimUntilEpochSeconds) {
+        // The state condition makes the UPDATE the claim: a worker's claim or a dead row matches nothing.
+        String sql = "UPDATE " + tableName + " SET state = ?, claim_owner = ?, claimed_until = ?, updated_epoch = ?"
+                + " WHERE queue_uid = ? AND state = ?";
+        try (Connection connection = dataSource.getConnection()) {
+            connection.setAutoCommit(false);
+            int claimed;
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setString(1, QueueItemState.CLAIMED.name());
+                statement.setString(2, consumerId);
+                statement.setLong(3, claimUntilEpochSeconds);
+                statement.setLong(4, System.currentTimeMillis() / 1000);
+                statement.setString(5, uid);
+                statement.setString(6, QueueItemState.READY.name());
+                claimed = statement.executeUpdate();
+            }
+            List<QueueItem<T>> items = claimed > 0 ? fetchByUIDs(connection, List.of(uid)) : List.of();
+            connection.commit();
+            if (claimed > 0) {
+                cachedStats = null;
+            }
+            return items.isEmpty() ? null : items.getFirst();
+        } catch (SQLException e) {
+            log.error("Failed to claim queue item {}: {}", uid, e.getMessage(), e);
+            throw new RuntimeException("Failed to claim queue item", e);
+        }
+    }
+
+    @Override
     public boolean acknowledge(String uid) {
         return deleteByUID(uid);
     }

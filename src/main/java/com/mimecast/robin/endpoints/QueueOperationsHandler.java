@@ -6,8 +6,10 @@ import com.mimecast.robin.queue.QueueItem;
 import com.mimecast.robin.queue.QueueItemState;
 import com.mimecast.robin.queue.QueueListFilter;
 import com.mimecast.robin.queue.QueuePage;
+import com.mimecast.robin.queue.RelayDequeue;
 import com.mimecast.robin.queue.RelaySession;
 import com.mimecast.robin.smtp.MessageEnvelope;
+import com.mimecast.robin.smtp.SmtpResponses;
 import com.mimecast.robin.smtp.session.Session;
 import com.sun.net.httpserver.HttpExchange;
 import org.apache.logging.log4j.LogManager;
@@ -202,7 +204,10 @@ public class QueueOperationsHandler {
     /**
      * Handles <b>POST /client/queue/bounce</b> requests.
      *
-     * <p>Moves queue items by UID or UIDs to the dead state.
+     * <p>Bounces queue items by UID or UIDs: each sender gets a delivery status notification for
+     * every remaining recipient and the item moves to the dead state. Items a worker is delivering,
+     * dead or missing items are listed under "notReady" and left alone; items whose notification
+     * could not be prepared are listed under "notNotified" and stay queued.
      * <p>Accepts JSON body with either "uid" (single string) or "uids" (array of strings).
      */
     public void handleBounce(HttpExchange exchange) throws IOException {
@@ -240,17 +245,27 @@ public class QueueOperationsHandler {
                 return;
             }
 
+            RelayDequeue dequeue = new RelayDequeue(queue);
             int bouncedCount = 0;
+            List<String> notReady = new ArrayList<>();
+            List<String> notNotified = new ArrayList<>();
             for (String uid : targetUIDs) {
-                if (queue.markDead(uid, "Bounced by admin endpoint")) {
-                    bouncedCount++;
+                if (uid == null || uid.isBlank()) {
+                    continue;
+                }
+                switch (dequeue.bounceByAdmin(uid, SmtpResponses.QUEUE_ADMIN_BOUNCE_554)) {
+                    case BOUNCED -> bouncedCount++;
+                    case NOT_READY -> notReady.add(uid);
+                    case NOT_NOTIFIED -> notNotified.add(uid);
                 }
             }
-            log.info("Bounced {} queue items", bouncedCount);
+            log.info("Bounced {} queue items, notReady={}, notNotified={}", bouncedCount, notReady, notNotified);
 
             Map<String, Object> response = new HashMap<>();
             response.put("status", "OK");
             response.put("bouncedCount", bouncedCount);
+            response.put("notReady", notReady);
+            response.put("notNotified", notNotified);
             response.put("queueSize", queue.size());
 
             String json = gson.toJson(response);

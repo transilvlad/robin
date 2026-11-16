@@ -41,6 +41,61 @@ class SqlQueueStartupIntegrationTest {
         }
     }
 
+    @Test
+    void claimByUidTakesOnlyReadyRows() {
+        String jdbcUrl = System.getProperty("robin.integration.jdbcUrl");
+        assertNotNull(jdbcUrl, "Supply the isolated integration database URL");
+        String table = "queue_claim_test_" + UUID.randomUUID().toString().replace("-", "");
+        PgQueue queue = new PgQueue(jdbcUrl, table);
+        queue.initialize();
+        try {
+            queue.enqueue(QueueItem.restore("busy", 100, "busy payload").readyAt(1));
+            assertEquals(1, queue.claimReady(1, 2, "worker", 1000).size());
+            queue.enqueue(QueueItem.restore("future", 101, "future payload").readyAt(5000));
+            queue.enqueue(QueueItem.restore("dead", 102, "dead payload").readyAt(1));
+            queue.markDead("dead", "permanent failure");
+
+            assertNull(queue.claimByUID("busy", "admin", 3000));
+            assertEquals("worker", queue.getByUID("busy").getClaimOwner());
+            assertNull(queue.claimByUID("dead", "admin", 3000));
+            assertNull(queue.claimByUID("missing", "admin", 3000));
+
+            QueueItem<String> claimed = queue.claimByUID("future", "admin", 3000);
+            assertNotNull(claimed);
+            assertEquals("future payload", claimed.getPayload());
+            assertEquals(QueueItemState.CLAIMED, claimed.getState());
+            assertEquals("admin", claimed.getClaimOwner());
+            assertNull(queue.claimByUID("future", "admin", 3000));
+            assertTrue(queue.claimReady(10, 10_000, "worker", 20_000).isEmpty());
+        } finally {
+            queue.clear();
+            try (var connection = DriverManager.getConnection(jdbcUrl, "robin", "robin");
+                 var statement = connection.createStatement()) {
+                statement.execute("DROP TABLE IF EXISTS " + table);
+            } catch (Exception ignored) {
+            }
+            queue.close();
+        }
+    }
+
+    private static class PgQueue extends SQLQueueDatabase<String> {
+        PgQueue(String jdbcUrl, String table) {
+            super(new DBConfig(jdbcUrl, "robin", "robin", table, 1));
+        }
+
+        @Override
+        protected String getDatabaseType() { return "PostgreSQL"; }
+
+        @Override
+        protected String getCreateTableSQL() {
+            return "CREATE TABLE IF NOT EXISTS " + tableName + " ("
+                    + "id BIGSERIAL PRIMARY KEY, queue_uid VARCHAR(191) NOT NULL UNIQUE, state VARCHAR(16) NOT NULL, "
+                    + "next_attempt_at BIGINT NOT NULL, claimed_until BIGINT NOT NULL DEFAULT 0, claim_owner VARCHAR(255), "
+                    + "created_epoch BIGINT NOT NULL, updated_epoch BIGINT NOT NULL, retry_count INTEGER NOT NULL DEFAULT 0, "
+                    + "protocol VARCHAR(64), session_uid VARCHAR(255), last_error TEXT, data BYTEA NOT NULL)";
+        }
+    }
+
     private static class TestQueue extends SQLQueueDatabase<String> {
         TestQueue(String jdbcUrl, String table) {
             super(new DBConfig(jdbcUrl, "robin", "robin", table, 1));

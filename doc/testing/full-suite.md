@@ -278,6 +278,7 @@ The assertions in each file remain the source of truth.
 | `scanning/virus-eicar-forwarded.json5` | EICAR inside a forwarded message (message/rfc822) is found |
 | `queue/chaos-lmtp-retry.json5` | Injected LMTP failure for one recipient: the other is delivered inline, the failed one is queued and then delivered from the queue |
 | `queue/queue-api.json5` | `/client/queue` returns the item uid; list, retry, bounce and delete each change the queue as expected |
+| `queue/admin-bounce-dsn.json5` | A deferred message bounced through `/client/queue/bounce` reaches its sender as a DSN carrying the administrator's reason |
 | `queue/queue-raw-eml.json5` | A raw EML upload to `/client/queue` is queued, listed and deleted |
 | `relay/outbound-mx-relay.json5` | Authenticated submission relayed by MX lookup to robin-sink; the received copy is read back through the sink's `/store` API |
 | `relay/open-relay-refused.json5` | Unauthenticated mail to a remote domain is refused and never reaches robin-sink |

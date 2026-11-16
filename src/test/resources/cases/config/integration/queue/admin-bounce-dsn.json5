@@ -1,0 +1,112 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: bouncing a queued message through the API notifies its sender.
+  // Flow: AUTH on 587 → queued for MX relay → robin-sink defers it (tempfail) → POST
+  //       /client/queue/bounce with the item uid → Robin makes a DSN to tony@example.com →
+  //       MX for example.com is Robin → tony's INBOX.
+  // Validates: the bounce reports the item; the DSN carries the administrator's reason, names the
+  // recipient and references the original message. A worker holding the item makes the endpoint
+  // report it under notReady instead, so the bounce request is retried until it lands.
+
+  mx: ["127.0.0.1"],
+  port: 2587,
+  tls: true,
+
+  auth: true,
+  user: "tony@example.com",
+  pass: "stark",
+
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["tempfail+admin-bounce@remote.test"],
+      file: "src/test/resources/cases/sources/lipsum.eml",
+
+      assertions: {
+        protocol: [
+          ["MAIL", "^250"],
+          ["RCPT", "^250"],
+          ["DATA", "^250"]
+        ],
+
+        external: [
+          {
+            // The receiving session queued the message; capture its queue item.
+            type: "request",
+            wait: 1,
+            delay: 2,
+            retry: 5,
+            request: {
+              url: "http://127.0.0.1:28090/logs?q={$transactionUid}",
+              type: "GET"
+            },
+            verify: ["Queued relay: item=[\\w-]+, session=[\\w-]+, protocol=mx"],
+            magic: [
+              { name: "queueItem", pattern: "Queued relay: item=([\\w-]+), session=[\\w-]+" }
+            ]
+          },
+          {
+            type: "request",
+            wait: 0,
+            delay: 1,
+            retry: 10,
+            request: {
+              url: "http://127.0.0.1:28090/client/queue/bounce",
+              type: "POST",
+              content: {
+                payload: "{\"uid\": \"{$queueItem}\"}",
+                mimeType: "application/json"
+              }
+            },
+            verify: ["^bouncedCount: 1"]
+          },
+          {
+            // The DSN in the sender's mailbox, found by its In-Reply-To.
+            type: "imap",
+            wait: 5,
+            delay: 3,
+            retry: 15,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "tony@example.com",
+            pass: "stark",
+            folder: "INBOX",
+            findBy: "In-Reply-To",
+            delete: true,
+            matches: {
+              headers: [
+                ["^subject: Delivery Status Notification \\(Failure\\)$"],
+                ["^from: mailer-daemon@"],
+                ["^content-type: multipart/report"]
+              ],
+              parts: [
+                {
+                  headers: [["content-type", "message/delivery-status"]],
+                  body: [
+                    ["Final-Recipient: RFC822; tempfail\\+admin-bounce@remote\\.test"],
+                    ["Action: failed"],
+                    ["Status: 5\\.0\\.0"],
+                    ["Diagnostic-Code: SMTP; 554 5\\.0\\.0 Message bounced by the queue administrator"]
+                  ]
+                },
+                {
+                  headers: [["content-type", "text/rfc822-headers"]],
+                  body: [["Subject: Lipsum"]]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"],
+      ["AUTH", "^235"],
+      ["QUIT", "^221"]
+    ]
+  }
+}

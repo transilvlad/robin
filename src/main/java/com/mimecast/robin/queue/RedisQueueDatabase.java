@@ -174,6 +174,36 @@ public class RedisQueueDatabase<T extends Serializable> implements QueueDatabase
     }
 
     @Override
+    public QueueItem<T> claimByUID(String uid, String consumerId, long claimUntilEpochSeconds) {
+        // Membership of the ready set is the READY state; moving it in one script makes the claim atomic.
+        String script = """
+                if not redis.call('ZSCORE', KEYS[1], ARGV[1]) then
+                  return 0
+                end
+                redis.call('ZREM', KEYS[1], ARGV[1])
+                redis.call('ZADD', KEYS[2], ARGV[2], ARGV[1])
+                redis.call('HSET', ARGV[3] .. ARGV[1] .. ':meta',
+                  'state', ARGV[4],
+                  'claimOwner', ARGV[5],
+                  'claimedUntil', ARGV[2],
+                  'updatedAt', ARGV[6])
+                return 1
+                """;
+        try (Jedis jedis = jedisPool.getResource()) {
+            Object claimed = jedis.eval(script, List.of(readyKey(), claimedKey()),
+                    List.of(uid, String.valueOf(claimUntilEpochSeconds), keyPrefix(), QueueItemState.CLAIMED.name(),
+                            consumerId, String.valueOf(System.currentTimeMillis() / 1000)));
+            if (((Number) claimed).intValue() == 0) {
+                return null;
+            }
+        } catch (Exception e) {
+            log.error("Failed to claim queue item {}: {}", uid, e.getMessage(), e);
+            throw new RuntimeException("Failed to claim queue item", e);
+        }
+        return getByUID(uid);
+    }
+
+    @Override
     public boolean acknowledge(String uid) {
         return deleteByUID(uid);
     }

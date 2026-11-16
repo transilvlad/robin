@@ -60,6 +60,13 @@ public class PersistentQueue<T extends Serializable> implements Closeable {
     }
 
     /**
+     * Claims one READY item by UID; null when it is missing, claimed or dead.
+     */
+    public QueueItem<T> claimByUID(String uid, String consumerId, long claimUntilEpochSeconds) {
+        return database.claimByUID(uid, consumerId, claimUntilEpochSeconds);
+    }
+
+    /**
      * Acknowledges a completed item.
      */
     public boolean acknowledge(String uid) {

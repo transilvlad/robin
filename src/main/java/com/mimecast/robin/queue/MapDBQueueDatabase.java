@@ -197,6 +197,22 @@ public class MapDBQueueDatabase<T extends Serializable> implements QueueDatabase
     }
 
     @Override
+    public synchronized QueueItem<T> claimByUID(String uid, String consumerId, long claimUntilEpochSeconds) {
+        if (uid == null || quarantinedUids.contains(uid)) {
+            return null;
+        }
+        QueueItem<T> item = items.get(uid);
+        if (item == null || item.getState() != QueueItemState.READY) {
+            return null;
+        }
+        removeIndexes(item);
+        item.claim(consumerId, claimUntilEpochSeconds);
+        putItem(item);
+        commit();
+        return copyItem(item);
+    }
+
+    @Override
     public synchronized boolean acknowledge(String uid) {
         boolean removed = deleteInternal(uid);
         if (removed) {
