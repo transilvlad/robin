@@ -1,0 +1,43 @@
+MIME-Version: 1.0
+From: <{$MAILFROM}>
+To: <{$RCPTTO}>
+Date: {$DATE}
+Message-ID: <{$MSGID}{$MAILFROM}>
+Subject: Fwd: Lipsum
+Content-Type: multipart/mixed;
+	boundary="----=_outer"
+
+------=_outer
+Content-Type: text/plain; charset=UTF-8
+
+Forwarding the message below. Its attachment is the EICAR anti-virus test file.
+
+------=_outer
+Content-Type: message/rfc822
+Content-Disposition: attachment; filename="forwarded.eml"
+
+MIME-Version: 1.0
+From: <someone@example.net>
+To: <tony@example.com>
+Date: Mon, 2 Nov 2026 10:00:00 +0000
+Message-ID: <forwarded-eicar@example.net>
+Subject: Lipsum
+Content-Type: multipart/mixed;
+	boundary="----=_inner"
+
+------=_inner
+Content-Type: text/plain; charset=UTF-8
+
+Inner message body.
+
+------=_inner
+Content-Type: application/octet-stream; name="eicar.com"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="eicar.com"
+
+WDVPIVAlQEFQWzRcUFpYNTQoUF4pN0NDKTd9JEVJQ0FSLV
+NUQU5EQVJELUFOVElWSVJVUy1URVNULUZJTEUhJEgrSCo=
+
+------=_inner--
+
+------=_outer--

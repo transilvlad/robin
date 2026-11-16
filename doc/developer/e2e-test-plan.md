@@ -1,13 +1,44 @@
 # End-to-end test plan
 
 Status: steps 1-3 implemented 2026-11-14 (Phase 0 green in Docker; CI workflows added;
-harness with robin-sink, http-sink, test DNS and folder discovery). Later steps proposed.
+harness with robin-sink, http-sink, test DNS and folder discovery). Step 4 (the P0 cases of
+sections A-E, except HTTP auth, which needs `robin-edge`) implemented 2026-11-15. Later steps proposed.
 The harness found two release bugs on its first relay: the shipped `cfg/server.json5` pointed
 the truststore at a JDK path missing from the Corretto image, which disabled MTA-STS, and
 `StrictMx` then threw a NullPointerException that bypassed the 451 retry handling, so every
 MX delivery failed. `robin-edge` is deferred to the steps that need it (policy, auth, DoS). Goal: release confidence for production use, and a
 suite of JSON5 cases that doubles as a demonstration of what Robin's case system
 can test on an MTA.
+
+**Bugs step 4 found and fixed**
+
+- BDAT kept only the last chunk of a multi-chunk message, and applied the size limit per chunk.
+- Dot-stuffing: the client stuffed only lines that were exactly `.`, and the server never
+  removed the stuffed dot, so stored messages, scanners, webhooks and DKIM saw stuffed content.
+- AUTH was offered on the submission port before STARTTLS, and STARTTLS was offered again
+  after TLS was up (RFC 3207 4.2).
+- The MIME builder wrote `Message-ID: <uuid>`: invalid (no domain, scored by Rspamd) and not
+  the envelope's ID, so IMAP assertions could never find a built message.
+- DSNs did not reference the original message: they now carry `In-Reply-To`/`References`
+  and the original headers as a `text/rfc822-headers` part.
+- `/client/queue` refused cases using `subject`/`message` or `mime` with `507 Insufficient
+  Storage`; it now builds the message before queueing and answers 400 when there is none.
+- Request `content.payload` was the only request field without magic replacement.
+- Harness: the per-IP connection cap (10) dropped concurrent cases; `example.com` had no test
+  zone, so DSNs to local senders went to the real domain's null MX.
+
+**Open questions from step 4**
+
+- 8BITMIME is not advertised although SMTPUTF8 is (RFC 6531 requires 8BITMIME support).
+- `/client/queue/bounce` marks the item dead without sending the sender a DSN, and `markDead`
+  is unconditional: it also kills an item a worker is delivering.
+- Queue worker log lines carry the previous item's session, IP and sender in the context columns.
+- RSET is a no-op on the client connection, and the server enforces no command sequence
+  (BDAT or DATA without MAIL).
+- `/logs` logs its own query, so `verifyNone` on `/logs` always matches itself.
+- The seeded auto-alias `tony@` is not resolved by the integration alias query.
+- No spam or `Authentication-Results` headers are added on clean mail (Rspamd returns no
+  header mutations in this stack), so the section C spam-header row is not covered.
 
 ## 1. Where we are
 

@@ -104,8 +104,8 @@ the stack has three services that let cases test outbound paths without the inte
 
 | Service | Network names | Role |
 |---|---|---|
-| `integration-sink` | `sink-backend`, `mx.sink.test` | A second Robin, the remote MTA. It accepts any recipient, stores mail in local maildirs readable through `GET /store/<domain>/<user>/new/`, and answers scripted addresses from `sink-cfg/scenarios.json5` (`tempfail@`, `tempfail-full@`, `greylist@`, `permfail@`, `permfail-quota@`, `permfail-policy@remote.test`). |
-| `integration-dns` | `dns-backend` | CoreDNS. Serves `remote.test` (MX `mx.sink.test`) and `rbl.test` (`127.0.0.2` listed), and forwards everything else to Docker DNS. Robin under test uses it through `server.json5` `dns.servers`. |
+| `integration-sink` | `sink-backend`, `mx.sink.test` | A second Robin, the remote MTA. It accepts any recipient, stores mail in local maildirs readable through `GET /store/<domain>/<user>/new/`, and answers scripted addresses from `sink-cfg/scenarios.json5` (`tempfail@`, `tempfail-full@`, `greylist@`, `permfail@`, `permfail-quota@`, `permfail-policy@remote.test`). Each also takes a `+tag` (`permfail+my-case@remote.test`) so concurrent cases use their own address. |
+| `integration-dns` | `dns-backend` | CoreDNS. Serves `remote.test` (MX `mx.sink.test`), `example.com` (MX `mx.robin.test`, Robin under test, so DSNs to local senders come back as in production) and `rbl.test` (`127.0.0.2` listed), and forwards everything else to Docker DNS. Robin under test uses it through `server.json5` `dns.servers`. |
 | `integration-http-sink` | `http-sink` | Records every HTTP request and serves them back: `GET /_sink/requests?path=/prefix`. Replies can be scripted with `POST /_sink/responses` (`path`, `status`, `body`, `contentType`, `delaySeconds`). See `http-sink/http_sink.py`. |
 
 Robin under test relays authenticated (outbound) mail by MX lookup (`cfg/relay.json5`), so a
@@ -251,15 +251,41 @@ The assertions in each file remain the source of truth.
 | `inbound/basic-smtp.json5` | SMTP acceptance |
 | `inbound/user-not-found.json5` | SQL-backed recipient rejection |
 | `inbound/invalid-sender.json5` | Invalid MAIL FROM rejection |
+| `inbound/ehlo-capabilities.json5` | EHLO extensions before and after STARTTLS; no AUTH on the inbound port; no STARTTLS once TLS is up |
+| `inbound/tls-negotiated.json5` | STARTTLS negotiates TLS 1.2 or 1.3 and the message is delivered |
+| `inbound/tls-legacy-refused.json5` | A TLS 1.0-only client cannot negotiate TLS |
+| `inbound/bdat-byte-exact.json5` | CHUNKING in several chunks, including chunks that split lines, delivers a binary part byte for byte |
+| `inbound/data-transparency.json5` | Lines starting with a dot survive DATA (dot-stuffing) and a binary part keeps its hash |
+| `inbound/header-bare-cr-refused.json5` | A bare CR in the header block is refused with 554 and nothing is delivered |
+| `inbound/size-limit-data.json5` | A message over the size limit is refused with 552 over DATA |
+| `inbound/size-limit-bdat.json5` | The size limit applies to the whole BDAT message, not each chunk |
+| `inbound/multiple-envelopes.json5` | Several transactions on one connection are each delivered |
+| `submission/auth-plain.json5`, `auth-login.json5`, `auth-login-combined.json5` | Submission with each AUTH mechanism, relayed and read back at robin-sink |
+| `submission/auth-bad-password.json5` | A wrong password gets 535 |
+| `submission/mail-without-auth.json5` | MAIL on the submission port without AUTH gets 530 |
+| `submission/auth-requires-tls.json5` | AUTH is not offered before STARTTLS |
 | `delivery/delivery-success.json5` | Delivery through scanners and LMTP, verified by IMAP |
 | `delivery/multiple-recipients.json5` | Delivery to both valid recipients |
 | `delivery/partial-delivery-mixed.json5` | Valid delivery alongside invalid recipient rejection |
 | `delivery/chaos-storage-failure.json5` | Injected storage failure rejected with 451 |
+| `delivery/chaos-matrix.json5` | Injected failure in each processor (antivirus, spam, local storage, Dovecot) gets 451 and nothing is delivered |
+| `delivery/rich-mime-roundtrip.json5` | A built multipart message (QP text with non-ASCII, HTML, PDF, JPEG) arrives with every part intact |
+| `delivery/sql-alias.json5` | Mail to an SQL alias is delivered to the alias target |
 | `scanning/spam-gtube.json5` | GTUBE rejection with 541 and spam log evidence |
 | `scanning/virus-eicar.json5` | EICAR rejection by ClamAV |
 | `scanning/virus-eicar-epilogue.json5` | EICAR rejection when the attachment is smuggled into a MIME epilogue |
+| `scanning/virus-eicar-zip.json5` | EICAR inside a zip attachment is found |
+| `scanning/virus-eicar-forwarded.json5` | EICAR inside a forwarded message (message/rfc822) is found |
 | `queue/chaos-lmtp-retry.json5` | Injected LMTP failure for one recipient: the other is delivered inline, the failed one is queued and then delivered from the queue |
+| `queue/queue-api.json5` | `/client/queue` returns the item uid; list, retry, bounce and delete each change the queue as expected |
+| `queue/queue-raw-eml.json5` | A raw EML upload to `/client/queue` is queued, listed and deleted |
 | `relay/outbound-mx-relay.json5` | Authenticated submission relayed by MX lookup to robin-sink; the received copy is read back through the sink's `/store` API |
+| `relay/open-relay-refused.json5` | Unauthenticated mail to a remote domain is refused and never reaches robin-sink |
+| `relay/permfail-bounce.json5` | A 5xx from the remote MTA is bounced at once: a DSN with the 5.1.1 status, the original headers and an `In-Reply-To` reaches the sender |
+| `relay/tempfail-retry-bounce.json5` | A 4xx is retried until the retry budget is spent, then bounced with `Action: failed` |
+| `api/health.json5` | `/health` reports UP |
+| `api/users.json5` | `/users`, `/users/{user}/exists` and `/users/authenticate` against the SQL backend, both outcomes |
+| `api/client-send.json5` | `/client/send` runs a case inside Robin and returns the SMTP session |
 | `harness/http-sink-recorder.json5` | HTTP case: the http-sink records a POST and serves it back |
 | `selftest/*.json5` | Cases that must fail, each for a stated reason; proves every assertion type can fail |
 

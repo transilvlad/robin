@@ -166,6 +166,9 @@ public class RelayMessage {
                 // Enqueue for relay delivery.
                 PersistentQueue.getInstance()
                         .enqueue(relaySession);
+                // Logged under the receiving session, so its log trail leads to the queued delivery.
+                log.info("Queued relay: item={}, session={}, protocol={}", relaySession.getUID(),
+                        relaySession.getSession().getUID(), relaySession.getProtocol());
 
                 // Message is safely persisted to the queue; release the references
                 // the envelope clones acquired so the spool file can be freed.

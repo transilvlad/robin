@@ -1,0 +1,187 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: CHUNKING (BDAT) transfers arrive byte-exact, however the client splits the writes.
+  // Flow: three envelopes on one connection, each a text part plus a 52 KB JPEG, sent with
+  //       BDAT in 4 KB chunks: plain, with the BDAT command written alongside its chunk
+  //       (chunkBdat), and with uneven socket writes (chunkWrite).
+  // Validates: every chunk is accepted, DATA is never used, and the attachment delivered to
+  // pepper's mailbox has the same SHA-256 as the source file.
+
+  mx: ["127.0.0.1"],
+  port: 2525,
+  tls: true,
+
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      chunkSize: 4096,
+      mime: {
+        headers: [
+          ["Subject", "BDAT plain chunks"]
+        ],
+        parts: [
+          {
+            headers: [["Content-Type", "text/plain; charset=\"UTF-8\""]],
+            message: "Chunked transfer, plain."
+          },
+          {
+            headers: [
+              ["Content-Type", "image/jpeg; name=\"logo.jpg\""],
+              ["Content-Disposition", "attachment; filename=\"logo.jpg\""],
+              ["Content-Transfer-Encoding", "base64"]
+            ],
+            file: "src/test/resources/mime/logo.jpg"
+          }
+        ]
+      },
+      assertions: {
+        protocol: [
+          ["BDAT", "^250", "all"],
+          ["BDAT", "^250", 10],
+          ["DATA", ".", "none"]
+        ],
+        external: [
+          {
+            type: "imap",
+            wait: 2,
+            delay: 2,
+            retry: 5,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "pepper@example.com",
+            pass: "potts",
+            folder: "INBOX",
+            delete: true,
+            matches: {
+              headers: [["^subject: BDAT plain chunks$"]],
+              parts: [
+                {
+                  headers: [["content-type", "image/jpeg"]],
+                  hashes: { sha256: "InlYRXad/jh9hZQ59nlvtn3tDnw6uv28j9Ab2AaHK7U=" }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      chunkSize: 4096,
+      chunkBdat: true,
+      mime: {
+        headers: [
+          ["Subject", "BDAT command with chunk"]
+        ],
+        parts: [
+          {
+            headers: [["Content-Type", "text/plain; charset=\"UTF-8\""]],
+            message: "Chunked transfer, command written with the chunk."
+          },
+          {
+            headers: [
+              ["Content-Type", "image/jpeg; name=\"logo.jpg\""],
+              ["Content-Disposition", "attachment; filename=\"logo.jpg\""],
+              ["Content-Transfer-Encoding", "base64"]
+            ],
+            file: "src/test/resources/mime/logo.jpg"
+          }
+        ]
+      },
+      assertions: {
+        protocol: [
+          ["BDAT", "^250", "all"],
+          ["DATA", ".", "none"]
+        ],
+        external: [
+          {
+            type: "imap",
+            wait: 2,
+            delay: 2,
+            retry: 5,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "pepper@example.com",
+            pass: "potts",
+            folder: "INBOX",
+            delete: true,
+            matches: {
+              headers: [["^subject: BDAT command with chunk$"]],
+              parts: [
+                {
+                  headers: [["content-type", "image/jpeg"]],
+                  hashes: { sha256: "InlYRXad/jh9hZQ59nlvtn3tDnw6uv28j9Ab2AaHK7U=" }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      chunkSize: 4096,
+      chunkWrite: true,
+      mime: {
+        headers: [
+          ["Subject", "BDAT uneven writes"]
+        ],
+        parts: [
+          {
+            headers: [["Content-Type", "text/plain; charset=\"UTF-8\""]],
+            message: "Chunked transfer, uneven socket writes."
+          },
+          {
+            headers: [
+              ["Content-Type", "image/jpeg; name=\"logo.jpg\""],
+              ["Content-Disposition", "attachment; filename=\"logo.jpg\""],
+              ["Content-Transfer-Encoding", "base64"]
+            ],
+            file: "src/test/resources/mime/logo.jpg"
+          }
+        ]
+      },
+      assertions: {
+        protocol: [
+          ["BDAT", "^250", "all"],
+          ["DATA", ".", "none"]
+        ],
+        external: [
+          {
+            type: "imap",
+            wait: 2,
+            delay: 2,
+            retry: 5,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "pepper@example.com",
+            pass: "potts",
+            folder: "INBOX",
+            delete: true,
+            matches: {
+              headers: [["^subject: BDAT uneven writes$"]],
+              parts: [
+                {
+                  headers: [["content-type", "image/jpeg"]],
+                  hashes: { sha256: "InlYRXad/jh9hZQ59nlvtn3tDnw6uv28j9Ab2AaHK7U=" }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"],
+      ["SHLO", "CHUNKING"],
+      ["QUIT", "^221"]
+    ]
+  }
+}

@@ -464,26 +464,45 @@ public class ServerData extends ServerProcessor {
 
     /**
      * Binary receipt.
-     * TODO: Support multiple BDAT chunks.
+     * <p>A message may arrive as several BDAT chunks. The first chunk opens one storage
+     * receipt, every chunk is appended to it, the size limit applies to the running total,
+     * and the message is saved and scanned once, after BDAT LAST.
      *
      * @return Boolean.
      * @throws IOException Unable to communicate.
      */
     private boolean binary() throws IOException {
         BdatVerb bdatVerb = new BdatVerb(verb);
+        MessageEnvelope envelope = connection.getSession().getEnvelopes().isEmpty()
+                ? null
+                : connection.getSession().getEnvelopes().getLast();
 
         if (verb.getCount() == 1) {
             connection.write(SmtpResponses.INVALID_ARGS_501);
             return false;
 
         } else if (bdatVerb.getSize() > emailSizeLimit) {
+            if (envelope != null) envelope.abortPendingReceipt();
+            connection.write(String.format(SmtpResponses.MESSAGE_SIZE_LIMIT_EXCEEDED_552, connection.getSession().getUID()));
+            // The oversized chunk is not read; its bytes must not be parsed as commands.
+            connection.close();
+            return false;
+
+        } else if (envelope == null || envelope.getRcpts().isEmpty()) {
+            discardChunk(bdatVerb);
+            connection.write(String.format(SmtpResponses.NO_VALID_RECIPIENTS_554, connection.getSession().getUID()));
+            return false;
+
+        } else if (pendingBytes(envelope) + bdatVerb.getSize() > emailSizeLimit) {
+            // Over the limit in total: read and drop this chunk, then fail the whole message.
+            envelope.abortPendingReceipt();
+            discardChunk(bdatVerb);
             connection.write(String.format(SmtpResponses.MESSAGE_SIZE_LIMIT_EXCEEDED_552, connection.getSession().getUID()));
             return false;
 
         } else {
             // Check if envelope is blackholed.
-            boolean isBlackholed = !connection.getSession().getEnvelopes().isEmpty() &&
-                    connection.getSession().getEnvelopes().getLast().isBlackholed();
+            boolean isBlackholed = envelope.isBlackholed();
 
             if (isBlackholed) {
                 // Blackholed email - read bytes but don't store.
@@ -498,20 +517,28 @@ public class ServerData extends ServerProcessor {
                     log.info("Blackholed email - {} bytes received but not saved", bytesReceived);
                 }
             } else {
-                // Read bytes.
-                if (!ensureDurableStorageAvailable()) {
-                    return false;
-                }
-                StorageClient storageClient = Factories.getStorageClient(connection, "eml");
-                try (CountingOutputStream cos = new CountingOutputStream(openReceiptStream(storageClient))) {
-                    binaryRead(bdatVerb, cos);
-                    bytesReceived = cos.getByteCount();
-                    if (bdatVerb.isLast()) headerFraming().finish();
-                } catch (IOException e) {
-                    if (e instanceof HeaderFraming.InvalidHeaderException) {
-                        abortReceipt(storageClient, e);
-                        throw e;
+                // The first chunk opens the receipt; later chunks append to it.
+                BdatReceipt receipt = envelope.getPendingReceipt() instanceof BdatReceipt pending ? pending : null;
+                if (receipt == null) {
+                    if (!ensureDurableStorageAvailable()) {
+                        return false;
                     }
+                    StorageClient storageClient = Factories.getStorageClient(connection, "eml");
+                    receipt = new BdatReceipt(storageClient, new CountingOutputStream(openReceiptStream(storageClient)));
+                    envelope.setPendingReceipt(receipt);
+                }
+
+                try {
+                    binaryRead(bdatVerb, receipt.stream());
+                    bytesReceived = receipt.bytes();
+                    if (bdatVerb.isLast()) {
+                        headerFraming().finish();
+                        receipt.finish();
+                    }
+                } catch (IOException e) {
+                    envelope.setPendingReceipt(null);
+                    receipt.abort();
+                    if (e instanceof HeaderFraming.InvalidHeaderException) throw e;
                     if (e instanceof SubmissionLimits.QuotaException) throw e;
                     log.error("Failed receiving SMTP BDAT into durable storage: {}", e.getMessage());
                     if (!connection.isSmtpResponseSent()) {
@@ -521,9 +548,10 @@ public class ServerData extends ServerProcessor {
                 }
 
                 if (bdatVerb.isLast()) {
-                    log.debug("Last chunk received.");
+                    log.debug("Last chunk received, {} bytes in total.", bytesReceived);
+                    envelope.setPendingReceipt(null);
                     connection.resetSmtpResponseSent();
-                    if (!storageClient.save()) {
+                    if (!receipt.storageClient().save()) {
                         if (!connection.isSmtpResponseSent()) {
                             connection.write(String.format(SmtpResponses.INTERNAL_ERROR_451, connection.getSession().getUID()));
                         }
@@ -543,6 +571,22 @@ public class ServerData extends ServerProcessor {
 
         releaseCompletedEnvelopeSource();
         return true;
+    }
+
+    /**
+     * Message bytes already received in earlier BDAT chunks of this envelope.
+     */
+    private static long pendingBytes(MessageEnvelope envelope) {
+        return envelope.getPendingReceipt() instanceof BdatReceipt receipt ? receipt.bytes() : 0L;
+    }
+
+    /**
+     * Reads and drops a BDAT chunk that will not be stored, so its bytes are not parsed as commands.
+     */
+    private void discardChunk(BdatVerb bdatVerb) throws IOException {
+        try (CountingOutputStream sink = new CountingOutputStream(OutputStream.nullOutputStream())) {
+            binaryRead(bdatVerb, sink);
+        }
     }
 
     private HeaderFraming headerFraming() {

@@ -181,7 +181,9 @@ services:
         condition: service_healthy
     networks:
       integration:
-        aliases: [mta-backend]
+        # mx.robin.test is the MX for example.com in the test DNS, so mail to local users sent
+        # by MX (delivery status notifications) comes back to Robin as it would in production.
+        aliases: [mta-backend, mx.robin.test]
     healthcheck:
       test: ["CMD-SHELL", "nc -z localhost 25 && wget -q -O - http://localhost:8090/health | grep -q UP"]
       interval: 5s

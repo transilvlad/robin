@@ -81,6 +81,7 @@ public class ConfigMapper {
             session.setAuth(true)
                     .setAuthLoginCombined(config.isAuthLoginCombined())
                     .setAuthLoginRetry(config.isAuthLoginRetry())
+                    .setAuthMechanism(config.getAuthMechanism())
                     .setUsername(config.getUser())
                     .setPassword(config.getPass());
         }

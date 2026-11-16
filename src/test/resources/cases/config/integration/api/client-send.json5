@@ -1,0 +1,41 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: /client/send runs a case from inside Robin and returns the SMTP session.
+  // Flow: POST /client/send with a case for pepper@example.com → Robin's client connects to its own
+  //       SMTP port → delivered → session JSON returned.
+  // Validates: the case runs synchronously and the returned session carries the server's replies,
+  // including the accepted message.
+
+  request: {
+    url: "http://127.0.0.1:28090/health",
+    type: "GET"
+  },
+
+  assertions: {
+    protocol: [
+      ["HTTP", "^200 "]
+    ],
+    external: [
+      {
+        type: "request",
+        wait: 0,
+        delay: 1,
+        retry: 1,
+        request: {
+          url: "http://127.0.0.1:28090/client/send",
+          type: "POST",
+          content: {
+            payload: "{\"mx\": [\"127.0.0.1\"], \"port\": 25, \"tls\": true, \"envelopes\": [{\"mail\": \"tony@example.com\", \"rcpt\": [\"pepper@example.com\"], \"subject\": \"Client send API\", \"message\": \"Sent through /client/send.\"}]}",
+            mimeType: "application/json"
+          }
+        },
+        verify: ["250 2\\.0\\.0 Received OK"],
+        match: [
+          ["220 "],
+          ["250 2\\.1\\.5 Recipient OK"]
+        ]
+      }
+    ]
+  }
+}

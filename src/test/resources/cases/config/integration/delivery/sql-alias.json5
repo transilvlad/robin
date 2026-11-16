@@ -1,0 +1,51 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: mail to an SQL alias is delivered to the alias destination.
+  // Flow: RCPT tony-alias@example.com → alias lookup in Postgres (aliases table, seeded by
+  //       .integration/db-init) → LMTP delivery to tony@example.com.
+  // Validates: the alias is accepted as a recipient and the message lands in tony's INBOX.
+
+  mx: ["127.0.0.1"],
+  port: 2525,
+  tls: true,
+
+  envelopes: [
+    {
+      mail: "pepper@example.com",
+      rcpt: ["tony-alias@example.com"],
+      subject: "Mail for an alias",
+      message: "Sent to tony-alias, delivered to tony.",
+      assertions: {
+        protocol: [
+          ["RCPT", "^250"],
+          ["DATA", "^250"]
+        ],
+        external: [
+          {
+            type: "imap",
+            wait: 2,
+            delay: 2,
+            retry: 5,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "tony@example.com",
+            pass: "stark",
+            folder: "INBOX",
+            delete: true,
+            matches: {
+              headers: [["^subject: Mail for an alias$"]]
+            }
+          }
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"],
+      ["QUIT", "^221"]
+    ]
+  }
+}

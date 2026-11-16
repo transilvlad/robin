@@ -35,6 +35,7 @@ Glossary
 - `authBeforeTls`  - _(Boolean)_ [default: false] Send _AUTH_ without requiring TLS. **_Vulnerable behaviour._**
 - `authLoginCombined`  - _(Boolean)_ [default: false] Send username and password in one line for _AUTH LOGIN_.
 - `authLoginRetry`  - _(Boolean)_ [default: false] Disable authLoginCombined and retry _AUTH LOGIN_.
+- `authMechanism`  - _(String)_ [default: DIGEST-MD5, then LOGIN, then PLAIN, whichever is advertised] Use this mechanism: `PLAIN`, `LOGIN` or `DIGEST-MD5`. Authentication fails if the server does not advertise it.
 
 
 #### HELO/LHLO/EHLO
@@ -278,6 +279,8 @@ Each attempt is retried until the status is acceptable and `verify` matches.
 `type: "imap"` fetches the envelope's message by Message-ID, so the eml must use `{$MSGID}` in its Message-ID header.
 See [imap.md](../lib/imap.md) for all options. It retries until the message is found and matches.
 `absent: true` instead fails if the message is found on any attempt; use it to prove a message was not delivered.
+`findBy: "In-Reply-To"` finds the message that replies to the envelope's message instead, such as the delivery status
+notification for a bounced message.
 
 
 #### Humio

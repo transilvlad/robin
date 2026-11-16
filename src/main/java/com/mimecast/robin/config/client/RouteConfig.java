@@ -82,6 +82,15 @@ public class RouteConfig extends ConfigFoundation {
     }
 
     /**
+     * Gets the AUTH mechanism to use.
+     *
+     * @return String.
+     */
+    public String getAuthMechanism() {
+        return getStringProperty("authMechanism");
+    }
+
+    /**
      * Gets the username.
      *
      * @return Username string.

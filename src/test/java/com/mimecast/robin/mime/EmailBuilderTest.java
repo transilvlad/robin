@@ -158,4 +158,19 @@ class EmailBuilderTest {
         assertEquals("\r\n", lines.get(88));
         assertEquals("JVBERi0xLjQKJdPr6eEKMSAwIG9iago8PC9DcmVhdG9yIChNb3ppbGxhLzUuMCBcKE1hY2ludG9z\r\n", lines.get(89));
     }
+
+    @Test
+    void messageIdIsTheEnvelopeIdWithADomain() throws IOException {
+        MessageEnvelope envelope = new MessageEnvelope().setMail("tony@example.com");
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        new EmailBuilder(new Session(), envelope).writeTo(outputStream);
+        assertEquals("Message-ID: <" + envelope.getMessageId() + "tony@example.com>\r\n",
+                StreamUtils.parseLines(outputStream).get(3));
+
+        outputStream = new ByteArrayOutputStream();
+        envelope = new MessageEnvelope();
+        new EmailBuilder(new Session(), envelope).writeTo(outputStream);
+        assertEquals("Message-ID: <" + envelope.getMessageId() + "@robin.invalid>\r\n",
+                StreamUtils.parseLines(outputStream).get(3));
+    }
 }

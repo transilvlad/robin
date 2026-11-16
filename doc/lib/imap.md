@@ -211,6 +211,22 @@ See `doc/testing/case-smtp.md` for configuration details.
 `absent: true` fails if the message is found on any attempt, proving it was not delivered. Connection failures
 also look like absence, so pair it with a positive assertion that uses the same server and credentials.
 
+### Replies and bounces
+
+    {
+      type: "imap",
+      user: "sender@example.com",
+      pass: "secret",
+      findBy: "In-Reply-To",
+      matches: {
+        headers: [["^subject: Delivery Status Notification"]]
+      }
+    }
+
+`findBy` names the header that must contain the envelope's Message-ID (default `Message-ID`). Robin's delivery status
+notifications carry the original Message-ID in `In-Reply-To` and `References`, so `findBy: "In-Reply-To"` in the
+sender's mailbox finds the bounce for that envelope. It works with `absent: true` too.
+
 ### Cleanup options
 
 - `delete: true` - Deletes only the verified message after successful assertion. Useful for test cleanup.

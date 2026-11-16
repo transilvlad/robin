@@ -2,9 +2,12 @@
   queueInitialDelay: 10,
   queueInterval: 5,
   maxDequeuePerTick: 10,
+  // Test scale: retries every few seconds and a small budget, so a message that keeps failing
+  // bounces within about a minute (queue/ and relay/ cases wait for those DSNs).
   retry: {
-    totalRetries: 30,
+    totalRetries: 4,
     firstWaitMinutes: 1,
+    maxWaitSeconds: 5,
     growthFactor: 1.2
   },
   queueMapDB: {

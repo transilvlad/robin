@@ -35,6 +35,18 @@ class ConnectionTest {
     }
 
     @Test
+    void streamStuffsEveryLineStartingWithADot() throws Exception {
+        String body = "Subject: Dots\r\n\r\n.\r\n..\r\n.hidden\r\n...three\r\n . indented\r\nplain.\r\n";
+        ConnectionMock connection = getConnection(new StringBuilder());
+
+        connection.stream(new com.mimecast.robin.smtp.io.LineInputStream(
+                new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8))));
+
+        assertEquals("Subject: Dots\r\n\r\n..\r\n...\r\n..hidden\r\n....three\r\n . indented\r\nplain.\r\n\r\n",
+                connection.getOutput());
+    }
+
+    @Test
     void scenarios() {
         StringBuilder stringBuilder = new StringBuilder();
         stringBuilder.append("EHLO helo.com\r\n");

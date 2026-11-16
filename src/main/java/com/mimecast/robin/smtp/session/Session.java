@@ -236,6 +236,11 @@ public class Session implements Serializable, Cloneable {
     private boolean authLoginRetry = false;
 
     /**
+     * [Client] AUTH mechanism to use (PLAIN, LOGIN or DIGEST-MD5); null picks the strongest advertised.
+     */
+    private String authMechanism = null;
+
+    /**
      * Authentication username.
      */
     private String username = "";
@@ -1138,6 +1143,26 @@ public class Session implements Serializable, Cloneable {
     }
 
     /**
+     * Gets the AUTH mechanism to use.
+     *
+     * @return Mechanism name, or null to pick the strongest advertised.
+     */
+    public String getAuthMechanism() {
+        return authMechanism;
+    }
+
+    /**
+     * Sets the AUTH mechanism to use.
+     *
+     * @param authMechanism PLAIN, LOGIN or DIGEST-MD5; null or blank picks the strongest advertised.
+     * @return Self.
+     */
+    public Session setAuthMechanism(String authMechanism) {
+        this.authMechanism = authMechanism == null || authMechanism.isBlank() ? null : authMechanism.trim();
+        return this;
+    }
+
+    /**
      * Gets authentication username.
      *
      * @return Username.
@@ -1213,6 +1238,10 @@ public class Session implements Serializable, Cloneable {
      * @return Self.
      */
     public Session addEnvelope(MessageEnvelope envelope) {
+        // A new transaction abandons any BDAT message the previous one left unfinished.
+        if (!envelopes.isEmpty() && envelopes.getLast() != null) {
+            envelopes.getLast().abortPendingReceipt();
+        }
         envelopes.add(envelope);
         return this;
     }
@@ -1431,6 +1460,8 @@ public class Session implements Serializable, Cloneable {
      */
     public void close() {
         for (MessageEnvelope envelope : envelopes) {
+            // Discard a BDAT message the client never finished.
+            envelope.abortPendingReceipt();
             MessageSource source = envelope.getMessageSource();
             if (source != null) {
                 source.release();

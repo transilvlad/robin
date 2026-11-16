@@ -42,6 +42,25 @@ public class ClientAuth extends ClientProcessor {
         authLoginCombined = connection.getSession().isAuthLoginCombined();
         authLoginRetry = connection.getSession().isAuthLoginRetry();
 
+        // A configured mechanism is used only if the server advertises it.
+        String mechanism = connection.getSession().getAuthMechanism();
+        if (mechanism != null) {
+            String wanted = mechanism.toLowerCase(java.util.Locale.ROOT);
+            if (!connection.getSession().getEhloAuth().contains(wanted)) {
+                log.error("Unable to authenticate. Mechanism {} not advertised.", mechanism);
+                return false;
+            }
+            return switch (wanted) {
+                case "digest-md5" -> authDigestMD5();
+                case "login" -> authLogin();
+                case "plain" -> authPlain();
+                default -> {
+                    log.error("Unable to authenticate. Unsupported mechanism {}.", mechanism);
+                    yield false;
+                }
+            };
+        }
+
         // Select mechanism.
         if (connection.getSession().getEhloAuth().contains("digest-md5")) {
             return authDigestMD5();

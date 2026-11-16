@@ -1,0 +1,89 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: the users API against the SQL authentication backend.
+  // Flow: GET /users → GET /users/{user}/exists for a known and an unknown user →
+  //       POST /users/authenticate with the right and a wrong password.
+  // Validates: the seeded users are listed from the SQL backend, existence is reported both ways,
+  // and authentication accepts only the right password.
+
+  request: {
+    url: "http://127.0.0.1:28090/users",
+    type: "GET"
+  },
+
+  assertions: {
+    protocol: [
+      ["HTTP", "^200 "]
+    ],
+    external: [
+      {
+        type: "request",
+        wait: 0,
+        delay: 1,
+        retry: 1,
+        request: {
+          url: "http://127.0.0.1:28090/users",
+          type: "GET"
+        },
+        verify: ["^source: sql$"],
+        match: [
+          ["tony@example\\.com"],
+          ["pepper@example\\.com"]
+        ]
+      },
+      {
+        type: "request",
+        wait: 0,
+        delay: 1,
+        retry: 1,
+        request: {
+          url: "http://127.0.0.1:28090/users/tony@example.com/exists",
+          type: "GET"
+        },
+        verify: ["^exists: true$"]
+      },
+      {
+        type: "request",
+        wait: 0,
+        delay: 1,
+        retry: 1,
+        request: {
+          url: "http://127.0.0.1:28090/users/nobody@example.com/exists",
+          type: "GET"
+        },
+        verify: ["^exists: false$"]
+      },
+      {
+        type: "request",
+        wait: 0,
+        delay: 1,
+        retry: 1,
+        request: {
+          url: "http://127.0.0.1:28090/users/authenticate",
+          type: "POST",
+          content: {
+            payload: "{\"username\": \"tony@example.com\", \"password\": \"stark\"}",
+            mimeType: "application/json"
+          }
+        },
+        verify: ["^authenticated: true$"]
+      },
+      {
+        type: "request",
+        wait: 0,
+        delay: 1,
+        retry: 1,
+        request: {
+          url: "http://127.0.0.1:28090/users/authenticate",
+          type: "POST",
+          content: {
+            payload: "{\"username\": \"tony@example.com\", \"password\": \"not-the-password\"}",
+            mimeType: "application/json"
+          }
+        },
+        verify: ["^authenticated: false$"]
+      }
+    ]
+  }
+}

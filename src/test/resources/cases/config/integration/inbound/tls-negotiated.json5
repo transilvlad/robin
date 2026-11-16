@@ -1,0 +1,60 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: STARTTLS negotiates a modern protocol and the message is delivered over it.
+  // Flow: connect on 25 → STARTTLS offering only TLSv1.2 and TLSv1.3 → deliver to pepper.
+  // Validates: the TLS transaction records TLSv1.2 or TLSv1.3 with a cipher suite, and mail
+  // sent over the encrypted channel is delivered.
+
+  mx: ["127.0.0.1"],
+  port: 2525,
+  tls: true,
+  protocols: ["TLSv1.2", "TLSv1.3"],
+
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      file: "src/test/resources/cases/sources/lipsum.eml",
+
+      assertions: {
+        protocol: [
+          ["MAIL", "^250"],
+          ["RCPT", "^250"],
+          ["DATA", "^250"]
+        ],
+
+        external: [
+          {
+            type: "imap",
+            wait: 2,
+            delay: 2,
+            retry: 5,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "pepper@example.com",
+            pass: "potts",
+            folder: "INBOX",
+            delete: true,
+            matches: {
+              headers: [
+                ["^subject: Lipsum$"]
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"],
+      ["STARTTLS", "^220"],
+      // Protocol and cipher suite, for example "TLSv1.3:TLS_AES_256_GCM_SHA384".
+      ["TLS", "^TLSv1\\.[23]:TLS_\\w+$"],
+      ["SHLO", "^250"],
+      ["QUIT", "^221"]
+    ]
+  }
+}

@@ -174,7 +174,8 @@ public class RequestConfig extends ConfigFoundation {
                 if (map.containsKey("path")) {
                     content = new ImmutablePair<>(getFile(Magic.magicReplace((String) map.get("path"), connection.getSession())), mimeType);
                 } else if (map.containsKey("payload")) {
-                    content = new ImmutablePair<>((String) map.get("payload"), mimeType);
+                    // Magic-replaced like the url, headers, params and file content.
+                    content = new ImmutablePair<>(Magic.magicReplace((String) map.get("payload"), connection.getSession()), mimeType);
                 }
             }
         }

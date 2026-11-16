@@ -1,0 +1,62 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: a message over emailSizeLimit sent with DATA is refused.
+  // Flow: DATA with a JPEG padded by 10.3 MB of random bytes (about 14 MB once base64 encoded),
+  //       over the configured 10 MB emailSizeLimit.
+  // Validates: DATA ends with 552 and nothing reaches pepper's mailbox.
+
+  mx: ["127.0.0.1"],
+  port: 2525,
+  tls: true,
+
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      mime: {
+        headers: [
+          ["Subject", "Oversized over DATA"]
+        ],
+        parts: [
+          {
+            headers: [
+              ["Content-Type", "image/jpeg; name=\"huge.jpg\""],
+              ["Content-Disposition", "attachment; filename=\"huge.jpg\""],
+              ["Content-Transfer-Encoding", "base64"]
+            ],
+            file: "src/test/resources/mime/selfie.jpg",
+            appendRandomBytes: 10300000
+          }
+        ]
+      },
+      assertions: {
+        protocol: [
+          ["MAIL", "^250"],
+          ["RCPT", "^250"],
+          ["DATA", "^552"]
+        ],
+        external: [
+          {
+            type: "imap",
+            absent: true,
+            wait: 5,
+            delay: 2,
+            retry: 2,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "pepper@example.com",
+            pass: "potts",
+            folder: "INBOX"
+          }
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"]
+    ]
+  }
+}

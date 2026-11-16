@@ -1,0 +1,25 @@
+MIME-Version: 1.0
+From: <{$MAILFROM}>
+To: <{$RCPTTO}>
+Date: {$DATE}
+Message-ID: <{$MSGID}{$MAILFROM}>
+Subject: Zipped attachment
+Content-Type: multipart/mixed;
+	boundary="----=_zip-mixed"
+
+------=_zip-mixed
+Content-Type: text/plain; charset=UTF-8
+
+The attached archive holds the EICAR anti-virus test file.
+
+------=_zip-mixed
+Content-Type: application/zip; name="invoice.zip"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="invoice.zip"
+
+UEsDBBQACAgIAAAAIQAAAAAAAAAAAAAAAAAJAAkAZWljYXIudHh0VVQFAAEAAAAAizD1VwxQdXAM
+iDaJCYiKMDXRCIjTNHd21jSvVXH1dHYM0g0OcfRzcQxy0XX0C/EM8wwKDdYNcQ0O0XXz9HFVVPHQ
+9tACAFBLBwg8z1FoRgAAAEQAAABQSwECFAAUAAgICAAAACEAPM9RaEYAAABEAAAACQAJAAAAAAAA
+AAAAAAAAAAAAZWljYXIudHh0VVQFAAEAAAAAUEsFBgAAAAABAAEAQAAAAIYAAAAAAA==
+
+------=_zip-mixed--

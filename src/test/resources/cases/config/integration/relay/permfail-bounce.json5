@@ -1,0 +1,111 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: a permanent failure at the remote MTA is bounced to the sender straight away.
+  // Flow: AUTH on 587 → queued for MX relay → robin-sink answers RCPT with 550 5.1.1 → Robin makes a
+  //       DSN to tony@example.com without retrying → MX for example.com is Robin → tony's INBOX.
+  // Validates: the DSN reaches the sender as a multipart/report with the 5.1.1 status, names the
+  // failed recipient, references the original Message-ID and returns the original headers.
+
+  mx: ["127.0.0.1"],
+  port: 2587,
+  tls: true,
+
+  auth: true,
+  user: "tony@example.com",
+  pass: "stark",
+
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["permfail+bounce@remote.test"],
+      file: "src/test/resources/cases/sources/lipsum.eml",
+
+      assertions: {
+        protocol: [
+          ["MAIL", "^250"],
+          ["RCPT", "^250"],
+          ["DATA", "^250"]
+        ],
+
+        external: [
+          {
+            // The receiving session queued the message; capture the relay session it became.
+            type: "request",
+            wait: 1,
+            delay: 2,
+            retry: 5,
+            request: {
+              url: "http://127.0.0.1:28090/logs?q={$transactionUid}",
+              type: "GET"
+            },
+            verify: ["Queued relay: item=[\\w-]+, session=[\\w-]+, protocol=mx"],
+            magic: [
+              { name: "relaySession", pattern: "Queued relay: item=[\\w-]+, session=([\\w-]+)" }
+            ]
+          },
+          {
+            // Permanent: one attempt and no rescheduling.
+            type: "request",
+            wait: 2,
+            delay: 3,
+            retry: 10,
+            request: {
+              url: "http://127.0.0.1:28090/logs?q={$relaySession}",
+              type: "GET"
+            },
+            verify: ["Processing session: .*retryCount=0"],
+            refuse: [
+              ["Processing session: .*retryCount=1"]
+            ]
+          },
+          {
+            // The DSN in the sender's mailbox, found by its In-Reply-To.
+            type: "imap",
+            wait: 5,
+            delay: 3,
+            retry: 15,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "tony@example.com",
+            pass: "stark",
+            folder: "INBOX",
+            findBy: "In-Reply-To",
+            delete: true,
+            matches: {
+              headers: [
+                ["^subject: Delivery Status Notification \\(Failure\\)$"],
+                ["^from: mailer-daemon@"],
+                ["^content-type: multipart/report"],
+                ["^auto-submitted: auto-replied$"]
+              ],
+              parts: [
+                {
+                  headers: [["content-type", "message/delivery-status"]],
+                  body: [
+                    ["Final-Recipient: RFC822; permfail\\+bounce@remote\\.test"],
+                    ["Action: failed"],
+                    ["Status: 5\\.1\\.1"],
+                    ["Diagnostic-Code: SMTP; 550 5\\.1\\.1"]
+                  ]
+                },
+                {
+                  headers: [["content-type", "text/rfc822-headers"]],
+                  body: [["Subject: Lipsum"]]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"],
+      ["AUTH", "^235"],
+      ["QUIT", "^221"]
+    ]
+  }
+}

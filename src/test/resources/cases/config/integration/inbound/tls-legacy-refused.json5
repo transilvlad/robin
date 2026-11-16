@@ -1,0 +1,36 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: a client that only speaks TLSv1.0 cannot complete STARTTLS.
+  // Flow: connect on 25 → STARTTLS offering only TLSv1 → handshake must fail.
+  // Validates: the server refuses deprecated TLS, so no TLS transaction succeeds and no
+  // message is accepted over a weak channel.
+
+  mx: ["127.0.0.1"],
+  port: 2525,
+  tls: true,
+  protocols: ["TLSv1"],
+
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      file: "src/test/resources/cases/sources/lipsum.eml",
+
+      assertions: {
+        protocol: [
+          ["DATA", "^250", "none"]
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"],
+      ["EHLO", "STARTTLS"],
+      ["TLS", "^TLSv1\\.[0-3]:", "none"],
+      ["SHLO", "^250", "none"]
+    ]
+  }
+}

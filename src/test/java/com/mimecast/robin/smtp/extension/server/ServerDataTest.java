@@ -213,6 +213,36 @@ class ServerDataTest {
     }
 
     @Test
+    void dataUnstuffsLinesStartingWithADot() throws Exception {
+        String wire = "Subject: Dots\r\n\r\n..\r\n...\r\n..hidden\r\n . indented\r\n.\r\n";
+        Map<String, Object> storage = Config.getServer().getStorage().getMap();
+        Map<String, Object> originalStorage = new HashMap<>(storage);
+        List<Callable<StorageProcessor>> originalProcessors = new ArrayList<>(Factories.getStorageProcessors());
+        ByteArrayOutputStream saved = new ByteArrayOutputStream();
+        ConnectionMock connection = new ConnectionMock(new StringBuilder(wire));
+        try {
+            storage.put("path", tempDirectory.toString());
+            storage.put("enabled", true);
+            Factories.setStorageProcessors(List.of(() -> (conn, parser) -> {
+                saved.write(conn.getSession().getEnvelopes().getLast().readMessageBytes());
+                return true;
+            }));
+            connection.setSocket(new Socket());
+            connection.getSession().addEnvelope(new MessageEnvelope().setMail("sender@example.com").addRcpt("user@example.com"));
+
+            assertTrue(new ServerData().process(connection, new Verb("DATA")));
+
+            String stored = saved.toString(StandardCharsets.UTF_8);
+            assertTrue(stored.endsWith("Subject: Dots\r\n\r\n.\r\n..\r\n.hidden\r\n . indented"), stored);
+        } finally {
+            Factories.setStorageProcessors(originalProcessors);
+            storage.clear();
+            storage.putAll(originalStorage);
+            connection.getSession().close();
+        }
+    }
+
+    @Test
     void processAscii() throws IOException {
         StringBuilder stringBuilder = new StringBuilder();
         stringBuilder.append("MIME-Version: 1.0\r\n");
@@ -366,6 +396,126 @@ class ServerDataTest {
         // The source/file refs are cleared so Session.close() does not double-release.
         connection.getSession().close();
         assertEquals(0, source.getRefCount(), "Session.close() must not double-release");
+    }
+
+    /**
+     * Runs BDAT chunks through fresh ServerData instances, as the server does per command,
+     * and captures what the storage processors saw.
+     */
+    private ByteArrayOutputStream runChunks(ConnectionMock connection, int sizeLimit, List<Boolean> results,
+                                            String... chunks) throws Exception {
+        Map<String, Object> storage = Config.getServer().getStorage().getMap();
+        Map<String, Object> originalStorage = new HashMap<>(storage);
+        List<Callable<StorageProcessor>> originalProcessors = new ArrayList<>(Factories.getStorageProcessors());
+        ByteArrayOutputStream saved = new ByteArrayOutputStream();
+        try {
+            storage.put("path", tempDirectory.toString());
+            storage.put("enabled", true);
+            Factories.setStorageProcessors(List.of(() -> (conn, parser) -> {
+                saved.write(conn.getSession().getEnvelopes().getLast().readMessageBytes());
+                return true;
+            }));
+            for (int i = 0; i < chunks.length; i++) {
+                String verb = "BDAT " + chunks[i].getBytes(StandardCharsets.UTF_8).length
+                        + (i == chunks.length - 1 ? " LAST" : "");
+                results.add(new ServerData().setEmailSizeLimit(sizeLimit).process(connection, new Verb(verb)));
+            }
+        } finally {
+            Factories.setStorageProcessors(originalProcessors);
+            storage.clear();
+            storage.putAll(originalStorage);
+        }
+        return saved;
+    }
+
+    private static ConnectionMock bdatConnection(String... chunks) {
+        ConnectionMock connection = new ConnectionMock(new StringBuilder(String.join("", chunks)));
+        connection.setSocket(new Socket());
+        connection.getSession().addEnvelope(new MessageEnvelope().setMail("sender@example.com").addRcpt("user@example.com"));
+        return connection;
+    }
+
+    @Test
+    void multipleBdatChunksAreStoredAsOneMessage() throws Exception {
+        String[] chunks = {
+                "From: sender@example.com\r\nSubject: Chunked\r\n",
+                "\r\nfirst body line\r\n",
+                "second body line\r\n"
+        };
+        ConnectionMock connection = bdatConnection(chunks);
+        List<Boolean> results = new ArrayList<>();
+        try {
+            ByteArrayOutputStream saved = runChunks(connection, 10240, results, chunks);
+
+            assertEquals(List.of(true, true, true), results);
+            String stored = saved.toString(StandardCharsets.UTF_8);
+            assertTrue(stored.endsWith(String.join("", chunks)), stored);
+            assertEquals(1, stored.lines().filter(line -> line.startsWith("Received:")).count());
+            assertEquals(3, connection.getOutput().lines().filter(line -> line.startsWith("250")).count());
+        } finally {
+            connection.getSession().close();
+        }
+    }
+
+    @Test
+    void bdatSizeLimitAppliesToTheWholeMessage() throws Exception {
+        String[] chunks = {"Subject: Big\r\n\r\n" + "a".repeat(30), "b".repeat(40)};
+        ConnectionMock connection = bdatConnection(chunks);
+        List<Boolean> results = new ArrayList<>();
+        try {
+            ByteArrayOutputStream saved = runChunks(connection, 60, results, chunks);
+
+            assertEquals(List.of(true, false), results);
+            assertTrue(connection.getOutput().contains("552 "), connection.getOutput());
+            assertEquals(0, saved.size(), "Nothing may be stored for an oversized message");
+            assertTrue(connection.getSession().getEnvelopes().getLast().getPendingReceipt() == null);
+        } finally {
+            connection.getSession().close();
+        }
+    }
+
+    @Test
+    void rsetAbortsUnfinishedBdatMessage() throws Exception {
+        AtomicBoolean aborted = new AtomicBoolean();
+        AtomicBoolean saved = new AtomicBoolean();
+        Factories.setStorageClient(() -> new LocalStorageClient() {
+            @Override
+            public boolean save() {
+                saved.set(true);
+                return true;
+            }
+
+            @Override
+            public void abort() throws IOException {
+                aborted.set(true);
+                super.abort();
+            }
+        });
+        String chunk = "Subject: Abandoned\r\n\r\n";
+        ConnectionMock connection = bdatConnection(chunk);
+        try {
+            assertTrue(new ServerData().process(connection, new Verb("BDAT " + chunk.length())));
+            assertTrue(connection.getSession().getEnvelopes().getLast().getPendingReceipt() != null);
+
+            assertTrue(new ServerRset().process(connection, new Verb("RSET")));
+
+            assertTrue(aborted.get());
+            assertFalse(saved.get());
+            assertTrue(connection.getSession().getEnvelopes().getLast().getPendingReceipt() == null);
+        } finally {
+            Factories.setStorageClient(null);
+            connection.getSession().close();
+        }
+    }
+
+    @Test
+    void bdatWithoutRecipientsIsConsumedAndRefused() throws IOException {
+        String chunk = "Subject: Nobody\r\n\r\nRSET\r\n";
+        ConnectionMock connection = new ConnectionMock(new StringBuilder(chunk));
+        connection.setSocket(new Socket());
+
+        assertFalse(new ServerData().process(connection, new Verb("BDAT " + chunk.length() + " LAST")));
+        assertTrue(connection.getOutput().startsWith("554 "), connection.getOutput());
     }
 
     @Test

@@ -64,10 +64,15 @@ public class IntegrationTest {
     @DisplayName("Integration case")
     void integrationCase(String name) throws Exception {
         String path = CASES.resolve(name).toString();
-        if (new CaseConfig(path).hasProperty("request")) {
-            new RequestClient().request(path);
-        } else {
-            new Client().send(path);
+        try {
+            if (new CaseConfig(path).hasProperty("request")) {
+                new RequestClient().request(path);
+            } else {
+                new Client().send(path);
+            }
+        } catch (AssertException e) {
+            // Name the case: parallel runs interleave logs and reports list invocations by index.
+            throw new AssertionError(name + ": " + e.getMessage(), e);
         }
     }
 

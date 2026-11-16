@@ -105,9 +105,15 @@ public class ServerEhlo extends ServerProcessor {
 
                 // Don't advertise server AUTH extensions on main inbound port or insecure connections over submission port.
                 // Secured ports are fine as the connection is already secured before AUTH is advertised and it's not the main port.
+                // AUTH is refused until TLS is up (538), so offering it in cleartext only invites credentials in the clear.
                 if (ept.get().getServer() instanceof ServerAuth &&
-                        connection.getSession().isInbound() &&
-                        !connection.getSession().isSecurePort()) {
+                        ((connection.getSession().isInbound() && !connection.getSession().isSecurePort())
+                                || !connection.getSession().isStartTls())) {
+                    continue;
+                }
+
+                // A server must not offer STARTTLS once TLS is established (RFC 3207 4.2).
+                if (ept.get().getServer() instanceof ServerStartTls && connection.getSession().isStartTls()) {
                     continue;
                 }
 

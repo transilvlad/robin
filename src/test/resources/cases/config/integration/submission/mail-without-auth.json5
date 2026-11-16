@@ -1,0 +1,33 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: the submission port refuses mail from a client that has not authenticated.
+  // Flow: port 587 → STARTTLS → MAIL FROM without AUTH.
+  // Validates: MAIL gets 530 (authentication required) and nothing is relayed.
+
+  mx: ["127.0.0.1"],
+  port: 2587,
+  tls: true,
+
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["no-auth@remote.test"],
+      subject: "Must not be relayed",
+      message: "Unauthenticated submission must be refused.",
+      assertions: {
+        protocol: [
+          ["MAIL", "^530"],
+          ["DATA", "^250", "none"]
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"],
+      ["SHLO", "AUTH"]
+    ]
+  }
+}

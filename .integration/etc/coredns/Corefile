@@ -8,6 +8,12 @@ remote.test {
     errors
 }
 
+example.com {
+    file /etc/coredns/example.com.db
+    log
+    errors
+}
+
 rbl.test {
     file /etc/coredns/rbl.test.db
     log

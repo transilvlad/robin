@@ -166,6 +166,20 @@ public class CaseConfig extends ConfigFoundation {
     }
 
     /**
+     * Gets the AUTH mechanism to use (PLAIN, LOGIN or DIGEST-MD5).
+     * <p>Route authMechanism supersedes case authMechanism.
+     *
+     * @return Mechanism name, or null to pick the strongest advertised.
+     */
+    public String getAuthMechanism() {
+        RouteConfig routeConfig = getRoute();
+        if (routeConfig != null && routeConfig.getAuthMechanism() != null) {
+            return routeConfig.getAuthMechanism();
+        }
+        return getStringProperty("authMechanism");
+    }
+
+    /**
      * Gets username for authentication.
      * <p>Route user supersedes case user.
      *

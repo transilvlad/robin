@@ -39,6 +39,7 @@ import java.util.regex.Pattern;
  *   folder: "INBOX",
  *   delete: true,
  *   // absent: true, // Fail if the message is found instead.
+ *   // findBy: "In-Reply-To", // Find the reply to the sent message (a DSN) instead of the message.
  *   matches: {
  *     headers: [
  *       ["subject", "Test Email"]
@@ -99,6 +100,11 @@ public class ImapExternalClient extends MatchExternalClient {
         }
         String messageId = connection.getSession().getEnvelopes().get(transactionId).getMessageId();
 
+        // findBy: the header that must contain the sent Message-ID. Default Message-ID; In-Reply-To
+        // or References finds a reply to the sent message, such as a delivery status notification.
+        String findBy = config.getStringProperty("findBy", "Message-ID");
+        boolean byMessageId = "Message-ID".equalsIgnoreCase(findBy);
+
         boolean absent = config.getBooleanProperty("absent", false);
         boolean deleteAfter = config.getBooleanProperty("delete", false);
         boolean purgeAfter = config.getBooleanProperty("purge", false);
@@ -115,7 +121,9 @@ public class ImapExternalClient extends MatchExternalClient {
             Sleep.nap((int) delay);
             delay = config.getDelay() * 1000L; // Retry delay.
 
-            Message message = imapClient.fetchEmailByMessageId(messageId);
+            Message message = byMessageId
+                    ? imapClient.fetchEmailByMessageId(messageId)
+                    : imapClient.fetchEmailByHeader(findBy, messageId);
             if (absent) {
                 if (message != null) {
                     fail("IMAP email found when expected absent: " + messageId);

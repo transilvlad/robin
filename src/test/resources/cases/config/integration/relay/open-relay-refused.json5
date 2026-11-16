@@ -1,0 +1,52 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: Robin is not an open relay.
+  // Flow: unauthenticated client on port 25 → mail for a domain Robin does not serve
+  //       (remote.test, whose MX is the remote MTA).
+  // Validates: the recipient is refused with 5xx, no message is accepted, and the remote MTA
+  // never hears of the address.
+
+  mx: ["127.0.0.1"],
+  port: 2525,
+  tls: true,
+
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["open-relay@remote.test"],
+      subject: "Open relay probe",
+      message: "This must never leave Robin.",
+      assertions: {
+        protocol: [
+          ["RCPT", "^5\\d\\d"],
+          ["DATA", "^250", "none"]
+        ],
+        external: [
+          {
+            // Two queue intervals: anything relayed would have reached the sink by then.
+            type: "request",
+            wait: 10,
+            delay: 2,
+            retry: 1,
+            request: {
+              url: "http://127.0.0.1:28091/logs?q=open-relay@remote.test",
+              type: "GET"
+            },
+            // /logs records each search with its query, so look for the SMTP command itself.
+            refuse: [
+              ["RCPT TO:<open-relay@remote\\.test>"]
+            ]
+          }
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"],
+      ["QUIT", "^221"]
+    ]
+  }
+}

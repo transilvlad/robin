@@ -1,0 +1,115 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: DATA transfers keep the message intact.
+  // Flow: two envelopes over DATA on one connection:
+  //       1. body lines that start with dots (the client dot-stuffs, the server must unstuff);
+  //       2. a binary PDF attachment, base64 encoded.
+  // Validates: each message is accepted and delivered, dotted lines arrive unchanged (a lone
+  // "." line did not end the message early), and the PDF arrives with its original SHA-256.
+
+  mx: ["127.0.0.1"],
+  port: 2525,
+  tls: true,
+
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      file: "src/test/resources/cases/sources/dot-stuffing.eml",
+      assertions: {
+        protocol: [
+          ["DATA", "^250"]
+        ],
+        external: [
+          {
+            type: "imap",
+            wait: 2,
+            delay: 2,
+            retry: 5,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "pepper@example.com",
+            pass: "potts",
+            folder: "INBOX",
+            delete: true,
+            matches: {
+              headers: [["^subject: Dot stuffing$"]],
+              parts: [
+                {
+                  headers: [["content-type", "text/plain"]],
+                  body: [
+                    ["(?m)^\\.\\r?$"],
+                    ["(?m)^\\.\\.\\r?$"],
+                    ["(?m)^\\.hidden\\r?$"],
+                    ["(?m)^\\.\\.\\.three\\r?$"],
+                    ["(?m)^\\. space after dot\\r?$"],
+                    ["The message ends after this line\\."]
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      mime: {
+        headers: [
+          ["Subject", "Binary attachment over DATA"]
+        ],
+        parts: [
+          {
+            headers: [["Content-Type", "text/plain; charset=\"UTF-8\""]],
+            message: "A PDF follows."
+          },
+          {
+            headers: [
+              ["Content-Type", "application/pdf; name=\"article.pdf\""],
+              ["Content-Disposition", "attachment; filename=\"article.pdf\""],
+              ["Content-Transfer-Encoding", "base64"]
+            ],
+            file: "src/test/resources/mime/robin.article.pdf"
+          }
+        ]
+      },
+      assertions: {
+        protocol: [
+          ["DATA", "^250"]
+        ],
+        external: [
+          {
+            type: "imap",
+            wait: 2,
+            delay: 2,
+            retry: 5,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "pepper@example.com",
+            pass: "potts",
+            folder: "INBOX",
+            delete: true,
+            matches: {
+              headers: [["^subject: Binary attachment over DATA$"]],
+              parts: [
+                {
+                  headers: [["content-type", "application/pdf"]],
+                  hashes: { sha256: "psNA0WmTvbdeVHChHaR6RQrLY/miJI08vMHY0tBB2Ko=" }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"],
+      ["QUIT", "^221"]
+    ]
+  }
+}

@@ -1,0 +1,42 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: EHLO capabilities on the inbound port, before and after STARTTLS.
+  // Flow: connect on 25 → EHLO → STARTTLS → EHLO again (SHLO) → QUIT. No message is sent.
+  // Validates: the extensions clients depend on are advertised, and AUTH is never offered on
+  // the inbound port, so it cannot be used to relay.
+  // Not asserted: 8BITMIME. Robin advertises SMTPUTF8 (which RFC 6531 says implies 8BITMIME)
+  // but not 8BITMIME itself; see the e2e test plan.
+
+  mx: ["127.0.0.1"],
+  port: 2525,
+  tls: true,
+
+  // No message: the case only inspects the session.
+  envelopes: [],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"],
+
+      // Cleartext EHLO.
+      ["EHLO", "^250"],
+      ["EHLO", "PIPELINING"],
+      ["EHLO", "CHUNKING"],
+      ["EHLO", "SMTPUTF8"],
+      ["EHLO", "STARTTLS"],
+      ["EHLO", "\\bAUTH\\b", "none"],
+
+      ["STARTTLS", "^220"],
+
+      // EHLO after TLS: the same extensions, no second STARTTLS, and still no AUTH.
+      ["SHLO", "PIPELINING"],
+      ["SHLO", "CHUNKING"],
+      ["SHLO", "SMTPUTF8"],
+      ["SHLO", "STARTTLS", "none"],
+      ["SHLO", "\\bAUTH\\b", "none"],
+
+      ["QUIT", "^221"]
+    ]
+  }
+}

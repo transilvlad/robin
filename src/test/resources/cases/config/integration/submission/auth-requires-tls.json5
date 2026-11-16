@@ -1,0 +1,40 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: AUTH is not available on the submission port before STARTTLS.
+  // Flow: port 587 in cleartext → EHLO → try to AUTH without TLS (authBeforeTls).
+  // Validates: cleartext EHLO does not advertise AUTH, so credentials are never sent in the
+  // clear and no authenticated session is established.
+
+  mx: ["127.0.0.1"],
+  port: 2587,
+  tls: false,
+
+  auth: true,
+  authBeforeTls: true,
+  user: "tony@example.com",
+  pass: "stark",
+
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["cleartext@remote.test"],
+      subject: "Must not be relayed",
+      message: "AUTH must not be possible in cleartext.",
+      assertions: {
+        protocol: [
+          ["DATA", "^250", "none"]
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"],
+      ["EHLO", "STARTTLS"],
+      ["EHLO", "\\bAUTH\\b", "none"],
+      ["AUTH", "^235", "none"]
+    ]
+  }
+}

@@ -451,7 +451,7 @@ Endpoints
     - `protocol` - Override relay protocol (default: ESMTP)
     - `mailbox` - Override target folder for Dovecot LDA delivery (default: from dovecot config inboxFolder/sentFolder)
   - Response: `application/json; charset=utf-8`
-  - Returns a confirmation with queue size and the filtered Session object
+  - Returns a confirmation with queue size, the queue item `uid` (for `/client/queue/delete`, `retry` and `bounce`) and the filtered Session object
   - HTTP status: `202 Accepted`
 
 - **`GET /client/queue/list`** — Lists all items currently in the relay queue.

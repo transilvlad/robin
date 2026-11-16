@@ -1,0 +1,73 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: an EML uploaded to the queue API as message/rfc822 is queued.
+  // Flow: POST /client/queue?mail=…&rcpt=… with the raw message → list → delete.
+  // Validates: the raw upload mode returns the item uid and the stored upload, the item is listed
+  // with its recipient, and it can be removed again.
+
+  request: {
+    url: "http://127.0.0.1:28090/health",
+    type: "GET"
+  },
+
+  assertions: {
+    protocol: [
+      ["HTTP", "^200 "]
+    ],
+    external: [
+      {
+        type: "request",
+        status: 202,
+        wait: 0,
+        delay: 1,
+        retry: 1,
+        request: {
+          url: "http://127.0.0.1:28090/client/queue?mail=tony@example.com&rcpt=tempfail%2Braw-eml@remote.test",
+          type: "POST",
+          content: {
+            path: "src/test/resources/cases/sources/lipsum.eml",
+            mimeType: "message/rfc822"
+          }
+        },
+        verify: ["^uid: [\\w-]+$"],
+        match: [
+          ["^status: QUEUED$"],
+          ["^uploadedFile: .*\\.eml$"]
+        ],
+        magic: [
+          { name: "rawUid", pattern: "^uid: ([\\w-]+)$" }
+        ]
+      },
+      {
+        type: "request",
+        wait: 0,
+        delay: 1,
+        retry: 3,
+        request: {
+          url: "http://127.0.0.1:28090/client/queue/list?limit=1000",
+          type: "GET"
+        },
+        verify: ["data-uid='{$rawUid}'"],
+        match: [
+          ["tempfail\\+raw-eml@remote\\.test"]
+        ]
+      },
+      {
+        type: "request",
+        wait: 0,
+        delay: 1,
+        retry: 3,
+        request: {
+          url: "http://127.0.0.1:28090/client/queue/delete",
+          type: "POST",
+          content: {
+            payload: "{\"uid\": \"{$rawUid}\"}",
+            mimeType: "application/json"
+          }
+        },
+        verify: ["^deletedCount: 1"]
+      }
+    ]
+  }
+}

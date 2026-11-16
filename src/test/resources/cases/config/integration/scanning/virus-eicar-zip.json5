@@ -1,0 +1,47 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: a virus inside a zip attachment is rejected.
+  // Flow: SMTP → ClamAV (scanAttachments) → the zip is unpacked and the EICAR test file found.
+  // Validates: DATA is rejected with 554 naming a virus, and nothing is delivered.
+
+  mx: ["127.0.0.1"],
+  port: 2525,
+  tls: true,
+
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      file: "src/test/resources/cases/sources/eicar-zip.eml",
+      assertions: {
+        protocol: [
+          ["MAIL", "^250"],
+          ["RCPT", "^250"],
+          ["DATA", "^554.*[Vv]irus"]
+        ],
+        external: [
+          {
+            type: "imap",
+            absent: true,
+            wait: 3,
+            delay: 2,
+            retry: 2,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "pepper@example.com",
+            pass: "potts",
+            folder: "INBOX"
+          }
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"],
+      ["QUIT", "^221"]
+    ]
+  }
+}

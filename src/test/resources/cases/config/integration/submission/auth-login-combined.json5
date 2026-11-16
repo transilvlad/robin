@@ -1,0 +1,64 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: submission with AUTH LOGIN, username and password on the AUTH command line.
+  // Flow: port 587 → STARTTLS → AUTH LOGIN <user> <password> → 235 → message.
+  // Validates: the combined form some clients send is accepted, and the message reaches the
+  // remote MTA.
+
+  mx: ["127.0.0.1"],
+  port: 2587,
+  tls: true,
+
+  auth: true,
+  user: "tony@example.com",
+  pass: "stark",
+  authMechanism: "LOGIN",
+  // Send the password on the AUTH line; retry the two-step exchange if that is refused.
+  authLoginCombined: true,
+  authLoginRetry: true,
+
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["submit-login-combined@remote.test"],
+      subject: "AUTH LOGIN combined submission",
+      message: "Submitted with AUTH LOGIN combined.",
+
+      assertions: {
+        protocol: [
+          ["MAIL", "^250"],
+          ["RCPT", "^250"],
+          ["DATA", "^250"]
+        ],
+
+        external: [
+          {
+            // Relayed to the remote MTA, which stored it in remote.test/submit-login-combined.
+            type: "request",
+            wait: 2,
+            delay: 3,
+            retry: 15,
+            request: {
+              url: "http://127.0.0.1:28091/store/remote.test/submit-login-combined/new/",
+              type: "GET",
+              headers: [
+                { name: "Accept", value: "application/json" }
+              ]
+            },
+            verify: ["^items>\\d+>name: .*\\.eml$"]
+          }
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"],
+      ["SHLO", "AUTH"],
+      ["AUTH", "^235"],
+      ["QUIT", "^221"]
+    ]
+  }
+}

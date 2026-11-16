@@ -100,6 +100,11 @@
       "type": "boolean",
       "default": false
     },
+    "authMechanism": {
+      "description": "AUTH mechanism to use; fails if the server does not advertise it. Default: DIGEST-MD5, then LOGIN, then PLAIN, whichever is advertised first",
+      "type": "string",
+      "enum": ["PLAIN", "LOGIN", "DIGEST-MD5"]
+    },
     "user": {
       "description": "Authentication username",
       "type": "string"
@@ -155,9 +160,8 @@
       }
     },
     "envelopes": {
-      "description": "Email envelopes delivered in order over one connection",
+      "description": "Email envelopes delivered in order over one connection; empty for a session-only case (EHLO, STARTTLS, QUIT)",
       "type": "array",
-      "minItems": 1,
       "items": {
         "$ref": "#/definitions/envelope"
       }
@@ -503,6 +507,11 @@
         "absent": {
           "description": "imap: fail if the message is found on any attempt",
           "type": "boolean"
+        },
+        "findBy": {
+          "description": "imap: header that must contain the envelope's Message-ID (default Message-ID); In-Reply-To or References finds a reply such as a DSN",
+          "type": "string",
+          "minLength": 1
         },
         "delete": {
           "description": "imap: delete the verified message",

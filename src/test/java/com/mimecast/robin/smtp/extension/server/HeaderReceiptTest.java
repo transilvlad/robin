@@ -233,13 +233,14 @@ class HeaderReceiptTest {
     }
 
     @Test
-    void materializedLastChunkIsCheckedEvenAfterTheLogicalHeaderSeparator() throws Exception {
+    void bdatChunksAfterTheHeaderSeparatorAreStoredAsBody() throws Exception {
         var storage = Config.getServer().getStorage().getMap();
         Object previousPath = storage.put("path", directory.toString());
         Object previousEnabled = storage.put("enabled", true);
         Object previousThreshold = storage.put("messageBufferMaxBytes", 0L);
         var processors = new ArrayList<>(Factories.getStorageProcessors());
         AtomicBoolean processed = new AtomicBoolean();
+        var storedBytes = new java.util.concurrent.atomic.AtomicReference<byte[]>();
         String first = "From: first@origin.test\r\n\r\n";
         String last = "From: second@other.test\r\r\nFrom: third@elsewhere.test\r\n\r\nBody";
         ConnectionMock connection = connection(first + last,
@@ -247,13 +248,20 @@ class HeaderReceiptTest {
         try {
             Factories.setStorageProcessors(java.util.List.of(() -> (conn, parser) -> {
                 processed.set(true);
+                storedBytes.set(Files.readAllBytes(Path.of(conn.getSession().getEnvelopes().getLast().getFile())));
                 return true;
             }));
+            // Chunks are one message: the header block ends in the first chunk, so the bare CR in the
+            // last chunk is body content and must not be judged as a header line.
             assertTrue(new ServerData().process(connection, new Verb("BDAT " + first.length())));
-            assertFalse(new ServerData().process(connection, new Verb("BDAT " + last.length() + " LAST")));
-            assertFalse(processed.get());
-            assertTrue(connection.getOutput().contains("554 5.6.0"));
+            assertTrue(new ServerData().process(connection, new Verb("BDAT " + last.length() + " LAST")));
+            assertTrue(processed.get());
+            assertFalse(connection.getOutput().contains("554 "));
             assertFalse(connection.getOutput().contains("451 "));
+            byte[] expected = (first + last).getBytes(StandardCharsets.US_ASCII);
+            byte[] stored = storedBytes.get();
+            assertArrayEquals(expected, java.util.Arrays.copyOfRange(stored, stored.length - expected.length,
+                    stored.length));
         } finally {
             connection.getSession().close();
             connection.close();

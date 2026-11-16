@@ -1,0 +1,61 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: submission with AUTH PLAIN.
+  // Flow: port 587 → STARTTLS → AUTH PLAIN as tony → message to a remote.test mailbox.
+  // Validates: PLAIN is accepted with the right password and the message is relayed and
+  // delivered to the remote MTA.
+
+  mx: ["127.0.0.1"],
+  port: 2587,
+  tls: true,
+
+  auth: true,
+  user: "tony@example.com",
+  pass: "stark",
+  authMechanism: "PLAIN",
+
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["submit-plain@remote.test"],
+      subject: "AUTH PLAIN submission",
+      message: "Submitted with AUTH PLAIN.",
+
+      assertions: {
+        protocol: [
+          ["MAIL", "^250"],
+          ["RCPT", "^250"],
+          ["DATA", "^250"]
+        ],
+
+        external: [
+          {
+            // Relayed to the remote MTA, which stored it in remote.test/submit-plain.
+            type: "request",
+            wait: 2,
+            delay: 3,
+            retry: 15,
+            request: {
+              url: "http://127.0.0.1:28091/store/remote.test/submit-plain/new/",
+              type: "GET",
+              headers: [
+                { name: "Accept", value: "application/json" }
+              ]
+            },
+            verify: ["^items>\\d+>name: .*\\.eml$"]
+          }
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"],
+      ["SHLO", "AUTH"],
+      ["AUTH", "^235"],
+      ["QUIT", "^221"]
+    ]
+  }
+}

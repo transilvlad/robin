@@ -199,6 +199,33 @@ class ClientAuthTest {
     }
 
     @Test
+    void configuredMechanismOverridesPreference() throws IOException {
+        StringBuilder stringBuilder = new StringBuilder()
+                .append("235 2.7.0 Authorized\r\n");
+        ConnectionMock connection = getConnection(stringBuilder);
+        connection.getSession().setAuthMechanism("PLAIN");
+
+        ClientAuth auth = new ClientAuthMock();
+        assertTrue(auth.process(connection));
+
+        connection.parseLines();
+        assertTrue(connection.getLine(1).startsWith("AUTH PLAIN "), connection.getLine(1));
+        assertEquals("235 2.7.0 Authorized", connection.getSession().getSessionTransactionList().getLast("AUTH").getResponse());
+    }
+
+    @Test
+    void configuredMechanismNotAdvertisedFails() throws IOException {
+        StringBuilder stringBuilder = new StringBuilder();
+        ConnectionMock connection = getConnection(stringBuilder);
+        connection.getSession().setEhloAuth(Arrays.asList("login"));
+        connection.getSession().setAuthMechanism("PLAIN");
+
+        ClientAuth auth = new ClientAuthMock();
+        assertFalse(auth.process(connection));
+        assertEquals(0, connection.getSession().getSessionTransactionList().getTransactions().size());
+    }
+
+    @Test
     void processLoginOneStep() throws IOException {
         StringBuilder stringBuilder = new StringBuilder()
                 .append("235 2.7.0 Authorized\r\n");

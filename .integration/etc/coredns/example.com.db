@@ -1,0 +1,9 @@
+; example.com: the local domain served by Robin under test.
+; mx.robin.test is Robin's network alias, resolved by Docker's embedded DNS. Without this zone the lookup
+; reaches the real example.com, whose null MX makes mail sent back by MX (DSNs) undeliverable.
+$ORIGIN example.com.
+$TTL 60
+@       IN SOA  ns.example.com. hostmaster.example.com. 1 3600 600 86400 60
+@       IN NS   ns.example.com.
+ns      IN A    127.0.0.1
+@       IN MX   10 mx.robin.test.

@@ -1,0 +1,64 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: a message over emailSizeLimit sent with BDAT is refused.
+  // Flow: the same 14 MB message as size-limit-data, sent in 1 MB BDAT chunks.
+  // Validates: the chunk that crosses the 10 MB limit gets 552, no chunk ends the message
+  // with a 250 for the whole transfer, and nothing reaches pepper's mailbox.
+
+  mx: ["127.0.0.1"],
+  port: 2525,
+  tls: true,
+
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      chunkSize: 1048576,
+      mime: {
+        headers: [
+          ["Subject", "Oversized over BDAT"]
+        ],
+        parts: [
+          {
+            headers: [
+              ["Content-Type", "image/jpeg; name=\"huge.jpg\""],
+              ["Content-Disposition", "attachment; filename=\"huge.jpg\""],
+              ["Content-Transfer-Encoding", "base64"]
+            ],
+            file: "src/test/resources/mime/selfie.jpg",
+            appendRandomBytes: 10300000
+          }
+        ]
+      },
+      assertions: {
+        protocol: [
+          ["MAIL", "^250"],
+          ["RCPT", "^250"],
+          ["BDAT", "^552"],
+          ["BDAT", "Received OK", "none"]
+        ],
+        external: [
+          {
+            type: "imap",
+            absent: true,
+            wait: 5,
+            delay: 2,
+            retry: 2,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "pepper@example.com",
+            pass: "potts",
+            folder: "INBOX"
+          }
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"]
+    ]
+  }
+}

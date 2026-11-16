@@ -179,14 +179,25 @@ public class ImapClient implements AutoCloseable {
     /**
      * Searches for an email by Message-ID using IMAP SEARCH command.
      *
-     * <p>This is more efficient than fetching all messages for large mailboxes.
-     * The search is performed server-side using the HEADER search key.
-     *
      * @param messageId The Message-ID to search for.
      * @return The Message if found, otherwise null.
      */
     public Message searchByMessageId(String messageId) {
-        log.debug("Searching for Message-ID using IMAP SEARCH: {}", messageId);
+        return searchByHeader("Message-ID", messageId);
+    }
+
+    /**
+     * Searches for an email whose header contains a Message-ID, using IMAP SEARCH.
+     *
+     * <p>This is more efficient than fetching all messages for large mailboxes.
+     * The search is performed server-side using the HEADER search key.
+     *
+     * @param header    Header to search, for example Message-ID or In-Reply-To.
+     * @param messageId The Message-ID to search for.
+     * @return The Message if found, otherwise null.
+     */
+    public Message searchByHeader(String header, String messageId) {
+        log.debug("Searching for {} using IMAP SEARCH: {}", header, messageId);
         Properties props = buildProperties();
         Session session = Session.getInstance(props);
 
@@ -202,9 +213,9 @@ public class ImapClient implements AutoCloseable {
             }
             mailbox.open(Folder.READ_ONLY);
 
-            // Use IMAP SEARCH with Message-ID header.
+            // Use IMAP SEARCH with the header.
             String searchId = messageId.startsWith("<") ? messageId : "<" + messageId + ">";
-            SearchTerm searchTerm = new HeaderTerm("Message-ID", searchId);
+            SearchTerm searchTerm = new HeaderTerm(header, searchId);
             Message[] results = mailbox.search(searchTerm);
 
             if (results != null && results.length > 0) {
@@ -234,29 +245,41 @@ public class ImapClient implements AutoCloseable {
      * @return The Message if found, otherwise null.
      */
     public Message fetchEmailByMessageId(String messageId) {
+        return fetchEmailByHeader("Message-ID", messageId);
+    }
+
+    /**
+     * Fetches an email whose header contains a Message-ID, for example a delivery status
+     * notification whose In-Reply-To names the original message.
+     *
+     * @param header    Header to match, for example Message-ID, In-Reply-To or References.
+     * @param messageId The Message-ID to search for.
+     * @return The Message if found, otherwise null.
+     */
+    public Message fetchEmailByHeader(String header, String messageId) {
         // Try IMAP SEARCH first for efficiency.
-        Message result = searchByMessageId(messageId);
+        Message result = searchByHeader(header, messageId);
         if (result != null) {
             return result;
         }
 
         // Fallback to linear scan.
-        log.debug("Falling back to linear scan for Message-ID: {}", messageId);
+        log.debug("Falling back to linear scan for {}: {}", header, messageId);
         List<Message> messages = fetchEmails();
         log.debug("Found {} messages in mailbox", messages.size());
         for (Message message : messages) {
             String[] headers;
             try {
-                headers = message.getHeader("Message-ID");
+                headers = message.getHeader(header);
                 if (headers != null && headers.length > 0) {
-                    log.debug("Checking Message-ID: {}", headers[0]);
+                    log.debug("Checking {}: {}", header, headers[0]);
                     if (headers[0].contains(messageId)) {
                         log.debug("Found matching message!");
                         return message;
                     }
                 }
             } catch (MessagingException e) {
-                log.error("Error retrieving Message-ID header: {}", e.getMessage());
+                log.error("Error retrieving {} header: {}", header, e.getMessage());
             }
         }
 

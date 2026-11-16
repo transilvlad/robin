@@ -4,15 +4,18 @@ import com.google.gson.Gson;
 import com.mimecast.robin.config.client.CaseConfig;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Factories;
+import com.mimecast.robin.mime.EmailBuilder;
 import com.mimecast.robin.queue.PersistentQueue;
 import com.mimecast.robin.queue.QueueFiles;
 import com.mimecast.robin.queue.RelaySession;
+import com.mimecast.robin.smtp.MessageEnvelope;
 import com.mimecast.robin.smtp.session.Session;
 import com.mimecast.robin.util.Magic;
 import com.sun.net.httpserver.HttpExchange;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -126,6 +129,12 @@ public class ClientQueueHandler implements ApiHandler {
         log.info("Queueing session: sessionUID={}, envelopes={}",
                 session.getUID(), session.getEnvelopes() != null ? session.getEnvelopes().size() : 0);
 
+        String missing = materializeMessages(session);
+        if (missing != null) {
+            endpoint.sendText(exchange, 400, missing);
+            return;
+        }
+
         RelaySession relaySession = new RelaySession(session)
                 .setProtocol(protocolOverride)
                 .setMailbox(mailboxOverride);
@@ -142,12 +151,51 @@ public class ClientQueueHandler implements ApiHandler {
 
         Map<String, Object> response = new HashMap<>();
         response.put("status", "QUEUED");
+        response.put("uid", relaySession.getUID());
         response.put("queueSize", size);
         response.put("session", session);
 
         String json = ApiEndpointUtils.getGson().toJson(response);
         endpoint.sendJson(exchange, 202, json);
         log.debug("{} responded 202, bytes={}", PATH, json.getBytes(StandardCharsets.UTF_8).length);
+    }
+
+    /**
+     * Builds the message of each envelope that has no stored source yet, as the client would when
+     * sending: from {@code mime}, then {@code folder}, then {@code subject} and {@code message}.
+     * The queue stores messages, not the instructions to build them.
+     *
+     * @param session Session mapped from the case.
+     * @return Error for a case or envelope with nothing to send, or null.
+     * @throws IOException If a MIME message cannot be built.
+     */
+    static String materializeMessages(Session session) throws IOException {
+        List<MessageEnvelope> envelopes = session.getEnvelopes();
+        // The case mapper drops envelopes without a file, folder, mime, or subject and message.
+        if (envelopes == null || envelopes.isEmpty()) {
+            return "Case has no message to queue: set file, folder, mime, or subject and message";
+        }
+        for (int i = 0; i < envelopes.size(); i++) {
+            MessageEnvelope envelope = envelopes.get(i);
+            if (envelope == null) {
+                continue;
+            }
+            if (envelope.getMime() != null && !envelope.getMime().isEmpty()) {
+                ByteArrayOutputStream message = new ByteArrayOutputStream();
+                new EmailBuilder(session, envelope).buildMime().writeTo(message);
+                envelope.setBytes(message.toByteArray());
+            } else if (envelope.hasMessageSource()) {
+                continue;
+            } else if (envelope.getFolder() != null) {
+                envelope.setFile(envelope.getFolderFile());
+            } else if (envelope.getMessage() != null) {
+                envelope.setBytes((envelope.buildHeaders() + "\r\n" + envelope.getMessage())
+                        .getBytes(StandardCharsets.UTF_8));
+            } else {
+                return "Envelope " + i + " has no message: set file, folder, mime, or subject and message";
+            }
+        }
+        return null;
     }
 
     /**
@@ -210,6 +258,7 @@ public class ClientQueueHandler implements ApiHandler {
 
         Map<String, Object> response = new HashMap<>();
         response.put("status", "QUEUED");
+        response.put("uid", relaySession.getUID());
         response.put("queueSize", size);
         response.put("session", session);
         response.put("uploadedFile", uploadedPath);

@@ -1,0 +1,60 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: submission with AUTH LOGIN, username and password in separate steps.
+  // Flow: port 587 → STARTTLS → AUTH LOGIN <user> → 334 → <password> → 235 → message.
+  // Validates: the two-step LOGIN exchange works and the message reaches the remote MTA.
+
+  mx: ["127.0.0.1"],
+  port: 2587,
+  tls: true,
+
+  auth: true,
+  user: "tony@example.com",
+  pass: "stark",
+  authMechanism: "LOGIN",
+
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["submit-login@remote.test"],
+      subject: "AUTH LOGIN submission",
+      message: "Submitted with AUTH LOGIN.",
+
+      assertions: {
+        protocol: [
+          ["MAIL", "^250"],
+          ["RCPT", "^250"],
+          ["DATA", "^250"]
+        ],
+
+        external: [
+          {
+            // Relayed to the remote MTA, which stored it in remote.test/submit-login.
+            type: "request",
+            wait: 2,
+            delay: 3,
+            retry: 15,
+            request: {
+              url: "http://127.0.0.1:28091/store/remote.test/submit-login/new/",
+              type: "GET",
+              headers: [
+                { name: "Accept", value: "application/json" }
+              ]
+            },
+            verify: ["^items>\\d+>name: .*\\.eml$"]
+          }
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"],
+      ["SHLO", "AUTH"],
+      ["AUTH", "^235"],
+      ["QUIT", "^221"]
+    ]
+  }
+}

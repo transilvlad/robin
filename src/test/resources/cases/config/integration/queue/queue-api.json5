@@ -1,0 +1,181 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: the relay queue API, each operation checked by its effect on the queue.
+  // Flow: POST /client/queue twice (a case for a tempfail address, so the items stay queued and
+  //       retrying) → list → retry the first → bounce it → delete the second.
+  // Validates: queueing returns the item uid; the item is listed; retry and bounce report the item;
+  // a bounced item leaves the active queue and is listed as dead; a deleted item is gone.
+  // Not asserted: a DSN after the admin bounce. The endpoint marks the item dead without notifying
+  // the sender; see the e2e test plan.
+
+  request: {
+    url: "http://127.0.0.1:28090/health",
+    type: "GET"
+  },
+
+  assertions: {
+    protocol: [
+      ["HTTP", "^200 "]
+    ],
+    external: [
+      {
+        // Queue a message; the response names the queue item.
+        type: "request",
+        status: 202,
+        wait: 0,
+        delay: 1,
+        retry: 1,
+        request: {
+          url: "http://127.0.0.1:28090/client/queue",
+          type: "POST",
+          content: {
+            payload: "{\"mx\": [\"mx.sink.test\"], \"port\": 25, \"tls\": true, \"envelopes\": [{\"mail\": \"tony@example.com\", \"rcpt\": [\"tempfail+queue-api@remote.test\"], \"subject\": \"Queue API retry and bounce\", \"message\": \"Queued through the API.\"}]}",
+            mimeType: "application/json"
+          }
+        },
+        verify: ["^uid: [\\w-]+$"],
+        magic: [
+          { name: "queueUid", pattern: "^uid: ([\\w-]+)$" }
+        ]
+      },
+      {
+        // A second item, to delete.
+        type: "request",
+        status: 202,
+        wait: 0,
+        delay: 1,
+        retry: 1,
+        request: {
+          url: "http://127.0.0.1:28090/client/queue",
+          type: "POST",
+          content: {
+            payload: "{\"mx\": [\"mx.sink.test\"], \"port\": 25, \"tls\": true, \"envelopes\": [{\"mail\": \"tony@example.com\", \"rcpt\": [\"tempfail+queue-api@remote.test\"], \"subject\": \"Queue API delete\", \"message\": \"Queued through the API.\"}]}",
+            mimeType: "application/json"
+          }
+        },
+        verify: ["^uid: [\\w-]+$"],
+        magic: [
+          { name: "deleteUid", pattern: "^uid: ([\\w-]+)$" }
+        ]
+      },
+      {
+        // Both items are in the active queue.
+        type: "request",
+        wait: 0,
+        delay: 1,
+        retry: 3,
+        request: {
+          url: "http://127.0.0.1:28090/client/queue/list?limit=1000",
+          type: "GET"
+        },
+        verify: ["data-uid='{$queueUid}'"],
+        match: [
+          ["data-uid='{$deleteUid}'"]
+        ]
+      },
+      {
+        // Retry now. The worker may hold the item for a moment, so allow a few attempts.
+        type: "request",
+        wait: 0,
+        delay: 1,
+        retry: 5,
+        request: {
+          url: "http://127.0.0.1:28090/client/queue/retry",
+          type: "POST",
+          content: {
+            payload: "{\"uid\": \"{$queueUid}\"}",
+            mimeType: "application/json"
+          }
+        },
+        verify: ["^retriedCount: 1"]
+      },
+      {
+        type: "request",
+        wait: 0,
+        delay: 1,
+        retry: 3,
+        request: {
+          url: "http://127.0.0.1:28090/client/queue/bounce",
+          type: "POST",
+          content: {
+            payload: "{\"uid\": \"{$queueUid}\"}",
+            mimeType: "application/json"
+          }
+        },
+        verify: ["^bouncedCount: 1"]
+      },
+      {
+        // The bounced item is dead...
+        type: "request",
+        wait: 0,
+        delay: 1,
+        retry: 3,
+        request: {
+          url: "http://127.0.0.1:28090/client/queue/list?state=DEAD&limit=1000",
+          type: "GET"
+        },
+        verify: ["data-uid='{$queueUid}'"]
+      },
+      {
+        // ...and out of the active queue.
+        type: "request",
+        wait: 0,
+        delay: 1,
+        retry: 3,
+        request: {
+          url: "http://127.0.0.1:28090/client/queue/list?limit=1000",
+          type: "GET"
+        },
+        verify: ["Total items: "],
+        refuse: [
+          ["data-uid='{$queueUid}'"]
+        ]
+      },
+      {
+        type: "request",
+        wait: 0,
+        delay: 1,
+        retry: 3,
+        request: {
+          url: "http://127.0.0.1:28090/client/queue/delete",
+          type: "POST",
+          content: {
+            payload: "{\"uid\": \"{$deleteUid}\"}",
+            mimeType: "application/json"
+          }
+        },
+        verify: ["^deletedCount: 1"]
+      },
+      {
+        // The deleted item is gone from both the active and the dead lists.
+        type: "request",
+        wait: 0,
+        delay: 1,
+        retry: 3,
+        request: {
+          url: "http://127.0.0.1:28090/client/queue/list?limit=1000",
+          type: "GET"
+        },
+        verify: ["Total items: "],
+        refuse: [
+          ["data-uid='{$deleteUid}'"]
+        ]
+      },
+      {
+        type: "request",
+        wait: 0,
+        delay: 1,
+        retry: 3,
+        request: {
+          url: "http://127.0.0.1:28090/client/queue/list?state=DEAD&limit=1000",
+          type: "GET"
+        },
+        verify: ["Total items: "],
+        refuse: [
+          ["data-uid='{$deleteUid}'"]
+        ]
+      }
+    ]
+  }
+}

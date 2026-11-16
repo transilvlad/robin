@@ -1,0 +1,31 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: the API health endpoint reports the server up.
+  // Flow: GET /health on the API port.
+  // Validates: status UP, which the compose health checks and load balancers rely on.
+
+  request: {
+    url: "http://127.0.0.1:28090/health",
+    type: "GET"
+  },
+
+  assertions: {
+    protocol: [
+      ["HTTP", "^200 "]
+    ],
+    external: [
+      {
+        type: "request",
+        wait: 0,
+        delay: 1,
+        retry: 1,
+        request: {
+          url: "http://127.0.0.1:28090/health",
+          type: "GET"
+        },
+        verify: ["UP"]
+      }
+    ]
+  }
+}

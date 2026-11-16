@@ -287,7 +287,11 @@ public abstract class SmtpFoundation {
                     break;
                 }
 
-                if (framing != null) framing.accept(read, 0, read.length);
+                // Dot unstuffing: drop the period the sender added to any line starting with one
+                // (RFC 5321 4.5.2). Without it ".hidden" is stored and relayed as "..hidden".
+                int offset = read.length > 0 && read[0] == '.' ? 1 : 0;
+
+                if (framing != null) framing.accept(read, offset, read.length - offset);
 
                 // Write previous EOL if any
                 out.write(eol);
@@ -295,7 +299,7 @@ public abstract class SmtpFoundation {
                 eol = getEol(read);
 
                 // Write line without EOL, avoiding a per-line array copy.
-                out.write(read, 0, read.length - eol.length);
+                out.write(read, offset, read.length - eol.length - offset);
             }
             if (framing != null) framing.finish();
         } catch (IOException e) {
@@ -490,8 +494,10 @@ public abstract class SmtpFoundation {
 
         byte[] bytes;
         while ((bytes = inputStream.readLine()) != null) {
-            // Dot stuffing, checked on raw bytes to avoid per-line String allocation.
-            if (isDotOnlyLine(bytes)) {
+            // Dot stuffing: every line starting with a period gets one more (RFC 5321 4.5.2).
+            // The receiver strips the first period of any such line, so stuffing only lone "."
+            // lines would corrupt lines like "..." or ".hidden".
+            if (bytes.length > 0 && bytes[0] == '.') {
                 outStream.write('.');
             }
 
@@ -503,28 +509,6 @@ public abstract class SmtpFoundation {
         }
         outStream.write("\r\n".getBytes(UTF_8));
         outStream.flush();
-    }
-
-    /**
-     * Checks if a line contains a single dot surrounded only by whitespace.
-     * <p>Byte-level equivalent of {@code new String(bytes).trim().equals(".")}.
-     *
-     * @param bytes Line bytes.
-     * @return True if the line is a lone dot.
-     */
-    private static boolean isDotOnlyLine(byte[] bytes) {
-        boolean dotFound = false;
-        for (byte b : bytes) {
-            if (b == '.') {
-                if (dotFound) {
-                    return false;
-                }
-                dotFound = true;
-            } else if ((b & 0xFF) > ' ') {
-                return false;
-            }
-        }
-        return dotFound;
     }
 
     /**

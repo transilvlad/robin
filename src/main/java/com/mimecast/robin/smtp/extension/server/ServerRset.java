@@ -23,6 +23,11 @@ public class ServerRset extends ServerProcessor {
     public boolean process(Connection connection, Verb verb) throws IOException {
         super.process(connection, verb);
 
+        // Discard a BDAT message in progress; RFC 3030 RSET aborts the transaction.
+        if (!connection.getSession().getEnvelopes().isEmpty()) {
+            connection.getSession().getEnvelopes().getLast().abortPendingReceipt();
+        }
+
         connection.write(SmtpResponses.ALL_CLEAR_250);
         connection.reset();
 

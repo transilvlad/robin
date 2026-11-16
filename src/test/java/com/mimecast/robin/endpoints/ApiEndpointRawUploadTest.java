@@ -106,11 +106,49 @@ class ApiEndpointRawUploadTest {
         Map<String, Object> map = gson.fromJson(response.body(), Map.class);
         assertEquals("QUEUED", map.get("status"));
         assertNotNull(map.get("uploadedFile"));
+        // The queue item UID, used by /client/queue/delete, retry and bounce.
+        assertTrue(map.get("uid") instanceof String uid && !uid.isBlank(), "Response should carry the queue UID");
 
         // Verify the uploaded file path is non-empty and ends with .eml.
         String uploadedFile = (String) map.get("uploadedFile");
         assertNotNull(uploadedFile);
         assertTrue(uploadedFile.endsWith(".eml"), "Uploaded file should have .eml extension");
+    }
+
+    @Test
+    void testQueueJsonCaseWithSubjectAndMessageIsBuiltAndStored() throws Exception {
+        String body = "{\"mx\": [\"127.0.0.1\"], \"envelopes\": [{\"mail\": \"tony@example.com\","
+                + " \"rcpt\": [\"pepper@example.com\"], \"subject\": \"Queued text\", \"message\": \"Queued body.\"}]}";
+
+        HttpResponse<String> response = httpClient.send(HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl + "/client/queue"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                .build(), HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(202, response.statusCode(), response.body());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = gson.fromJson(response.body(), Map.class);
+        var item = PersistentQueue.getInstance().getByUID((String) map.get("uid"));
+        assertNotNull(item);
+        String stored = new String(item.getPayload().getSession().getEnvelopes().getFirst().readMessageBytes(),
+                StandardCharsets.UTF_8);
+        assertTrue(stored.contains("Subject: Queued text"), stored);
+        assertTrue(stored.endsWith("\r\nQueued body."), stored);
+    }
+
+    @Test
+    void testQueueJsonCaseWithoutAMessageIsRefused() throws Exception {
+        String body = "{\"envelopes\": [{\"mail\": \"tony@example.com\", \"rcpt\": [\"pepper@example.com\"]}]}";
+
+        HttpResponse<String> response = httpClient.send(HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl + "/client/queue"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                .build(), HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(400, response.statusCode(), response.body());
+        assertTrue(response.body().contains("no message to queue"), response.body());
     }
 
     private static int findFreePort() throws IOException {

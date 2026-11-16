@@ -1,0 +1,167 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: every storage processor failure is reported to the client, never swallowed.
+  // Flow: one connection, one envelope per processor, each with an X-Robin-Chaos header that
+  //       forces that processor to return false: AV, spam, local storage, Dovecot delivery.
+  // Validates: each failure gives the client a temporary 451 (so the sender retries) and
+  // nothing is delivered. chaos-storage-failure covers the AV case with a log check.
+
+  mx: ["127.0.0.1"],
+  port: 2525,
+  tls: true,
+
+  envelopes: [
+    {
+      // AVStorageProcessor fails: the message must not be accepted.
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      mime: {
+        headers: [
+          ["Subject", "Chaos AVStorageProcessor"],
+          ["X-Robin-Chaos", "LocalStorageClient; processor=AVStorageProcessor; return=false"]
+        ],
+        parts: [
+          {
+            headers: [["Content-Type", "text/plain; charset=\"UTF-8\""]],
+            message: "AVStorageProcessor is forced to fail."
+          }
+        ]
+      },
+      assertions: {
+        protocol: [
+          ["DATA", "^451"]
+        ],
+        external: [
+          {
+            type: "imap",
+            absent: true,
+            wait: 3,
+            delay: 2,
+            retry: 2,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "pepper@example.com",
+            pass: "potts",
+            folder: "INBOX"
+          }
+        ]
+      }
+    },
+    {
+      // SpamStorageProcessor fails: the message must not be accepted.
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      mime: {
+        headers: [
+          ["Subject", "Chaos SpamStorageProcessor"],
+          ["X-Robin-Chaos", "LocalStorageClient; processor=SpamStorageProcessor; return=false"]
+        ],
+        parts: [
+          {
+            headers: [["Content-Type", "text/plain; charset=\"UTF-8\""]],
+            message: "SpamStorageProcessor is forced to fail."
+          }
+        ]
+      },
+      assertions: {
+        protocol: [
+          ["DATA", "^451"]
+        ],
+        external: [
+          {
+            type: "imap",
+            absent: true,
+            wait: 3,
+            delay: 2,
+            retry: 2,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "pepper@example.com",
+            pass: "potts",
+            folder: "INBOX"
+          }
+        ]
+      }
+    },
+    {
+      // LocalStorageProcessor fails: the message must not be accepted.
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      mime: {
+        headers: [
+          ["Subject", "Chaos LocalStorageProcessor"],
+          ["X-Robin-Chaos", "LocalStorageClient; processor=LocalStorageProcessor; return=false"]
+        ],
+        parts: [
+          {
+            headers: [["Content-Type", "text/plain; charset=\"UTF-8\""]],
+            message: "LocalStorageProcessor is forced to fail."
+          }
+        ]
+      },
+      assertions: {
+        protocol: [
+          ["DATA", "^451"]
+        ],
+        external: [
+          {
+            type: "imap",
+            absent: true,
+            wait: 3,
+            delay: 2,
+            retry: 2,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "pepper@example.com",
+            pass: "potts",
+            folder: "INBOX"
+          }
+        ]
+      }
+    },
+    {
+      // DovecotStorageProcessor fails: the message must not be accepted.
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      mime: {
+        headers: [
+          ["Subject", "Chaos DovecotStorageProcessor"],
+          ["X-Robin-Chaos", "LocalStorageClient; processor=DovecotStorageProcessor; return=false"]
+        ],
+        parts: [
+          {
+            headers: [["Content-Type", "text/plain; charset=\"UTF-8\""]],
+            message: "DovecotStorageProcessor is forced to fail."
+          }
+        ]
+      },
+      assertions: {
+        protocol: [
+          ["DATA", "^451"]
+        ],
+        external: [
+          {
+            type: "imap",
+            absent: true,
+            wait: 3,
+            delay: 2,
+            retry: 2,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "pepper@example.com",
+            pass: "potts",
+            folder: "INBOX"
+          }
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"],
+      ["QUIT", "^221"]
+    ]
+  }
+}

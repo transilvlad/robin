@@ -59,6 +59,7 @@ public class MessageEnvelope implements Serializable, Cloneable {
     // Set EML stream or null.
     private transient InputStream stream = null;
     private transient HeaderFraming headerFraming;
+    private transient PendingReceipt pendingReceipt;
     // Used for serialisation.
     private byte[] bytes = null;
 
@@ -118,6 +119,37 @@ public class MessageEnvelope implements Serializable, Cloneable {
     public HeaderFraming getHeaderFraming() {
         if (headerFraming == null) headerFraming = new HeaderFraming();
         return headerFraming;
+    }
+
+    /**
+     * Gets the receipt still being written across BDAT chunks, if any.
+     *
+     * @return PendingReceipt or null.
+     */
+    public PendingReceipt getPendingReceipt() {
+        return pendingReceipt;
+    }
+
+    /**
+     * Sets the receipt still being written across BDAT chunks.
+     *
+     * @param pendingReceipt PendingReceipt, or null once it is saved or aborted.
+     * @return Self.
+     */
+    public MessageEnvelope setPendingReceipt(PendingReceipt pendingReceipt) {
+        this.pendingReceipt = pendingReceipt;
+        return this;
+    }
+
+    /**
+     * Aborts and drops the receipt still being written, if any.
+     */
+    public void abortPendingReceipt() {
+        PendingReceipt pending = pendingReceipt;
+        pendingReceipt = null;
+        if (pending != null) {
+            pending.abort();
+        }
     }
 
     /**
@@ -1063,6 +1095,7 @@ public class MessageEnvelope implements Serializable, Cloneable {
         try {
             MessageEnvelope cloned = (MessageEnvelope) super.clone();
             cloned.headerFraming = null;
+            cloned.pendingReceipt = null;
 
             // Deep copy mutable collections.
             cloned.rcpts = this.rcpts == null ? new ArrayList<>() : new ArrayList<>(this.rcpts);

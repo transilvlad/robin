@@ -106,4 +106,40 @@ class ImapClientTest {
         assertEquals(false, verify.invoke(assertion, raw, client,
                 List.of(Map.of("hashes", Map.of("sha256", "not a matching hash")))));
     }
+
+    @Test
+    void findByLooksUpTheReplyInsteadOfTheMessage() throws Exception {
+        List<String> lookups = new java.util.ArrayList<>();
+        MimeMessage dsn = new MimeMessage(null, new java.io.ByteArrayInputStream(
+                "Subject: Delivery Status Notification (Failure)\r\n\r\nBody\r\n".getBytes(StandardCharsets.US_ASCII)));
+        ImapClient stub = new ImapClient("imap.example.test", 993, "", "") {
+            @Override
+            public jakarta.mail.Message fetchEmailByHeader(String header, String messageId) {
+                lookups.add(header + "=" + messageId);
+                return dsn;
+            }
+
+            @Override
+            public jakarta.mail.Message fetchEmailByMessageId(String messageId) {
+                lookups.add("Message-ID=" + messageId);
+                return null;
+            }
+        };
+        Session session = new Session().addEnvelope(new com.mimecast.robin.smtp.MessageEnvelope());
+        ImapExternalClient assertion = new ImapExternalClient() {
+            @Override
+            protected ImapClient getClient() {
+                return stub;
+            }
+        };
+        assertion.setConnection(new Connection(session));
+        assertion.setTransactionId(0);
+        assertion.setConfig(new com.mimecast.robin.config.BasicConfig(Map.of(
+                "type", "imap", "retry", 1, "findBy", "In-Reply-To",
+                "matches", Map.of("headers", List.of(List.of("^subject: Delivery Status Notification"))))));
+
+        assertion.run();
+
+        assertEquals(List.of("In-Reply-To=" + session.getEnvelopes().getFirst().getMessageId()), lookups);
+    }
 }

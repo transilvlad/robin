@@ -1,0 +1,58 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: a message whose header block contains bare CR line endings is refused.
+  // Flow: DATA with lipsum.mixed.eol.eml, whose headers end lines with CR, LF and CRLF.
+  // Validates: Robin refuses ambiguous header framing (a request-smuggling vector between
+  // MTAs that split headers differently) with 554, and nothing is delivered.
+
+  mx: ["127.0.0.1"],
+  port: 2525,
+  tls: true,
+
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      file: "src/test/resources/mime/lipsum.mixed.eol.eml",
+      assertions: {
+        protocol: [
+          ["MAIL", "^250"],
+          ["RCPT", "^250"],
+          ["DATA", "^554"]
+        ],
+        external: [
+          {
+            type: "request",
+            wait: 0,
+            delay: 2,
+            retry: 3,
+            request: {
+              url: "http://127.0.0.1:28090/logs?q={$transactionUid}",
+              type: "GET"
+            },
+            verify: ["Message refused: Standalone CR in message headers"]
+          },
+          {
+            type: "imap",
+            absent: true,
+            wait: 3,
+            delay: 2,
+            retry: 2,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "pepper@example.com",
+            pass: "potts",
+            folder: "INBOX"
+          }
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"]
+    ]
+  }
+}

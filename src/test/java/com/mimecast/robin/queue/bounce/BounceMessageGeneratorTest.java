@@ -54,6 +54,47 @@ class BounceMessageGeneratorTest {
         assertTrue(report.contains("451 4.4.3 DNS unavailable"));
     }
 
+    @Test
+    void notificationReferencesTheOriginalAndReturnsItsHeadersWithoutTheBody() throws Exception {
+        RelaySession original = original("sender@example.test");
+        original.getSession().getEnvelopes().getFirst().setBytes((
+                "Message-ID:\r\n <abc123@example.test>\r\nSubject: Quarterly report\r\n\r\nSecret body\r\n")
+                .getBytes(StandardCharsets.US_ASCII));
+
+        String message = new String(new BounceMessageGenerator(original, "missing@destination.test")
+                .toRelaySession().getSession().getEnvelopes().getFirst().readMessageBytes(), StandardCharsets.UTF_8);
+
+        assertTrue(message.contains("In-Reply-To: <abc123@example.test>"), message);
+        assertTrue(message.contains("References: <abc123@example.test>"), message);
+        assertTrue(message.contains("Content-Type: text/rfc822-headers"), message);
+        assertTrue(message.contains("Subject: Quarterly report"), message);
+        assertFalse(message.contains("Secret body"), message);
+    }
+
+    @Test
+    void notificationWithoutAReadableOriginalHasNoReferences() throws Exception {
+        String message = new String(new BounceMessageGenerator(original("sender@example.test"), "missing@destination.test")
+                .toRelaySession().getSession().getEnvelopes().getFirst().readMessageBytes(), StandardCharsets.UTF_8);
+
+        assertFalse(message.contains("In-Reply-To:"), message);
+        assertFalse(message.contains("text/rfc822-headers"), message);
+        assertTrue(message.contains("message/delivery-status"), message);
+    }
+
+    @Test
+    void originalHeadersAreCappedToWholeLines() {
+        RelaySession original = original("sender@example.test");
+        String line = "X-Filler: " + "x".repeat(100) + "\r\n";
+        original.getSession().getEnvelopes().getFirst().setBytes(
+                line.repeat(BounceMessageGenerator.MAX_ORIGINAL_HEADER_BYTES / line.length() + 10)
+                        .getBytes(StandardCharsets.US_ASCII));
+
+        byte[] headers = new BounceMessageGenerator(original, "missing@destination.test").originalHeaders();
+
+        assertTrue(headers.length <= BounceMessageGenerator.MAX_ORIGINAL_HEADER_BYTES + 2);
+        assertTrue(new String(headers, StandardCharsets.US_ASCII).endsWith("x\r\n\r\n"));
+    }
+
     private RelaySession original(String reversePath) {
         Session session = new Session().addEnvelope(
                 new MessageEnvelope().setMail(reversePath).setRcpt("missing@destination.test"));

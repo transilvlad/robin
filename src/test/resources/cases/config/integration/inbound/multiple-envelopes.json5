@@ -1,0 +1,114 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: several messages on one connection.
+  // Flow: three envelopes to three mailboxes on one connection; the last is resent 4 more
+  //       times with repeat.
+  // Validates: the server resets transaction state between messages, every envelope and
+  // every repeat is accepted, and each message is delivered to its own mailbox.
+
+  mx: ["127.0.0.1"],
+  port: 2525,
+  tls: true,
+
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      subject: "Envelope one",
+      message: "First message on the connection.",
+      assertions: {
+        protocol: [
+          ["MAIL", "^250"],
+          ["RCPT", "^250"],
+          ["DATA", "^250"]
+        ],
+        external: [
+          {
+            type: "imap",
+            wait: 2,
+            delay: 2,
+            retry: 5,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "pepper@example.com",
+            pass: "potts",
+            folder: "INBOX",
+            delete: true,
+            matches: {
+              headers: [["^subject: Envelope one$"]]
+            }
+          }
+        ]
+      }
+    },
+    {
+      mail: "pepper@example.com",
+      rcpt: ["happy@example.com"],
+      subject: "Envelope two",
+      message: "Second message on the connection.",
+      assertions: {
+        protocol: [
+          ["MAIL", "^250"],
+          ["RCPT", "^250"],
+          ["DATA", "^250"]
+        ],
+        external: [
+          {
+            type: "imap",
+            wait: 2,
+            delay: 2,
+            retry: 5,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "happy@example.com",
+            pass: "hogan",
+            folder: "INBOX",
+            delete: true,
+            matches: {
+              headers: [["^subject: Envelope two$"]]
+            }
+          }
+        ]
+      }
+    },
+    {
+      mail: "happy@example.com",
+      rcpt: ["tony@example.com"],
+      subject: "Envelope three",
+      message: "Third message on the connection, resent four more times.",
+      repeat: 4,
+      assertions: {
+        protocol: [
+          ["MAIL", "^250"],
+          ["RCPT", "^250"],
+          ["DATA", "^250"]
+        ],
+        external: [
+          {
+            type: "imap",
+            wait: 2,
+            delay: 2,
+            retry: 5,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "tony@example.com",
+            pass: "stark",
+            folder: "INBOX",
+            delete: true,
+            matches: {
+              headers: [["^subject: Envelope three$"]]
+            }
+          }
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"],
+      ["QUIT", "^221"]
+    ]
+  }
+}

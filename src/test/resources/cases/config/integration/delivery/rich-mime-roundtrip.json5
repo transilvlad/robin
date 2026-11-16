@@ -1,0 +1,111 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: a multipart message built at run time arrives with every part intact.
+  // Flow: MIME builder → text, HTML, PDF and JPEG parts → SMTP → scanners → Dovecot.
+  // Validates: each part is delivered with its headers, the text parts with their content
+  // (including non-ASCII text), and both binary parts with their original SHA-256.
+
+  mx: ["127.0.0.1"],
+  port: 2525,
+  tls: true,
+
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["pepper@example.com"],
+      mime: {
+        headers: [
+          ["Subject", "Rich MIME round trip"],
+          ["From", "Tony Stark <tony@example.com>"],
+          ["To", "Pepper Potts <pepper@example.com>"]
+        ],
+        parts: [
+          {
+            headers: [
+              ["Content-Type", "text/plain; charset=\"UTF-8\""],
+              ["Content-Transfer-Encoding", "quoted-printable"]
+            ],
+            message: "Plain text part. Café, naïve, Zürich."
+          },
+          {
+            headers: [
+              ["Content-Type", "text/html; charset=\"UTF-8\""],
+              ["Content-Transfer-Encoding", "quoted-printable"]
+            ],
+            message: "<html><body><p>HTML part with <b>bold</b> text.</p></body></html>"
+          },
+          {
+            headers: [
+              ["Content-Type", "application/pdf; name=\"article.pdf\""],
+              ["Content-Disposition", "attachment; filename=\"article.pdf\""],
+              ["Content-Transfer-Encoding", "base64"]
+            ],
+            file: "src/test/resources/mime/robin.article.pdf"
+          },
+          {
+            headers: [
+              ["Content-Type", "image/jpeg; name=\"selfie.jpg\""],
+              ["Content-Disposition", "attachment; filename=\"selfie.jpg\""],
+              ["Content-Transfer-Encoding", "base64"]
+            ],
+            file: "src/test/resources/mime/selfie.jpg"
+          }
+        ]
+      },
+      assertions: {
+        protocol: [
+          ["MAIL", "^250"],
+          ["RCPT", "^250"],
+          ["DATA", "^250"]
+        ],
+        external: [
+          {
+            type: "imap",
+            wait: 2,
+            delay: 2,
+            retry: 5,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "pepper@example.com",
+            pass: "potts",
+            folder: "INBOX",
+            delete: true,
+            matches: {
+              headers: [
+                ["^subject: Rich MIME round trip$"],
+                ["^from: Tony Stark <tony@example\\.com>$"],
+                ["^content-type: multipart/"]
+              ],
+              parts: [
+                {
+                  headers: [["content-type", "text/plain"]],
+                  body: [["Café, naïve, Zürich\\."]]
+                },
+                {
+                  headers: [["content-type", "text/html"]],
+                  body: [["<b>bold</b>"]]
+                },
+                {
+                  headers: [["content-disposition", "filename=\"article\\.pdf\""]],
+                  hashes: { sha256: "psNA0WmTvbdeVHChHaR6RQrLY/miJI08vMHY0tBB2Ko=" }
+                },
+                {
+                  headers: [["content-disposition", "filename=\"selfie\\.jpg\""]],
+                  hashes: { sha256: "hcy3cDdUg3VJnONCIOZjCUrqyf649qjNcBii39ZJCCs=" }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"],
+      ["QUIT", "^221"]
+    ]
+  }
+}

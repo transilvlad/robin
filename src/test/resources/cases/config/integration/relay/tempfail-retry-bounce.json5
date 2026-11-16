@@ -1,0 +1,105 @@
+{
+  $schema: "../../../../../../main/resources/schema/case.schema.json",
+
+  // Test: a temporary failure is retried until the retry budget runs out, then bounced.
+  // Flow: AUTH on 587 → queued for MX relay → robin-sink answers RCPT with 450 4.2.1 on every
+  //       attempt → rescheduled (queue.json5 retry: 4 retries, at most 5s apart) → DSN to
+  //       tony@example.com → MX for example.com is Robin → tony's INBOX.
+  // Validates: the message is retried rather than bounced on the first 4xx, and once retries are
+  // spent the sender gets a DSN with Action: failed and the remote's last reply.
+
+  mx: ["127.0.0.1"],
+  port: 2587,
+  tls: true,
+
+  auth: true,
+  user: "tony@example.com",
+  pass: "stark",
+
+  envelopes: [
+    {
+      mail: "tony@example.com",
+      rcpt: ["tempfail+retry@remote.test"],
+      file: "src/test/resources/cases/sources/lipsum.eml",
+
+      assertions: {
+        protocol: [
+          ["MAIL", "^250"],
+          ["RCPT", "^250"],
+          ["DATA", "^250"]
+        ],
+
+        external: [
+          {
+            // The receiving session queued the message; capture the relay session it became.
+            type: "request",
+            wait: 1,
+            delay: 2,
+            retry: 5,
+            request: {
+              url: "http://127.0.0.1:28090/logs?q={$transactionUid}",
+              type: "GET"
+            },
+            verify: ["Queued relay: item=[\\w-]+, session=[\\w-]+, protocol=mx"],
+            magic: [
+              { name: "relaySession", pattern: "Queued relay: item=[\\w-]+, session=([\\w-]+)" }
+            ]
+          },
+          {
+            // Retried, then given up on.
+            type: "request",
+            wait: 20,
+            delay: 5,
+            retry: 16,
+            request: {
+              url: "http://127.0.0.1:28090/logs?q={$relaySession}",
+              type: "GET"
+            },
+            verify: ["Max retries reached: uid="],
+            match: [
+              ["Processing session: .*retryCount=1"],
+              ["Processing session: .*retryCount=2"]
+            ]
+          },
+          {
+            // The DSN in the sender's mailbox, found by its In-Reply-To.
+            type: "imap",
+            wait: 0,
+            delay: 3,
+            retry: 15,
+            host: "127.0.0.1",
+            port: 2143,
+            user: "tony@example.com",
+            pass: "stark",
+            folder: "INBOX",
+            findBy: "In-Reply-To",
+            delete: true,
+            matches: {
+              headers: [
+                ["^subject: Delivery Status Notification \\(Failure\\)$"]
+              ],
+              parts: [
+                {
+                  headers: [["content-type", "message/delivery-status"]],
+                  body: [
+                    ["Final-Recipient: RFC822; tempfail\\+retry@remote\\.test"],
+                    ["Action: failed"],
+                    ["Diagnostic-Code: SMTP; 450 4\\.2\\.1"]
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+
+  assertions: {
+    protocol: [
+      ["SMTP", "^220"],
+      ["AUTH", "^235"],
+      ["QUIT", "^221"]
+    ]
+  }
+}

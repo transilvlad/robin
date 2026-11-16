@@ -1,0 +1,16 @@
+MIME-Version: 1.0
+From: <{$MAILFROM}>
+To: <{$RCPTTO}>
+Date: {$DATE}
+Message-ID: <{$MSGID}{$MAILFROM}>
+Subject: Dot stuffing
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 7bit
+
+Lines below start with dots and must arrive unchanged.
+.
+..
+.hidden
+...three
+. space after dot
+The message ends after this line.

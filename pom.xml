@@ -339,6 +339,10 @@
                     <argLine>-Dfile.encoding=UTF-8</argLine>
                     <!-- Exclude integration tests from build (require Docker) -->
                     <excludedGroups>${test.excludedGroups}</excludedGroups>
+                    <!-- Report parameterized tests by display name (integration cases by case path). -->
+                    <statelessTestsetReporter implementation="org.apache.maven.plugin.surefire.extensions.junit5.JUnit5Xml30StatelessReporter">
+                        <usePhrasedTestCaseMethodName>true</usePhrasedTestCaseMethodName>
+                    </statelessTestsetReporter>
                 </configuration>
             </plugin>
 
