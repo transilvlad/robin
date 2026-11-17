@@ -1,13 +1,37 @@
 package com.mimecast.robin.queue;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.mimecast.robin.config.server.RetryConfig;
 import org.junit.jupiter.api.Test;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class RetrySchedulerTest {
+
+    @Test
+    void productionPolicySpreadsRetriesAndDoesNotExhaustAttemptsBeforeItsDeliveryLifetime() throws Exception {
+        Map<String, Object> values = new Gson().fromJson(
+                Files.readString(Path.of(".suite/cfg-production/queue.json5")),
+                new TypeToken<Map<String, Object>>() {}.getType());
+        var queue = new com.mimecast.robin.config.BasicConfig(values);
+        var retry = new RetryConfig(queue.getMapProperty("retry"));
+        assertTrue(retry.getMaxAgeSeconds() > 0);
+        assertEquals(240, RetryScheduler.calculateDelay(retry, 1, 0));
+        assertEquals(360, RetryScheduler.calculateDelay(retry, 1, 1));
+        long earliestExpiry = 0;
+        for (int attempt = 1; attempt <= retry.getTotalRetries(); attempt++) {
+            int delay = RetryScheduler.calculateDelay(retry, attempt, 0);
+            assertTrue(delay > 0 && delay <= retry.getMaxWaitSeconds());
+            earliestExpiry += delay;
+        }
+        assertTrue(earliestExpiry >= retry.getMaxAgeSeconds(),
+                "Even earliest jitter must leave enough retries for the configured delivery lifetime");
+    }
 
     @Test
     void testFirstRetry() {

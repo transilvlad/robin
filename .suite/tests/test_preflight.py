@@ -26,7 +26,9 @@ class ProductionPreflightTest(unittest.TestCase):
                                             "concurrentConnections": 50}},
                              **{name: {"authType": "basic", "authValue": "{$secret:ROBIN_API_AUTH}"} for name in ("api", "service")},
                              **{name: {"messageSizeLimit": 20971520} for name in ("smtpConfig", "secureConfig", "submissionConfig")}},
-            "queue.json5": {"workerThreads": 8, "maxInFlight": 16},
+            "queue.json5": {"workerThreads": 8, "maxInFlight": 16,
+                            "maxConcurrentPerDestination": 2, "destinationDeferSeconds": 5,
+                            "retry": {"maxAgeSeconds": 432000, "jitterFraction": 0.2}},
             "dovecot.json5": {"saveLmtp": {"connectionPoolSize": 8}},
             "rspamd.json5": {"enabled": True, "requireDkimSigning": True, "discardEnabled": False},
             "clamav.json5": {"onVirus": "reject"},
@@ -151,6 +153,24 @@ class ProductionPreflightTest(unittest.TestCase):
         containers[0]["HostConfig"]["Memory"] = 2048
         failures = preflight.audit(compose, inventory, runtime, lock, containers, "robin1")["failures"]
         self.assertIn("suite-robin: deployed Memory hard limit differs from reviewed mem_limit", failures)
+
+    def test_queue_monopolization_unbounded_age_and_synchronized_retries_are_blocked(self):
+        for field, value, message in (
+                ("maxConcurrentPerDestination", 0, "Destination concurrency"),
+                ("maxConcurrentPerDestination", 8, "Destination concurrency"),
+                ("maxConcurrentPerDestination", True, "Destination concurrency"),
+                ("destinationDeferSeconds", 0, "Destination deferral"),
+                ("retry", {}, "Queue delivery lifetime"),
+                ("retry", {"maxAgeSeconds": 0, "jitterFraction": 0.2}, "Queue delivery lifetime"),
+                ("retry", {"maxAgeSeconds": 432000, "jitterFraction": 0}, "Queue retry jitter"),
+                ("retry", {"maxAgeSeconds": 432000, "jitterFraction": 1}, "Queue retry jitter")):
+            with self.subTest(field=field, value=value):
+                compose, inventory, runtime, lock, containers = self.fixture()
+                queue = next(row["payload_json"] for row in inventory["rows"] if row["file_name"] == "queue.json5")
+                queue[field] = value
+                runtime["sourceFiles"]["queue.json5"]["sha256"] = preflight.canonical_hash(queue)
+                failures = preflight.audit(compose, inventory, runtime, lock, containers, "robin1")["failures"]
+                self.assertTrue(any(message in failure for failure in failures))
 
     def test_unlimited_invalid_or_mismatched_deployed_memory_and_pids_are_blocked(self):
         for field in ("Memory", "PidsLimit"):

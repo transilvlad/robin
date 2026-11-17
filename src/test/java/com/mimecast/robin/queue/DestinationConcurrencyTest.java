@@ -1,5 +1,7 @@
 package com.mimecast.robin.queue;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.mimecast.robin.config.ConfigLoader;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.smtp.session.Session;
@@ -8,6 +10,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Isolated;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -34,6 +38,23 @@ class DestinationConcurrencyTest {
                 return new RelayQueueWorkResult(QueueMutation.acknowledge(item), List.of(), List.of());
             }
         };
+    }
+
+    @Test
+    void actualProductionPolicyDefersTheThirdHotDestinationButAdmitsAnotherDestination() throws Exception {
+        Map<String, Object> policy = new Gson().fromJson(
+                Files.readString(Path.of(".suite/cfg-production/queue.json5")),
+                new TypeToken<Map<String, Object>>() {}.getType());
+        Config.getServer().getMap().put("queue", policy);
+        var limits = DestinationConcurrency.fromConfig();
+        try (var first = limits.tryAcquire(item("mx", "hot.example"), 1000, 0).orElseThrow();
+             var second = limits.tryAcquire(item("mx", "hot.example"), 1000, 0).orElseThrow();
+             var other = limits.tryAcquire(item("mx", "other.example"), 1000, 0).orElseThrow()) {
+            assertTrue(limits.tryAcquire(item("mx", "hot.example"), 1000, 0).isEmpty());
+            assertEquals(1005, limits.defer(item("mx", "hot.example"), 1000, 0, "Busy destination")
+                    .nextAttemptAtEpochSeconds());
+        }
+        assertEquals(0, limits.activeDestinations());
     }
 
     @Test

@@ -151,6 +151,9 @@ class ComposeModelTest(unittest.TestCase):
                 self.assertTrue(any(mount["target"] == "/templates/rspamd.json5"
                                     and "cfg-production" in mount["source"]
                                     for mount in services["suite-config-init"]["volumes"]))
+                self.assertTrue(any(mount["target"] == "/templates/queue.json5"
+                                    and "cfg-production" in mount["source"]
+                                    for mount in services["suite-config-init"]["volumes"]))
                 self.assertEqual(["sh", "/etc/redis/suite-start.sh"], services["suite-redis"]["command"])
                 self.assertTrue(any(mount["target"] == "/etc/redis/suite-production.conf"
                                     and mount["read_only"]

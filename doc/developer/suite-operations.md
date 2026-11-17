@@ -318,6 +318,26 @@ working sets, process/FD peaks and database/scanner reload behavior. A dataset
 that already exceeds a new ceiling needs an explicit maintenance/sizing plan;
 do not force the new profile onto it or treat OOM/restart loops as acceptance.
 
+## Delivery shaping and retry lifetime
+
+The production queue keeps eight workers and sixteen in-flight items, admitting
+at most two deliveries per MX destination domain or direct SMTP/LMTP endpoint.
+Saturated destinations are durably deferred for five seconds without consuming
+a delivery retry; other destinations can still progress. Limits are
+process-local, not distributed tenant quotas.
+
+Temporary delivery failures start at five minutes with exponential backoff,
+20 percent jitter and a one-hour maximum wait including jitter. Accepted mail
+has an explicit five-day maximum queue age. The 168-retry count allows that
+lifetime even with earliest jitter; age can still expire sooner while work is
+deferred. Permanent failures and expired mail use the existing DSN/dead-letter
+path rather than pretending delivery succeeded. These settings are outage
+tolerance, not a promise of successful delivery or five days of live DNS retries.
+
+Existing authoritative queue rows need a reviewed base-row migration, including
+the new fields, plus runtime fingerprint/restart acceptance. Replacing the
+bootstrap `queue.json5` does not update a populated configuration store.
+
 ## Redis memory and persistence
 
 Production Redis uses a 192 MiB dataset ceiling within its 512 MiB container,

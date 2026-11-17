@@ -188,6 +188,17 @@ def audit(compose, inventory, runtime, image_lock, containers, server_id):
             "Legacy queue timing keys do not control the dispatcher")
     require(0 < queue.get("workerThreads", 0) <= queue.get("maxInFlight", 0) <= 64,
             "Queue worker/in-flight budget is missing or unbounded")
+    destination = queue.get("maxConcurrentPerDestination")
+    require(positive_integer(destination) and destination < queue.get("workerThreads", 0),
+            "Destination concurrency must leave workers available for other destinations")
+    require(positive_integer(queue.get("destinationDeferSeconds")),
+            "Destination deferral must be explicitly bounded")
+    retry = queue.get("retry")
+    require(isinstance(retry, dict) and positive_integer(retry.get("maxAgeSeconds")),
+            "Queue delivery lifetime must be explicitly bounded")
+    jitter = retry.get("jitterFraction") if isinstance(retry, dict) else None
+    require(type(jitter) in (int, float) and 0 < jitter < 1,
+            "Queue retry jitter must be explicitly enabled and below one")
     require(files.get("rspamd.json5", {}).get("discardEnabled") is False, "Silent spam discard must be disabled")
     require(files.get("rspamd.json5", {}).get("enabled") is True
             and files.get("rspamd.json5", {}).get("requireDkimSigning") is True,

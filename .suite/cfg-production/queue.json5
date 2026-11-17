@@ -1,0 +1,33 @@
+{
+  startDelaySeconds: 10,
+  housekeepingIntervalSeconds: 30,
+  maxClaimBatch: 16,
+  workerThreads: 8,
+  maxInFlight: 16,
+  maxConcurrentPerDestination: 2,
+  destinationDeferSeconds: 5,
+  retry: {
+    totalRetries: 168,
+    firstWaitMinutes: 5,
+    growthFactor: 2.0,
+    maxWaitSeconds: 3600,
+    jitterFraction: 0.2,
+    maxAgeSeconds: 432000
+  },
+  queueMapDB: {
+    enabled: false,
+    queueFile: "/usr/local/robin/relayQueue.db",
+    concurrencyScale: 32
+  },
+  queueRedis: {
+    enabled: false, host: "localhost", port: 6379, queueKey: "robin:robin_queue"
+  },
+  queueMariaDB: {
+    enabled: false, jdbcUrl: "jdbc:mariadb://localhost:3306/robin",
+    username: "robin", password: "", tableName: "robin_queue"
+  },
+  queuePgSQL: {
+    enabled: true, jdbcUrl: "jdbc:postgresql://postgres-backend:5432/robin",
+    username: "robin_mta", password: "{$secret:MTA_DB_PASSWORD}", tableName: "robin_queue"
+  }
+}
