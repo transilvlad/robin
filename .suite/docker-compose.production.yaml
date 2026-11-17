@@ -16,12 +16,23 @@ services:
   suite-postgres:
     <<: *runtime
     image: ${POSTGRES_IMAGE:?Set POSTGRES_IMAGE to a reviewed PostgreSQL 18 image}
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 2
+    pids_limit: 256
+    shm_size: 128m
+    stop_grace_period: 120s
     volumes:
       - ./db-init-production/01-create-users.sql:/docker-entrypoint-initdb.d/01-create-users.sql:ro
       - ./migration/001-mail-domains-and-sender-grants.sql:/docker-entrypoint-initdb.d/03-mail-domains-and-sender-grants.sql:ro
   suite-redis:
     <<: *runtime
     image: ${REDIS_IMAGE:?Set REDIS_IMAGE to a reviewed Redis image}
+    mem_limit: 512m
+    memswap_limit: 512m
+    cpus: 1
+    pids_limit: 128
+    stop_grace_period: 60s
     command:
       - sh
       - -ec
@@ -48,9 +59,19 @@ services:
   suite-clamav:
     <<: *runtime
     image: ${CLAMAV_IMAGE:?Set CLAMAV_IMAGE to a reviewed ClamAV image}
+    mem_limit: 4g
+    memswap_limit: 4g
+    cpus: 2
+    pids_limit: 256
+    stop_grace_period: 60s
   suite-rspamd:
     <<: *runtime
     image: ${RSPAMD_IMAGE:?Set RSPAMD_IMAGE to a reviewed Rspamd image}
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 2
+    pids_limit: 256
+    stop_grace_period: 60s
     volumes:
       - ./etc/rspamd/production/local.d:/etc/rspamd/local.d
     secrets:
@@ -61,6 +82,11 @@ services:
   suite-roundcube:
     <<: *runtime
     image: ${ROUNDCUBE_IMAGE:?Set ROUNDCUBE_IMAGE to a reviewed Roundcube image}
+    mem_limit: 512m
+    memswap_limit: 512m
+    cpus: 1
+    pids_limit: 128
+    stop_grace_period: 60s
     environment:
       - MAIL_HOSTNAME=${MAIL_HOSTNAME:?Set MAIL_HOSTNAME to your public mail hostname}
     volumes:
@@ -73,6 +99,11 @@ services:
   suite-robin:
     <<: *runtime
     image: ${ROBIN_IMAGE:?Set ROBIN_IMAGE to a local release-specific build tag}
+    mem_limit: 1536m
+    memswap_limit: 1536m
+    cpus: 2
+    pids_limit: 256
+    stop_grace_period: 60s
     volumes: !override
       - robin-config:/usr/local/robin/cfg
       - ./cfg/config.json5:/usr/local/robin/cfg/config.json5:ro

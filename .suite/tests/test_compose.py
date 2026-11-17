@@ -148,6 +148,27 @@ class ComposeModelTest(unittest.TestCase):
                                          services[name]["environment"]["ROBIN_API_AUTH"])
                 self.assertTrue(any("mail-tls" in mount["target"] or "/nginx/certs/" in mount["target"]
                                     for mount in mailbox["volumes"]))
+                self.assertTrue(any(mount["target"] == "/templates/rspamd.json5"
+                                    and "cfg-production" in mount["source"]
+                                    for mount in services["suite-config-init"]["volumes"]))
+                for name in ("suite-robin", "suite-postgres", "suite-redis", "suite-clamav",
+                             "suite-rspamd", "suite-roundcube",
+                             *(("suite-dovecot",) if backend == "dovecot" else ("suite-cyrus", "suite-imap-proxy"))):
+                    service = services[name]
+                    self.assertGreater(int(service["mem_limit"]), 0, name)
+                    self.assertEqual(service["mem_limit"], service["memswap_limit"], name)
+                    self.assertGreater(float(service["cpus"]), 0, name)
+                    self.assertGreater(service["pids_limit"], 0, name)
+                    self.assertIn("stop_grace_period", service, name)
+                self.assertGreaterEqual(int(services["suite-clamav"]["mem_limit"]), 4 * 1024 ** 3)
+                if backend == "cyrus":
+                    self.assertEqual("production", mailbox["environment"]["MAIL_TLS_PROFILE"])
+                    tls = [mount for mount in mailbox["volumes"] if mount["target"].startswith("/run/mail-tls")]
+                    self.assertEqual(1, len(tls))
+                    self.assertEqual("/run/mail-tls", tls[0]["target"])
+                    self.assertTrue(tls[0]["read_only"])
+                    self.assertFalse(any("dovecot/certs" in mount["source"].replace("\\", "/")
+                                         for mount in mailbox["volumes"]))
                 for service in (robin, mailbox):
                     self.assertTrue(all(item.get("host_ip") == "127.0.0.1" for item in service["ports"]))
                 self.assertTrue(any(mount["target"].endswith("03-mail-domains-and-sender-grants.sql")

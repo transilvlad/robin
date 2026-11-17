@@ -11,6 +11,11 @@ services:
   suite-dovecot:
     <<: *runtime
     image: ${DOVECOT_IMAGE:?Set DOVECOT_IMAGE to a reviewed Dovecot 2.4 image}
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 2
+    pids_limit: 384
+    stop_grace_period: 60s
     volumes:
       - ${MAIL_TLS_DIR:?Set MAIL_TLS_DIR to the operator certificate directory}:/run/mail-tls:ro
       - ../etc/dovecot/conf.d/99-production-tls.conf.example:/etc/dovecot/conf.d/99-production-tls.conf:ro

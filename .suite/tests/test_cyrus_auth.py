@@ -5,6 +5,7 @@ import os
 import shutil
 import ssl
 import subprocess
+import time
 import unittest
 
 from docker_fixture import DockerFixture, SUITE, run
@@ -68,23 +69,25 @@ http {
 """.replace("TOKEN", token).replace("ADDRESS", address), encoding="utf-8")
             start = fixture.root / "proxy-start.sh"
             shutil.copyfile(SUITE / "etc" / "imap-proxy" / "start.sh", start)
-            certificate = fixture.root / "imap.crt"
-            key = fixture.root / "imap.key"
+            tls = fixture.root / "tls"
+            tls.mkdir()
+            certificate = tls / "fullchain.pem"
+            key = tls / "privkey.pem"
             run("openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
                 "-subj", "/CN=localhost", "-addext", "subjectAltName=IP:127.0.0.1",
+                "-set_serial", "101",
                 "-keyout", str(key), "-out", str(certificate))
             fixture.config["networks"]["edge"] = {}
             proxy = {
                 "image": os.environ.get("ROBIN_TEST_NGINX_IMAGE", "nginx:alpine"),
                 "pull_policy": "never", "mem_limit": "64m", "memswap_limit": "64m",
                 "cpus": 0.5, "pids_limit": 32, "command": ["sh", "/etc/nginx/suite-start.sh"],
-                "environment": {"ROBIN_API_AUTH": credential},
+                "environment": {"ROBIN_API_AUTH": credential, "MAIL_TLS_PROFILE": "production"},
                 "networks": {"backend": {"aliases": ["mta-backend"]}, "edge": {}},
                 "ports": [{"target": 993, "host_ip": "127.0.0.1"}],
                 "volumes": [f"{nginx}:/etc/nginx/nginx.conf:ro",
                             f"{start}:/etc/nginx/suite-start.sh:ro",
-                            f"{certificate}:/etc/nginx/certs/imap.crt:ro",
-                            f"{key}:/etc/nginx/certs/imap.key:ro"],
+                            f"{tls}:/run/mail-tls:ro"],
                 "healthcheck": {"test": ["CMD", "nc", "-z", "127.0.0.1", "993"],
                                 "interval": "1s", "timeout": "5s", "retries": 30},
             }
@@ -98,6 +101,42 @@ http {
 
             with connect() as client:
                 self.assertEqual("OK", client.login("alias@example.test", "synthetic-mailbox-password")[0])
+                self.assertEqual("65", client.sock.getpeercert()["serialNumber"])
+            previous = certificate.read_text()
+            renewed_certificate = tls / "renewed.pem"
+            renewed_key = tls / "renewed.key"
+            run("openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+                "-subj", "/CN=localhost", "-addext", "subjectAltName=IP:127.0.0.1",
+                "-set_serial", "102", "-keyout", str(renewed_key), "-out", str(renewed_certificate))
+            renewed_certificate.replace(certificate)
+            renewed_key.replace(key)
+            context = ssl.create_default_context(cafile=str(certificate))
+            context.load_verify_locations(cadata=previous)
+            run(*fixture.command, "exec", "-T", "proxy", "nginx", "-t")
+            run(*fixture.command, "exec", "-T", "proxy", "nginx", "-s", "reload")
+            for attempt in range(20):
+                with connect() as client:
+                    serial = client.sock.getpeercert()["serialNumber"]
+                if serial == "66":
+                    break
+                time.sleep(0.1)
+            self.assertEqual("66", serial, "Renewed directory-mounted certificate was not served after reload")
+            context = ssl.create_default_context(cafile=str(certificate))
+            with connect() as client:
+                self.assertEqual("OK", client.login("alias@example.test", "synthetic-mailbox-password")[0])
+            with self.assertRaises(subprocess.CalledProcessError) as refused:
+                run(*fixture.command, "exec", "-T", "proxy", "env", "MAIL_TLS_PROFILE=unknown",
+                    "sh", "/etc/nginx/suite-start.sh")
+            self.assertIn("Unknown MAIL_TLS_PROFILE", refused.exception.stderr)
+            shutil.copyfile(certificate, tls / "imap.crt")
+            shutil.copyfile(key, tls / "imap.key")
+            certificate.unlink()
+            key.unlink()
+            proxy["environment"].pop("MAIL_TLS_PROFILE")
+            fixture.start()
+            with connect() as client:
+                self.assertEqual("OK", client.login("alias@example.test", "synthetic-mailbox-password")[0])
+                self.assertEqual("66", client.sock.getpeercert()["serialNumber"])
             run(*fixture.command, "exec", "-T", "cyrus", "env", "ROBIN_API_AUTH=wrong:wrong",
                 "ROBIN_API_AUTH_HEADER_FILE=/tmp/wrong-api-header", "/usr/local/bin/robin-auth", "--init")
             with self.assertRaises(subprocess.CalledProcessError):

@@ -1,4 +1,5 @@
 import base64
+from contextlib import ExitStack
 import imaplib
 import os
 import shutil
@@ -91,6 +92,12 @@ UPDATE users SET password='{password_hash}', home='/var/mail/vhosts/example.test
                 self.assertIn(("DNS", "mail.example.test"), client.sock.getpeercert()["subjectAltName"])
                 self.assertEqual("OK", client.login(user, fixture.password)[0])
                 return client
+
+            # Keep more than the former ten TLS login proxies alive simultaneously.
+            with ExitStack() as sessions:
+                clients = [sessions.enter_context(login("alice@example.test")) for _ in range(12)]
+                for client in clients:
+                    self.assertEqual("OK", client.noop()[0])
 
             with login("alice@example.test") as alice, login("bob@example.test") as bob:
                 listing = b"\n".join(alice.list()[1])

@@ -11,13 +11,23 @@ services:
   suite-cyrus:
     <<: *runtime
     image: ${CYRUS_IMAGE:?Set CYRUS_IMAGE to a local release-specific build tag}
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 2
+    pids_limit: 256
+    stop_grace_period: 60s
     environment:
       - ROBIN_API_AUTH=${ROBIN_API_AUTH:?Set the shared Robin API credential}
   suite-imap-proxy:
     <<: *runtime
     image: ${NGINX_IMAGE:?Set NGINX_IMAGE to a reviewed nginx image}
+    mem_limit: 128m
+    memswap_limit: 128m
+    cpus: 1
+    pids_limit: 64
+    stop_grace_period: 60s
     environment:
       - ROBIN_API_AUTH=${ROBIN_API_AUTH:?Set the shared Robin API credential}
+      - MAIL_TLS_PROFILE=production
     volumes:
-      - ${MAIL_TLS_DIR:?Set MAIL_TLS_DIR to the operator certificate directory}/fullchain.pem:/etc/nginx/certs/imap.crt:ro
-      - ${MAIL_TLS_DIR:?Set MAIL_TLS_DIR to the operator certificate directory}/privkey.pem:/etc/nginx/certs/imap.key:ro
+      - ${MAIL_TLS_DIR:?Set MAIL_TLS_DIR to the operator certificate directory}:/run/mail-tls:ro

@@ -6,7 +6,11 @@ It does not copy mail configuration or enable test features.
 
 Use a dedicated Linux Docker host with Git, Python 3.11+, OpenSSL and Docker
 Compose 2.24.6+ (supporting remote includes and `!override`). Budget memory for
-ClamAV and the JVM. Only one suite can occupy this host: container, network and
+ClamAV and the JVM: core production limits total 9.5 GiB with Dovecot, plus
+Admin/observability/modules and host headroom. Plan from 16 GiB, then measure;
+this is not a user-count guarantee or an 8 GiB full-stack profile. See
+[resource budgets](../../doc/developer/suite-operations.md#single-host-resource-baseline).
+Only one suite can occupy this host: container, network and
 some volume names are deliberately fixed. Docker group membership is root-level
 access. Configure the host/cloud firewall before starting: public mail uses
 25/465/587/993; keep PostgreSQL, scanners, LMTP and APIs private. Docker-published
@@ -83,8 +87,13 @@ docker compose -f examples/docker-compose/compose.yaml ps
 `--wait` is a container-health check, not production acceptance. Provision actual
 users/domains through Admin before pointing MX records here. Verify inbound mail,
 submission, mailbox delivery and relay restrictions before routing live traffic.
+Production enables managed recipient routing, explicit sender grants and
+bounded account/domain submission quotas. Maintain domain/grant rows when
+provisioning users; a receiving alias alone does not authorize sending.
+See [production mail policy](../../doc/developer/robin-suite.md#production-mail-policy).
 Roundcube connects to verified IMAPS and authenticated STARTTLS submission.
-Provision DKIM keys and DNS before accepting outbound mail. See
+Provision DKIM keys and DNS before accepting outbound mail: production requires
+fresh DKIM signing and temporarily refuses unsigned authenticated submissions. See
 [scanner credentials and DKIM](../../doc/developer/robin-suite.md#scanner-credentials-and-dkim)
 for key paths, missing-key behavior and coordinated Redis/controller rotation.
 

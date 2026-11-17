@@ -47,12 +47,19 @@ LMTP-to-IMAP delivery, SPECIAL-USE folders, shared-folder read/insert denial/
 revocation, exact Admin `doveadm` set/get/delete readback, APPEND quota rejection,
 TLS ManageSieve script activation and actual Junk filing, next-login password
 revocation, and certificate-directory replacement followed by reload and a
-verified served certificate serial change. It does not modify or validate a
+verified served certificate serial change. Twelve simultaneous authenticated
+TLS sessions exercise the former ten-login-process ceiling without enabling
+shared login processes. The managed-alias SQL check executes the actual Java
+query against disposable PostgreSQL and checks automatic multi-target aliases,
+explicit-alias precedence and real-mailbox precedence. It does not modify or validate a
 running Cyrus/JMAP/webmail deployment.
 
 Compose model checks use synthetic local Admin includes, never a remote fetch
 or sibling checkout. They cover both mailbox backends, loopback defaults,
 production TLS mounts, Basic credential propagation and missing-input refusals.
+They also check core memory/swap/CPU/PID budgets and the production signing
+template override; the Cyrus proxy must use one directory TLS mount without
+the demo file mounts.
 The Ansible environment-template regression also requires Jinja2 and PyYAML
 (included with Ansible); it renders the checked-in example into both production
 Compose models and verifies the API credential and generated Redis DSN.
@@ -69,8 +76,12 @@ images (or `ROBIN_TEST_CYRUS_AUTH_IMAGE` / `ROBIN_TEST_NGINX_IMAGE`) without pul
 It mounts only copied current callback/entrypoint/proxy scripts and synthetic
 configuration, starts a disposable actual Cyrus/IMAPS pair (256/64 MiB with
 matching swap, CPU and PID caps), and tests alias login with authenticated
-proxy/PAM callbacks plus wrong-credential refusals. Its protected Robin HTTP
-callbacks are synthetic: this does not establish a deployed Robin/Cyrus SQL
+proxy/PAM callbacks plus wrong-credential refusals. Atomic certificate/key replacement in the mounted
+directory followed by validated nginx reload must serve the new serial and
+still authenticate successfully; no certificate-verification bypass is used.
+The default demo certificate filenames also work without the production pair,
+and an unknown TLS profile is refused.
+Its protected Robin HTTP callbacks are synthetic: this does not establish a deployed Robin/Cyrus SQL
 identity or live-account migration pass.
 
 The offline `test_preflight.py` checks require no Docker opt-in. Production
@@ -79,7 +90,9 @@ evidence, an image lock and Docker inspect JSON; it does not establish public
 DNS, reputation or end-to-end delivery. Resource evidence must include each
 deployed container's `HostConfig`, not only intended Compose budgets:
 `Memory` and `PidsLimit` must be positive integers exactly matching normalized
-`mem_limit` bytes and `pids_limit`; CPU must match numeric `cpus` through
+`mem_limit` bytes and `pids_limit`. Compose's decimal-string byte counts are
+accepted, but unnormalized unit strings, booleans and overflow are refused;
+CPU must match numeric `cpus` through
 `NanoCpus / 1e9` or positive `CpuQuota / CpuPeriod`. Docker's default CFS period
 is 100000 microseconds when unspecified. Zero `NanoCpus` alone is not failure
 when a matching hard quota is present. Missing/unlimited/invalid limits,

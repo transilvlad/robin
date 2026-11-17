@@ -272,6 +272,52 @@ a planned outage and rehearse against a restored copy first:
 This intentionally requires operator choices about existing data/ownership;
 there is no catch-all migration script that guesses which tables are safe.
 
+## Single-host resource baseline
+
+The production overlay supplies hard memory, equal memory-plus-swap, CPU and
+PID limits for core services, plus shutdown grace periods. These are safety
+ceilings, not reservations or a proven user/message capacity:
+
+| Service | RAM ceiling | CPU ceiling | PID ceiling |
+|---------|-------------|-------------|-------------|
+| PostgreSQL | 1 GiB | 2 | 256 |
+| Redis | 512 MiB | 1 | 128 |
+| Rspamd | 1 GiB | 2 | 256 |
+| ClamAV | 4 GiB | 2 | 256 |
+| Robin | 1.5 GiB | 2 | 256 |
+| Roundcube | 512 MiB | 1 | 128 |
+| Dovecot or Cyrus | 1 GiB | 2 | 384 / 256 |
+| Cyrus IMAP proxy, when selected | 128 MiB | 1 | 64 |
+
+Core memory ceilings total 9.5 GiB with Dovecot, or 9.625 GiB with Cyrus.
+Add the selected Admin/observability/modules' reviewed limits, host memory,
+filesystem cache and operating margin. A dedicated 16 GiB host is a planning
+starting point for this baseline, not a supported capacity guarantee; do not
+launch the full profile into an 8 GiB Docker VM. CPU ceilings may be
+oversubscribed and do not imply that much sustained CPU is available. Override
+limits in a reviewed final Compose file when workload measurements justify it,
+and verify actual container limits with preflight.
+
+ClamAV's 4 GiB allowance accounts for database reload headroom. Robin's 1 GiB
+heap needs additional native/thread memory within its container. PostgreSQL has
+128 MiB shared memory and a two-minute shutdown grace period. Container limits
+do not configure PostgreSQL buffers/pools, Redis maxmemory/eviction/persistence
+or scanner queues: those still require data- and workload-specific policy.
+
+Dovecot explicitly retains one isolated login process per connection, with
+100 IMAP login processes and 100 IMAP workers. TLS proxies remain alive after
+authentication; `client_limit=500` does not multiply the connection ceiling in
+this mode. ManageSieve has 20 login and 20 worker processes. Cyrus starts with
+128 IMAP, 16 Sieve and 16 LMTP children. These are ceilings, not promises that
+all sessions can be active at once within the memory budget. SMTP still has
+20 active workers per listener: its 100-connection setting is not 100 active
+handlers. Size intake, scan/auth latency, SQL pools and delivery together.
+
+Before recreating an existing deployment with these limits, record actual
+working sets, process/FD peaks and database/scanner reload behavior. A dataset
+that already exceeds a new ceiling needs an explicit maintenance/sizing plan;
+do not force the new profile onto it or treat OOM/restart loops as acceptance.
+
 ## Certificate renewal
 
 The mail hostname must have matching forward/reverse DNS and a CA-issued chain.
@@ -294,9 +340,17 @@ openssl x509 -in /etc/robin/mail-tls/fullchain.pem -pubkey -noout |
 openssl pkey -in /etc/robin/mail-tls/privkey.pem -pubout -outform DER |
   openssl dgst -sha256
 # After verified replacement, reload startup-loaded mail certificates
-# (suite-imap-proxy instead of suite-dovecot with the Cyrus backend):
+# (suite-imap-proxy instead of suite-dovecot with the Cyrus backend).
+# Use the complete reviewed production Compose chain:
 docker compose --project-directory .suite restart suite-robin suite-dovecot
 ```
+
+Both production mailbox backends mount the complete TLS directory. Existing
+Cyrus proxies must be recreated once to adopt that mount instead of the former
+individual file binds; subsequent atomic file replacement is visible on reload.
+For a verified matching pair, `nginx -t` followed by `nginx -s reload` inside
+`suite-imap-proxy` reloads the Cyrus proxy certificate without restarting Cyrus.
+Robin still requires a restart for startup-loaded certificates.
 
 Validate the served chain and hostname externally on SMTP STARTTLS, SMTPS and
 IMAPS after renewal; alert before expiry and on renewal/restart failure.
