@@ -318,6 +318,38 @@ working sets, process/FD peaks and database/scanner reload behavior. A dataset
 that already exceeds a new ceiling needs an explicit maintenance/sizing plan;
 do not force the new profile onto it or treat OOM/restart loops as acceptance.
 
+## Redis memory and persistence
+
+Production Redis uses a 192 MiB dataset ceiling within its 512 MiB container,
+`noeviction`, and AOF with `appendfsync everysec`. Reviewed Redis images must
+support Redis 7+ multi-part AOF. The shared instance contains learned/statistical
+and application state, not just disposable cache: full memory refuses writes
+instead of evicting existing keys. Alert on rejected writes, memory, AOF errors,
+rewrite duration and disk space. Rspamd learning failures require investigation
+even when message scanning still succeeds. Leave headroom for allocator/RSS,
+client buffers and copy-on-write; these limits are not a measured dataset capacity.
+
+An OS/power failure can lose roughly the latest second of Redis writes; storage
+stalls can extend that window. Accepted mail remains in PostgreSQL and the mail
+spool, not this shared Redis instance. An hourly RDB snapshot provides a
+secondary recovery artifact; back up both it and the complete AOF directory
+with the rest of the recovery unit. Runtime `CONFIG SET` changes are not a persistent override of the reviewed
+startup policy.
+
+**Existing RDB-only installations require explicit migration.** Simply enabling
+AOF at startup can ignore an existing RDB and start empty. The entrypoint refuses
+nonempty data without the expected multi-part AOF manifest; it never deletes or
+automatically converts the dataset. First take a coherent backup using the old
+deployment inputs. On the still-running old Redis, authenticate with its secret,
+run `CONFIG SET appendonly yes`, wait for `INFO persistence` to show
+`aof_enabled:1`, `aof_rewrite_in_progress:0` and
+`aof_last_bgrewrite_status:ok`, then run `CONFIG REWRITE`. Verify the key inventory
+and a nonempty `/data/appendonlydir/appendonly.aof.manifest`, then perform a
+controlled restart with the production overlay and recheck state/authentication.
+Custom Redis paths, older AOF layouts and datasets exceeding the new ceiling
+need a separately reviewed conversion/sizing plan. Do not remove the data or
+manifest guard to make a failed startup appear successful.
+
 ## Certificate renewal
 
 The mail hostname must have matching forward/reverse DNS and a CA-issued chain.

@@ -13,6 +13,30 @@ from test_compose import bash, production_model
 from test_dkim_offline import verify_fixture_dkim
 
 
+def production_redis(fixture, model):
+    source = model["services"]["suite-redis"]
+    local = fixture.root / "redis"
+    shutil.copytree(SUITE / "etc" / "redis", local)
+    service = {
+        "image": source["image"], "pull_policy": "never",
+        "command": source["command"], "healthcheck": copy.deepcopy(source["healthcheck"]),
+        "mem_limit": "128m", "memswap_limit": "128m", "cpus": 0.5, "pids_limit": 128,
+        "volumes": [f"{local / 'start.sh'}:/etc/redis/suite-start.sh:ro",
+                    f"{local / 'production.conf'}:/etc/redis/suite-production.conf:ro",
+                    "database:/data"],
+        "networks": {"backend": {"aliases": ["redis-backend"]}},
+    }
+    for secret in source["secrets"]:
+        path = model["secrets"][secret["source"]]["file"]
+        target = secret["target"]
+        if not target.startswith("/"):
+            target = "/run/secrets/" + target
+        service["volumes"].append(f"{path}:{target}:ro")
+    fixture.config["services"]["redis"] = service
+    fixture.config["volumes"]["database"] = {}
+    return service
+
+
 class SuiteSecretsTest(unittest.TestCase):
     def initialize(self, root):
         script = root / "init-secrets.sh"
@@ -73,6 +97,7 @@ class RspamdDockerTest(unittest.TestCase):
     def test_production_redis_auth_signing_missing_keys_and_rotation(self):
         with DockerFixture() as fixture:
             model = production_model(fixture)
+            production_redis(fixture, model)
             local = fixture.root / "local.d"
             local.mkdir()
             for name in ("dkim_signing.conf", "greylist.conf", "logging.inc",
@@ -95,9 +120,7 @@ class RspamdDockerTest(unittest.TestCase):
                 + '\ncheck_pubkey = false;\n', encoding="utf-8")
             (local / "worker-normal.inc").write_text('bind_socket = "*:11333"; count = 1;\n', encoding="utf-8")
             fixture.config["networks"]["edge"] = {}
-            for production, name, memory, cpus in (
-                    ("suite-redis", "redis", "128m", 0.5),
-                    ("suite-rspamd", "rspamd", "768m", 1)):
+            for production, name, memory, cpus in (("suite-rspamd", "rspamd", "768m", 1),):
                 source = model["services"][production]
                 service = {
                     "image": source["image"], "pull_policy": "never",
@@ -114,8 +137,6 @@ class RspamdDockerTest(unittest.TestCase):
                         target = "/run/secrets/" + target
                     service["volumes"].append(f"{path}:{target}:ro")
                 fixture.config["services"][name] = service
-            redis = fixture.config["services"]["redis"]
-            redis["volumes"].append("database:/data")
             scanner = fixture.config["services"]["rspamd"]
             scanner["volumes"].extend([f"{local}:/etc/rspamd/local.d:ro", "scanner:/var/lib/rspamd"])
             scanner["networks"]["edge"] = {}

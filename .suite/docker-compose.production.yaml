@@ -33,16 +33,10 @@ services:
     cpus: 1
     pids_limit: 128
     stop_grace_period: 60s
-    command:
-      - sh
-      - -ec
-      - |
-        test -s /run/secrets/redis_auth.conf
-        test -s /run/secrets/redis_auth.acl
-        if [ ! -f /data/redis.conf ]; then
-          printf 'save 60 1\nloglevel warning\ndir /data\nprotected-mode yes\n' > /data/redis.conf
-        fi
-        exec redis-server /data/redis.conf --include /run/secrets/redis_auth.conf
+    command: ["sh", "/etc/redis/suite-start.sh"]
+    volumes:
+      - ./etc/redis/start.sh:/etc/redis/suite-start.sh:ro
+      - ./etc/redis/production.conf:/etc/redis/suite-production.conf:ro
     secrets:
       - source: redis_auth
         target: redis_auth.conf

@@ -151,6 +151,10 @@ class ComposeModelTest(unittest.TestCase):
                 self.assertTrue(any(mount["target"] == "/templates/rspamd.json5"
                                     and "cfg-production" in mount["source"]
                                     for mount in services["suite-config-init"]["volumes"]))
+                self.assertEqual(["sh", "/etc/redis/suite-start.sh"], services["suite-redis"]["command"])
+                self.assertTrue(any(mount["target"] == "/etc/redis/suite-production.conf"
+                                    and mount["read_only"]
+                                    for mount in services["suite-redis"]["volumes"]))
                 for name in ("suite-robin", "suite-postgres", "suite-redis", "suite-clamav",
                              "suite-rspamd", "suite-roundcube",
                              *(("suite-dovecot",) if backend == "dovecot" else ("suite-cyrus", "suite-imap-proxy"))):
