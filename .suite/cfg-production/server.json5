@@ -17,6 +17,22 @@
   emailSizeLimit: 20971520,
   envelopesLimit: 100,
   dnsNegativeTtl: 300,
+  senderAuthorization: { enabled: true },
+  recipientRouting: {
+    enabled: true, allowExternalForwarding: false, maxDepth: 10, maxRecipients: 100
+  },
+  // Process-local starting budgets; review these against each tenant's sending policy.
+  submissionLimits: {
+    enabled: true, windowSeconds: 3600,
+    account: {
+      messages: 200, recipients: 1000, bytes: 104857600,
+      concurrentConnections: 5, authFailures: 20
+    },
+    domain: {
+      messages: 2000, recipients: 10000, bytes: 1073741824,
+      concurrentConnections: 50
+    }
+  },
   service: { port: 8080, authType: "basic", allowList: [], authValue: "{$secret:ROBIN_API_AUTH}" },
   api: { port: 8090, authType: "basic", allowList: [], authValue: "{$secret:ROBIN_API_AUTH}" },
   rbl: { enabled: false },

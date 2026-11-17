@@ -150,13 +150,15 @@ restrict access while allowing Rspamd's worker UID to read the keys.
 Production signing uses the authenticated task and header From domain, not
 client-supplied signing headers; Robin's sender grants remain the authorization
 boundary. Inbound mail is not signed. A missing key produces **no signature**,
-not an SMTP rejection: verify actual signatures before routing production mail,
-and monitor signing failures. After replacing a key, restart Rspamd to clear its
+so the production `rspamd.json5` requires fresh signing output and temporarily
+refuses authenticated outbound mail when signing is unavailable. The demo
+profile does not require signatures. Verify actual signatures before routing
+production mail, and monitor signing failures. After replacing a key, restart Rspamd to clear its
 key cache; retain the old DNS selector through the delivery/verification window,
 or configure a new selector for a planned rollover.
 
-Greylisting remains disabled until its scanner action is handled end-to-end by
-the SMTP retry path. Rspamd's container healthcheck validates configuration only;
+Greylisting remains disabled as the baseline policy; Robin handles its temporary
+action, but enabling it intentionally delays mail. Rspamd's container healthcheck validates configuration only;
 use authenticated controller requests and real scans to establish live readiness.
 
 ### Configuration ownership
@@ -175,6 +177,35 @@ Existing installations must explicitly update authoritative endpoint
 authentication settings and any saved Fleet API credentials to match, as part
 of the reviewed migration. Replacing templates alone does not secure an
 already-initialized installation.
+
+### Production mail policy
+
+Fresh production configuration enables explicit envelope/From/Sender grants,
+managed-domain recipient routing and authenticated principal/domain budgets.
+Provision an enabled `mail_domains` row and explicit `mail_sender_grants` for
+each account before submission. The initial migration creates primary grants
+only for users already present when it runs; later provisioning must maintain
+those rows too. Receiving aliases do not automatically grant send-as rights.
+Explicit aliases take precedence over a mailbox, which takes precedence over
+automatic aliases. Managed automatic aliases retain all destinations.
+External alias forwarding and per-domain plus addressing/catch-all remain
+explicit operator choices; external forwarding is disabled initially.
+
+The starting one-hour account budgets are 200 message attempts, 1,000
+recipients, 100 MiB, five concurrent authenticated connections and 20 failed
+password attempts. Domain budgets are 2,000 messages, 10,000 recipients,
+1 GiB and 50 connections. These are conservative policy defaults, not measured
+throughput or a bulk-mail plan. Rejected attempts consume budget; counters are
+process-local and reset on process restart. Review the policy with tenants and
+see [submission limits](../features/dos-protection.md#authenticated-submission-limits)
+before increasing it or adding instances.
+
+Existing deployments must explicitly migrate authoritative **base** rows and
+review all per-server overrides for `senderAuthorization`, `recipientRouting`,
+`submissionLimits` and required Rspamd signing. Instance overrides cannot
+introduce keys missing from their base. Do not initialize, reseed or replace a
+live database to adopt these templates. Preflight rejects disabled/missing
+policies even when runtime fingerprints match.
 
 ### Delivery concurrency
 

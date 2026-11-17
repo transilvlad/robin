@@ -15,11 +15,20 @@ class ProductionPreflightTest(unittest.TestCase):
         files = {
             "server.json5": {"hostname": "mail.example.test", "allowSelfSigned": False,
                              "pemCert": "/run/robin-tls/fullchain.pem", "pemKey": "/run/robin-tls/privkey.pem",
+                             "senderAuthorization": {"enabled": True},
+                             "recipientRouting": {"enabled": True, "allowExternalForwarding": False,
+                                                  "maxDepth": 10, "maxRecipients": 100},
+                             "submissionLimits": {
+                                 "enabled": True, "windowSeconds": 3600,
+                                 "account": {"messages": 200, "recipients": 1000, "bytes": 104857600,
+                                             "concurrentConnections": 5, "authFailures": 20},
+                                 "domain": {"messages": 2000, "recipients": 10000, "bytes": 1073741824,
+                                            "concurrentConnections": 50}},
                              **{name: {"authType": "basic", "authValue": "{$secret:ROBIN_API_AUTH}"} for name in ("api", "service")},
                              **{name: {"messageSizeLimit": 20971520} for name in ("smtpConfig", "secureConfig", "submissionConfig")}},
             "queue.json5": {"workerThreads": 8, "maxInFlight": 16},
             "dovecot.json5": {"saveLmtp": {"connectionPoolSize": 8}},
-            "rspamd.json5": {"discardEnabled": False},
+            "rspamd.json5": {"enabled": True, "requireDkimSigning": True, "discardEnabled": False},
             "clamav.json5": {"onVirus": "reject"},
         }
         inventory = {"rows": [{"server_id": "default", "file_name": name, "payload_json": value}
@@ -57,6 +66,40 @@ class ProductionPreflightTest(unittest.TestCase):
             compose, inventory, runtime, lock, containers = self.fixture()
             runtime.update(change)
             self.assertEqual("blocked", preflight.audit(compose, inventory, runtime, lock, containers, "robin1")["status"])
+
+    def test_disabled_missing_or_malformed_authoritative_mail_policies_are_blocked(self):
+        for name in ("senderAuthorization", "recipientRouting", "submissionLimits"):
+            for value in (None, {}, {"enabled": False}, {"enabled": "true"}):
+                with self.subTest(policy=name, value=value):
+                    compose, inventory, runtime, lock, containers = self.fixture()
+                    server = inventory["rows"][0]["payload_json"]
+                    server[name] = value
+                    runtime["sourceFiles"]["server.json5"]["sha256"] = preflight.canonical_hash(server)
+                    failures = preflight.audit(compose, inventory, runtime, lock, containers, "robin1")["failures"]
+                    self.assertTrue(any("enabled" in item for item in failures))
+
+    def test_unlimited_or_invalid_submission_budgets_are_blocked_even_with_matching_runtime(self):
+        for scope, field in (("account", "messages"), ("account", "recipients"), ("account", "bytes"),
+                             ("account", "concurrentConnections"), ("account", "authFailures"),
+                             ("domain", "messages"), ("domain", "recipients"), ("domain", "bytes"),
+                             ("domain", "concurrentConnections")):
+            for value in (None, 0, -1, True, "200", 1.5, 2 ** 63):
+                with self.subTest(scope=scope, field=field, value=value):
+                    compose, inventory, runtime, lock, containers = self.fixture()
+                    server = inventory["rows"][0]["payload_json"]
+                    server["submissionLimits"][scope][field] = value
+                    runtime["sourceFiles"]["server.json5"]["sha256"] = preflight.canonical_hash(server)
+                    failures = preflight.audit(compose, inventory, runtime, lock, containers, "robin1")["failures"]
+                    self.assertIn(f"submissionLimits.{scope}.{field} requires a positive budget", failures)
+
+    def test_optional_scanning_or_signing_cannot_pass_production_preflight(self):
+        for field in ("enabled", "requireDkimSigning"):
+            compose, inventory, runtime, lock, containers = self.fixture()
+            scanner = next(row["payload_json"] for row in inventory["rows"] if row["file_name"] == "rspamd.json5")
+            scanner.pop(field)
+            runtime["sourceFiles"]["rspamd.json5"]["sha256"] = preflight.canonical_hash(scanner)
+            failures = preflight.audit(compose, inventory, runtime, lock, containers, "robin1")["failures"]
+            self.assertIn("Rspamd scanning and mandatory outbound DKIM signing must be enabled", failures)
 
     def test_mutable_images_and_unprofiled_socket_are_blocked(self):
         compose, inventory, runtime, lock, containers = self.fixture()
@@ -100,6 +143,14 @@ class ProductionPreflightTest(unittest.TestCase):
             report = preflight.audit(compose, inventory, runtime, lock, containers, "robin1")
             self.assertEqual("blocked", report["status"])
             self.assertTrue(any("HostConfig" in message for message in report["failures"]))
+
+    def test_compose_decimal_byte_strings_require_exact_deployed_memory(self):
+        compose, inventory, runtime, lock, containers = self.fixture()
+        compose["services"]["suite-robin"]["mem_limit"] = "1024"
+        self.assertEqual([], preflight.audit(compose, inventory, runtime, lock, containers, "robin1")["failures"])
+        containers[0]["HostConfig"]["Memory"] = 2048
+        failures = preflight.audit(compose, inventory, runtime, lock, containers, "robin1")["failures"]
+        self.assertIn("suite-robin: deployed Memory hard limit differs from reviewed mem_limit", failures)
 
     def test_unlimited_invalid_or_mismatched_deployed_memory_and_pids_are_blocked(self):
         for field in ("Memory", "PidsLimit"):

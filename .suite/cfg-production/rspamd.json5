@@ -1,0 +1,14 @@
+{
+  host: "spam-backend",
+  port: 11333,
+  enabled: true,
+  timeout: 30,
+  spfScanEnabled: true,
+  dkimScanEnabled: true,
+  dmarcScanEnabled: true,
+  rejectThreshold: 15.0,
+  discardEnabled: false,
+  discardThreshold: 25.0,
+  requireDkimSigning: true,
+  dkimSigning: { enabled: false }
+}

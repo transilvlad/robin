@@ -20,6 +20,13 @@ def positive_integer(value):
     return type(value) is int and 0 < value <= MAX_DOCKER_INTEGER
 
 
+def memory_budget(value):
+    # Compose JSON emits normalized byte counts as decimal strings.
+    if isinstance(value, str) and re.fullmatch(r"[1-9][0-9]{0,18}", value):
+        value = int(value)
+    return value if positive_integer(value) else None
+
+
 def cpu_budget(value):
     if type(value) not in (int, float):
         return None
@@ -40,7 +47,7 @@ def deployed_budget_failures(service, record):
         value = host.get(actual)
         if not positive_integer(value):
             failures.append(f"deployed {actual} hard limit is missing, invalid or unlimited")
-        elif value != service.get(field):
+        elif value != (memory_budget(service.get(field)) if field == "mem_limit" else service.get(field)):
             failures.append(f"deployed {actual} hard limit differs from reviewed {field}")
     nanos, quota, period = (host.get(field, 0) for field in ("NanoCpus", "CpuQuota", "CpuPeriod"))
     if (any(type(value) is not int or not 0 <= value <= MAX_DOCKER_INTEGER
@@ -146,6 +153,33 @@ def audit(compose, inventory, runtime, image_lock, containers, server_id):
         settings = server.get(api, {})
         require(settings.get("authType") == "basic" and bool(settings.get("authValue")),
                 f"{api} requires explicit Basic authentication")
+    for policy in ("senderAuthorization", "recipientRouting"):
+        settings = server.get(policy)
+        require(isinstance(settings, dict) and settings.get("enabled") is True,
+                f"{policy} must be explicitly enabled")
+    routing = server.get("recipientRouting", {})
+    if isinstance(routing, dict):
+        require(type(routing.get("allowExternalForwarding")) is bool,
+                "External forwarding requires an explicit reviewed policy")
+        for field, maximum in (("maxDepth", 100), ("maxRecipients", 100000)):
+            value = routing.get(field)
+            require(positive_integer(value) and value <= maximum,
+                    f"recipientRouting.{field} is missing/invalid")
+    limits = server.get("submissionLimits")
+    require(isinstance(limits, dict) and limits.get("enabled") is True,
+            "Authenticated submission limits must be explicitly enabled")
+    if isinstance(limits, dict):
+        window = limits.get("windowSeconds")
+        require(positive_integer(window) and window <= 9223372036,
+                "Submission limit window is missing/invalid")
+        for scope in ("account", "domain"):
+            budget = limits.get(scope)
+            fields = ("messages", "recipients", "bytes", "concurrentConnections")
+            if scope == "account":
+                fields += ("authFailures",)
+            for field in fields:
+                require(isinstance(budget, dict) and positive_integer(budget.get(field)),
+                        f"submissionLimits.{scope}.{field} requires a positive budget")
     for listener in ("smtpConfig", "secureConfig", "submissionConfig"):
         require(server.get(listener, {}).get("messageSizeLimit") == 20971520,
                 f"{listener} must use canonical messageSizeLimit=20971520")
@@ -155,6 +189,9 @@ def audit(compose, inventory, runtime, image_lock, containers, server_id):
     require(0 < queue.get("workerThreads", 0) <= queue.get("maxInFlight", 0) <= 64,
             "Queue worker/in-flight budget is missing or unbounded")
     require(files.get("rspamd.json5", {}).get("discardEnabled") is False, "Silent spam discard must be disabled")
+    require(files.get("rspamd.json5", {}).get("enabled") is True
+            and files.get("rspamd.json5", {}).get("requireDkimSigning") is True,
+            "Rspamd scanning and mandatory outbound DKIM signing must be enabled")
     require(files.get("clamav.json5", {}).get("onVirus") == "reject", "Virus policy must reject rather than discard")
     deployed = {record.get("Config", {}).get("Labels", {}).get("com.docker.compose.service"): record
                 for record in containers}
@@ -173,8 +210,9 @@ def audit(compose, inventory, runtime, image_lock, containers, server_id):
                 f"{name}: image is neither digest-pinned nor a reviewed local build")
         for field in ("mem_limit", "cpus", "pids_limit"):
             value = service.get(field)
-            require(cpu_budget(value) is not None if field == "cpus" else positive_integer(value),
-                    f"{name}: {field} budget is missing/invalid")
+            valid = (cpu_budget(value) is not None if field == "cpus"
+                     else memory_budget(value) is not None if field == "mem_limit" else positive_integer(value))
+            require(valid, f"{name}: {field} budget is missing/invalid")
         matching = [item for item in containers
                     if item.get("Config", {}).get("Labels", {}).get("com.docker.compose.service") == name]
         for item in matching or [{}]:

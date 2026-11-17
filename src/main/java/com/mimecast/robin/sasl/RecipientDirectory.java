@@ -20,8 +20,19 @@ import java.util.Set;
 public final class RecipientDirectory {
     public static final String DOMAIN_QUERY =
             "SELECT enabled,plus_addressing,catch_all FROM mail_domains WHERE domain=?";
-    public static final String ALIAS_QUERY =
-            "SELECT destination FROM aliases WHERE lower(source)=?";
+    public static final String ALIAS_QUERY = """
+            WITH requested AS (SELECT CAST(? AS VARCHAR) AS address),
+            explicit_aliases AS (
+                SELECT destination FROM aliases, requested
+                WHERE lower(source)=requested.address AND destination<>''
+            )
+            SELECT destination FROM explicit_aliases
+            UNION ALL
+            SELECT destination FROM auto_aliases, requested
+            WHERE lower(source)=requested.address AND destination<>''
+              AND NOT EXISTS (SELECT 1 FROM explicit_aliases)
+              AND NOT EXISTS (SELECT 1 FROM users WHERE lower(email)=requested.address)
+            """;
     public static final String MAILBOX_QUERY =
             "SELECT 1 FROM users WHERE lower(email)=?";
 

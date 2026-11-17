@@ -1,7 +1,11 @@
 package com.mimecast.robin.smtp.security;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.mimecast.robin.config.ConfigLoader;
+import com.mimecast.robin.config.server.RspamdConfig;
 import com.mimecast.robin.main.Config;
+import com.mimecast.robin.sasl.RecipientDirectory;
 import com.mimecast.robin.smtp.connection.ConnectionMock;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,6 +14,8 @@ import org.junit.jupiter.api.parallel.Isolated;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -30,6 +36,23 @@ class SubmissionLimitsTest {
     private void policy(Map<String, Object> account, Map<String, Object> domain) {
         Config.getServer().getMap().put("submissionLimits",
                 Map.of("enabled", true, "windowSeconds", 60L, "account", account, "domain", domain));
+    }
+
+    @Test
+    void productionTemplatesEnablePoliciesAndEnforceTheActualAccountBudget() throws Exception {
+        Map<String, Object> production = new Gson().fromJson(
+                Files.readString(Path.of(".suite/cfg-production/server.json5")),
+                new TypeToken<Map<String, Object>>() {}.getType());
+        Config.getServer().getMap().putAll(production);
+        assertTrue(SenderAuthorization.isEnabled());
+        assertTrue(RecipientDirectory.isEnabled());
+        Map<String, Object> scanner = new Gson().fromJson(
+                Files.readString(Path.of(".suite/cfg-production/rspamd.json5")),
+                new TypeToken<Map<String, Object>>() {}.getType());
+        assertTrue(new RspamdConfig(scanner).isDkimSigningRequired());
+        assertTrue(limits.consume("alice@example.test", SubmissionLimits.Resource.MESSAGES, 200));
+        assertFalse(limits.consume("alice@example.test", SubmissionLimits.Resource.MESSAGES, 1));
+        assertTrue(limits.consume("bob@example.test", SubmissionLimits.Resource.MESSAGES, 1));
     }
 
     @Test

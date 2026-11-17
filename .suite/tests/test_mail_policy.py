@@ -22,6 +22,30 @@ class FixtureIsolationTest(unittest.TestCase):
 
 @unittest.skipUnless(os.environ.get("ROBIN_SUITE_DOCKER_TEST") == "1", "Opt in to isolated Docker acceptance")
 class MailPolicyDockerTest(unittest.TestCase):
+    def test_managed_auto_aliases_preserve_explicit_alias_and_mailbox_precedence(self):
+        source = (SUITE.parent / "src" / "main" / "java" / "com" / "mimecast" / "robin"
+                  / "sasl" / "RecipientDirectory.java").read_text()
+        query = source.split('public static final String ALIAS_QUERY = """', 1)[1].split('"""', 1)[0]
+        with DockerFixture() as fixture:
+            fixture.postgres()
+            fixture.start()
+            fixture.sql("""
+INSERT INTO auto_aliases(source,destination) VALUES
+ ('auto@example.test','alice@example.test'), ('auto@example.test','bob@example.test'),
+ ('alice@example.test','bob@example.test'), ('team@example.test','shared@example.test');
+INSERT INTO aliases(source,destination) VALUES
+ ('team@example.test','alice@example.test'), ('team@example.test','bob@example.test');
+""")
+            for address, expected in (
+                    ("auto@example.test", ["alice@example.test", "bob@example.test"]),
+                    ("alice@example.test", []),
+                    ("team@example.test", ["alice@example.test", "bob@example.test"]),
+                    ("unknown@example.test", [])):
+                with self.subTest(address=address):
+                    rows = fixture.sql("PREPARE managed_alias(text) AS " + query.replace("?", "$1")
+                                       + f"; EXECUTE managed_alias('{address}');").splitlines()
+                    self.assertEqual(expected, sorted(row for row in rows if row != "PREPARE"))
+
     def test_migration_grants_revocation_and_operator_policy(self):
         migration = (SUITE / "migration" / "001-mail-domains-and-sender-grants.sql").read_text()
         with DockerFixture() as fixture:

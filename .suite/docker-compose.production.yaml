@@ -69,6 +69,7 @@ services:
     volumes:
       - ./cfg-production/server.json5:/templates/server.json5:ro
       - ./cfg-production/bots.json5:/templates/bots.json5:ro
+      - ./cfg-production/rspamd.json5:/templates/rspamd.json5:ro
   suite-robin:
     <<: *runtime
     image: ${ROBIN_IMAGE:?Set ROBIN_IMAGE to a local release-specific build tag}
