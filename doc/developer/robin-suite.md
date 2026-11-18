@@ -186,6 +186,17 @@ Provision an enabled `mail_domains` row and explicit `mail_sender_grants` for
 each account before submission. The initial migration creates primary grants
 only for users already present when it runs; later provisioning must maintain
 those rows too. Receiving aliases do not automatically grant send-as rights.
+Admin 1.2.0 exposes this as an explicit **Domains & send-as** workflow, not an
+automatic part of Users CRUD. An administrator must approve/enable the domain,
+create the mailbox and add its matching `primary` grant before opening access.
+Editor-level account creation alone does not finish provisioning. Alias-only
+domains also need approval; receiving aliases need separate reviewed send-as
+grants when sending is intended. Never silently re-enable a disabled domain.
+Account rename revokes the old sender grants rather than transferring them:
+review routing references and explicitly provision the new identity afterward.
+Do not rerun the initial migration as ongoing reconciliation: its backfill can
+restore deliberately revoked primary grants.
+
 Explicit aliases take precedence over a mailbox, which takes precedence over
 automatic aliases. Managed automatic aliases retain all destinations.
 External alias forwarding and per-domain plus addressing/catch-all remain
