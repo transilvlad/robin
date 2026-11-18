@@ -58,6 +58,33 @@ services:
     cpus: 2
     pids_limit: 256
     stop_grace_period: 60s
+    environment:
+      FRESHCLAM_CHECKS: "24"
+      CLAMAV_MAX_SIGNATURE_AGE_SECONDS: "172800"
+      CLAMD_CONF_StreamMaxLength: "20M"
+      CLAMD_CONF_MaxFileSize: "50M"
+      CLAMD_CONF_MaxScanSize: "100M"
+      CLAMD_CONF_MaxRecursion: "16"
+      CLAMD_CONF_MaxFiles: "1000"
+      CLAMD_CONF_MaxThreads: "4"
+      CLAMD_CONF_MaxQueue: "16"
+      CLAMD_CONF_MaxConnectionQueueLength: "16"
+      CLAMD_CONF_MaxScanTime: "20000"
+      CLAMD_CONF_ReadTimeout: "15"
+      CLAMD_CONF_CommandReadTimeout: "5"
+      CLAMD_CONF_SendBufTimeout: "500"
+      CLAMD_CONF_HeuristicAlerts: "yes"
+      CLAMD_CONF_AlertExceedsMax: "yes"
+      CLAMD_CONF_AlertEncrypted: "yes"
+      CLAMD_CONF_ConcurrentDatabaseReload: "yes"
+      CLAMD_CONF_LogRotate: "yes"
+      CLAMD_CONF_LogFileMaxSize: "10M"
+      FRESHCLAM_CONF_LogRotate: "yes"
+      FRESHCLAM_CONF_LogFileMaxSize: "10M"
+    volumes:
+      - ./etc/clamav/healthcheck.sh:/usr/local/bin/suite-clamav-healthcheck.sh:ro
+    healthcheck:
+      test: ["CMD", "sh", "/usr/local/bin/suite-clamav-healthcheck.sh"]
   suite-rspamd:
     <<: *runtime
     image: ${RSPAMD_IMAGE:?Set RSPAMD_IMAGE to a reviewed Rspamd image}

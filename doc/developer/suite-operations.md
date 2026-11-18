@@ -370,6 +370,35 @@ Custom Redis paths, older AOF layouts and datasets exceeding the new ceiling
 need a separately reviewed conversion/sizing plan. Do not remove the data or
 manifest guard to make a failed startup appear successful.
 
+## Antivirus work and update policy
+
+The production ClamAV image must support its documented `CLAMD_CONF_*` and
+`FRESHCLAM_CONF_*` entrypoint settings. The suite sets a 20 MiB INSTREAM ceiling,
+50 MiB individual expanded-file and 100 MiB aggregate scan budgets, 16 recursion
+levels, 1,000 files, four scan threads and sixteen queued scans. Clamd's scan
+budget is 20 seconds inside Robin's 30-second client deadline. Saturation and
+transport/scan errors must defer mail, not count as clean. The decoded/archive
+budgets are distinct from the raw MIME message limit.
+
+Encrypted archives/documents and scan-limit heuristic detections are rejected
+under the antivirus policy; this is intentional loss of encrypted-attachment
+compatibility, not proof those files contain malware. Do not silently disable
+these alerts to bypass a large or encrypted message. An alternative quarantine
+or encrypted-file exchange workflow requires an explicit policy change.
+
+FreshClam checks hourly. Health requires the running daemon to report loaded
+signature metadata no older than 48 hours, rejects missing/invalid/future
+timestamps, and assumes the image's UTC clock. An unhealthy result raises an
+operational condition; it does not automatically restart the container or
+itself block every scan. Monitor that condition and stop intake if signatures
+cannot be refreshed within policy. Clamd and FreshClam file logs rotate at
+10 MiB; retain exported logs through the host's log policy.
+
+The bounded Docker regression uses a tiny synthetic signature database and
+actual clamd to test stream/expanded-file-count/encrypted-metadata rejection.
+It cannot establish current production signatures, real engine reload memory,
+malware coverage or sustained scan throughput; rehearse those on the sized host.
+
 ## Certificate renewal
 
 The mail hostname must have matching forward/reverse DNS and a CA-issued chain.

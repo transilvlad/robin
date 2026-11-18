@@ -55,7 +55,7 @@ def production_model(fixture, backend="dovecot", production=True, overrides=None
         **{name + "_IMAGE": image for name, image in (
             ("POSTGRES", "postgres:18-alpine"), ("DOVECOT", "dovecot/dovecot:latest"),
             ("REDIS", os.environ.get("ROBIN_TEST_REDIS_IMAGE", "redis:alpine")),
-            ("CLAMAV", "clamav/clamav:latest"),
+            ("CLAMAV", os.environ.get("ROBIN_TEST_CLAMAV_IMAGE", "clamav/clamav:latest")),
             ("RSPAMD", os.environ.get("ROBIN_TEST_RSPAMD_IMAGE", "rspamd/rspamd:latest")),
             ("ROUNDCUBE", "roundcube/roundcubemail:latest"))},
     }

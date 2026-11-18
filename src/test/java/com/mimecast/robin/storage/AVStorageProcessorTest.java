@@ -17,6 +17,7 @@ import org.junit.jupiter.api.parallel.Isolated;
 
 import javax.naming.ConfigurationException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -117,6 +118,47 @@ class AVStorageProcessorTest {
                     assertTrue(((String) result.get("part")).startsWith("unframed "));
                 }
             }
+        } finally {
+            config.clear();
+            config.putAll(original);
+            server.stop();
+        }
+    }
+
+    @Test
+    void productionInspectionDetectionsRejectAndIncompleteScanErrorsCannotBecomeClean() throws Exception {
+        int port;
+        try (ServerSocket socket = new ServerSocket(0)) {
+            port = socket.getLocalPort();
+        }
+        ClamAVMockServer server = new ClamAVMockServer(port);
+        assertTrue(server.start());
+        Map<String, Object> config = Config.getServer().getClamAV().getMap();
+        Map<String, Object> original = new HashMap<>(config);
+        try {
+            config.putAll(Map.of("enabled", true, "host", "localhost", "port", port,
+                    "onVirus", "reject", "scanAttachments", false));
+            for (String detection : List.of("Heuristics.Encrypted.Zip", "Heuristics.Limits.Exceeded.MaxFiles")) {
+                server.setScanResponse("stream: " + detection + " FOUND\0");
+                var connection = new ConnectionMock(new StringBuilder());
+                var envelope = new MessageEnvelope().setBytes(TEST_EMAIL_CONTENT.getBytes(StandardCharsets.US_ASCII));
+                connection.getSession().addEnvelope(envelope);
+                try (EmailParser parser = new EmailParser(envelope.openMessageStream()).parse()) {
+                    assertFalse(new AVStorageProcessor().process(connection, parser));
+                }
+                assertTrue(connection.getOutput().contains("554 5.7.1"));
+                assertTrue(connection.isSmtpResponseSent());
+                assertFalse(envelope.isBlackholed());
+            }
+            server.setScanResponse("INSTREAM size limit exceeded. ERROR\0");
+            var connection = new ConnectionMock(new StringBuilder());
+            var envelope = new MessageEnvelope().setBytes(TEST_EMAIL_CONTENT.getBytes(StandardCharsets.US_ASCII));
+            connection.getSession().addEnvelope(envelope);
+            try (EmailParser parser = new EmailParser(envelope.openMessageStream()).parse()) {
+                assertThrows(UncheckedIOException.class, () -> new AVStorageProcessor().process(connection, parser));
+            }
+            assertFalse(connection.isSmtpResponseSent());
+            assertTrue(envelope.getScanResults().isEmpty());
         } finally {
             config.clear();
             config.putAll(original);
