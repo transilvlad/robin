@@ -5,6 +5,10 @@ host is production-ready. Use a dedicated Linux Docker host, a reviewed Git
 release, trusted image pins and the [deployment examples](../../examples/docker-compose/README.md).
 Never run the fault-injection `.integration/` tests against this deployment.
 
+Production Dovecot replaces its demo certificate settings rather than loading
+them before an override. A clean production install needs only the operator's
+`fullchain.pem` and `privkey.pem`, not generated demo certificates.
+
 ## What must survive
 
 | State | Location |
@@ -441,10 +445,42 @@ verification to hide a renewal problem.
 
 ## Monitoring and remaining acceptance
 
+Set `POSTMASTER_ADDRESS` to a monitored mailbox or alias before starting the
+production Dovecot backend. The entrypoint accepts an unquoted ASCII mailbox
+address; provision its destination through the normal account/alias workflow.
+The demo-only default is `postmaster@localhost`. Production Compose requires an
+explicit value, and preflight rejects the localhost default or a running
+container that has not adopted the reviewed value. Cyrus does not consume this
+Dovecot LMTP setting.
+
 Alert on disk/inode exhaustion, queue growth/age/dead items, delivery failures,
 database/scanner outages, backup age/failure and certificate expiry. Container
 log rotation in the production overlay bounds Docker stdout logs, **not**
 application files under `log/`; configure host retention/logrotate for those too.
+The Ansible new-install example installs `logrotate` and the policy in
+`examples/ansible/templates/logrotate.j2`. For a manual `/opt/robin` installation:
+
+```bash
+sed 's|{{ robin_suite_install_dir }}|/opt/robin|g' \
+  examples/ansible/templates/logrotate.j2 |
+  sudo tee /etc/logrotate.d/robin-suite >/dev/null
+sudo chmod 644 /etc/logrotate.d/robin-suite
+sudo logrotate --debug /etc/logrotate.d/robin-suite
+```
+
+Change the replacement path for another installation directory. The policy
+retains 14 rotations, compresses old logs, and checks for 50 MiB files whenever
+the host's logrotate scheduler runs; this is not a continuous disk-size ceiling.
+Verify that scheduler is enabled. `copytruncate` keeps existing writers attached
+but can lose log lines during its copy/truncate window; it never handles message
+payloads. PostgreSQL's production command uses a stable `postgresql.log` and
+delegates rotation to this policy. Its startup wrapper gives the dedicated
+`log/postgres` directory and active file to the image's `postgres` user, with
+directory mode 0750, before the upstream entrypoint drops privileges. Review
+old date-named PostgreSQL logs
+separately when upgrading; no historical logs are deleted automatically.
+ClamAV retains its own configured rotation and Robin uses its Log4j policy.
+
 Robin's suite Log4j configuration keeps pipeline logging at WARN, startup and
 structured SMTP outcomes at INFO, rolls at 50 MB/daily, and prunes matching
 compressed archives after 14 days or above 1 GB at rollover. Existing cache
@@ -453,8 +489,9 @@ maintenance to adopt the new policy; it is not a config-store JSON row.
 Do not prune pending payloads with age-only filesystem cleanup.
 
 Runtime database roles still have CREATE rights for startup migrations; Admin's
-agent/installer have Docker-socket privilege. Private management APIs currently
-rely on network isolation and can expose effective secrets. Treat network
+agent/installer have Docker-socket privilege. Production management APIs require
+the shared Basic credential, except minimal liveness, and can expose effective secrets. Their private HTTP
+transport still requires network isolation. Treat network
 membership, host access and reverse-proxy configuration as privileged.
 
 Production acceptance remains a separate phase: fresh-host restore drill with

@@ -18,6 +18,8 @@
           - robin_suite_tls_dir is match('^/[A-Za-z0-9_./-]+$')
           - robin_suite_mail_hostname is match('^[A-Za-z0-9.-]+$')
           - robin_suite_mail_hostname not in ['localhost', 'mail.example.com', '']
+          - robin_suite_mailbox_backend != 'dovecot' or robin_suite_postmaster_address is match('^[A-Za-z0-9._%+-]+@[A-Za-z0-9][A-Za-z0-9.-]*$')
+          - robin_suite_mailbox_backend != 'dovecot' or robin_suite_postmaster_address not in ['postmaster@localhost', 'postmaster@example.com']
           - robin_suite_admin_url is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
           - robin_suite_admin_url != 'https://admin.example.com'
           - robin_suite_admin_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
@@ -78,7 +80,7 @@
   tasks:
     - name: Install deployment prerequisites
       ansible.builtin.apt:
-        name: [git, ca-certificates, openssl, python3, tar]
+        name: [git, ca-certificates, openssl, python3, tar, logrotate]
         state: present
         update_cache: true
 
@@ -150,6 +152,14 @@
       ansible.builtin.command:
         argv: [bash, "{{ robin_suite_install_dir }}/.suite/init-suite.sh", --production]
       changed_when: true
+
+    - name: Install retention for file-backed suite logs
+      ansible.builtin.template:
+        src: templates/logrotate.j2
+        dest: /etc/logrotate.d/robin-suite
+        owner: root
+        group: root
+        mode: "0644"
 
     - name: Validate effective Compose configuration without displaying credentials
       ansible.builtin.command:

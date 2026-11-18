@@ -237,6 +237,17 @@ def audit(compose, inventory, runtime, image_lock, containers, server_id):
             require(lock.get("version", "").startswith("18."), "PostgreSQL release must be reviewed major 18")
         if name == "suite-dovecot":
             require(lock.get("version", "").startswith("2.4."), "Dovecot release must be reviewed 2.4")
+            postmaster = service.get("environment", {}).get("POSTMASTER_ADDRESS")
+            require(isinstance(postmaster, str)
+                    and bool(re.fullmatch(
+                        r"[A-Za-z0-9_%+-]+(?:\.[A-Za-z0-9_%+-]+)*@"
+                        r"[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?"
+                        r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*", postmaster))
+                    and postmaster.rsplit("@", 1)[-1].lower() != "localhost",
+                    "Dovecot requires a configured non-localhost POSTMASTER_ADDRESS")
+            for item in matching:
+                require(f"POSTMASTER_ADDRESS={postmaster}" in item.get("Config", {}).get("Env", []),
+                        "Dovecot deployed POSTMASTER_ADDRESS differs from reviewed configuration")
         for port in service.get("ports", []):
             target = int(port.get("target", 0))
             if target not in (25, 465, 587, 993):

@@ -48,7 +48,8 @@ def production_model(fixture, backend="dovecot", production=True, overrides=None
         "SUITE_LOG_MOUNT": str(fixture.root / "logs"),
         "REDIS_ADMIN_DSN": "redis://:" + (suite / "secrets" / "redis_password").read_text().strip()
                            + "@redis-backend:6379",
-        "MAIL_HOSTNAME": "mail.example.test", "MAIL_TLS_DIR": str(fixture.root / "tls"),
+        "MAIL_HOSTNAME": "mail.example.test", "POSTMASTER_ADDRESS": "postmaster@example.test",
+        "MAIL_TLS_DIR": str(fixture.root / "tls"),
         "MAILBOX_BACKEND": backend,
         "ROBIN_IMAGE": "robin-suite:fixture", "CYRUS_IMAGE": "cyrus:fixture",
         "NGINX_IMAGE": "nginx:fixture",
@@ -142,6 +143,11 @@ class ComposeModelTest(unittest.TestCase):
                                  services["suite-admin"]["environment"]["REDIS_ADMIN_DSN"])
                 self.assertFalse(any("demo-tls" in mount.get("source", "") for mount in robin["volumes"]))
                 mailbox = services["suite-dovecot" if backend == "dovecot" else "suite-imap-proxy"]
+                if backend == "dovecot":
+                    self.assertEqual("postmaster@example.test", mailbox["environment"]["POSTMASTER_ADDRESS"])
+                    self.assertTrue(any(mount["target"] == "/etc/dovecot/conf.d/10-ssl-certificates.conf"
+                                        and mount["source"].endswith("production-tls.conf")
+                                        and mount["read_only"] for mount in mailbox["volumes"]))
                 if backend == "cyrus":
                     for name in ("suite-cyrus", "suite-imap-proxy"):
                         self.assertEqual(robin["environment"]["ROBIN_API_AUTH"],
@@ -195,7 +201,7 @@ class ComposeModelTest(unittest.TestCase):
                 self.assertTrue(all(port["host_ip"] == "127.0.0.1" for port in services[name]["ports"]))
 
     def test_production_refuses_missing_api_credential_or_required_deployment_inputs(self):
-        for name in ("ROBIN_API_AUTH", "REDIS_ADMIN_DSN", "MAIL_TLS_DIR", "RSPAMD_IMAGE"):
+        for name in ("ROBIN_API_AUTH", "REDIS_ADMIN_DSN", "MAIL_TLS_DIR", "RSPAMD_IMAGE", "POSTMASTER_ADDRESS"):
             with self.subTest(name=name), DockerFixture() as fixture:
                 with self.assertRaises(subprocess.CalledProcessError) as refused:
                     production_model(fixture, overrides={name: ""})

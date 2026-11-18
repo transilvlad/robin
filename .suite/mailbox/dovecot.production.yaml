@@ -16,6 +16,8 @@ services:
     cpus: 2
     pids_limit: 384
     stop_grace_period: 60s
+    environment:
+      - POSTMASTER_ADDRESS=${POSTMASTER_ADDRESS:?Set a monitored LMTP postmaster address}
     volumes:
       - ${MAIL_TLS_DIR:?Set MAIL_TLS_DIR to the operator certificate directory}:/run/mail-tls:ro
-      - ../etc/dovecot/conf.d/99-production-tls.conf.example:/etc/dovecot/conf.d/99-production-tls.conf:ro
+      - ../etc/dovecot/production-tls.conf:/etc/dovecot/conf.d/10-ssl-certificates.conf:ro

@@ -32,7 +32,9 @@ sudo bash .suite/init-suite.sh --production
 
 Supply a public CA-issued `fullchain.pem` and matching unencrypted PKCS8
 `privkey.pem` in a dedicated `MAIL_TLS_DIR`; no example private key is supplied.
-Set a real `MAIL_HOSTNAME`. Copy certificate contents, not dangling symlinks into
+Set a real `MAIL_HOSTNAME` and, with Dovecot, a monitored `POSTMASTER_ADDRESS`.
+Provision that postmaster mailbox or alias before routing mail to the host.
+Copy certificate contents, not dangling symlinks into
 another directory. Keep the private key root-readable only.
 Mail listeners default to loopback. Set `MAIL_BIND` to the intended public
 interface only after reviewing firewall rules. Set an independent

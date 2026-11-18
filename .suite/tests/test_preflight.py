@@ -137,6 +137,30 @@ class ProductionPreflightTest(unittest.TestCase):
         self.assertEqual(preflight.canonical_hash({"b": {"z": 2, "a": 1}, "a": "<@>"}),
                          preflight.canonical_hash({"a": "<@>", "b": {"a": 1, "z": 2}}))
 
+    def test_dovecot_postmaster_must_be_configured_and_match_the_running_container(self):
+        compose, inventory, runtime, lock, containers = self.fixture()
+        mailbox = compose["services"].pop("suite-robin")
+        mailbox["environment"] = {"POSTMASTER_ADDRESS": "postmaster@example.test"}
+        compose["services"]["suite-dovecot"] = mailbox
+        image = lock["images"].pop("suite-robin")
+        image["version"] = "2.4.0"
+        lock["images"]["suite-dovecot"] = image
+        containers[0]["Config"].update({
+            "Labels": {"com.docker.compose.service": "suite-dovecot"},
+            "Env": ["POSTMASTER_ADDRESS=postmaster@example.test"],
+        })
+        self.assertEqual([], preflight.audit(compose, inventory, runtime, lock, containers, "robin1")["failures"])
+        for value in (None, "", "postmaster@localhost", "one@two@three", "bad\npostmaster@example.test",
+                      ".postmaster@example.test", "postmaster.@example.test", "postmaster@bad-.test"):
+            mailbox["environment"]["POSTMASTER_ADDRESS"] = value
+            with self.subTest(address=value):
+                self.assertIn("Dovecot requires a configured non-localhost POSTMASTER_ADDRESS",
+                              preflight.audit(compose, inventory, runtime, lock, containers, "robin1")["failures"])
+        mailbox["environment"]["POSTMASTER_ADDRESS"] = "postmaster@example.test"
+        containers[0]["Config"]["Env"] = []
+        self.assertIn("Dovecot deployed POSTMASTER_ADDRESS differs from reviewed configuration",
+                      preflight.audit(compose, inventory, runtime, lock, containers, "robin1")["failures"])
+
     def test_missing_host_config_never_accepts_reviewed_compose_only(self):
         for change in ({}, {"HostConfig": None}, {"HostConfig": []}):
             compose, inventory, runtime, lock, containers = self.fixture()

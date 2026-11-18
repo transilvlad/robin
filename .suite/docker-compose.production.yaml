@@ -16,6 +16,19 @@ services:
   suite-postgres:
     <<: *runtime
     image: ${POSTGRES_IMAGE:?Set POSTGRES_IMAGE to a reviewed PostgreSQL 18 image}
+    entrypoint: ["sh", "/etc/postgresql/suite-start.sh"]
+    command:
+      - postgres
+      - -c
+      - logging_collector=on
+      - -c
+      - log_directory=/var/log
+      - -c
+      - log_filename=postgresql.log
+      - -c
+      - log_rotation_age=0
+      - -c
+      - log_rotation_size=0
     mem_limit: 1g
     memswap_limit: 1g
     cpus: 2
@@ -23,6 +36,7 @@ services:
     shm_size: 128m
     stop_grace_period: 120s
     volumes:
+      - ./postgres-entrypoint.sh:/etc/postgresql/suite-start.sh:ro
       - ./db-init-production/01-create-users.sql:/docker-entrypoint-initdb.d/01-create-users.sql:ro
       - ./migration/001-mail-domains-and-sender-grants.sql:/docker-entrypoint-initdb.d/03-mail-domains-and-sender-grants.sql:ro
   suite-redis:

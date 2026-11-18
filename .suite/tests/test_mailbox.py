@@ -23,7 +23,7 @@ def port(fixture, target):
 def certificate(root, serial):
     run("docker", "run", "--rm", "--network", "none",
         "--mount", f"type=bind,src={root},dst=/out",
-        "--entrypoint", "openssl", "dovecot/dovecot:latest",
+        "--entrypoint", "openssl", os.environ.get("ROBIN_TEST_DOVECOT_IMAGE", "dovecot/dovecot:latest"),
         "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "2",
         "-set_serial", str(serial), "-subj", "/CN=mail.example.test",
         "-addext", "subjectAltName=DNS:mail.example.test",
@@ -37,14 +37,13 @@ class MailboxDockerTest(unittest.TestCase):
             fixture.postgres()
             fixture.config["networks"]["edge"] = {}
             config = fixture.root / "dovecot"
-            shutil.copytree(SUITE / "etc" / "dovecot", config)
+            shutil.copytree(SUITE / "etc" / "dovecot", config, ignore=shutil.ignore_patterns("certs"))
+            shutil.copyfile(config / "production-tls.conf", config / "conf.d" / "10-ssl-certificates.conf")
             shutil.copyfile(SUITE / "dovecot-entrypoint.sh", fixture.root / "entrypoint.sh")
             tls = fixture.root / "tls"
             tls.mkdir()
             certificate(tls, 101)
             (config / "conf.d" / "99-test.conf").write_text("""
-ssl_server_cert_file = /run/mail-tls/fullchain.pem
-ssl_server_key_file = /run/mail-tls/privkey.pem
 quota_storage_size = 64k
 quota_storage_grace = 0
 log_path = /dev/stderr
@@ -63,6 +62,7 @@ debug_log_path = /dev/stderr
                 "cap_drop": ["ALL"],
                 "cap_add": ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID", "NET_BIND_SERVICE", "SYS_CHROOT"],
                 "command": ["sh", "/entrypoint.sh"],
+                "environment": {"POSTMASTER_ADDRESS": "postmaster@example.test"},
                 "volumes": [f"{config}:/etc/dovecot:ro", f"{tls}:/run/mail-tls:ro",
                             f"{fixture.root / 'entrypoint.sh'}:/entrypoint.sh:ro",
                             f"{fixture.root / 'password'}:/run/secrets/mailbox_db_password:ro",
@@ -77,6 +77,12 @@ debug_log_path = /dev/stderr
             }
             fixture.config["volumes"].update({"mailboxes": {}, "logs": {}})
             fixture.start()
+            for address in ("", "missing-domain", "one@two@three", "bad\npostmaster@example.test",
+                            ".postmaster@example.test", "postmaster.@example.test", "postmaster@bad-.test"):
+                with self.subTest(postmaster=address), self.assertRaises(subprocess.CalledProcessError) as refused:
+                    run(*fixture.command, "exec", "-T", "-e",
+                        "POSTMASTER_ADDRESS=" + address, "mailbox", "sh", "/entrypoint.sh")
+                self.assertIn("ERROR: POSTMASTER_ADDRESS", refused.exception.stderr)
             password_hash = run(*fixture.command, "exec", "-T", "mailbox", "doveadm", "pw",
                                 "-s", "SHA512-CRYPT", "-p", fixture.password).strip()
             fixture.sql(f"""ALTER ROLE robin_mailbox PASSWORD '{fixture.password}';

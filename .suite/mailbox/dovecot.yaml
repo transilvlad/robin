@@ -9,6 +9,8 @@ services:
     cap_add:
       - CHOWN
     command: ["sh", "/usr/local/bin/suite-dovecot-entrypoint.sh"]
+    environment:
+      - POSTMASTER_ADDRESS=${POSTMASTER_ADDRESS:-postmaster@localhost}
     volumes:
       - ../dovecot-entrypoint.sh:/usr/local/bin/suite-dovecot-entrypoint.sh:ro
       - ../etc/dovecot:/etc/dovecot:ro

@@ -1,0 +1,15 @@
+{{ robin_suite_install_dir }}/log/postgres/postgresql.log
+{{ robin_suite_install_dir }}/log/cyrus/*.log
+{{ robin_suite_install_dir }}/log/dovecot/*.log
+{{ robin_suite_install_dir }}/log/imap-proxy/*.log
+{{ robin_suite_install_dir }}/log/roundcube/*.log {
+    daily
+    rotate 14
+    maxsize 50M
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    su root root
+}
