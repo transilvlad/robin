@@ -13,7 +13,7 @@ from test_compose import bash, production_model
 from test_dkim_offline import verify_fixture_dkim
 
 
-def production_redis(fixture, model):
+def production_redis(fixture, model, volume="database"):
     source = model["services"]["suite-redis"]
     local = fixture.root / "redis"
     shutil.copytree(SUITE / "etc" / "redis", local)
@@ -23,7 +23,7 @@ def production_redis(fixture, model):
         "mem_limit": "128m", "memswap_limit": "128m", "cpus": 0.5, "pids_limit": 128,
         "volumes": [f"{local / 'start.sh'}:/etc/redis/suite-start.sh:ro",
                     f"{local / 'production.conf'}:/etc/redis/suite-production.conf:ro",
-                    "database:/data"],
+                    f"{volume}:/data"],
         "networks": {"backend": {"aliases": ["redis-backend"]}},
     }
     for secret in source["secrets"]:
@@ -33,7 +33,7 @@ def production_redis(fixture, model):
             target = "/run/secrets/" + target
         service["volumes"].append(f"{path}:{target}:ro")
     fixture.config["services"]["redis"] = service
-    fixture.config["volumes"]["database"] = {}
+    fixture.config["volumes"][volume] = {}
     return service
 
 

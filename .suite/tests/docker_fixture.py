@@ -61,12 +61,13 @@ GRANT SELECT ON users, aliases, auto_aliases TO robin_mailbox, robin_mta;
         }
         self.config["volumes"]["database"] = {}
 
-    def start(self):
+    def start(self, wait_timeout=120):
         self.validate_isolation()
         (self.root / "compose.json").write_text(json.dumps(self.config), encoding="utf-8")
         self.created = True
         try:
-            run(*self.command, "up", "-d", "--wait", "--wait-timeout", "120")
+            run(*self.command, "up", "-d", "--wait", "--wait-timeout", str(wait_timeout),
+                timeout=wait_timeout + 60)
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
             logs = run(*self.command, "logs", "--no-color", "--tail", "80")
             raise RuntimeError(f"Isolated fixture failed:\n{error.stderr}\n{logs}") from error

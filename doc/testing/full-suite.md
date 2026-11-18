@@ -101,6 +101,48 @@ acceptance. Every replica must also use the reviewed image and be running,
 unpaused, healthy and not OOM-killed. CPU shares/reservations are not hard limits. These offline
 regressions do not prove that host cgroups actually enforce captured settings.
 
+### Assembled production mail path
+
+`test_mailflow.py` additionally requires `ROBIN_TEST_ROBIN_IMAGE` pointing to a
+reviewed, locally built Java 21 Robin runtime with the normal server command.
+Set the compatible PostgreSQL, Dovecot, Cyrus, nginx, Redis, Rspamd and ClamAV
+`ROBIN_TEST_*_IMAGE` variables listed above; `ROBIN_TEST_CLAMAV_IMAGE` selects the
+ClamAV image. All images must already be cached; this test does not pull.
+The in-network probe uses cached `python:3.13-slim` (or
+`ROBIN_TEST_PROBE_IMAGE`) with Python and OpenSSL.
+
+```powershell
+$env:ROBIN_SUITE_DOCKER_TEST='1'
+$env:ROBIN_TEST_ROBIN_IMAGE='sha256:<reviewed-local-image-id>'
+py -m unittest discover -s .suite\tests -p test_mailflow.py -v
+```
+
+The two sequential fixtures run real Robin plus each mailbox alternative, real
+authenticated Redis/Rspamd and a real ClamAV daemon with a tiny synthetic
+signature database. Every network is internal and no ports are published.
+Submission and IMAPS clients verify the generated certificate and hostname.
+They exercise the production mail-policy/TLS/scanner files, authenticated SMTP
+587/465 delivery, receive-only and automatic aliases, verified DKIM on delivered
+and durably queued messages, relay/authentication/sender boundaries, malware
+rejection, scanner/signing failure deferral, and revoked/disabled identities.
+Private management/metrics endpoints must require the shared credential;
+unauthenticated liveness must not disclose operational details.
+Runtime source fingerprints must match authoritative PostgreSQL configuration
+before and after restart with an intentionally stale local policy cache.
+Scanner configuration is loaded lazily, so these comparisons follow actual
+scanned delivery rather than startup liveness alone.
+The production PostgreSQL entrypoint and stable log must work on a Linux-owned
+volume. Outbound dispatch is held for one day, so nothing can leave the fixture.
+
+These are functional configuration checks, not throughput, power-loss,
+production-signature-memory, public DNS/reputation, Admin UI or Webmail acceptance.
+DNS-dependent scanning checks are disabled only inside the isolated fixtures;
+DKIM signing and cryptographic verification remain enabled. ClamAV's fixture
+PING healthcheck does not claim production signature freshness.
+The Linux-root `test_operations.py` check uses installed host `logrotate` against
+private temporary files to verify 14 retained rotations with an open writer and
+non-root-owned log directory; it never installs a host policy or touches mail.
+
 ## Suite Organization
 
 Integration infrastructure is organized under `.integration/`. Unit/component
