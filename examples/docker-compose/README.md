@@ -40,7 +40,7 @@ Mail listeners default to loopback. Set `MAIL_BIND` to the intended public
 interface only after reviewing firewall rules. Set an independent
 `ROBIN_API_AUTH=username:password` for Robin and Admin; private APIs remain
 unpublished and Basic authentication does not replace network isolation.
-Keep `ROBIN_ADMIN_VERSION=1.2.0` or a reviewed compatible release; 1.1.x does not
+Keep `ROBIN_ADMIN_VERSION=1.5.1` or a reviewed compatible release; 1.1.x does not
 authenticate configuration reloads. Set `SUITE_LOG_MOUNT` to the checkout's
 absolute `log` directory. Set `REDIS_ADMIN_DSN` to
 `redis://:<contents of secrets/redis_password>@redis-backend:6379` so Admin uses

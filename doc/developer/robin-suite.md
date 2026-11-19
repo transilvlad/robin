@@ -105,9 +105,9 @@ database credential. Both private HTTP endpoints use Basic authentication;
 keep their network isolated because Basic does not encrypt credentials.
 The default demo endpoints remain unauthenticated, but Admin still requires this
 setting to issue management requests.
-The pinned public Admin release is 1.2.0, which sends authentication on management
-reload/status requests; older releases do not. Set `SUITE_LOG_MOUNT` to this
-checkout's absolute `log` directory for the co-located agent.
+The pinned public Admin release is 1.5.1. Admin 1.2.0 introduced authentication on
+management reload/status requests; older releases do not. Set `SUITE_LOG_MOUNT`
+to this checkout's absolute `log` directory for the co-located agent.
 The production Cyrus backend passes the same credential to both the IMAP proxy
 and Cyrus's PAM callback. Rebuild the reviewed Cyrus image from this checkout
 when upgrading these scripts; both legacy and JMAP entrypoints prepare a private

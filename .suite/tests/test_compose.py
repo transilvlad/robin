@@ -40,7 +40,7 @@ def production_model(fixture, backend="dovecot", production=True, overrides=None
     values = {
         "ROBIN_ADMIN_COMPOSE_FILE": str(admin),
         "ROBIN_ADMIN_SUITE_COMPOSE_FILE": str(admin_overlay),
-        "ROBIN_ADMIN_VERSION": "1.2.0", "ROBIN_ADMIN_PUBLIC_URL": "https://localhost:3443",
+        "ROBIN_ADMIN_VERSION": "1.5.1", "ROBIN_ADMIN_PUBLIC_URL": "https://localhost:3443",
         "MODULE_PROXY_SECRETS_JSON": json.dumps({"robin-tools": fixture.password}),
         "SESSION_SECRET": fixture.password, "ROBIN_ADMIN_ENCRYPTION_KEY": fixture.password,
         "DB_PASSWORD": fixture.password, "MONITOR_DB_PASSWORD": fixture.password,
