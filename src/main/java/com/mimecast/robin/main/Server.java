@@ -1,6 +1,7 @@
 package com.mimecast.robin.main;
 
 import com.mimecast.robin.auth.SqlAuthManager;
+import com.mimecast.robin.bots.BotRetrySpool;
 import com.mimecast.robin.config.DovecotConfig;
 import com.mimecast.robin.config.server.DnsConfig;
 import com.mimecast.robin.config.server.ServerConfig;
@@ -256,6 +257,14 @@ public class Server extends Foundation {
 
         ServerConfig serverConfig = Config.getServer();
 
+        // Start retries for report bot endpoint deliveries.
+        try {
+            BotRetrySpool.start(serverConfig.getBots().getRetry(),
+                    Paths.get(serverConfig.getStorage().getStringProperty("path", "/tmp/store"), "bots"));
+        } catch (Exception e) {
+            log.error("Unable to start bot endpoint retries: {}", e.getMessage());
+        }
+
         // Initialize LMTP connection pool if LMTP backend is enabled.
         try {
             DovecotConfig dovecotConfig = serverConfig.getDovecot();
@@ -355,6 +364,9 @@ public class Server extends Foundation {
                     Thread.currentThread().interrupt();
                 }
             }
+
+            // Stop bot endpoint retries; pending reports stay on disk.
+            BotRetrySpool.stop();
 
             // Close LMTP connection pool if initialized.
             if (lmtpPool != null) {

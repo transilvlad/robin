@@ -168,6 +168,34 @@ The `dmarc`, `tlsrpt`, and `forensic` bots support forwarding parsed reports to 
 
 `authValue` and `headers` values support Magic replacement syntax (same behavior as webhooks).
 
+#### Report Bot Endpoint Retries
+
+When an endpoint call fails with a connection error, a timeout, HTTP 408, HTTP 429 or any 5xx status, the report is kept on disk and sent again later, so an endpoint restart or outage does not lose reports. Reports skipped while the endpoint's circuit is open (after five failures in a row) are kept the same way. Other 4xx responses are logged and the report is dropped, since sending it again will not help.
+
+- Waiting reports are stored one JSON file each under `<storage path>/bots/retry`, readable only by Robin's user. They survive a Robin restart.
+- Headers are stored as they were sent, including `Authorization`, because Magic values come from the SMTP session that delivered the report.
+- A background thread checks for due reports every `pollSeconds`. A success deletes the file. A failure schedules the next attempt with the same geometric backoff as the relay queue.
+- Reports that run out of retries, pass `maxAgeSeconds`, or are refused by the endpoint on a retry move to `<storage path>/bots/dead` with their last error, and an error is logged.
+- Endpoints must accept the same report twice, since a request that timed out may already have been stored. Robin Admin's DMARC, TLS-RPT and forensic endpoints deduplicate reports.
+
+Configure retries with the optional `retry` object next to the `bots` list in `bots.json5`:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | boolean | `true` | Keep and retry failed reports. |
+| `totalRetries` | number | `52` | Retries before giving up. |
+| `firstWaitMinutes` | number | `1` | Wait before the first retry. |
+| `growthFactor` | number | `2.0` | Each wait is the previous one multiplied by this factor. |
+| `maxWaitSeconds` | number | `1800` | Longest wait between retries. |
+| `jitterFraction` | number | `0.1` | Random variation applied to each wait. |
+| `maxAgeSeconds` | number | `86400` | Give up this long after the first failure; `0` for no limit. |
+| `maxPending` | number | `10000` | Reports allowed to wait on disk; further failed reports are logged and dropped. |
+| `pollSeconds` | number | `30` | Seconds between checks for due reports. |
+
+With the defaults, retries continue for about 24 hours: waits double from one minute to the 30 minute cap, then repeat every 30 minutes.
+
+Retry counts are available under `botRetry` in the `/health` endpoint (see Health Metrics below).
+
 ## Available Bots
 
 ### Session Bot
@@ -361,6 +389,12 @@ Bot pool statistics are available via the `/health` endpoint:
     "queueSize": 0,
     "taskCount": 47,
     "completedTaskCount": 45
+  },
+  "botRetry": {
+    "enabled": true,
+    "pending": 3,
+    "dead": 0,
+    "oldestPendingEpochSeconds": 1795316400
   }
 }
 ```
@@ -371,6 +405,9 @@ Bot pool statistics are available via the `/health` endpoint:
 - `queueSize`: Number of pending bot requests
 - `taskCount`: Total number of bot processing tasks
 - `completedTaskCount`: Number of completed tasks
+- `botRetry.pending`: Report endpoint requests waiting to be retried
+- `botRetry.dead`: Report endpoint requests given up, kept under `<storage path>/bots/dead`
+- `botRetry.oldestPendingEpochSeconds`: First failure time of the oldest waiting request, or `null`
 
 ## Storage Behavior
 

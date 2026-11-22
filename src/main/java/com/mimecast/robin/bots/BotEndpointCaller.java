@@ -9,20 +9,27 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import javax.net.ssl.SSLContext;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
  * Shared HTTP caller for bot endpoint POST requests.
+ * <p>Requests that fail in a way that may succeed later (connection errors, timeouts, HTTP 408, 429 and
+ * 5xx) and requests skipped while an endpoint's circuit is open are handed to {@link BotRetrySpool}
+ * when it is running. Other failures are logged and dropped.
  */
 public final class BotEndpointCaller {
+    private static final Logger retryLog = LogManager.getLogger(BotRetrySpool.class);
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
     private static final OkHttpClient HTTP_CLIENT = new OkHttpClient.Builder()
             .connectTimeout(3, TimeUnit.SECONDS)
@@ -61,6 +68,29 @@ public final class BotEndpointCaller {
             consecutiveFailures = 0;
             openUntilEpochMillis = 0;
         }
+    }
+
+    /**
+     * Result of a single delivery attempt.
+     */
+    enum Result {
+        /** The endpoint accepted the request. */
+        DELIVERED,
+        /** The attempt failed and may succeed later. */
+        RETRY,
+        /** The endpoint refused the request; sending it again will not help. */
+        REJECTED,
+        /** Not attempted because the endpoint's circuit is open. */
+        DEFERRED
+    }
+
+    /**
+     * Delivery attempt outcome.
+     *
+     * @param result Result.
+     * @param error  Failure description, or null when delivered.
+     */
+    record Outcome(Result result, String error) {
     }
 
     private BotEndpointCaller() {
@@ -104,38 +134,95 @@ public final class BotEndpointCaller {
             return;
         }
 
+        Map<String, String> headers = new LinkedHashMap<>();
+        addAuthentication(headers, connection, botDefinition);
+        addCustomHeaders(headers, connection, botDefinition);
+
         CircuitState circuit = CIRCUITS.computeIfAbsent(endpoint, k -> new CircuitState());
         if (circuit.isOpen(System.currentTimeMillis())) {
-            log.debug("Skipping {} report to {}: circuit open after {} consecutive failures",
-                    botName, endpoint, circuit.consecutiveFailures());
+            String error = "circuit open after " + circuit.consecutiveFailures() + " consecutive failures";
+            if (queueForRetry(botName, endpoint, insecure, headers, payload, error)) {
+                log.debug("Queued {} report to {} for retry: {}", botName, endpoint, error);
+            } else {
+                log.debug("Skipping {} report to {}: {}", botName, endpoint, error);
+            }
             return;
         }
 
-        RequestBody body = RequestBody.create(payload, JSON);
+        Outcome outcome = send(endpoint, insecure, headers, payload);
+        if (outcome.result() == Result.DELIVERED) {
+            log.debug("Successfully sent {} report to endpoint", botName);
+            circuit.recordSuccess();
+            return;
+        }
+
+        recordFailure(circuit, endpoint, botName, log);
+        if (outcome.result() == Result.RETRY
+                && queueForRetry(botName, endpoint, insecure, headers, payload, outcome.error())) {
+            log.warn("Failed to send {} report to endpoint {}, queued for retry: {}",
+                    botName, endpoint, outcome.error());
+        } else {
+            log.error("Failed to send {} report to endpoint {}: {}", botName, endpoint, outcome.error());
+        }
+    }
+
+    /**
+     * Sends a stored request again, honouring the endpoint's circuit.
+     *
+     * @param entry Stored request.
+     * @return Delivery outcome.
+     */
+    static Outcome deliver(BotRetryEntry entry) {
+        String endpoint = entry.getEndpoint();
+        CircuitState circuit = CIRCUITS.computeIfAbsent(endpoint, k -> new CircuitState());
+        if (circuit.isOpen(System.currentTimeMillis())) {
+            return new Outcome(Result.DEFERRED, "circuit open");
+        }
+        Outcome outcome = send(endpoint, entry.isInsecure(), entry.getHeaders(), entry.getPayload());
+        if (outcome.result() == Result.DELIVERED) {
+            circuit.recordSuccess();
+        } else {
+            recordFailure(circuit, endpoint, entry.getBotName(), retryLog);
+        }
+        return outcome;
+    }
+
+    private static boolean queueForRetry(String botName, String endpoint, boolean insecure,
+                                         Map<String, String> headers, String payload, String error) {
+        BotRetrySpool spool = BotRetrySpool.getInstance();
+        return spool != null && spool.enqueue(botName, endpoint, insecure, headers, payload, error);
+    }
+
+    private static Outcome send(String endpoint, boolean insecure, Map<String, String> headers, String payload) {
         Request.Builder builder = new Request.Builder()
                 .url(endpoint)
-                .post(body)
+                .post(RequestBody.create(payload, JSON))
                 .addHeader("Content-Type", "application/json");
-
-        addAuthentication(builder, connection, botDefinition);
-        addCustomHeaders(builder, connection, botDefinition);
+        headers.forEach(builder::header);
 
         OkHttpClient client = insecure ? INSECURE_HTTP_CLIENT : HTTP_CLIENT;
         try (Response response = client.newCall(builder.build()).execute()) {
-            if (!response.isSuccessful()) {
-                String responseBody = response.body() != null ? response.body().string() : "no body";
-                log.error("Failed to send {} report to endpoint. Status: {} Response: {}",
-                        botName, response.code(), responseBody);
-                recordFailure(circuit, endpoint, botName, log);
-            } else {
-                log.debug("Successfully sent {} report to endpoint", botName);
-                circuit.recordSuccess();
+            if (response.isSuccessful()) {
+                return new Outcome(Result.DELIVERED, null);
             }
+            String responseBody = response.body() != null ? response.body().string() : "no body";
+            String error = "Status: " + response.code() + " Response: " + responseBody;
+            return new Outcome(isRetryableStatus(response.code()) ? Result.RETRY : Result.REJECTED, error);
+        } catch (IOException e) {
+            return new Outcome(Result.RETRY, e.getClass().getSimpleName() + ": " + e.getMessage());
         } catch (Exception e) {
-            log.error("Error sending {} report to endpoint {}: {}: {}",
-                    botName, endpoint, e.getClass().getSimpleName(), e.getMessage());
-            recordFailure(circuit, endpoint, botName, log);
+            return new Outcome(Result.REJECTED, e.getClass().getSimpleName() + ": " + e.getMessage());
         }
+    }
+
+    /**
+     * Whether an HTTP status may succeed if the request is sent again.
+     *
+     * @param code HTTP status code.
+     * @return True for 408, 429 and 5xx.
+     */
+    static boolean isRetryableStatus(int code) {
+        return code == 408 || code == 429 || code >= 500;
     }
 
     private static void recordFailure(CircuitState circuit, String endpoint, String botName, Logger log) {
@@ -147,7 +234,7 @@ public final class BotEndpointCaller {
     }
 
     private static void addAuthentication(
-            Request.Builder builder,
+            Map<String, String> headers,
             Connection connection,
             BotConfig.BotDefinition botDefinition
     ) {
@@ -159,14 +246,14 @@ public final class BotEndpointCaller {
         String authValue = Magic.magicReplace(botDefinition.getAuthValue(), connection.getSession());
         if ("basic".equalsIgnoreCase(authType) && !authValue.isEmpty()) {
             String encoded = Base64.getEncoder().encodeToString(authValue.getBytes(StandardCharsets.UTF_8));
-            builder.header("Authorization", "Basic " + encoded);
+            headers.put("Authorization", "Basic " + encoded);
         } else if ("bearer".equalsIgnoreCase(authType) && !authValue.isEmpty()) {
-            builder.header("Authorization", "Bearer " + authValue);
+            headers.put("Authorization", "Bearer " + authValue);
         }
     }
 
     private static void addCustomHeaders(
-            Request.Builder builder,
+            Map<String, String> headers,
             Connection connection,
             BotConfig.BotDefinition botDefinition
     ) {
@@ -174,14 +261,14 @@ public final class BotEndpointCaller {
             return;
         }
 
-        Map<String, String> headers = botDefinition.getHeaders();
-        if (headers == null) {
+        Map<String, String> configured = botDefinition.getHeaders();
+        if (configured == null) {
             return;
         }
 
-        for (Map.Entry<String, String> header : headers.entrySet()) {
+        for (Map.Entry<String, String> header : configured.entrySet()) {
             String value = Magic.magicReplace(header.getValue(), connection.getSession());
-            builder.header(header.getKey(), value);
+            headers.put(header.getKey(), value);
         }
     }
 }

@@ -9,6 +9,7 @@ import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.apache.logging.log4j.LogManager;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -18,6 +19,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+// Failures must not reach a BotRetrySpool installed by BotRetrySpoolTest.
+@ResourceLock("bot-retry-spool")
 class BotEndpointCallerTest {
 
     @Test

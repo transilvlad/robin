@@ -59,7 +59,19 @@ public class RetryScheduler {
      * @return Wait time in seconds or -1 if no more retries.
      */
     public static int getNextRetry(int retryCount) {
-        return calculateDelay(getRetryConfig(), retryCount, ThreadLocalRandom.current().nextDouble());
+        return getNextRetry(getRetryConfig(), retryCount);
+    }
+
+    /**
+     * Get the next retry wait time in seconds for a caller-supplied retry configuration.
+     * <p>Used by retry consumers other than the relay queue, such as bot endpoint delivery.
+     *
+     * @param config     Retry configuration.
+     * @param retryCount Current retry count.
+     * @return Wait time in seconds or -1 if no more retries.
+     */
+    public static int getNextRetry(RetryConfig config, int retryCount) {
+        return calculateDelay(config, retryCount, ThreadLocalRandom.current().nextDouble());
     }
 
     static int calculateDelay(RetryConfig config, int retryCount, double random) {

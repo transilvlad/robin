@@ -2,6 +2,7 @@ package com.mimecast.robin.endpoints;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.mimecast.robin.bots.BotRetrySpool;
 import com.mimecast.robin.config.store.ConfigStoreSyncManager;
 import com.mimecast.robin.main.Config;
 import com.mimecast.robin.main.Server;
@@ -354,13 +355,14 @@ public class RobinServiceEndpoint extends ServiceEndpoint {
                     uptime.toSecondsPart());
 
             // Final health JSON response.
-            String response = String.format("{\"status\":\"UP\", \"uptime\":\"%s\", \"listeners\":%s, \"queue\":%s, \"scheduler\":%s, \"metricsCron\":%s, \"botPool\":%s, \"lmtpPool\":%s}",
+            String response = String.format("{\"status\":\"UP\", \"uptime\":\"%s\", \"listeners\":%s, \"queue\":%s, \"scheduler\":%s, \"metricsCron\":%s, \"botPool\":%s, \"botRetry\":%s, \"lmtpPool\":%s}",
                     uptimeString,
                     getListenersJson(), // Listener stats.
                     getQueueJson(), // Queue stats and retry histogram.
                     getSchedulerJson(), // Scheduler config and cron stats.
                     getMetricsCronJson(), // Metrics cron stats.
                     getBotPoolJson(), // Bot processing thread pool stats.
+                    BotRetrySpool.getStatsJson(), // Report bot endpoint retry stats.
                     getLmtpPoolJson() // LMTP connection pool stats.
             );
 

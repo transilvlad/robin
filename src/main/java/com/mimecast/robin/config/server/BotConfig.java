@@ -85,6 +85,19 @@ public class BotConfig extends BasicConfig {
     }
 
     /**
+     * Gets the retry configuration for report bot endpoint delivery.
+     *
+     * @return BotRetryConfig instance, with defaults when no {@code retry} object is set.
+     */
+    @SuppressWarnings("unchecked")
+    public BotRetryConfig getRetry() {
+        if (getMap() == null || !getMap().containsKey("retry")) {
+            return new BotRetryConfig(null);
+        }
+        return new BotRetryConfig((Map<String, Object>) getMapProperty("retry"));
+    }
+
+    /**
      * Represents a single bot definition.
      */
     public static class BotDefinition extends BasicConfig {

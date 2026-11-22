@@ -243,5 +243,33 @@
 
     // You can add more bot definitions here.
     // Each bot can have different address patterns, restrictions, and implementations.
-  ]
+  ],
+
+  // Retries for the dmarc, tlsrpt and forensic bot endpoints (optional).
+  // A report whose endpoint call fails with a connection error, a timeout, HTTP 408, 429 or 5xx,
+  // or that is skipped while the endpoint's circuit is open, is kept under <storage path>/bots/retry
+  // and sent again later. Reports that run out of retries move to <storage path>/bots/dead.
+  // The values below are the defaults.
+  retry: {
+    // Keep and retry failed reports.
+    enabled: true,
+
+    // Retries before giving up, and the wait before the first retry.
+    totalRetries: 52,
+    firstWaitMinutes: 1,
+
+    // Each wait grows by this factor, up to maxWaitSeconds, varied by jitterFraction.
+    growthFactor: 2.0,
+    maxWaitSeconds: 1800,
+    jitterFraction: 0.1,
+
+    // Give up on a report this long after its first failure (0 for no limit).
+    maxAgeSeconds: 86400,
+
+    // Reports allowed to wait on disk; further failed reports are dropped.
+    maxPending: 10000,
+
+    // Seconds between checks for due reports.
+    pollSeconds: 30
+  }
 }
